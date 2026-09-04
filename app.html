@@ -29,15 +29,19 @@
       <table class="w-full text-[13px]">
         <thead class="bg-black/40 border-b border-amber-500/10 sticky top-0">
           <tr class="text-[10px] uppercase tracking-wider text-amber-200/45">
-            <th class="text-left px-6 py-3.5 font-medium">Team</th>
+            <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="teamName">Team</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="total">Total Value</th>
-            <th class="text-left px-3 py-3.5 font-medium">Position Split</th>
+            <th class="text-left px-3 py-3.5 font-medium min-w-[170px]">Position Split</th>
+            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="qb">QB</th>
+            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="rb">RB</th>
+            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="wr">WR</th>
+            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="te">TE</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="picksValue">Picks</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="age">Age</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="opt">Opt PPG</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="production">Production</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="longevity">Longevity</th>
-            <th class="text-left px-6 py-3.5 font-medium">Archetype</th>
+            <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="arch">Archetype</th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.04]"></tbody>
@@ -80,12 +84,14 @@ function microBar(val, max) {
   return `<div class="mt-1.5 h-[3px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full bg-amber-400/50 rounded-full" style="width:${pct}%"></div></div>`;
 }
 
+const POS_TEXT = { QB: 'text-sky-300/80', RB: 'text-emerald-300/80', WR: 'text-fuchsia-300/80', TE: 'text-amber-300/80' };
+
 function posSplitBar(t) {
   const parts = ['QB', 'RB', 'WR', 'TE'].map(p => ({ pos: p, val: t[p.toLowerCase()] }));
   const sum = parts.reduce((s, p) => s + p.val, 0) || 1;
   const segs = parts.map(p => `<div class="h-full ${POS_COLOR[p.pos]}" style="width:${p.val / sum * 100}%" title="${p.pos}: ${Math.round(p.val).toLocaleString()}"></div>`).join('');
-  const label = parts.map(p => `${p.pos} ${Math.round(p.val / sum * 100)}%`).join(' · ');
-  return `<div class="h-[7px] w-full max-w-[160px] rounded-full overflow-hidden flex bg-white/[0.06]" title="${label}">${segs}</div>`;
+  const labels = parts.map(p => `<span class="${POS_TEXT[p.pos]}">${p.pos} ${Math.round(p.val / sum * 100)}%</span>`).join(' ');
+  return `<div class="h-[7px] w-full max-w-[160px] rounded-full overflow-hidden flex bg-white/[0.06]">${segs}</div><div class="mt-1 flex gap-2 text-[10px] font-mono whitespace-nowrap">${labels}</div>`;
 }
 
 async function load() {
@@ -104,9 +110,17 @@ async function load() {
 
 function render() {
   const tb = document.getElementById('tbody');
-  const data = [...teams].sort((a, b) => { const av = a[sort.key], bv = b[sort.key]; return sort.dir * (av > bv ? 1 : av < bv ? -1 : 0); });
+  const data = [...teams].sort((a, b) => {
+    let av = a[sort.key], bv = b[sort.key];
+    if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+    return sort.dir * (av > bv ? 1 : av < bv ? -1 : 0);
+  });
   document.querySelectorAll('th.sortable').forEach(th => th.classList.toggle('active', th.dataset.sort === sort.key));
   const maxTotal = Math.max(...data.map(t => t.total));
+  const maxQb = Math.max(...data.map(t => t.qb));
+  const maxRb = Math.max(...data.map(t => t.rb));
+  const maxWr = Math.max(...data.map(t => t.wr));
+  const maxTe = Math.max(...data.map(t => t.te));
   const maxPicks = Math.max(...data.map(t => t.picksValue));
   const maxOpt = Math.max(...data.map(t => t.opt));
   const maxProduction = Math.max(...data.map(t => t.production));
@@ -130,6 +144,22 @@ function render() {
       </td>
       <td class="px-3 py-3.5">${posSplitBar(t)}</td>
       <td class="px-3 py-3.5 text-right">
+        <div class="font-mono text-[13px] ${POS_TEXT.QB}">${Math.round(t.qb).toLocaleString()}</div>
+        ${microBar(t.qb, maxQb)}
+      </td>
+      <td class="px-3 py-3.5 text-right">
+        <div class="font-mono text-[13px] ${POS_TEXT.RB}">${Math.round(t.rb).toLocaleString()}</div>
+        ${microBar(t.rb, maxRb)}
+      </td>
+      <td class="px-3 py-3.5 text-right">
+        <div class="font-mono text-[13px] ${POS_TEXT.WR}">${Math.round(t.wr).toLocaleString()}</div>
+        ${microBar(t.wr, maxWr)}
+      </td>
+      <td class="px-3 py-3.5 text-right">
+        <div class="font-mono text-[13px] ${POS_TEXT.TE}">${Math.round(t.te).toLocaleString()}</div>
+        ${microBar(t.te, maxTe)}
+      </td>
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono text-[13px] text-amber-50/80">${Math.round(t.picksValue).toLocaleString()}</div>
         ${microBar(t.picksValue, maxPicks)}
       </td>
@@ -148,7 +178,7 @@ function render() {
       </td>
       <td class="px-6 py-3.5"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span></td>
     </tr>
-    ${exp ? `<tr><td colspan="9" class="px-6 pb-6 bg-black/40"><div class="grid lg:grid-cols-5 gap-6 pt-4">${['QB', 'RB', 'WR', 'TE'].map(pos => { const ps = t.plist.filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8); return `<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${pos}</div><div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-300 truncate mr-2">${Vault.escapeHtml(p.name) || '—'}</span><span class="font-mono text-zinc-500">${Math.round(p.value).toLocaleString()}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div>`; }).join('')}<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">2027-29 Picks</div><div class="space-y-1.5 max-h-[180px] overflow-auto pr-2 scrollbar">${t.picks.sort((a, b) => a.season - b.season || a.round - b.round).map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-400">${p.season} R${p.round} <span class="text-zinc-600">(orig ${p.original})</span></span><span class="font-mono ${p.tier === 'early' ? 'text-emerald-400' : p.tier === 'mid' ? 'text-amber-300' : 'text-rose-400'}">${p.tier}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div></div></td></tr>` : ''}`;
+    ${exp ? `<tr><td colspan="13" class="px-6 pb-6 bg-black/40"><div class="grid lg:grid-cols-5 gap-6 pt-4">${['QB', 'RB', 'WR', 'TE'].map(pos => { const ps = t.plist.filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8); return `<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${pos}</div><div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-300 truncate mr-2">${Vault.escapeHtml(p.name) || '—'}</span><span class="font-mono text-zinc-500">${Math.round(p.value).toLocaleString()}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div>`; }).join('')}<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">2027-29 Picks</div><div class="space-y-1.5 max-h-[180px] overflow-auto pr-2 scrollbar">${t.picks.sort((a, b) => a.season - b.season || a.round - b.round).map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-400">${p.season} R${p.round} <span class="text-zinc-600">(orig ${p.original})</span></span><span class="font-mono ${p.tier === 'early' ? 'text-emerald-400' : p.tier === 'mid' ? 'text-amber-300' : 'text-rose-400'}">${p.tier}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div></div></td></tr>` : ''}`;
   }).join('');
   document.querySelectorAll('tr.team-row').forEach(tr => {
     tr.onclick = () => { const id = Number(tr.dataset.id); if (expanded.has(id)) { expanded.delete(id); } else { expanded.add(id); } render(); };

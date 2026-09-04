@@ -7,6 +7,11 @@
 // differently (PPR vs half-PPR, TE premium, first-down bonuses...), and vault-core.js
 // dot-products these against each league's *actual* `scoring_settings` from Sleeper to
 // get an exact, league-accurate projection instead of assuming one generic format.
+//
+// Season-long average rather than a single week's projection: it runs a bit below
+// Sleeper's own current-week team total (which reflects one week's matchup, not a
+// per-game average), but that gap is nominal for comparing teams against each other,
+// and a season average isn't skewed by any one team having a bye-week starter that week.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

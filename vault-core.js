@@ -108,6 +108,21 @@ const Vault = {
     return map;
   },
 
+  /* KTC prices picks per-round assuming a 12-team, linear (non-snake) draft order:
+     round R spans overall picks (R-1)*12+1..R*12, split early/mid/late in groups of 4
+     (worst teams pick first = early = most valuable). A league with a different team
+     count draws from the same rookie class at a different overall pace, so the right
+     comparison is by OVERALL pick number, not by matching round labels — e.g. in a
+     10-team league, standings ranks 1-4 in round 3 land at overall picks 21-24, which
+     is round 2's LATE tier in the 12-team convention, not round 3 at all. Round is
+     clamped to KTC's tracked range (1-4) since it has no pricing beyond that. */
+  ktcPickSlot(overallPick) {
+    const round = Math.min(4, Math.max(1, Math.ceil(overallPick / 12)));
+    const pos = ((overallPick - 1) % 12) + 1;
+    const tier = pos <= 4 ? 'early' : pos <= 8 ? 'mid' : 'late';
+    return { round, tier };
+  },
+
   /* ---------- Season projections (per-league scoring) ----------
      Every league scores differently (PPR vs half vs standard, TE premium, first-down
      bonuses...), so one canned PPG number can't be right everywhere. data/projections.json
@@ -281,17 +296,19 @@ const Vault = {
     const avgOpt = built.reduce((s, t) => s + t.opt, 0) / built.length;
     built.forEach(t => t.production = avgOpt ? t.opt / avgOpt * 100 : 100);
 
-    // Pick tiers ranked by standings (early/mid/late), then priced from the pick-value sheet
-    const sorted = [...built].sort((a, b) => b.opt - a.opt);
+    // Draft order rank (1 = worst team, picks first; n = best team, picks last),
+    // used to convert each pick into its overall pick number for ktcPickSlot.
+    const sorted = [...built].sort((a, b) => b.opt - a.opt); // best team first
     const n = sorted.length;
-    const late = n === 10 ? 3 : 4;
-    const mid = 4;
-    const tier = new Map(sorted.map((t, i) => [t.rosterId, i < late ? 'late' : (i < late + mid ? 'mid' : 'early')]));
+    const draftRank = new Map(sorted.map((t, k) => [t.rosterId, n - k]));
     built.forEach(t => {
       let sum = 0;
       t.picks.forEach(p => {
-        p.tier = tier.get(p.original) || 'mid';
-        p.value = pickMap.get(`${p.season}-${p.round}-${p.tier}`) || 0;
+        const rank = draftRank.get(p.original) || 1;
+        const overall = (p.round - 1) * n + rank;
+        const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
+        p.tier = tier;
+        p.value = pickMap.get(`${p.season}-${ktcRound}-${tier}`) || 0;
         sum += p.value;
       });
       t.picksValue = sum;
