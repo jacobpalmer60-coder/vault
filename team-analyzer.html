@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Team Analyzer — The Vault</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+</head>
+<body class="text-amber-50 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<main class="max-w-[1400px] mx-auto px-6 py-8">
+  <div class="mb-6">
+    <h1 class="display text-2xl gold-text">Team Analyzer</h1>
+    <p class="text-[11px] uppercase tracking-widest text-amber-200/50 mt-1">9 Archetypes • Real Values</p>
+  </div>
+
+  <div class="card rounded-[24px] p-5 mb-6">
+    <div class="flex flex-col md:flex-row gap-3 md:items-end">
+      <div class="flex-1">
+        <label class="text-xs text-amber-200/60">Sleeper League ID</label>
+        <div class="mt-1.5 flex gap-2">
+          <input id="leagueId" class="w-full bg-black/60 border border-amber-500/20 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-amber-400" placeholder="1313454100225990656"/>
+          <button id="loadBtn" class="btn-gold-solid px-4 py-2.5 text-sm">Load</button>
+        </div>
+      </div>
+      <select id="teamSelect" class="bg-black/60 border border-amber-500/20 rounded-xl px-3 py-2.5 text-sm min-w-[220px] hidden"></select>
+    </div>
+    <div id="status" class="mt-3 text-xs text-amber-300/70 hidden"></div>
+  </div>
+
+  <section id="singleCard" class="mb-10"></section>
+
+  <section>
+    <h2 class="display text-lg gold-text mb-3">League Summary</h2>
+    <div class="card rounded-[24px] overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-[13px]">
+          <thead class="bg-black/60 border-b border-amber-500/10 sticky top-0">
+            <tr class="text-[11px] uppercase tracking-widest text-amber-200/60">
+              <th class="text-left px-4 py-3">#</th>
+              <th class="text-left px-4 py-3">Team</th>
+              <th class="text-left px-4 py-3">Archetype</th>
+              <th class="text-right px-3 py-3">Total</th>
+              <th class="text-right px-3 py-3">Opt PPG</th>
+              <th class="text-right px-3 py-3">Age</th>
+              <th class="text-right px-3 py-3">Picks</th>
+            </tr>
+          </thead>
+          <tbody id="summary" class="divide-y divide-amber-500/5"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+
+function getFatalFlaws(t, leagueAvg) {
+  const flaws = [];
+  const rbOld = t.plist.filter(p => p.pos === 'RB' && p.age >= 27).reduce((s, p) => s + p.value, 0);
+  const rbTotal = t.rb || 1;
+  if (rbOld / rbTotal > 0.6) flaws.push(`RB Age Cliff: ${Math.round(rbOld / rbTotal * 100)}% of RB value is 27+`);
+  const pos = { QB: t.qb, RB: t.rb, WR: t.wr, TE: t.te };
+  Object.entries(pos).forEach(([k, v]) => {
+    if (v < leagueAvg[k] * 0.55) flaws.push(`${k} Bankruptcy: ${Math.round(v).toLocaleString()} vs league avg ${Math.round(leagueAvg[k]).toLocaleString()}`);
+  });
+  if (t.picksValue < leagueAvg.picks * 0.5) flaws.push(`Pick Poor: ${Math.round(t.picksValue).toLocaleString()} pick value (bottom 30%)`);
+  const starters = t.plist.filter(p => p.value > 1000).length;
+  if (starters < 14) flaws.push(`Thin Depth: Only ${starters} players >1k value`);
+  return flaws.slice(0, 3);
+}
+
+function getTradePartners(t, all) {
+  const posPct = {};
+  ['qb', 'rb', 'wr', 'te'].forEach(k => {
+    const arr = all.map(x => x[k]).sort((a, b) => a - b);
+    posPct[k] = arr.indexOf(t[k]) / (arr.length - 1);
+  });
+  const needs = Object.entries(posPct).filter(([k, v]) => v < 0.35).map(([k]) => k);
+
+  return all.filter(o => o.rosterId !== t.rosterId).map(o => {
+    const oPos = {}; ['qb', 'rb', 'wr', 'te'].forEach(k => { const arr = all.map(x => x[k]).sort((a, b) => a - b); oPos[k] = arr.indexOf(o[k]) / (arr.length - 1); });
+    const theirSurplus = Object.entries(oPos).filter(([k, v]) => v > 0.65).map(([k]) => k);
+    const theirNeeds = Object.entries(oPos).filter(([k, v]) => v < 0.35).map(([k]) => k);
+    const surpluses = Object.entries(posPct).filter(([k, v]) => v > 0.65).map(([k]) => k);
+    let score = 0;
+    needs.forEach(n => { if (theirSurplus.includes(n)) score += 3; });
+    surpluses.forEach(s => { if (theirNeeds.includes(s)) score += 2; });
+    if (Math.abs(t.age - o.age) > 2.5) score += 1;
+    if (t.picksValue < 5000 && o.picksValue > 8000) score += 2;
+    if (t.picksValue > 8000 && o.picksValue < 5000) score += 2;
+    return { ...o, fit: score };
+  }).sort((a, b) => b.fit - a.fit).slice(0, 2);
+}
+
+function getWindow(t, all) {
+  const startYear = new Date().getFullYear();
+  const years = 5;
+  const proj = [];
+  for (let y = 0; y < years; y++) {
+    let val = 0;
+    t.plist.forEach(p => {
+      let decay = 1;
+      const age = p.age + y;
+      if (p.pos === 'RB' && age > 26) decay = Math.pow(0.85, age - 26);
+      if (p.pos === 'WR' && age > 27) decay = Math.pow(0.92, age - 27);
+      if (p.pos === 'QB' && age > 30) decay = Math.pow(0.96, age - 30);
+      if (p.pos === 'TE' && age > 28) decay = Math.pow(0.93, age - 28);
+      val += p.value * decay;
+    });
+    proj.push(Math.round(val));
+  }
+  const peak = Math.max(...proj);
+  const year = startYear + proj.indexOf(peak);
+
+  const playoffSpots = Math.max(4, Math.ceil(all.length * 0.6));
+  const sortedPPG = [...all].map(x => x.opt).sort((a, b) => b - a);
+  const playoffLine = sortedPPG[playoffSpots - 1] || sortedPPG[sortedPPG.length - 1];
+
+  const projPPG = proj.map(v => t.opt * (v / (t.total || 1)));
+  const valueThreshold = peak * 0.88;
+  const inWindow = proj.map((v, i) => v >= valueThreshold && projPPG[i] >= playoffLine * 0.97);
+
+  const startIdx = inWindow.indexOf(true);
+  const endIdx = inWindow.lastIndexOf(true);
+  return { proj, projPPG, peakYear: year, peak, startYear, inWindow, windowStart: startIdx >= 0 ? startYear + startIdx : startYear, windowEnd: endIdx >= 0 ? startYear + endIdx : startYear, years, playoffLine, playoffSpots };
+}
+
+async function loadLeague(id) {
+  $('#status').classList.remove('hidden'); $('#status').textContent = 'Loading league…';
+  try {
+    const { isSF, teams: built } = await Vault.buildLeagueTeams(id);
+    window._allTeams = built;
+
+    const sel = $('#teamSelect'); sel.innerHTML = built.map(t => `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)} ${Vault.escapeHtml(t.username)}</option>`).join(''); sel.classList.remove('hidden');
+    const saved = localStorage.getItem('vault_username');
+    const found = built.find(t => t.username.toLowerCase() === String(saved || '').toLowerCase());
+    sel.value = String(found ? found.rosterId : built[0].rosterId);
+    sel.onchange = () => renderSingle(built.find(t => String(t.rosterId) === sel.value));
+
+    renderSingle(found || built[0]);
+    renderSummary(built);
+    $('#status').textContent = `Loaded ${built.length} teams • ${isSF ? 'Superflex' : '1QB'}`;
+  } catch (e) {
+    console.error(e);
+    $('#status').textContent = e.message;
+  }
+}
+
+function renderSingle(t) {
+  if (!t) return;
+  const all = window._allTeams || [];
+  const leagueAvg = {
+    qb: all.reduce((s, x) => s + x.qb, 0) / all.length,
+    rb: all.reduce((s, x) => s + x.rb, 0) / all.length,
+    wr: all.reduce((s, x) => s + x.wr, 0) / all.length,
+    te: all.reduce((s, x) => s + x.te, 0) / all.length,
+    picks: all.reduce((s, x) => s + x.picksValue, 0) / all.length,
+  };
+  const flaws = getFatalFlaws(t, leagueAvg);
+  const partners = getTradePartners(t, all);
+  const win = getWindow(t, all);
+
+  const bars = [
+    { l: 'Total Value', v: Math.round(t.total), c: 'from-amber-500 to-yellow-500' },
+    { l: 'Opt PPG', v: t.opt.toFixed(1), c: 'from-emerald-500 to-teal-500' },
+    { l: 'Age', v: t.age.toFixed(1), c: 'from-zinc-500 to-zinc-400' },
+    { l: 'Picks Value', v: Math.round(t.picksValue), c: 'from-sky-500 to-cyan-500' },
+  ];
+  $('#singleCard').innerHTML = `
+  <div class="card rounded-[28px] p-6">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h2 class="display text-2xl gold-text">${Vault.escapeHtml(t.teamName)}</h2>
+        <p class="text-xs text-amber-200/60">${Vault.escapeHtml(t.username)} • Rank #${t.rank} • Peak: ${win.peakYear}</p>
+      </div>
+      <span class="px-3 py-1.5 rounded-full text-xs border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
+    </div>
+    <div class="grid md:grid-cols-4 gap-4 mt-6">
+      ${bars.map(b => `<div class="bg-black/40 rounded-2xl p-4 border border-amber-500/10"><div class="text-[11px] uppercase tracking-widest text-amber-200/50">${b.l}</div><div class="text-2xl font-semibold mt-1">${b.v}</div></div>`).join('')}
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-4 mt-6">
+      <div class="bg-black/40 rounded-2xl p-4 border border-red-500/20">
+        <div class="text-[11px] uppercase tracking-widest text-red-300/70 mb-2">Fatal Flaws</div>
+        <div class="space-y-1.5 text-[12px]">${flaws.length ? flaws.map(f => `<div class="flex gap-2"><span class="text-red-400">•</span><span>${f}</span></div>`).join('') : '<div class="text-zinc-500">No critical flaws</div>'}</div>
+      </div>
+      <div class="bg-black/40 rounded-2xl p-4 border border-emerald-500/20">
+        <div class="text-[11px] uppercase tracking-widest text-emerald-300/70 mb-2">Best Trade Partners</div>
+        <div class="space-y-2">${partners.map(p => `<div class="flex justify-between items-center"><div><div class="text-[13px]">${Vault.escapeHtml(p.teamName)}</div><div class="text-[10px] text-zinc-500">${p.arch}</div></div><div class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">${p.fit}/10 fit</div></div>`).join('')}</div>
+      </div>
+      <div class="bg-black/40 rounded-2xl p-4 border border-amber-500/20">
+        <div class="text-[11px] uppercase tracking-widest text-amber-300/70 mb-2">Contention Window (5yr)</div>
+        <div class="flex items-end gap-1.5 h-[70px]">${win.proj.map((v, i) => `<div class="flex-1 flex flex-col items-center"><div class="w-full bg-gradient-to-t from-amber-600/30 to-amber-400/90 rounded-t" style="height:${Math.max(8, v / win.peak * 100)}%" title="${win.startYear + i}: ${v.toLocaleString()} value, ${win.projPPG[i].toFixed(1)} PPG"></div></div>`).join('')}</div>
+        <div class="flex justify-between text-[10px] mt-1 text-zinc-500">${win.proj.map((v, i) => `<span>${win.startYear + i}</span>`).join('')}</div>
+        <div class="mt-2 h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex">${win.proj.map((v, i) => `<div class="h-full ${win.inWindow[i] ? 'bg-amber-400' : 'bg-zinc-700'}" style="width:${100 / win.proj.length}%"></div>`).join('')}</div>
+        <div class="text-center text-[11px] mt-1.5 text-amber-300">${win.inWindow.some(x => x) ? (win.windowEnd - win.windowStart + 1) + 'yr window' : 'No window'} • Peak ${Math.round(win.peak).toLocaleString()} in ${win.peakYear}</div>
+        <div class="mt-3 pt-2 border-t border-zinc-800 text-[10px] text-zinc-500 space-y-1">
+          <div class="flex items-center gap-1.5"><span class="w-3 h-1.5 bg-amber-400 rounded"></span> In window (value ≥88% peak + PPG ≥ playoff line)</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-1.5 bg-zinc-700 rounded"></span> Outside window</div>
+          <div>Playoff line: ${win.playoffLine.toFixed(1)} PPG (top ${win.playoffSpots})</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-5 gap-6 mt-8">
+      ${['QB', 'RB', 'WR', 'TE'].map(pos => { const ps = t.plist.filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 6); return `<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${pos}</div><div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between text-[12px]"><span class="truncate mr-2">${Vault.escapeHtml(p.name) || '—'}</span><span class="font-mono text-zinc-500">${Math.round(p.value)}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div>`; }).join('')}
+      <div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">2027-29 Picks</div><div class="space-y-1.5 text-[12px]">${t.picks.map(p => `<div class="flex justify-between"><span>${p.season} R${p.round}</span><span class="font-mono">${Math.round(p.value)}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div>
+    </div>
+  </div>`;
+}
+
+function renderSummary(teams) {
+  $('#summary').innerHTML = teams.map(t => `
+    <tr class="hover:bg-amber-500/5 cursor-pointer" onclick="document.getElementById('teamSelect').value='${t.rosterId}';document.getElementById('teamSelect').dispatchEvent(new Event('change'))">
+      <td class="px-4 py-3 text-amber-300/70">${t.rank}</td>
+      <td class="px-4 py-3"><div class="font-medium">${Vault.escapeHtml(t.teamName)}</div><div class="text-[11px] text-amber-200/40">${Vault.escapeHtml(t.username)}</div></td>
+      <td class="px-4 py-3"><span class="px-2.5 py-1 rounded-full text-[11px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span></td>
+      <td class="px-3 py-3 text-right font-mono">${Math.round(t.total).toLocaleString()}</td>
+      <td class="px-3 py-3 text-right font-mono text-emerald-300/80">${t.opt.toFixed(1)}</td>
+      <td class="px-3 py-3 text-right font-mono">${t.age.toFixed(1)}</td>
+      <td class="px-3 py-3 text-right font-mono">${Math.round(t.picksValue).toLocaleString()}</td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('loadBtn').onclick = () => {
+  const id = document.getElementById('leagueId').value.trim();
+  if (id) { Vault.setLeagueId(id); loadLeague(id); }
+};
+window.addEventListener('DOMContentLoaded', () => {
+  const id = Vault.getLeagueId();
+  document.getElementById('leagueId').value = id;
+  loadLeague(id);
+});
+</script>
+</body>
+</html>

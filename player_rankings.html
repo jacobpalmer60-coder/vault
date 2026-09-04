@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Player Rankings — The Vault</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+</head>
+<body class="text-amber-50 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <header class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
+    <div>
+      <h1 class="display text-3xl sm:text-4xl font-bold gold-text">Player Rankings</h1>
+      <p class="text-amber-200/50 max-w-xl mt-2">Merge DynastyProcess values with 0.5 TEP PPG. Sort, filter and find value inefficiencies instantly.</p>
+    </div>
+    <div class="glass p-4 min-w-[320px]">
+      <label class="text-xs uppercase tracking-wider text-amber-200/50 mb-2 block">Sleeper League</label>
+      <div class="flex gap-2">
+        <input id="leagueId" class="flex-1 bg-black/40 border border-amber-500/15 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-500/60 mono" />
+        <button id="loadLeague" class="btn-gold-solid px-4 py-2.5 text-sm">Load</button>
+      </div>
+      <div id="leagueInfo" class="mt-3 text-xs text-amber-200/50">Loading league…</div>
+    </div>
+  </header>
+
+  <!-- Stats Bar -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    <div class="glass p-4">
+      <div class="text-xs uppercase tracking-wider text-amber-200/40">Players</div>
+      <div id="statPlayers" class="text-2xl font-semibold mt-1 mono text-amber-50">—</div>
+    </div>
+    <div class="glass p-4">
+      <div class="text-xs uppercase tracking-wider text-amber-200/40">Avg Value</div>
+      <div id="statAvgVal" class="text-2xl font-semibold mt-1 mono text-amber-50">—</div>
+    </div>
+    <div class="glass p-4">
+      <div class="text-xs uppercase tracking-wider text-amber-200/40">Avg PPG</div>
+      <div id="statAvgPPG" class="text-2xl font-semibold mt-1 mono text-amber-50">—</div>
+    </div>
+    <div class="glass p-4">
+      <div class="text-xs uppercase tracking-wider text-amber-200/40">Format</div>
+      <div id="statFormat" class="text-2xl font-semibold mt-1 mono text-amber-50">—</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="glass p-4 mb-4">
+    <div class="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-200/40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="search" placeholder="Search player, team…" class="w-[260px] bg-black/40 border border-amber-500/15 rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-amber-500/60" />
+        </div>
+        <div class="flex items-center bg-black/40 border border-amber-500/15 rounded-xl p-1">
+          <button data-pos="ALL" class="pos-btn px-3 py-1.5 text-sm rounded-lg bg-amber-500/15 text-amber-200 font-medium">All</button>
+          <button data-pos="QB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">QB</button>
+          <button data-pos="RB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">RB</button>
+          <button data-pos="WR" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">WR</button>
+          <button data-pos="TE" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">TE</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-xs text-amber-200/40">
+        <span class="hidden sm:inline">Sort by clicking headers</span>
+        <button id="resetFilters" class="px-3 py-1.5 rounded-lg border border-amber-500/15 hover:bg-white/5">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="glass overflow-hidden">
+    <div class="overflow-x-auto scrollbar max-h-[70vh]">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0 z-10 bg-black/80 backdrop-blur-xl border-b border-amber-500/10">
+          <tr class="text-left text-amber-200/50">
+            <th class="px-4 py-3 font-medium w-14">#</th>
+            <th class="px-4 py-3 font-medium sortable" data-key="player">Player <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable" data-key="pos">Pos <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable" data-key="team">Team <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="age">Age <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="value">Value <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg">PPG <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="vpRatio">Value/PPG <span class="sort-ind"></span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody" class="divide-y divide-amber-500/[0.06]">
+          <tr><td colspan="8" class="px-4 py-16 text-center text-amber-200/40">Loading data…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Status Log -->
+  <div class="mt-6 grid lg:grid-cols-3 gap-4">
+    <div class="glass p-4 lg:col-span-2">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-amber-200/60">Status Log</h2>
+        <button id="clearLog" class="text-xs text-amber-200/40 hover:text-amber-200">Clear</button>
+      </div>
+      <div id="log" class="h-32 overflow-y-auto scrollbar mono text-xs text-amber-200/50 space-y-1 bg-black/30 rounded-xl p-3 border border-amber-500/10"></div>
+    </div>
+    <div class="glass p-4">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-amber-200/60 mb-2">Notes</h2>
+      <ul class="text-xs text-amber-200/50 space-y-2 leading-relaxed">
+        <li>• Value column switches automatically between <span class="mono text-amber-200">val_sf_ppr_tep05</span> and <span class="mono text-amber-200">val_1qb_ppr_tep05</span> based on your league's format</li>
+        <li>• PPG = <span class="mono text-amber-200">Avg_PPR_0.5_TEP</span></li>
+        <li>• Value/PPG = Value ÷ PPG</li>
+        <li>• Merge key = normalized player name</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer class="mt-10 text-center text-xs text-amber-200/30">
+    Built for dynasty managers. Data © DynastyProcess & Sleeper API.
+  </footer>
+</div>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+(() => {
+  const $ = sel => document.querySelector(sel);
+  const tbody = $('#tbody');
+  const logEl = $('#log');
+  const statPlayers = $('#statPlayers');
+  const statAvgVal = $('#statAvgVal');
+  const statAvgPPG = $('#statAvgPPG');
+  const statFormat = $('#statFormat');
+  const leagueInfo = $('#leagueInfo');
+
+  let allRows = [];
+  let filteredRows = [];
+  let sortKey = 'value';
+  let sortDir = 'desc';
+  let posFilter = 'ALL';
+  let searchQuery = '';
+  let isSF = true; // default assumption until league loads
+
+  function log(msg, type = 'info') {
+    const time = new Date().toLocaleTimeString();
+    const color = type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-amber-400' : 'text-amber-200/40';
+    const line = document.createElement('div');
+    line.innerHTML = `<span class="${color}">[${time}]</span> ${msg}`;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  const fmtInt = Vault.fmtInt;
+  const fmtFloat = Vault.fmtFloat;
+  const posColor = pos => `pos-badge-${['QB','RB','WR','TE'].includes(pos) ? pos : 'default'}`;
+
+  function fixCsvLineMerges(text) {
+    const lines = text.split(/\r?\n/);
+    const out = [];
+    let buf = '';
+    for (let line of lines) {
+      if (!line && !buf) continue;
+      buf = buf ? buf + '\n' + line : line;
+      const quotes = (buf.match(/"/g) || []).length;
+      if (quotes % 2 === 0) { out.push(buf); buf = ''; }
+    }
+    if (buf) out.push(buf);
+    return out.join('\n');
+  }
+
+  function parseCsv(text, fixLines = false) {
+    if (fixLines) text = fixCsvLineMerges(text);
+    return Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false }).data;
+  }
+
+  function findCol(row, candidates) {
+    const keys = Object.keys(row);
+    const low = keys.map(k => [k, k.toLowerCase()]);
+    for (const cand of candidates) {
+      const c = cand.toLowerCase();
+      for (const [orig, lo] of low) {
+        if (lo === c || lo.includes(c)) return orig;
+      }
+    }
+    return null;
+  }
+
+  async function fetchCsv(url, label, fixLines = false) {
+    log(`Fetching ${label}…`);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${label} fetch failed: ${res.status}`);
+    const text = await res.text();
+    const data = parseCsv(text, fixLines);
+    log(`Parsed ${label}: ${data.length.toLocaleString()} rows`);
+    return data;
+  }
+
+  async function loadData() {
+    try {
+      statFormat.textContent = isSF ? 'Superflex' : '1QB';
+      const [valuesRaw, ppgRaw] = await Promise.all([
+        fetchCsv(VAULT_CONFIG.VALUES_URL, 'Values'),
+        fetchCsv(VAULT_CONFIG.PPG_URL, 'PPG', true)
+      ]);
+
+      const ppgColCandidates = ['Avg_PPR_0.5_TEP', 'avg_ppr_0.5_tep', 'avg_ppr', 'ppg'];
+      const ppgNameCand = ['player', 'name', 'player_name'];
+      const ppgMap = new Map();
+      for (const r of ppgRaw) {
+        const nameCol = findCol(r, ppgNameCand);
+        const ppgCol = findCol(r, ppgColCandidates);
+        if (!nameCol || !ppgCol) continue;
+        const name = Vault.normalizeName(r[nameCol]);
+        const val = parseFloat(r[ppgCol]);
+        if (name && Number.isFinite(val)) ppgMap.set(name, val);
+      }
+      log(`PPG map built: ${ppgMap.size.toLocaleString()} players`);
+
+      const rows = [];
+      const vNameCand = ['player', 'name', 'player_name'];
+      const vPosCand = ['pos', 'position'];
+      const vTeamCand = ['team'];
+      const vAgeCand = ['age'];
+      // Value column priority follows the league's scoring format (Super Flex vs 1QB)
+      const vValCand = isSF
+        ? ['val_sf_ppr_tep05', 'value', 'sf_tep']
+        : ['val_1qb_ppr_tep05', 'value', '1qb_tep'];
+
+      for (const r of valuesRaw) {
+        const nameCol = findCol(r, vNameCand);
+        if (!nameCol) continue;
+        const name = (r[nameCol] || '').trim();
+        if (!name) continue;
+        const norm = Vault.normalizeName(name);
+        const pos = (r[findCol(r, vPosCand)] || '').toString().toUpperCase().slice(0, 3);
+        const team = (r[findCol(r, vTeamCand)] || '').toString().toUpperCase();
+        const age = parseFloat(r[findCol(r, vAgeCand)] || '');
+        const value = parseFloat(r[findCol(r, vValCand)] || '');
+        const ppg = ppgMap.get(norm) ?? null;
+        const vpRatio = (Number.isFinite(value) && Number.isFinite(ppg) && ppg > 0) ? value / ppg : null;
+        rows.push({ player: name, norm, pos, team, age: Number.isFinite(age) ? age : null, value: Number.isFinite(value) ? value : null, ppg, vpRatio });
+      }
+
+      allRows = rows.filter(r => r.value != null);
+      log(`Merged rows: ${allRows.length.toLocaleString()}`);
+
+      statPlayers.textContent = allRows.length.toLocaleString();
+      const avgVal = allRows.reduce((s, r) => s + (r.value || 0), 0) / allRows.length;
+      statAvgVal.textContent = fmtInt(avgVal);
+      const ppgVals = allRows.filter(r => r.ppg != null).map(r => r.ppg);
+      const avgPPG = ppgVals.length ? ppgVals.reduce((a, b) => a + b, 0) / ppgVals.length : 0;
+      statAvgPPG.textContent = fmtFloat(avgPPG, 2);
+
+      applyFiltersAndRender();
+    } catch (e) {
+      console.error(e);
+      log(e.message, 'error');
+      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
+    }
+  }
+
+  function applyFiltersAndRender() {
+    const q = searchQuery.toLowerCase().trim();
+    filteredRows = allRows.filter(r => {
+      if (posFilter !== 'ALL' && r.pos !== posFilter) return false;
+      if (q) {
+        const hay = `${r.player} ${r.team} ${r.pos}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    sortRows();
+    renderTable();
+    updateSortIndicators();
+  }
+
+  function sortRows() {
+    const key = sortKey;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    filteredRows.sort((a, b) => {
+      let av = a[key], bv = b[key];
+      const aNull = av == null || Number.isNaN(av);
+      const bNull = bv == null || Number.isNaN(bv);
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }
+
+  function updateSortIndicators() {
+    document.querySelectorAll('th.sortable .sort-ind').forEach(el => el.textContent = '');
+    const th = document.querySelector(`th.sortable[data-key="${sortKey}"] .sort-ind`);
+    if (th) th.textContent = sortDir === 'asc' ? '↑' : '↓';
+  }
+
+  function renderTable() {
+    if (filteredRows.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-amber-200/40">No players match filters</td></tr>`;
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    filteredRows.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-amber-500/5 transition';
+      tr.innerHTML = `
+        <td class="px-4 py-3 text-amber-200/40 mono text-xs">${i + 1}</td>
+        <td class="px-4 py-3 font-medium text-amber-50">${Vault.escapeHtml(r.player)}</td>
+        <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${posColor(r.pos)}">${r.pos || '—'}</span></td>
+        <td class="px-4 py-3 text-amber-200/60 mono text-xs">${r.team || '—'}</td>
+        <td class="px-4 py-3 text-right mono text-xs text-amber-200/60">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
+        <td class="px-4 py-3 text-right mono font-medium text-amber-50">${fmtInt(r.value)}</td>
+        <td class="px-4 py-3 text-right mono text-amber-200/60">${fmtFloat(r.ppg, 2)}</td>
+        <td class="px-4 py-3 text-right mono">
+          <span class="${r.vpRatio != null && r.vpRatio < 300 ? 'text-emerald-400' : r.vpRatio != null && r.vpRatio > 600 ? 'text-amber-400' : 'text-amber-200/70'}">
+            ${r.vpRatio != null ? fmtFloat(r.vpRatio, 0) : '—'}
+          </span>
+        </td>
+      `;
+      frag.appendChild(tr);
+    });
+    tbody.innerHTML = '';
+    tbody.appendChild(frag);
+  }
+
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (sortKey === key) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortKey = key;
+        sortDir = key === 'player' || key === 'team' || key === 'pos' ? 'asc' : 'desc';
+      }
+      applyFiltersAndRender();
+    });
+  });
+
+  $('#search').addEventListener('input', e => { searchQuery = e.target.value; applyFiltersAndRender(); });
+
+  document.querySelectorAll('.pos-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('bg-amber-500/15', 'text-amber-200', 'font-medium'));
+      btn.classList.add('bg-amber-500/15', 'text-amber-200', 'font-medium');
+      posFilter = btn.dataset.pos;
+      applyFiltersAndRender();
+    });
+  });
+
+  $('#resetFilters').addEventListener('click', () => {
+    $('#search').value = '';
+    searchQuery = '';
+    posFilter = 'ALL';
+    document.querySelectorAll('.pos-btn').forEach((b, i) => b.classList.toggle('bg-amber-500/15', i === 0));
+    applyFiltersAndRender();
+  });
+
+  $('#clearLog').addEventListener('click', () => logEl.innerHTML = '');
+
+  async function loadLeague(id) {
+    try {
+      leagueInfo.textContent = 'Loading…';
+      const league = await fetch(`https://api.sleeper.app/v1/league/${id}`).then(r => r.json());
+      if (!league || league.error) throw new Error('League not found');
+      const users = await fetch(`https://api.sleeper.app/v1/league/${id}/users`).then(r => r.json());
+      isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+      leagueInfo.innerHTML = `
+        <div class="font-medium text-amber-100">${Vault.escapeHtml(league.name)}</div>
+        <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+          <span>Season ${league.season}</span>
+          <span>•</span>
+          <span>${users.length} managers</span>
+          <span>•</span>
+          <span>${league.total_rosters} teams</span>
+          <span>•</span>
+          <span>${isSF ? 'Superflex' : '1QB'}</span>
+        </div>
+      `;
+      log(`Sleeper league loaded: ${league.name} (${users.length} users, ${isSF ? 'Superflex' : '1QB'})`);
+    } catch (e) {
+      console.error(e);
+      leagueInfo.textContent = 'Failed to load league';
+      log(`League load error: ${e.message}`, 'error');
+    }
+    return isSF;
+  }
+
+  $('#loadLeague').addEventListener('click', async () => {
+    const id = $('#leagueId').value.trim();
+    if (!id) return;
+    Vault.setLeagueId(id);
+    await loadLeague(id);
+    loadData();
+  });
+  $('#leagueId').addEventListener('keydown', e => { if (e.key === 'Enter') $('#loadLeague').click(); });
+
+  (async () => {
+    const id = Vault.getLeagueId();
+    $('#leagueId').value = id;
+    log('Vault initializing…');
+    await loadLeague(id);
+    loadData();
+  })();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Vault — Sleeper x RosterAudit</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&family=Cinzel:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="vault.css">
+</head>
+<body class="min-h-screen text-zinc-100 antialiased">
+  <div class="vault-bg"></div>
+
+  <main class="min-h-screen flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-xl">
+      <div class="text-center mb-8">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-amber-300 to-yellow-600 p-[1.5px] shadow-[0_0_30px_rgba(250,204,21,0.3)]">
+          <div class="size-full rounded-2xl bg-black grid place-items-center"><span class="display text-xl gold-text">V</span></div>
+        </div>
+        <h1 class="display mt-4 text-[42px] font-bold gold-text">The Vault</h1>
+        <p class="mt-1 text-sm uppercase tracking-widest text-amber-400/90">Sleeper x RosterAudit</p>
+      </div>
+
+      <div class="card rounded-[24px] p-7 sm:p-9">
+        <!-- Username -->
+        <div id="step-username">
+          <label class="block text-sm font-medium text-zinc-300 mb-2">Sleeper Username</label>
+          <div class="flex gap-2">
+            <input id="username" type="text" placeholder="goldenscrub" class="flex-1 h-12 px-4 rounded-xl bg-black/50 border border-amber-500/20 focus:border-amber-500/60 outline-none" />
+            <button id="loadBtn" class="btn-gold-solid h-12 px-5">Load Leagues</button>
+          </div>
+          <p id="errorMsg" class="hidden mt-3 text-sm text-red-400"></p>
+        </div>
+
+        <!-- Or jump straight to a league ID -->
+        <div class="mt-6 pt-6 border-t border-amber-500/10">
+          <label class="block text-sm font-medium text-zinc-300 mb-2">Or enter a Sleeper League ID directly</label>
+          <div class="flex gap-2">
+            <input id="directLeagueId" type="text" placeholder="1313454100225990656" class="flex-1 h-12 px-4 rounded-xl bg-black/50 border border-amber-500/20 focus:border-amber-500/60 outline-none mono text-sm" />
+            <button id="directBtn" class="btn-gold h-12 px-5 text-sm text-amber-100">Go</button>
+          </div>
+        </div>
+
+        <!-- League Select -->
+        <div id="step-league" class="hidden mt-8 pt-8 border-t border-amber-500/10">
+          <label class="block text-sm font-medium text-zinc-300 mb-2">Select League</label>
+          <select id="leagueSelect" class="w-full h-12 px-4 rounded-xl bg-black/50 border border-amber-500/20"></select>
+        </div>
+
+        <!-- Actions -->
+        <div id="step-actions" class="hidden mt-8">
+          <div class="grid gap-3">
+            <a id="btnOverview" href="#" class="group flex items-center justify-between p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 transition">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                </div>
+                <div>
+                  <div class="font-semibold text-amber-50">League Overview</div>
+                  <div class="text-xs text-amber-200/40">Roster health & standings</div>
+                </div>
+              </div>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-amber-500/30 group-hover:text-amber-400"><path d="M9 18l6-6-6-6"/></svg>
+            </a>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <a id="btnRankings" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 transition">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+                </div>
+                <div class="font-semibold text-amber-50">Player Rankings</div>
+                <div class="text-xs text-amber-200/40 mt-1">Dynasty & redraft values</div>
+              </a>
+
+              <a id="btnTrade" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 transition">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4M17 8v12M3 12h4M17 12h4"/></svg>
+                </div>
+                <div class="font-semibold text-amber-50">Trade Calculator</div>
+                <div class="text-xs text-amber-200/40 mt-1">Fair value & win-now moves</div>
+              </a>
+
+              <a id="btnAnalyzer" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/30 bg-black/40 hover:border-amber-500/60 transition ring-1 ring-amber-500/20">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                </div>
+                <div class="font-semibold text-amber-50">Team Analyzer</div>
+                <div class="text-xs text-amber-200/40 mt-1">9 archetypes & trade fits</div>
+              </a>
+            </div>
+          </div>
+
+          <div class="mt-4 text-xs text-amber-200/40">League saved locally — you can switch it any time from the nav bar.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="vault-core.js"></script>
+  <script>
+    (() => {
+      const $ = id => document.getElementById(id);
+      const username = $('username'), loadBtn = $('loadBtn'), leagueSelect = $('leagueSelect');
+      const stepLeague = $('step-league'), stepActions = $('step-actions'), errorMsg = $('errorMsg');
+      const btns = { overview: $('btnOverview'), rankings: $('btnRankings'), trade: $('btnTrade'), analyzer: $('btnAnalyzer') };
+
+      async function loadLeagues() {
+        const user = username.value.trim();
+        if (!user) return;
+        errorMsg.classList.add('hidden');
+        try {
+          const u = await fetch(`https://api.sleeper.app/v1/user/${user}`).then(r => r.json());
+          if (!u || !u.user_id) throw new Error('User not found');
+          const leagues = await Promise.all(
+            [...Array(12)].map((_, i) =>
+              fetch(`https://api.sleeper.app/v1/user/${u.user_id}/leagues/nfl/${2026 - i}`).then(r => r.json()).catch(() => [])
+            )
+          ).then(a => a.flat());
+          if (!leagues.length) throw new Error('No leagues found for that username');
+          leagueSelect.innerHTML = leagues.map(l => `<option value="${l.league_id}">${Vault.escapeHtml(l.name)} • ${l.season}</option>`).join('');
+          stepLeague.classList.remove('hidden');
+          onChange();
+        } catch (e) {
+          errorMsg.textContent = e.message;
+          errorMsg.classList.remove('hidden');
+        }
+      }
+
+      function activate(id) {
+        Vault.setLeagueId(id);
+        btns.overview.href = Vault.linkTo('app.html', id);
+        btns.rankings.href = Vault.linkTo('player_rankings.html', id);
+        btns.trade.href = Vault.linkTo('trade.html', id);
+        btns.analyzer.href = Vault.linkTo('team-analyzer.html', id);
+        stepActions.classList.remove('hidden');
+      }
+
+      function onChange() {
+        const id = leagueSelect.value;
+        if (id) activate(id);
+      }
+
+      loadBtn.onclick = loadLeagues;
+      leagueSelect.onchange = onChange;
+      $('directBtn').onclick = () => {
+        const id = $('directLeagueId').value.trim();
+        if (id) activate(id);
+      };
+    })();
+  </script>
+</body>
+</html>

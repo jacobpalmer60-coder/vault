@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trade Calculator — The Vault</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+</head>
+<body class="text-amber-50 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[1400px] mx-auto p-6 lg:p-8">
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="display text-[28px] font-semibold gold-text">Trade Calculator</h1>
+      <p id="status" class="text-[13px] text-amber-200/50 mt-1">Connecting...</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="h-8 px-3 rounded-lg bg-black/40 border border-amber-500/15 flex items-center gap-2 text-[12px] text-amber-200/50">
+        <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+        Live Values
+      </div>
+    </div>
+  </div>
+
+  <!-- Trade Bar -->
+  <div id="tradeBar" class="hidden mb-6 p-4 rounded-2xl card">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <div class="flex items-center gap-6">
+        <div>
+          <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Giving</div>
+          <div id="giveA" class="text-[15px] font-medium"></div>
+        </div>
+        <div class="text-amber-500/30">→</div>
+        <div>
+          <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Receiving</div>
+          <div id="giveB" class="text-[15px] font-medium"></div>
+        </div>
+      </div>
+      <div class="text-right">
+        <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Difference</div>
+        <div id="diff" class="text-[22px] font-semibold mono"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="grid lg:grid-cols-2 gap-5">
+    <!-- Team A -->
+    <div class="group">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-[13px] font-semibold text-black">A</div>
+          <select id="teamA" class="bg-transparent text-[15px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
+        </div>
+        <div class="text-[12px] text-amber-200/40 mono" id="totalA"></div>
+      </div>
+      <div class="rounded-2xl card overflow-hidden">
+        <div id="playersA" class="scrollbar max-h-[520px] overflow-auto p-1"></div>
+      </div>
+    </div>
+
+    <!-- Team B -->
+    <div class="group">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-[13px] font-semibold text-black">B</div>
+          <select id="teamB" class="bg-transparent text-[15px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
+        </div>
+        <div class="text-[12px] text-amber-200/40 mono" id="totalB"></div>
+      </div>
+      <div class="rounded-2xl card overflow-hidden">
+        <div id="playersB" class="scrollbar max-h-[520px] overflow-auto p-1"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+let teams = [];
+let selectedA = new Set();
+let selectedB = new Set();
+
+async function init() {
+  const leagueId = Vault.getLeagueId();
+  try {
+    const [league, users, rosters, players, csvRows] = await Promise.all([
+      fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`).then(r => r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
+      fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
+      Vault.fetchCsvRows(VAULT_CONFIG.VALUES_URL)
+    ]);
+    if (!league || league.error) throw new Error('League not found');
+
+    const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+    const values = new Map();
+    csvRows.forEach(r => {
+      if (r.sleeper_id) values.set(r.sleeper_id, Vault.clean(isSF ? r.val_sf_ppr_tep05 : r.val_1qb_ppr_tep05));
+    });
+
+    teams = rosters.map(r => {
+      const user = users.find(u => u.user_id === r.owner_id);
+      const pls = (r.players || []).map(id => {
+        const p = players[id];
+        if (!p) return null;
+        return {
+          id,
+          name: `${p.first_name} ${p.last_name}`,
+          pos: p.position,
+          team: p.team,
+          value: values.get(id) || 0
+        };
+      }).filter(Boolean).filter(p => p.value > 100).sort((a, b) => b.value - a.value);
+
+      return {
+        id: r.roster_id,
+        name: user?.metadata?.team_name || user?.display_name || `Team ${r.roster_id}`,
+        players: pls,
+        total: pls.reduce((s, p) => s + p.value, 0)
+      };
+    }).sort((a, b) => b.total - a.total);
+
+    const selA = document.getElementById('teamA');
+    const selB = document.getElementById('teamB');
+
+    teams.forEach(t => {
+      selA.innerHTML += `<option value="${t.id}">${Vault.escapeHtml(t.name)}</option>`;
+      selB.innerHTML += `<option value="${t.id}">${Vault.escapeHtml(t.name)}</option>`;
+    });
+
+    selA.value = teams[0].id;
+    selB.value = teams[1]?.id || teams[0].id;
+
+    selA.onchange = () => { selectedA.clear(); render('A'); };
+    selB.onchange = () => { selectedB.clear(); render('B'); };
+
+    document.getElementById('status').textContent = `${teams.length} teams • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
+    document.getElementById('status').className = 'text-[13px] text-emerald-400/80 mt-1';
+
+    render('A');
+    render('B');
+  } catch (e) {
+    document.getElementById('status').textContent = e.message || 'Failed to load';
+    document.getElementById('status').className = 'text-[13px] text-rose-400 mt-1';
+    console.error(e);
+  }
+}
+
+function render(side) {
+  const teamId = document.getElementById(`team${side}`).value;
+  const team = teams.find(t => t.id == teamId);
+  const selected = side === 'A' ? selectedA : selectedB;
+  const container = document.getElementById(`players${side}`);
+
+  document.getElementById(`total${side}`).textContent = `${team.players.length} players • ${Math.round(team.total).toLocaleString()}`;
+
+  container.innerHTML = team.players.map((p, i) => {
+    const isSel = selected.has(p.id);
+    return `
+      <div onclick="toggle('${side}','${p.id}')" class="group/item flex items-center gap-3 px-3 py-2.5 mx-1 my-1 rounded-xl cursor-pointer transition-all ${isSel ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
+        <div class="text-[11px] text-amber-200/30 w-5 text-right mono">${i + 1}</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-baseline gap-2">
+            <span class="text-[14px] truncate ${isSel ? 'text-white' : 'text-amber-50/90 group-hover/item:text-white'}">${Vault.escapeHtml(p.name)}</span>
+            <span class="text-[11px] text-amber-200/40">${p.pos}</span>
+            <span class="text-[11px] text-amber-200/30">${p.team || ''}</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-[13px] mono font-medium ${isSel ? 'text-white' : 'text-amber-200/60'}">${Math.round(p.value).toLocaleString()}</div>
+        </div>
+        <div class="w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all ${isSel ? 'bg-amber-400 border-amber-400' : 'border-amber-500/20 group-hover/item:border-amber-500/40'}">
+          ${isSel ? '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 6l2 2 4-4" stroke="black" stroke-width="2" stroke-linecap="round"/></svg>' : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  updateTrade();
+}
+
+function toggle(side, id) {
+  const set = side === 'A' ? selectedA : selectedB;
+  set.has(id) ? set.delete(id) : set.add(id);
+  render(side);
+}
+
+function updateTrade() {
+  const teamA = teams.find(t => t.id == document.getElementById('teamA').value);
+  const teamB = teams.find(t => t.id == document.getElementById('teamB').value);
+
+  const aPlayers = [...selectedA].map(id => teamA.players.find(p => p.id === id)).filter(Boolean);
+  const bPlayers = [...selectedB].map(id => teamB.players.find(p => p.id === id)).filter(Boolean);
+
+  const aVal = aPlayers.reduce((s, p) => s + p.value, 0);
+  const bVal = bPlayers.reduce((s, p) => s + p.value, 0);
+
+  const bar = document.getElementById('tradeBar');
+
+  if (aPlayers.length || bPlayers.length) {
+    bar.classList.remove('hidden');
+    document.getElementById('giveA').innerHTML = aPlayers.length
+      ? aPlayers.map(p => `<span class="inline-flex items-center gap-1.5 mr-3"><span>${Vault.escapeHtml(p.name)}</span><span class="text-amber-200/40 text-[13px]">${Math.round(p.value).toLocaleString()}</span></span>`).join('')
+      : '<span class="text-amber-200/30">Nothing selected</span>';
+
+    document.getElementById('giveB').innerHTML = bPlayers.length
+      ? bPlayers.map(p => `<span class="inline-flex items-center gap-1.5 ml-3"><span class="text-amber-200/40 text-[13px]">${Math.round(p.value).toLocaleString()}</span><span>${Vault.escapeHtml(p.name)}</span></span>`).join('')
+      : '<span class="text-amber-200/30">Nothing selected</span>';
+
+    const diff = Math.abs(aVal - bVal);
+    const diffEl = document.getElementById('diff');
+    diffEl.textContent = diff.toLocaleString();
+    diffEl.className = 'text-[22px] font-semibold mono ' + (diff < 300 ? 'text-emerald-400' : diff < 800 ? 'text-amber-400' : 'text-amber-200/50');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+init();
+</script>
+</body>
+</html>
