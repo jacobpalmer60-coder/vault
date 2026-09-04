@@ -226,6 +226,25 @@ const Vault = {
       : ['Stripped Rebuilder', 'from-stone-700/30 to-stone-800/30 text-stone-300 border-stone-700/40'];
   },
 
+  /* Best-lineup PPG for a player pool given a league's starting slots. Shared by
+     buildLeagueTeams and simulateTrade (which needs to re-run it on a hypothetical
+     post-trade roster). */
+  optimalLineup(plist, slots) {
+    const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
+    const used = new Set();
+    let tot = 0;
+    for (const slot of slots) {
+      let allowed = [slot];
+      if (slot === 'FLEX') allowed = ['RB', 'WR', 'TE'];
+      if (slot === 'SUPER_FLEX') allowed = ['QB', 'RB', 'WR', 'TE'];
+      if (slot === 'WRRB_FLEX') allowed = ['RB', 'WR'];
+      if (slot === 'REC_FLEX') allowed = ['WR', 'TE'];
+      const i = pool.findIndex(p => !used.has(p.id) && allowed.includes(p.pos));
+      if (i >= 0) { tot += pool[i].ppg; used.add(pool[i].id); }
+    }
+    return tot;
+  },
+
   /* ---------- Full league team-building pipeline ----------
      Single source of truth used by app.html (League Overview) and
      team-analyzer.html (Team Analyzer). Previously each page had its
@@ -241,22 +260,7 @@ const Vault = {
 
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
-
-    const optimal = plist => {
-      const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
-      const used = new Set();
-      let tot = 0;
-      for (const slot of slots) {
-        let allowed = [slot];
-        if (slot === 'FLEX') allowed = ['RB', 'WR', 'TE'];
-        if (slot === 'SUPER_FLEX') allowed = ['QB', 'RB', 'WR', 'TE'];
-        if (slot === 'WRRB_FLEX') allowed = ['RB', 'WR'];
-        if (slot === 'REC_FLEX') allowed = ['WR', 'TE'];
-        const i = pool.findIndex(p => !used.has(p.id) && allowed.includes(p.pos));
-        if (i >= 0) { tot += pool[i].ppg; used.add(pool[i].id); }
-      }
-      return tot;
-    };
+    const optimal = plist => Vault.optimalLineup(plist, slots);
 
     const { PICK_YEARS: YEARS, PICK_ROUNDS: ROUNDS } = VAULT_CONFIG;
     const pickOwner = new Map();
@@ -366,6 +370,118 @@ const Vault = {
     built.sort((a, b) => b.total - a.total);
     built.forEach((t, i) => t.rank = i + 1);
 
-    return { league, isSF, teams: built };
+    return { league, isSF, slots, teams: built };
+  },
+
+  /* ---------- Trade simulation ----------
+     Applies a hypothetical trade to two teams and recomputes everything that
+     depends on it: value, positional splits, age, optimal lineup, pick capital,
+     and — critically — archetype/percentile standing recalculated against the
+     REST OF THE LEAGUE unchanged, so a trade analysis can compare each team's
+     before/after standing rather than just the raw value moved. */
+  simulateTrade(allTeams, slots, teamAId, teamBId, giveA, giveB) {
+    const A = allTeams.find(t => t.rosterId === teamAId);
+    const B = allTeams.find(t => t.rosterId === teamBId);
+    const giveAPlayers = giveA.filter(x => x.type === 'player');
+    const giveBPlayers = giveB.filter(x => x.type === 'player');
+    const giveAPicks = giveA.filter(x => x.type === 'pick');
+    const giveBPicks = giveB.filter(x => x.type === 'pick');
+
+    const pickKey = p => `${p.season}-${p.round}-${p.original}`;
+
+    function rebuild(team, removedPlayers, addedPlayers, removedPicks, addedPicks) {
+      const removedIds = new Set(removedPlayers.map(p => p.id));
+      const plist = [...team.plist.filter(p => !removedIds.has(p.id)), ...addedPlayers];
+      const total = plist.reduce((s, p) => s + p.value, 0);
+      const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);
+      const rb = plist.filter(p => p.pos === 'RB').reduce((s, p) => s + p.value, 0);
+      const wr = plist.filter(p => p.pos === 'WR').reduce((s, p) => s + p.value, 0);
+      const te = plist.filter(p => p.pos === 'TE').reduce((s, p) => s + p.value, 0);
+      const vAge = plist.filter(p => p.value > 0 && p.age > 0);
+      const sumV = vAge.reduce((s, p) => s + p.value, 0);
+      const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
+      const opt = Vault.optimalLineup(plist, slots);
+      const sumPos = qb + rb + wr + te || 1;
+      const shares = [qb, rb, wr, te].map(v => v / sumPos);
+      const mean = shares.reduce((a, b) => a + b) / 4;
+      const std = Math.sqrt(shares.reduce((s, x) => s + (x - mean) ** 2, 0) / 4);
+      const bal = 100 - std * 200;
+      const removedKeys = new Set(removedPicks.map(pickKey));
+      const picks = [...team.picks.filter(p => !removedKeys.has(pickKey(p))), ...addedPicks];
+      const picksValue = picks.reduce((s, p) => s + (p.value || 0), 0);
+      return { ...team, plist, total, qb, rb, wr, te, age, opt, bal, picks, picksValue };
+    }
+
+    const newA = rebuild(A, giveAPlayers, giveBPlayers, giveAPicks, giveBPicks);
+    const newB = rebuild(B, giveBPlayers, giveAPlayers, giveBPicks, giveAPicks);
+
+    // Recompute valP/ppgP/archetype against the rest of the league, unchanged
+    const others = allTeams.filter(t => t.rosterId !== teamAId && t.rosterId !== teamBId);
+    const pool = [...others, newA, newB];
+    const vals = pool.map(t => t.total).sort((a, b) => a - b);
+    const opts = pool.map(t => t.opt).sort((a, b) => a - b);
+    [newA, newB].forEach(t => {
+      t.valP = vals.indexOf(t.total) / (vals.length - 1) * 100;
+      t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
+      const [a, c] = Vault.archetype(t);
+      t.arch = a; t.archCls = c;
+      t.archScore = t.valP + t.ppgP;
+    });
+
+    return { before: { A, B }, after: { A: newA, B: newB }, pool };
+  },
+
+  /* ---------- Contention window ----------
+     Projects roster value 5 years out with position-specific age decay, and
+     estimates which of those years clear the league's playoff-line PPG. Shared by
+     Team Analyzer and the Trade Calculator (to show how a trade shifts a team's
+     window, not just its current value). */
+  contentionWindow(t, all) {
+    const startYear = new Date().getFullYear();
+    const years = 5;
+    const proj = [];
+    for (let y = 0; y < years; y++) {
+      let val = 0;
+      t.plist.forEach(p => {
+        let decay = 1;
+        const age = p.age + y;
+        if (p.pos === 'RB' && age > 26) decay = Math.pow(0.85, age - 26);
+        if (p.pos === 'WR' && age > 27) decay = Math.pow(0.92, age - 27);
+        if (p.pos === 'QB' && age > 30) decay = Math.pow(0.96, age - 30);
+        if (p.pos === 'TE' && age > 28) decay = Math.pow(0.93, age - 28);
+        val += p.value * decay;
+      });
+      proj.push(Math.round(val));
+    }
+    const peak = Math.max(...proj);
+    const year = startYear + proj.indexOf(peak);
+
+    const playoffSpots = Math.max(4, Math.ceil(all.length * 0.6));
+    const sortedPPG = [...all].map(x => x.opt).sort((a, b) => b - a);
+    const playoffLine = sortedPPG[playoffSpots - 1] || sortedPPG[sortedPPG.length - 1];
+
+    const projPPG = proj.map(v => t.opt * (v / (t.total || 1)));
+    const valueThreshold = peak * 0.88;
+    const inWindow = proj.map((v, i) => v >= valueThreshold && projPPG[i] >= playoffLine * 0.97);
+
+    const startIdx = inWindow.indexOf(true);
+    const endIdx = inWindow.lastIndexOf(true);
+    return { proj, projPPG, peakYear: year, peak, startYear, inWindow, windowStart: startIdx >= 0 ? startYear + startIdx : startYear, windowEnd: endIdx >= 0 ? startYear + endIdx : startYear, years, playoffLine, playoffSpots };
+  },
+
+  /* ---------- Fatal flaws ---------- */
+  fatalFlaws(t, leagueAvg) {
+    const flaws = [];
+    const rbOld = t.plist.filter(p => p.pos === 'RB' && p.age >= 27).reduce((s, p) => s + p.value, 0);
+    const rbTotal = t.rb || 1;
+    if (rbOld / rbTotal > 0.6) flaws.push(`RB Age Cliff: ${Math.round(rbOld / rbTotal * 100)}% of RB value is 27+`);
+    const pos = { QB: t.qb, RB: t.rb, WR: t.wr, TE: t.te };
+    Object.entries(pos).forEach(([k, v]) => {
+      if (v < leagueAvg[k] * 0.55) flaws.push(`${k} Bankruptcy: ${Math.round(v).toLocaleString()} vs league avg ${Math.round(leagueAvg[k]).toLocaleString()}`);
+    });
+    if (t.picksValue < leagueAvg.picks * 0.5) flaws.push(`Pick Poor: ${Math.round(t.picksValue).toLocaleString()} pick value (bottom 30%)`);
+    const starters = t.plist.filter(p => p.value > 1000).length;
+    if (starters < 14) flaws.push(`Thin Depth: Only ${starters} players >1k value`);
+    return flaws.slice(0, 3);
   }
 };

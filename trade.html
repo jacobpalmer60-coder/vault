@@ -14,7 +14,7 @@
 <div id="vault-nav"></div>
 
 <div class="max-w-[1400px] mx-auto p-6 lg:p-8">
-  <div class="flex items-center justify-between mb-8">
+  <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Trade Calculator</h1>
       <p id="status" class="text-[13px] text-amber-200/50 mt-1">Connecting...</p>
@@ -28,16 +28,16 @@
   </div>
 
   <!-- Trade Bar -->
-  <div id="tradeBar" class="hidden mb-6 p-4 rounded-2xl card">
+  <div id="tradeBar" class="hidden mb-4 p-4 rounded-2xl card">
     <div class="flex items-center justify-between flex-wrap gap-4">
-      <div class="flex items-center gap-6">
+      <div class="flex items-center gap-6 flex-wrap">
         <div>
-          <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Giving</div>
+          <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Team A gives</div>
           <div id="giveA" class="text-[15px] font-medium"></div>
         </div>
-        <div class="text-amber-500/30">→</div>
+        <div class="text-amber-500/30">⇄</div>
         <div>
-          <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Receiving</div>
+          <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Team B gives</div>
           <div id="giveB" class="text-[15px] font-medium"></div>
         </div>
       </div>
@@ -46,6 +46,23 @@
         <div id="diff" class="text-[22px] font-semibold mono"></div>
       </div>
     </div>
+    <div id="gapClose" class="hidden mt-3 pt-3 border-t border-white/5"></div>
+  </div>
+
+  <!-- Trade Finder: shop one side's asset(s) against the whole league, not just the loaded opponent -->
+  <div id="finder" class="hidden mb-4 p-4 rounded-2xl card">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <div>
+        <div class="text-[11px] text-amber-200/40 uppercase tracking-wider">Finding trades for</div>
+        <div id="finderTarget" class="text-[15px] font-medium"></div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] text-amber-200/40 mr-1">Want back:</span>
+        <div id="finderPosChips" class="flex gap-1.5"></div>
+        <button onclick="closeFinder()" class="ml-2 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-amber-200/50 hover:text-amber-200 hover:border-white/20">Close</button>
+      </div>
+    </div>
+    <div id="finderResults" class="space-y-2"></div>
   </div>
 
   <!-- Main Grid -->
@@ -57,10 +74,13 @@
           <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-[13px] font-semibold text-black">A</div>
           <select id="teamA" class="bg-transparent text-[15px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
         </div>
-        <div class="text-[12px] text-amber-200/40 mono" id="totalA"></div>
+        <div class="text-right">
+          <div class="text-[12px] text-amber-200/40 mono" id="totalA"></div>
+          <span id="archA" class="text-[10px] px-2 py-0.5 rounded-full border inline-block mt-1"></span>
+        </div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
-        <div id="playersA" class="scrollbar max-h-[520px] overflow-auto p-1"></div>
+        <div id="playersA" class="scrollbar max-h-[440px] overflow-auto p-1"></div>
       </div>
     </div>
 
@@ -71,79 +91,73 @@
           <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-[13px] font-semibold text-black">B</div>
           <select id="teamB" class="bg-transparent text-[15px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
         </div>
-        <div class="text-[12px] text-amber-200/40 mono" id="totalB"></div>
+        <div class="text-right">
+          <div class="text-[12px] text-amber-200/40 mono" id="totalB"></div>
+          <span id="archB" class="text-[10px] px-2 py-0.5 rounded-full border inline-block mt-1"></span>
+        </div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
-        <div id="playersB" class="scrollbar max-h-[520px] overflow-auto p-1"></div>
+        <div id="playersB" class="scrollbar max-h-[440px] overflow-auto p-1"></div>
       </div>
     </div>
+  </div>
+
+  <!-- Analysis (expands once a trade is proposed) -->
+  <div id="analysis" class="hidden mt-6">
+    <h2 class="display text-lg gold-text mb-3">Trade Analysis</h2>
+    <div id="tradeArchetype" class="card rounded-2xl p-4 mb-4"></div>
+    <div class="grid lg:grid-cols-2 gap-5">
+      <div id="analysisA"></div>
+      <div id="analysisB"></div>
+    </div>
+  </div>
+
+  <div id="emptyState" class="mt-10 text-center text-[13px] text-amber-200/30">
+    Select players or picks from either side to build a trade.
   </div>
 </div>
 
 <script src="vault-core.js"></script>
 <script src="vault-nav.js"></script>
 <script>
-let teams = [];
+let teams = [], league = null, slots = [];
 let selectedA = new Set();
 let selectedB = new Set();
 
+const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
+const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
+const TIER_COLOR = { early: 'text-emerald-400', mid: 'text-amber-300', late: 'text-rose-400' };
+
+function assetsFor(team) {
+  const players = team.plist.filter(p => p.value > 0).map(p => ({ type: 'player', key: 'p_' + p.id, ...p }));
+  const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, name: `${p.season} R${p.round}`, pos: 'PICK', ...p }));
+  return [...players, ...picks].sort((a, b) => b.value - a.value);
+}
+
 async function init() {
-  const leagueId = Vault.getLeagueId();
   try {
-    const [league, users, rosters, players, ktcData] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()),
-      fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`).then(r => r.json()),
-      fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
-      fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
-      Vault.fetchKtcValues()
-    ]);
-    if (!league || league.error) throw new Error('League not found');
-
-    const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
-    const values = Vault.buildKtcValueMap(ktcData, isSF);
-
-    teams = rosters.map(r => {
-      const user = users.find(u => u.user_id === r.owner_id);
-      const pls = (r.players || []).map(id => {
-        const p = players[id];
-        if (!p) return null;
-        const name = `${p.first_name} ${p.last_name}`;
-        return {
-          id,
-          name,
-          pos: p.position,
-          team: p.team,
-          value: values.get(Vault.normalizeName(name)) || 0
-        };
-      }).filter(Boolean).filter(p => p.value > 100).sort((a, b) => b.value - a.value);
-
-      return {
-        id: r.roster_id,
-        name: user?.metadata?.team_name || user?.display_name || `Team ${r.roster_id}`,
-        players: pls,
-        total: pls.reduce((s, p) => s + p.value, 0)
-      };
-    }).sort((a, b) => b.total - a.total);
+    const built = await Vault.buildLeagueTeams(Vault.getLeagueId());
+    league = built.league; slots = built.slots;
+    teams = built.teams.map(t => ({ ...t, assets: [] }));
+    teams.forEach(t => t.assets = assetsFor(t));
+    teams.sort((a, b) => b.total - a.total);
 
     const selA = document.getElementById('teamA');
     const selB = document.getElementById('teamB');
-
     teams.forEach(t => {
-      selA.innerHTML += `<option value="${t.id}">${Vault.escapeHtml(t.name)}</option>`;
-      selB.innerHTML += `<option value="${t.id}">${Vault.escapeHtml(t.name)}</option>`;
+      selA.innerHTML += `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)}</option>`;
+      selB.innerHTML += `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)}</option>`;
     });
-
-    selA.value = teams[0].id;
-    selB.value = teams[1]?.id || teams[0].id;
+    selA.value = teams[0].rosterId;
+    selB.value = teams[1]?.rosterId || teams[0].rosterId;
 
     selA.onchange = () => { selectedA.clear(); render('A'); };
     selB.onchange = () => { selectedB.clear(); render('B'); };
 
-    document.getElementById('status').textContent = `${teams.length} teams • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
+    document.getElementById('status').textContent = `${teams.length} teams • ${league.name} • ${built.isSF ? 'Superflex' : '1QB'}`;
     document.getElementById('status').className = 'text-[13px] text-emerald-400/80 mt-1';
 
-    render('A');
-    render('B');
+    render('A'); render('B');
   } catch (e) {
     document.getElementById('status').textContent = e.message || 'Failed to load';
     document.getElementById('status').className = 'text-[13px] text-rose-400 mt-1';
@@ -151,74 +165,407 @@ async function init() {
   }
 }
 
-function render(side) {
-  const teamId = document.getElementById(`team${side}`).value;
-  const team = teams.find(t => t.id == teamId);
-  const selected = side === 'A' ? selectedA : selectedB;
-  const container = document.getElementById(`players${side}`);
+function teamOf(side) { return teams.find(t => t.rosterId == document.getElementById(`team${side}`).value); }
+function otherSide(side) { return side === 'A' ? 'B' : 'A'; }
 
-  document.getElementById(`total${side}`).textContent = `${team.players.length} players • ${Math.round(team.total).toLocaleString()}`;
-
-  container.innerHTML = team.players.map((p, i) => {
-    const isSel = selected.has(p.id);
-    return `
-      <div onclick="toggle('${side}','${p.id}')" class="group/item flex items-center gap-3 px-3 py-2.5 mx-1 my-1 rounded-xl cursor-pointer transition-all ${isSel ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
-        <div class="text-[11px] text-amber-200/30 w-5 text-right mono">${i + 1}</div>
+function assetRow(side, a, isSelected, extra) {
+  const sub = a.type === 'pick' ? `<span class="text-[11px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="text-[11px] text-amber-200/40">${a.pos}</span><span class="text-[11px] text-amber-200/30">${a.team || ''}</span>`;
+  return `
+    <div class="group/item ${extra || ''}">
+      <div onclick="toggle('${side}','${a.key}')" class="flex items-center gap-3 px-3 py-2.5 mx-1 my-1 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline gap-2">
-            <span class="text-[14px] truncate ${isSel ? 'text-white' : 'text-amber-50/90 group-hover/item:text-white'}">${Vault.escapeHtml(p.name)}</span>
-            <span class="text-[11px] text-amber-200/40">${p.pos}</span>
-            <span class="text-[11px] text-amber-200/30">${p.team || ''}</span>
+            <span class="text-[14px] truncate ${isSelected ? 'text-white' : 'text-amber-50/90 group-hover/item:text-white'}">${Vault.escapeHtml(a.name)}</span>
+            ${sub}
           </div>
         </div>
         <div class="text-right">
-          <div class="text-[13px] mono font-medium ${isSel ? 'text-white' : 'text-amber-200/60'}">${Math.round(p.value).toLocaleString()}</div>
+          <div class="text-[13px] mono font-medium ${isSelected ? 'text-white' : 'text-amber-200/60'}">${Math.round(a.value).toLocaleString()}</div>
         </div>
-        <div class="w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all ${isSel ? 'bg-amber-400 border-amber-400' : 'border-amber-500/20 group-hover/item:border-amber-500/40'}">
-          ${isSel ? '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 6l2 2 4-4" stroke="black" stroke-width="2" stroke-linecap="round"/></svg>' : ''}
+        <div class="opacity-0 group-hover/item:opacity-100 transition-opacity flex gap-1.5 shrink-0">
+          <button onclick="event.stopPropagation(); matchTarget('${side}','${a.key}')" title="Build a package from the other side to match this" class="text-[10px] px-2 py-1 rounded-lg border border-amber-500/20 text-amber-300/70 hover:text-amber-200 hover:border-amber-500/40">Match</button>
+          <button onclick="event.stopPropagation(); openFinder('${side}','${a.key}')" title="Shop this against every team in the league" class="text-[10px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
+        </div>
+        <div class="w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-amber-400 border-amber-400' : 'border-amber-500/20 group-hover/item:border-amber-500/40'}">
+          ${isSelected ? '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 6l2 2 4-4" stroke="black" stroke-width="2" stroke-linecap="round"/></svg>' : ''}
         </div>
       </div>
-    `;
-  }).join('');
+      ${isSelected ? similarRow(side, a) : ''}
+    </div>`;
+}
 
+function similarRow(side, a) {
+  const team = teamOf(side);
+  const selected = side === 'A' ? selectedA : selectedB;
+  const alts = team.assets.filter(x => x.key !== a.key && !selected.has(x.key)).sort((x, y) => Math.abs(x.value - a.value) - Math.abs(y.value - a.value)).slice(0, 3);
+  if (!alts.length) return '';
+  return `<div class="mx-1 mb-2 px-3 py-2 rounded-lg bg-black/30 flex items-center gap-2 flex-wrap text-[11px]">
+    <span class="text-amber-200/40 uppercase tracking-wider">Similar value</span>
+    ${alts.map(x => `<button onclick="event.stopPropagation(); swap('${side}','${a.key}','${x.key}')" class="px-2 py-1 rounded-lg border border-white/10 hover:border-amber-500/40 hover:text-amber-200 text-amber-100/70">${Vault.escapeHtml(x.name)} <span class="mono text-amber-200/40">${Math.round(x.value).toLocaleString()}</span></button>`).join('')}
+  </div>`;
+}
+
+function render(side) {
+  const team = teamOf(side);
+  const selected = side === 'A' ? selectedA : selectedB;
+  const container = document.getElementById(`players${side}`);
+  document.getElementById(`total${side}`).textContent = `${team.assets.length} assets • ${Math.round(team.total).toLocaleString()}`;
+  const archEl = document.getElementById(`arch${side}`);
+  archEl.textContent = team.arch;
+  archEl.className = `text-[10px] px-2 py-0.5 rounded-full border inline-block mt-1 ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
+
+  container.innerHTML = team.assets.map(a => assetRow(side, a, selected.has(a.key))).join('');
   updateTrade();
 }
 
-function toggle(side, id) {
+function toggle(side, key) {
   const set = side === 'A' ? selectedA : selectedB;
-  set.has(id) ? set.delete(id) : set.add(id);
+  set.has(key) ? set.delete(key) : set.add(key);
   render(side);
 }
 
+function swap(side, outKey, inKey) {
+  const set = side === 'A' ? selectedA : selectedB;
+  set.delete(outKey); set.add(inKey);
+  render(side);
+}
+
+/* Package builder: best combo of `pool` (unselected assets) closest to targetValue */
+function bestCombo(pool, targetValue) {
+  let best = null;
+  const consider = combo => {
+    const sum = combo.reduce((s, a) => s + a.value, 0);
+    const diff = Math.abs(sum - targetValue);
+    if (!best || diff < best.diff || (diff === best.diff && combo.length < best.combo.length)) best = { combo, sum, diff };
+  };
+  pool.forEach(a => consider([a]));
+  for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) consider([pool[i], pool[j]]);
+  if (pool.length <= 40) for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) for (let k = j + 1; k < pool.length; k++) consider([pool[i], pool[j], pool[k]]);
+  return best;
+}
+
+/* Like bestCombo, but requires the combo to include one asset matching `posFilter`
+   (a position, or 'PICK' for any pick) if given — that anchor asset is picked closest
+   to the target value, then the remaining gap is filled from the rest of the pool. */
+function anchoredCombo(pool, targetValue, posFilter) {
+  if (!posFilter || posFilter === 'ANY') return bestCombo(pool, targetValue);
+  const anchors = pool.filter(a => posFilter === 'PICK' ? a.type === 'pick' : a.pos === posFilter);
+  if (!anchors.length) return null;
+  const anchor = [...anchors].sort((a, b) => Math.abs(a.value - targetValue) - Math.abs(b.value - targetValue))[0];
+  const remaining = targetValue - anchor.value;
+  const fillerPool = pool.filter(a => a.key !== anchor.key);
+  const filler = Math.abs(remaining) > targetValue * 0.06 ? bestCombo(fillerPool, remaining) : null;
+  const combo = filler ? [anchor, ...filler.combo] : [anchor];
+  const sum = combo.reduce((s, a) => s + a.value, 0);
+  return { combo, sum, diff: Math.abs(sum - targetValue) };
+}
+
+// Why might `partner` realistically part with `givingAssets`? Reuses the same
+// positional-surplus idea as Team Analyzer's trade-partner suggestions.
+function partnerRationale(partner, givingAssets) {
+  const notes = [];
+  const mode = teamMode(partner);
+  const posGiven = [...new Set(givingAssets.filter(a => a.type === 'player').map(a => a.pos))];
+  posGiven.forEach(pos => {
+    const key = pos.toLowerCase();
+    if (!(key in partner)) return;
+    const arr = teams.map(t => t[key]).sort((a, b) => a - b);
+    const pct = arr.indexOf(partner[key]) / (arr.length - 1);
+    if (pct > 0.65) notes.push(`Deep at ${pos} — top-third of the league in ${pos} value`);
+  });
+  if (givingAssets.some(a => a.type === 'pick') && mode === 'contend') notes.push(`Contending — likely open to moving picks for immediate help`);
+  if (givingAssets.some(a => a.type === 'player' && a.age >= 29) && mode === 'rebuild') notes.push(`Rebuilding — likely open to moving aging veterans`);
+  if (givingAssets.some(a => a.type === 'player' && a.age < 25) && mode === 'contend' && posGiven.length) notes.push(`Contending teams sometimes cash in unproven youth for a sure thing`);
+  if (!notes.length) notes.push(`Reasonable value match`);
+  return notes.slice(0, 2);
+}
+
+let finderState = null;
+
+function openFinder(side, key) {
+  finderState = { side, key, position: 'ANY' };
+  renderFinder();
+}
+function closeFinder() {
+  finderState = null;
+  document.getElementById('finder').classList.add('hidden');
+}
+
+function renderFinder() {
+  if (!finderState) return;
+  const { side, key, position } = finderState;
+  const team = teamOf(side);
+  const asset = team.assets.find(a => a.key === key);
+  if (!asset) { closeFinder(); return; }
+
+  const box = document.getElementById('finder');
+  box.classList.remove('hidden');
+  document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-amber-200/40">${Math.round(asset.value).toLocaleString()}</span> <span class="text-amber-200/40">from ${Vault.escapeHtml(team.teamName)}</span>`;
+
+  const positions = ['ANY', 'QB', 'RB', 'WR', 'TE', 'PICK'];
+  document.getElementById('finderPosChips').innerHTML = positions.map(p =>
+    `<button onclick="finderState.position='${p}'; renderFinder()" class="text-[11px] px-2.5 py-1 rounded-lg border ${position === p ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-amber-200/50 hover:text-amber-200'}">${p}</button>`
+  ).join('');
+
+  const partners = teams.filter(t => t.rosterId !== team.rosterId);
+  const results = partners.map(partner => {
+    const combo = anchoredCombo(partner.assets, asset.value, position);
+    if (!combo) return null;
+    const pctOff = combo.diff / asset.value * 100;
+    return { partner, combo, pctOff, rationale: partnerRationale(partner, combo.combo) };
+  }).filter(Boolean).sort((a, b) => a.pctOff - b.pctOff).slice(0, 5);
+
+  const resultsEl = document.getElementById('finderResults');
+  if (!results.length) {
+    resultsEl.innerHTML = `<div class="text-[12px] text-amber-200/40 py-2">No team has a ${position} package close to this value.</div>`;
+    return;
+  }
+  resultsEl.innerHTML = results.map(r => `
+    <div class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 flex-wrap">
+      <div class="min-w-0">
+        <div class="text-[13px] font-medium">${Vault.escapeHtml(r.partner.teamName)} <span class="text-[10px] text-amber-200/40">(${r.partner.arch})</span></div>
+        <div class="text-[12px] text-amber-100/70 mt-0.5">${r.combo.combo.map(a => Vault.escapeHtml(a.name)).join(' + ')} <span class="mono text-amber-200/40">${Math.round(r.combo.sum).toLocaleString()}</span></div>
+        <div class="text-[11px] text-sky-300/70 mt-1">${r.rationale.join(' · ')}</div>
+      </div>
+      <div class="flex items-center gap-3 shrink-0">
+        <div class="text-right">
+          <div class="text-[12px] mono ${r.pctOff < 6 ? 'text-emerald-400' : r.pctOff < 15 ? 'text-amber-400' : 'text-amber-200/50'}">${r.pctOff.toFixed(0)}% off</div>
+        </div>
+        <button onclick="proposeFromFinder('${r.partner.rosterId}')" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
+      </div>
+    </div>`).join('');
+}
+
+function proposeFromFinder(partnerId) {
+  const { side, key } = finderState;
+  const other = otherSide(side);
+  document.getElementById(`team${other}`).value = partnerId;
+  selectedA.clear(); selectedB.clear();
+  (side === 'A' ? selectedA : selectedB).add(key);
+
+  const team = teamOf(side);
+  const asset = team.assets.find(a => a.key === key);
+  const partner = teamOf(other);
+  const combo = anchoredCombo(partner.assets, asset.value, finderState.position);
+  if (combo) combo.combo.forEach(a => (other === 'A' ? selectedA : selectedB).add(a.key));
+
+  closeFinder();
+  render('A'); render('B');
+}
+
+// Target-matcher: select `key` on `side`, then auto-build a matching package from the other side
+function matchTarget(side, key) {
+  const team = teamOf(side);
+  const asset = team.assets.find(a => a.key === key);
+  if (!asset) return;
+  const selSide = side === 'A' ? selectedA : selectedB;
+  selSide.add(key);
+
+  const other = otherSide(side);
+  const otherTeam = teamOf(other);
+  const otherSel = other === 'A' ? selectedA : selectedB;
+  const pool = otherTeam.assets.filter(a => !otherSel.has(a.key));
+  const combo = bestCombo(pool, asset.value);
+  if (combo) combo.combo.forEach(a => otherSel.add(a.key));
+
+  render('A'); render('B');
+}
+
+function fmtSigned(n) { return (n >= 0 ? '+' : '') + Math.round(n).toLocaleString(); }
+
 function updateTrade() {
-  const teamA = teams.find(t => t.id == document.getElementById('teamA').value);
-  const teamB = teams.find(t => t.id == document.getElementById('teamB').value);
-
-  const aPlayers = [...selectedA].map(id => teamA.players.find(p => p.id === id)).filter(Boolean);
-  const bPlayers = [...selectedB].map(id => teamB.players.find(p => p.id === id)).filter(Boolean);
-
-  const aVal = aPlayers.reduce((s, p) => s + p.value, 0);
-  const bVal = bPlayers.reduce((s, p) => s + p.value, 0);
+  const teamA = teamOf('A'), teamB = teamOf('B');
+  const aAssets = [...selectedA].map(k => teamA.assets.find(x => x.key === k)).filter(Boolean);
+  const bAssets = [...selectedB].map(k => teamB.assets.find(x => x.key === k)).filter(Boolean);
+  const aVal = aAssets.reduce((s, a) => s + a.value, 0);
+  const bVal = bAssets.reduce((s, a) => s + a.value, 0);
 
   const bar = document.getElementById('tradeBar');
+  const empty = document.getElementById('emptyState');
+  const analysis = document.getElementById('analysis');
 
-  if (aPlayers.length || bPlayers.length) {
-    bar.classList.remove('hidden');
-    document.getElementById('giveA').innerHTML = aPlayers.length
-      ? aPlayers.map(p => `<span class="inline-flex items-center gap-1.5 mr-3"><span>${Vault.escapeHtml(p.name)}</span><span class="text-amber-200/40 text-[13px]">${Math.round(p.value).toLocaleString()}</span></span>`).join('')
-      : '<span class="text-amber-200/30">Nothing selected</span>';
-
-    document.getElementById('giveB').innerHTML = bPlayers.length
-      ? bPlayers.map(p => `<span class="inline-flex items-center gap-1.5 ml-3"><span class="text-amber-200/40 text-[13px]">${Math.round(p.value).toLocaleString()}</span><span>${Vault.escapeHtml(p.name)}</span></span>`).join('')
-      : '<span class="text-amber-200/30">Nothing selected</span>';
-
-    const diff = Math.abs(aVal - bVal);
-    const diffEl = document.getElementById('diff');
-    diffEl.textContent = diff.toLocaleString();
-    diffEl.className = 'text-[22px] font-semibold mono ' + (diff < 300 ? 'text-emerald-400' : diff < 800 ? 'text-amber-400' : 'text-amber-200/50');
-  } else {
+  if (!aAssets.length && !bAssets.length) {
     bar.classList.add('hidden');
+    analysis.classList.add('hidden');
+    empty.classList.remove('hidden');
+    return;
   }
+  empty.classList.add('hidden');
+  bar.classList.remove('hidden');
+
+  document.getElementById('giveA').innerHTML = aAssets.length
+    ? aAssets.map(a => `<span class="inline-flex items-center gap-1.5 mr-3"><span>${Vault.escapeHtml(a.name)}</span><span class="text-amber-200/40 text-[13px] mono">${Math.round(a.value).toLocaleString()}</span></span>`).join('')
+    : '<span class="text-amber-200/30">Nothing selected</span>';
+  document.getElementById('giveB').innerHTML = bAssets.length
+    ? bAssets.map(a => `<span class="inline-flex items-center gap-1.5 mr-3"><span>${Vault.escapeHtml(a.name)}</span><span class="text-amber-200/40 text-[13px] mono">${Math.round(a.value).toLocaleString()}</span></span>`).join('')
+    : '<span class="text-amber-200/30">Nothing selected</span>';
+
+  const diff = Math.abs(aVal - bVal);
+  const avgSide = (aVal + bVal) / 2 || 1;
+  const pctDiff = diff / avgSide * 100;
+  const diffEl = document.getElementById('diff');
+  diffEl.textContent = diff.toLocaleString();
+  diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiff < 6 ? 'text-emerald-400' : pctDiff < 15 ? 'text-amber-400' : 'text-amber-200/50');
+
+  // Gap-closer suggestion
+  const gapBox = document.getElementById('gapClose');
+  if (pctDiff > 8 && (aAssets.length || bAssets.length)) {
+    const behindSide = aVal < bVal ? 'A' : 'B';
+    const behindTeam = teamOf(behindSide);
+    const behindSel = behindSide === 'A' ? selectedA : selectedB;
+    const need = Math.abs(aVal - bVal);
+    const pool = behindTeam.assets.filter(a => !behindSel.has(a.key));
+    const combo = bestCombo(pool, need);
+    if (combo) {
+      gapBox.classList.remove('hidden');
+      gapBox.innerHTML = `<div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-2">Team ${behindSide} is behind by ${Math.round(need).toLocaleString()} — close the gap</div>
+        <div class="flex flex-wrap gap-2">${combo.combo.map(a => `<button onclick="toggle('${behindSide}','${a.key}')" class="px-2.5 py-1.5 rounded-lg border border-amber-500/20 hover:border-amber-500/50 hover:text-amber-200 text-[12px] text-amber-100/80">+ ${Vault.escapeHtml(a.name)} <span class="mono text-amber-200/40">${Math.round(a.value).toLocaleString()}</span></button>`).join('')}</div>`;
+    } else gapBox.classList.add('hidden');
+  } else gapBox.classList.add('hidden');
+
+  renderAnalysis(teamA, teamB, aAssets, bAssets);
+}
+
+function teamMode(t) {
+  if (t.ppgP >= 60) return 'contend';
+  if (t.valP <= 40 && t.ppgP <= 40) return 'rebuild';
+  return 'flexible';
+}
+const MODE_LABEL = { contend: 'Contending', rebuild: 'Rebuilding', flexible: 'Flexible timeline' };
+
+function analyzeSide(before, after) {
+  const mode = teamMode(before);
+  const dAge = after.age - before.age;
+  const dPicks = after.picksValue - before.picksValue;
+  const dOpt = after.opt - before.opt;
+  const dValue = after.total - before.total;
+  const dArchScore = after.archScore - before.archScore;
+  const notes = [];
+  let fit = 0;
+
+  if (mode === 'rebuild') {
+    if (dAge > 0.4) { notes.push({ tone: 'bad', text: `Gets ${dAge.toFixed(1)} yrs older while rebuilding — wrong direction for your timeline.` }); fit -= 2; }
+    else if (dAge < -0.4) { notes.push({ tone: 'good', text: `Gets ${Math.abs(dAge).toFixed(1)} yrs younger — on-plan for a rebuild.` }); fit += 1; }
+    if (dPicks < -1500) { notes.push({ tone: 'bad', text: `Trades away ${Math.round(Math.abs(dPicks)).toLocaleString()} in draft capital — contradicts a rebuild.` }); fit -= 2; }
+    else if (dPicks > 1500) { notes.push({ tone: 'good', text: `Adds ${Math.round(dPicks).toLocaleString()} in draft capital — on-plan for a rebuild.` }); fit += 2; }
+    if (dOpt > 5) notes.push({ tone: 'neutral', text: `Raises optimal PPG by ${dOpt.toFixed(1)}, but current-season points aren't the priority right now.` });
+  } else if (mode === 'contend') {
+    if (dAge > 1.5) notes.push({ tone: 'neutral', text: `Adds ${dAge.toFixed(1)} yrs of age — tolerable for a win-now roster, but watch the cliff.` });
+    else if (dAge < -0.4) { notes.push({ tone: 'good', text: `Gets younger without giving up contention.` }); fit += 1; }
+    if (dPicks < -1500) { notes.push({ tone: 'good', text: `Spends ${Math.round(Math.abs(dPicks)).toLocaleString()} in future picks to win now — the right move for a contender if those picks weren't needed.` }); fit += 1; }
+    else if (dPicks > 1500) notes.push({ tone: 'neutral', text: `Banks ${Math.round(dPicks).toLocaleString()} in picks — fine, but a contender should usually prioritize immediate roster strength.` });
+    if (dOpt > 3) { notes.push({ tone: 'good', text: `Raises optimal lineup PPG by ${dOpt.toFixed(1)} — a real scoring upgrade right now.` }); fit += 2; }
+    else if (dOpt < -3) { notes.push({ tone: 'bad', text: `Drops optimal PPG by ${Math.abs(dOpt).toFixed(1)} — hurts scoring while you're trying to win.` }); fit -= 2; }
+  } else {
+    if (dOpt > 3) { notes.push({ tone: 'good', text: `Raises optimal lineup PPG by ${dOpt.toFixed(1)}.` }); fit += 1; }
+    else if (dOpt < -3) { notes.push({ tone: 'bad', text: `Drops optimal lineup PPG by ${Math.abs(dOpt).toFixed(1)}.` }); fit -= 1; }
+    if (Math.abs(dPicks) > 1500) notes.push({ tone: 'neutral', text: `${dPicks > 0 ? 'Adds' : 'Spends'} ${Math.round(Math.abs(dPicks)).toLocaleString()} in draft capital.` });
+    if (Math.abs(dAge) > 0.5) notes.push({ tone: 'neutral', text: `${dAge > 0 ? 'Gets older' : 'Gets younger'} by ${Math.abs(dAge).toFixed(1)} yrs.` });
+  }
+
+  notes.push({ tone: dArchScore > 5 ? 'good' : dArchScore < -5 ? 'bad' : 'neutral', text: `Archetype: ${before.arch} → ${after.arch}`, isArchetype: true });
+
+  return { mode, dAge, dPicks, dOpt, dValue, dArchScore, fit, notes };
+}
+
+function headline(dValue, avgSide, fit) {
+  const pct = avgSide ? dValue / avgSide * 100 : 0;
+  const fair = Math.abs(pct) < 6;
+  if (pct <= -40) return { tone: 'bad', text: `Well below value (${pct.toFixed(0)}%)${fit >= 2 ? ' — good timeline fit, but not enough to cover a discount this big' : ''}` };
+  if (fair && fit >= 2) return { tone: 'good', text: 'Fair value, strong fit — good trade' };
+  if (fair && fit <= -2) return { tone: 'bad', text: 'Fair by value, bad fit for your timeline' };
+  if (fair) return { tone: 'neutral', text: 'Fair value, neutral fit' };
+  if (pct >= 6 && fit >= 0) return { tone: 'good', text: `Ahead on value (+${pct.toFixed(0)}%) and fits your timeline` };
+  if (pct >= 6) return { tone: 'neutral', text: `Ahead on value (+${pct.toFixed(0)}%), but questionable fit` };
+  if (fit >= 2) return { tone: 'neutral', text: `Behind on value (${pct.toFixed(0)}%), but strong timeline fit` };
+  return { tone: 'bad', text: `Behind on value (${pct.toFixed(0)}%) and a poor fit` };
+}
+
+// Labels the trade itself — not either team's fit, but what kind of transaction this is.
+function classifyTrade(resA, resB, aAssets, bAssets) {
+  const aSellsProd = resA.dOpt < -3 && resA.dPicks > 500;
+  const bSellsProd = resB.dOpt < -3 && resB.dPicks > 500;
+  const aBuysProd = resA.dOpt > 3 && resA.dPicks < -500;
+  const bBuysProd = resB.dOpt > 3 && resB.dPicks < -500;
+
+  let label, desc;
+  if (resA.mode === 'rebuild' && resB.mode === 'contend' && aSellsProd && bBuysProd) {
+    label = 'Rebuild-for-Contender Swap';
+    desc = `Team A cashes in current production for draft capital while Team B spends picks to win now — a textbook timeline-matched trade.`;
+  } else if (resB.mode === 'rebuild' && resA.mode === 'contend' && bSellsProd && aBuysProd) {
+    label = 'Rebuild-for-Contender Swap';
+    desc = `Team B cashes in current production for draft capital while Team A spends picks to win now — a textbook timeline-matched trade.`;
+  } else if (resA.mode === 'rebuild' && aBuysProd) {
+    label = 'Off-Plan Buy — Team A';
+    desc = `Team A is rebuilding but is buying current production at the cost of picks or youth — worth double-checking this actually fits the plan.`;
+  } else if (resB.mode === 'rebuild' && bBuysProd) {
+    label = 'Off-Plan Buy — Team B';
+    desc = `Team B is rebuilding but is buying current production at the cost of picks or youth — worth double-checking this actually fits the plan.`;
+  } else if (resA.mode === 'contend' && resB.mode === 'contend') {
+    label = 'Win-Now Swap';
+    desc = `Both teams are contending — this reads as two playoff teams addressing complementary roster needs, not a timeline shift.`;
+  } else if (resA.mode === 'rebuild' && resB.mode === 'rebuild') {
+    label = 'Rebuild Shuffle';
+    desc = `Both teams are rebuilding — this is about sorting picks and youth to each side's preference, not changing either team's outlook.`;
+  } else {
+    label = 'Value Trade';
+    desc = `No clear timeline mismatch between the two sides — this reads as a roster-fit trade rather than a buy or a sell.`;
+  }
+
+  if (aAssets.length >= bAssets.length + 2) desc += ` Team A is also consolidating — ${aAssets.length} pieces down to ${bAssets.length} bigger ones from Team B.`;
+  else if (bAssets.length >= aAssets.length + 2) desc += ` Team B is also consolidating — ${bAssets.length} pieces down to ${aAssets.length} bigger ones from Team A.`;
+
+  return { label, desc };
+}
+
+function renderAnalysis(teamA, teamB, aAssets, bAssets) {
+  const analysis = document.getElementById('analysis');
+  if (!aAssets.length && !bAssets.length) { analysis.classList.add('hidden'); return; }
+  analysis.classList.remove('hidden');
+
+  const giveA = aAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, season: a.season, round: a.round, original: a.original, tier: a.tier }));
+  const giveB = bAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, season: a.season, round: a.round, original: a.original, tier: a.tier }));
+
+  const { before, after, pool } = Vault.simulateTrade(teams, slots, teamA.rosterId, teamB.rosterId, giveA, giveB);
+  const avgSide = (aAssets.reduce((s, a) => s + a.value, 0) + bAssets.reduce((s, a) => s + a.value, 0)) / 2 || 1;
+
+  const resA = analyzeSide(before.A, after.A);
+  const resB = analyzeSide(before.B, after.B);
+  const trade = classifyTrade(resA, resB, aAssets, bAssets);
+  document.getElementById('tradeArchetype').innerHTML = `
+    <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Trade Archetype</div>
+    <div class="text-[16px] font-medium gold-text mb-1">${trade.label}</div>
+    <div class="text-[13px] text-amber-100/70">${trade.desc}</div>`;
+
+  [['A', before.A, after.A, resA], ['B', before.B, after.B, resB]].forEach(([side, bef, aft, res]) => {
+    const win = Vault.contentionWindow(aft, pool);
+    const head = headline(res.dValue, avgSide, res.fit);
+    document.getElementById(`analysis${side}`).innerHTML = `
+      <div class="card rounded-[24px] p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <div class="text-[11px] text-amber-200/40 uppercase tracking-wider">Team ${side} · ${Vault.escapeHtml(bef.teamName)}</div>
+            <div class="text-[11px] mt-0.5 ${TONE.neutral}">${MODE_LABEL[res.mode]}</div>
+          </div>
+          <div class="text-right">
+            <div class="text-[13px] font-mono ${res.dValue >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtSigned(res.dValue)}</div>
+            <div class="text-[10px] text-amber-200/40">value Δ</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mb-4">
+          <span class="size-2 rounded-full ${TONE_DOT[head.tone]}"></span>
+          <span class="text-[14px] font-medium ${TONE[head.tone]}">${head.text}</span>
+        </div>
+        <div class="space-y-2 mb-4">
+          ${res.notes.map(n => `<div class="flex gap-2 text-[12px] ${n.isArchetype ? 'pt-2 border-t border-white/5 mt-2' : ''}"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-center pt-3 border-t border-white/5">
+          <div><div class="text-[15px] font-mono">${aft.age.toFixed(1)}</div><div class="text-[10px] text-amber-200/40">Age</div></div>
+          <div><div class="text-[15px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[10px] text-amber-200/40">Opt PPG</div></div>
+          <div><div class="text-[15px] font-mono">${win.windowStart}-${win.windowEnd}</div><div class="text-[10px] text-amber-200/40">Window</div></div>
+        </div>
+      </div>`;
+  });
 }
 
 init();

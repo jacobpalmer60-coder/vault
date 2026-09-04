@@ -63,21 +63,6 @@
 <script>
 const $ = s => document.querySelector(s);
 
-function getFatalFlaws(t, leagueAvg) {
-  const flaws = [];
-  const rbOld = t.plist.filter(p => p.pos === 'RB' && p.age >= 27).reduce((s, p) => s + p.value, 0);
-  const rbTotal = t.rb || 1;
-  if (rbOld / rbTotal > 0.6) flaws.push(`RB Age Cliff: ${Math.round(rbOld / rbTotal * 100)}% of RB value is 27+`);
-  const pos = { QB: t.qb, RB: t.rb, WR: t.wr, TE: t.te };
-  Object.entries(pos).forEach(([k, v]) => {
-    if (v < leagueAvg[k] * 0.55) flaws.push(`${k} Bankruptcy: ${Math.round(v).toLocaleString()} vs league avg ${Math.round(leagueAvg[k]).toLocaleString()}`);
-  });
-  if (t.picksValue < leagueAvg.picks * 0.5) flaws.push(`Pick Poor: ${Math.round(t.picksValue).toLocaleString()} pick value (bottom 30%)`);
-  const starters = t.plist.filter(p => p.value > 1000).length;
-  if (starters < 14) flaws.push(`Thin Depth: Only ${starters} players >1k value`);
-  return flaws.slice(0, 3);
-}
-
 function getTradePartners(t, all) {
   const posPct = {};
   ['qb', 'rb', 'wr', 'te'].forEach(k => {
@@ -99,39 +84,6 @@ function getTradePartners(t, all) {
     if (t.picksValue > 8000 && o.picksValue < 5000) score += 2;
     return { ...o, fit: score };
   }).sort((a, b) => b.fit - a.fit).slice(0, 2);
-}
-
-function getWindow(t, all) {
-  const startYear = new Date().getFullYear();
-  const years = 5;
-  const proj = [];
-  for (let y = 0; y < years; y++) {
-    let val = 0;
-    t.plist.forEach(p => {
-      let decay = 1;
-      const age = p.age + y;
-      if (p.pos === 'RB' && age > 26) decay = Math.pow(0.85, age - 26);
-      if (p.pos === 'WR' && age > 27) decay = Math.pow(0.92, age - 27);
-      if (p.pos === 'QB' && age > 30) decay = Math.pow(0.96, age - 30);
-      if (p.pos === 'TE' && age > 28) decay = Math.pow(0.93, age - 28);
-      val += p.value * decay;
-    });
-    proj.push(Math.round(val));
-  }
-  const peak = Math.max(...proj);
-  const year = startYear + proj.indexOf(peak);
-
-  const playoffSpots = Math.max(4, Math.ceil(all.length * 0.6));
-  const sortedPPG = [...all].map(x => x.opt).sort((a, b) => b - a);
-  const playoffLine = sortedPPG[playoffSpots - 1] || sortedPPG[sortedPPG.length - 1];
-
-  const projPPG = proj.map(v => t.opt * (v / (t.total || 1)));
-  const valueThreshold = peak * 0.88;
-  const inWindow = proj.map((v, i) => v >= valueThreshold && projPPG[i] >= playoffLine * 0.97);
-
-  const startIdx = inWindow.indexOf(true);
-  const endIdx = inWindow.lastIndexOf(true);
-  return { proj, projPPG, peakYear: year, peak, startYear, inWindow, windowStart: startIdx >= 0 ? startYear + startIdx : startYear, windowEnd: endIdx >= 0 ? startYear + endIdx : startYear, years, playoffLine, playoffSpots };
 }
 
 async function loadLeague(id) {
@@ -165,9 +117,9 @@ function renderSingle(t) {
     te: all.reduce((s, x) => s + x.te, 0) / all.length,
     picks: all.reduce((s, x) => s + x.picksValue, 0) / all.length,
   };
-  const flaws = getFatalFlaws(t, leagueAvg);
+  const flaws = Vault.fatalFlaws(t, leagueAvg);
   const partners = getTradePartners(t, all);
-  const win = getWindow(t, all);
+  const win = Vault.contentionWindow(t, all);
 
   const bars = [
     { l: 'Total Value', v: Math.round(t.total), c: 'from-amber-500 to-yellow-500' },
