@@ -36,39 +36,49 @@ async function main() {
   });
   if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
   const html = await res.text();
-  const players = extractArray(html, 'playersArray');
+  const all = extractArray(html, 'playersArray');
 
-  const out = players
-    .filter(p => p.position !== 'RDP') // rookie draft picks — not in scope yet
-    .map(p => ({
-      name: p.playerName,
-      pos: p.position,
-      team: p.team || '',
-      age: p.age || null,
-      rookie: !!p.rookie,
+  const pickNamePattern = /^(\d{4})\s+(Early|Mid|Late)\s+(\d+)(?:st|nd|rd|th)$/i;
+
+  const players = [];
+  const picks = [];
+  for (const p of all) {
+    const row = {
       oneQB: p.oneQBValues.value,
       oneQB_tep: p.oneQBValues.tep.value,
       oneQB_tepp: p.oneQBValues.tepp.value,
       sf: p.superflexValues.value,
       sf_tep: p.superflexValues.tep.value,
       sf_tepp: p.superflexValues.tepp.value
-    }));
+    };
+    if (p.position === 'RDP') {
+      const m = p.playerName.match(pickNamePattern);
+      if (!m) continue; // unrecognized pick name format — skip rather than guess
+      picks.push({ season: +m[1], slot: m[2].toLowerCase(), round: +m[3], ...row });
+    } else {
+      players.push({ name: p.playerName, pos: p.position, team: p.team || '', age: p.age || null, rookie: !!p.rookie, ...row });
+    }
+  }
 
-  if (out.length < 300) {
-    throw new Error(`Only got ${out.length} players — page shape probably changed, refusing to overwrite`);
+  if (players.length < 300) {
+    throw new Error(`Only got ${players.length} players — page shape probably changed, refusing to overwrite`);
+  }
+  if (picks.length < 20) {
+    throw new Error(`Only got ${picks.length} draft picks — page shape probably changed, refusing to overwrite`);
   }
 
   const payload = {
     source: 'keeptradecut.com/dynasty-rankings',
     updated: new Date().toISOString(),
-    count: out.length,
-    players: out
+    count: players.length,
+    players,
+    picks
   };
 
   const outPath = path.join(__dirname, '..', 'data', 'ktc-values.json');
   await fs.mkdir(path.dirname(outPath), { recursive: true });
   await fs.writeFile(outPath, JSON.stringify(payload));
-  console.log(`Wrote ${out.length} players to ${outPath}`);
+  console.log(`Wrote ${players.length} players and ${picks.length} picks to ${outPath}`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

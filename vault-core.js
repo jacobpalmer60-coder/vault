@@ -7,7 +7,6 @@ const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
   PPG_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqxhqyuKK6vu_EoYta5FZ_KdOB8M54Q_qBwJKOUF5KcgbTt2dmHn_FuLj9d-FS8-ta5T0zkU0QEGcN/pub?gid=118408869&single=true&output=csv',
-  PICKS_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqxhqyuKK6vu_EoYta5FZ_KdOB8M54Q_qBwJKOUF5KcgbTt2dmHn_FuLj9d-FS8-ta5T0zkU0QEGcN/pub?gid=972793131&single=true&output=csv',
   PICK_YEARS: [2027, 2028, 2029],
   PICK_ROUNDS: [1, 2, 3, 4]
 };
@@ -91,31 +90,47 @@ const Vault = {
     return map;
   },
 
-  async fetchValueSheets() {
-    const [ktcData, ppgs, pickVals] = await Promise.all([
-      Vault.fetchKtcValues(),
-      Vault.fetchCsvRows(VAULT_CONFIG.PPG_URL),
-      Vault.fetchCsvRows(VAULT_CONFIG.PICKS_URL)
-    ]);
-    return { ktcData, ppgs, pickVals };
+  /* KTC's pick grid rolls forward each spring after that year's rookie draft, so its
+     available seasons can lag a league's configured PICK_YEARS by a year. Map each
+     configured year to whichever KTC season is closest rather than hardcoding either. */
+  buildKtcPickMap(ktcData, isSF) {
+    const raw = new Map();
+    const seasons = new Set();
+    (ktcData.picks || []).forEach(p => {
+      raw.set(`${p.season}-${p.round}-${p.slot}`, isSF ? p.sf_tep : p.oneQB_tep);
+      seasons.add(p.season);
+    });
+    const availYears = [...seasons].sort((a, b) => a - b);
+    const map = new Map();
+    if (!availYears.length) return map;
+    VAULT_CONFIG.PICK_YEARS.forEach(year => {
+      const nearest = availYears.reduce((best, y) => Math.abs(y - year) < Math.abs(best - year) ? y : best, availYears[0]);
+      VAULT_CONFIG.PICK_ROUNDS.forEach(round => {
+        ['early', 'mid', 'late'].forEach(tier => {
+          const val = raw.get(`${nearest}-${round}-${tier}`);
+          if (val != null) map.set(`${year}-${round}-${tier}`, val);
+        });
+      });
+    });
+    return map;
   },
 
-  buildValueMaps({ ktcData, ppgs, pickVals, isSF }) {
+  async fetchValueSheets() {
+    const [ktcData, ppgs] = await Promise.all([
+      Vault.fetchKtcValues(),
+      Vault.fetchCsvRows(VAULT_CONFIG.PPG_URL)
+    ]);
+    return { ktcData, ppgs };
+  },
+
+  buildValueMaps({ ktcData, ppgs, isSF }) {
     const valMap = Vault.buildKtcValueMap(ktcData, isSF);
     const ppgMap = new Map();
     ppgs.forEach(r => {
       const n = r.Player || r.player || '';
       if (n) ppgMap.set(Vault.norm(n), parseFloat(r['Avg_PPR_0.5_TEP']) || 0);
     });
-    const pickMap = new Map();
-    pickVals.forEach(r => {
-      if (r.season) {
-        pickMap.set(
-          `${r.season}-${r.round}-${(r.slot || 'mid').toLowerCase()}`,
-          Vault.clean(isSF ? r.sf_value : r.qb_value)
-        );
-      }
-    });
+    const pickMap = Vault.buildKtcPickMap(ktcData, isSF);
     return { valMap, ppgMap, pickMap };
   },
 
@@ -142,9 +157,9 @@ const Vault = {
      Fixing that drift was the main reason to centralize this. */
   async buildLeagueTeams(leagueId) {
     const { league, users, rosters, players, traded } = await Vault.fetchSleeperCore(leagueId);
-    const { ktcData, ppgs, pickVals } = await Vault.fetchValueSheets();
+    const { ktcData, ppgs } = await Vault.fetchValueSheets();
     const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
-    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, ppgs, pickVals, isSF });
+    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, ppgs, isSF });
 
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
