@@ -41,6 +41,11 @@ const Vault = {
       .replace(/\s+/g, ' ');
   },
   clean(v) { return parseFloat(String(v || '').replace(/,/g, '')) || 0; },
+  meanStd(arr) {
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const std = Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length);
+    return { mean, std };
+  },
   fmtInt(n) { return Number.isFinite(n) ? Math.round(n).toLocaleString() : '—'; },
   fmtFloat(n, d = 2) { return Number.isFinite(n) ? n.toFixed(d) : '—'; },
   escapeHtml(s) {
@@ -310,34 +315,40 @@ const Vault = {
       t.picksValue = sum;
     });
 
-    /* ---------- Percentiles ----------
-       Everything below keys off in-league percentile rank rather than a ratio to the
-       max/mean team. Ratios compress unevenly when the underlying inputs are
-       correlated (or, for Longevity's blend, anti-correlated — value-rich teams tend
-       to be pick-poor and vice versa, so a weighted average of raw ratios cancels
-       toward the middle for nearly everyone). Percentiles are evenly spread across
-       the league by construction regardless of the data's shape, the same fix that
-       replaced the old `bal >= 70` archetype gate. */
+    /* ---------- Percentiles (used by archetype only) ----------
+       Archetype buckets teams into discrete tiers, where an even 0-100 spread by
+       construction is exactly what's wanted regardless of the underlying data's shape
+       — the same fix that replaced the old `bal >= 70` archetype gate. */
     const vals = built.map(t => t.total).sort((a, b) => a - b);
     const opts = built.map(t => t.opt).sort((a, b) => a - b);
-    const ages = built.map(t => t.age).sort((a, b) => a - b);
-    const pickVals = built.map(t => t.picksValue).sort((a, b) => a - b);
     built.forEach(t => {
       t.valP = vals.indexOf(t.total) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
-      t.ageP = 100 - ages.indexOf(t.age) / (ages.length - 1) * 100; // youngest = 100
-      t.pickP = pickVals.indexOf(t.picksValue) / (pickVals.length - 1) * 100;
     });
 
-    // Production: percentile of optimal-lineup PPG, rescaled to league avg = 100.
-    const avgPpgP = built.reduce((s, t) => s + t.ppgP, 0) / built.length;
-    built.forEach(t => t.production = avgPpgP ? t.ppgP / avgPpgP * 100 : 100);
+    /* ---------- Production & Longevity (z-scores, not percentiles) ----------
+       Percentile rank only knows order, not how big a gap actually is — two teams a
+       fraction of a point apart in Opt PPG could land on opposite ends of a rank step
+       and look dramatically far apart, while a genuinely huge gap elsewhere gets the
+       same one-step treatment. A z-score (distance from the league mean, in units of
+       the league's own standard deviation) keeps near-ties near each other and lets
+       real gaps read as real gaps. SPREAD sets how many display points one standard
+       deviation is worth; 100 = league average either way. */
+    const SPREAD = 20;
+    const { mean: meanOpt, std: stdOpt } = Vault.meanStd(built.map(t => t.opt));
+    built.forEach(t => t.production = Math.max(0, 100 + (stdOpt ? (t.opt - meanOpt) / stdOpt * SPREAD : 0)));
 
-    // Longevity: 60% roster value + 20% age + 20% pick capital, each as an in-league
-    // percentile, blended and normalized to league avg = 100.
-    built.forEach(t => { t.longRaw = t.valP * 0.6 + t.ageP * 0.2 + t.pickP * 0.2; });
-    const avgLong = built.reduce((s, t) => s + t.longRaw, 0) / built.length;
-    built.forEach(t => t.longevity = avgLong ? t.longRaw / avgLong * 100 : 100);
+    // Longevity: 60% roster value + 20% age (younger is better) + 20% pick capital,
+    // each z-scored against the league before blending.
+    const { mean: meanTotal, std: stdTotal } = Vault.meanStd(built.map(t => t.total));
+    const { mean: meanAge, std: stdAge } = Vault.meanStd(built.map(t => t.age));
+    const { mean: meanPicks, std: stdPicks } = Vault.meanStd(built.map(t => t.picksValue));
+    built.forEach(t => {
+      const valZ = stdTotal ? (t.total - meanTotal) / stdTotal : 0;
+      const ageZ = stdAge ? -(t.age - meanAge) / stdAge : 0;
+      const pickZ = stdPicks ? (t.picksValue - meanPicks) / stdPicks : 0;
+      t.longevity = Math.max(0, 100 + (valZ * 0.6 + ageZ * 0.2 + pickZ * 0.2) * SPREAD);
+    });
 
     // Archetype (+ a continuous best-to-worst score for sorting by it)
     built.forEach(t => {
