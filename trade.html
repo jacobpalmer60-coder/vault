@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trade Calculator — The Vault</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
 </head>
@@ -91,32 +90,30 @@ let selectedB = new Set();
 async function init() {
   const leagueId = Vault.getLeagueId();
   try {
-    const [league, users, rosters, players, csvRows] = await Promise.all([
+    const [league, users, rosters, players, ktcData] = await Promise.all([
       fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
       fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
-      Vault.fetchCsvRows(VAULT_CONFIG.VALUES_URL)
+      Vault.fetchKtcValues()
     ]);
     if (!league || league.error) throw new Error('League not found');
 
     const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
-    const values = new Map();
-    csvRows.forEach(r => {
-      if (r.sleeper_id) values.set(r.sleeper_id, Vault.clean(isSF ? r.val_sf_ppr_tep05 : r.val_1qb_ppr_tep05));
-    });
+    const values = Vault.buildKtcValueMap(ktcData, isSF);
 
     teams = rosters.map(r => {
       const user = users.find(u => u.user_id === r.owner_id);
       const pls = (r.players || []).map(id => {
         const p = players[id];
         if (!p) return null;
+        const name = `${p.first_name} ${p.last_name}`;
         return {
           id,
-          name: `${p.first_name} ${p.last_name}`,
+          name,
           pos: p.position,
           team: p.team,
-          value: values.get(id) || 0
+          value: values.get(Vault.normalizeName(name)) || 0
         };
       }).filter(Boolean).filter(p => p.value > 100).sort((a, b) => b.value - a.value);
 

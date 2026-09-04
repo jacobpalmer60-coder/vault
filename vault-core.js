@@ -5,7 +5,7 @@
    ============================================================ */
 const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
-  VALUES_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqxhqyuKK6vu_EoYta5FZ_KdOB8M54Q_qBwJKOUF5KcgbTt2dmHn_FuLj9d-FS8-ta5T0zkU0QEGcN/pub?gid=4113168&single=true&output=csv',
+  KTC_URL: 'data/ktc-values.json',
   PPG_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqxhqyuKK6vu_EoYta5FZ_KdOB8M54Q_qBwJKOUF5KcgbTt2dmHn_FuLj9d-FS8-ta5T0zkU0QEGcN/pub?gid=118408869&single=true&output=csv',
   PICKS_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqxhqyuKK6vu_EoYta5FZ_KdOB8M54Q_qBwJKOUF5KcgbTt2dmHn_FuLj9d-FS8-ta5T0zkU0QEGcN/pub?gid=972793131&single=true&output=csv',
   PICK_YEARS: [2027, 2028, 2029],
@@ -70,21 +70,38 @@ const Vault = {
     return { league, users, rosters, players, traded };
   },
 
+  /* ---------- KeepTradeCut values ----------
+     KTC has no public API; data/ktc-values.json is produced by scripts/fetch-ktc.js,
+     run daily by .github/workflows/update-ktc.yml (KTC sends no CORS headers, so this
+     can't be fetched client-side from a different origin). Matched by normalized name
+     since KTC has no Sleeper IDs. */
+  async fetchKtcValues() {
+    const res = await fetch(VAULT_CONFIG.KTC_URL);
+    if (!res.ok) throw new Error('KTC values fetch failed: ' + res.status);
+    return res.json();
+  },
+
+  buildKtcValueMap(ktcData, isSF) {
+    const map = new Map();
+    (ktcData.players || []).forEach(p => {
+      const key = Vault.normalizeName(p.name);
+      if (!key) return;
+      map.set(key, isSF ? p.sf_tep : p.oneQB_tep);
+    });
+    return map;
+  },
+
   async fetchValueSheets() {
-    const [values, ppgs, pickVals] = await Promise.all([
-      Vault.fetchCsvRows(VAULT_CONFIG.VALUES_URL),
+    const [ktcData, ppgs, pickVals] = await Promise.all([
+      Vault.fetchKtcValues(),
       Vault.fetchCsvRows(VAULT_CONFIG.PPG_URL),
       Vault.fetchCsvRows(VAULT_CONFIG.PICKS_URL)
     ]);
-    return { values, ppgs, pickVals };
+    return { ktcData, ppgs, pickVals };
   },
 
-  buildValueMaps({ values, ppgs, pickVals, isSF }) {
-    const valMap = new Map();
-    values.forEach(r => {
-      const sid = String(r.sleeper_id || '').trim();
-      if (sid) valMap.set(sid, Vault.clean(isSF ? r.val_sf_ppr_tep05 : r.val_1qb_ppr_tep05));
-    });
+  buildValueMaps({ ktcData, ppgs, pickVals, isSF }) {
+    const valMap = Vault.buildKtcValueMap(ktcData, isSF);
     const ppgMap = new Map();
     ppgs.forEach(r => {
       const n = r.Player || r.player || '';
@@ -125,9 +142,9 @@ const Vault = {
      Fixing that drift was the main reason to centralize this. */
   async buildLeagueTeams(leagueId) {
     const { league, users, rosters, players, traded } = await Vault.fetchSleeperCore(leagueId);
-    const { values, ppgs, pickVals } = await Vault.fetchValueSheets();
+    const { ktcData, ppgs, pickVals } = await Vault.fetchValueSheets();
     const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
-    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ values, ppgs, pickVals, isSF });
+    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, ppgs, pickVals, isSF });
 
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
@@ -168,7 +185,7 @@ const Vault = {
       const plist = (r.players || []).map(pid => {
         const p = players[String(pid)] || {};
         const nm = `${p.first_name || ''} ${p.last_name || ''}`.trim();
-        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, value: valMap.get(String(pid)) || 0, ppg: ppgMap.get(Vault.norm(nm)) || 0 };
+        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, value: valMap.get(Vault.normalizeName(nm)) || 0, ppg: ppgMap.get(Vault.norm(nm)) || 0 };
       });
       const total = plist.reduce((s, p) => s + p.value, 0);
       const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);
