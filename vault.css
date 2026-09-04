@@ -90,6 +90,13 @@ input, select {
   color-scheme: dark;
 }
 input:focus, select:focus { outline: none; }
+/* color-scheme:dark alone doesn't reliably darken the native <option> popup in
+   every browser, which left dropdown menus showing near-white text on a
+   white popup background. Force it explicitly. */
+select option {
+  background: #0a0a0a;
+  color: #fef3c7;
+}
 
 .pos-badge-QB { color:#7dd3fc; background:rgba(125,211,252,.1); border-color:rgba(125,211,252,.25); }
 .pos-badge-RB { color:#6ee7b7; background:rgba(110,231,183,.1); border-color:rgba(110,231,183,.25); }

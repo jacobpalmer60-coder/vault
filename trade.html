@@ -20,12 +20,32 @@
       <p id="status" class="text-[13px] text-amber-200/50 mt-1">Connecting...</p>
     </div>
     <div class="flex items-center gap-2">
+      <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-sky-500/25 text-[12px] text-sky-300/80 hover:text-sky-200 hover:border-sky-500/50 hover:bg-sky-500/5 transition-colors">🔍 Find a Trade</button>
       <div class="h-8 px-3 rounded-lg bg-black/40 border border-amber-500/15 flex items-center gap-2 text-[12px] text-amber-200/50">
         <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
         Live Values
       </div>
     </div>
   </div>
+
+  <!-- Setup checklist: pick both teams, then load rosters -->
+  <div id="setup" class="card rounded-2xl p-6 mb-6 max-w-lg">
+    <h2 class="text-[13px] uppercase tracking-wider text-amber-200/50 mb-4">Set up a trade</h2>
+    <div class="space-y-4">
+      <div>
+        <label class="text-[11px] text-amber-200/40 uppercase tracking-wider block mb-1.5">1 · Team A</label>
+        <select id="teamASetup" class="w-full bg-black/40 border border-amber-500/15 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-amber-500/50"></select>
+      </div>
+      <div>
+        <label class="text-[11px] text-amber-200/40 uppercase tracking-wider block mb-1.5">2 · Team B</label>
+        <select id="teamBSetup" class="w-full bg-black/40 border border-amber-500/15 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-amber-500/50"></select>
+      </div>
+      <button id="loadRostersBtn" class="w-full btn-gold-solid py-3 text-[14px]">3 · Load Rosters</button>
+    </div>
+  </div>
+
+  <div id="workspace" class="hidden">
+  <button onclick="backToSetup()" class="mb-4 text-[12px] text-amber-200/50 hover:text-amber-200 transition-colors">← Change teams</button>
 
   <!-- Trade Bar -->
   <div id="tradeBar" class="hidden mb-4 p-4 rounded-2xl card">
@@ -51,6 +71,12 @@
 
   <!-- Trade Finder: shop one side's asset(s) against the whole league, not just the loaded opponent -->
   <div id="finder" class="hidden mb-4 p-4 rounded-2xl card">
+    <div id="finderPickerRow" class="hidden flex items-center gap-3 flex-wrap mb-3 pb-3 border-b border-white/5">
+      <span class="text-[11px] text-amber-200/40 uppercase tracking-wider">Shop from</span>
+      <div id="finderSideChips" class="flex gap-1.5"></div>
+      <select id="finderAssetSelect" class="bg-black/40 border border-amber-500/15 rounded-lg px-2.5 py-1.5 text-[13px] outline-none flex-1 min-w-[200px]"></select>
+      <button onclick="searchFromPicker()" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Search</button>
+    </div>
     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
       <div>
         <div class="text-[11px] text-amber-200/40 uppercase tracking-wider">Finding trades for</div>
@@ -115,6 +141,7 @@
   <div id="emptyState" class="mt-10 text-center text-[13px] text-amber-200/30">
     Select players or picks from either side to build a trade.
   </div>
+  </div><!-- /workspace -->
 </div>
 
 <script src="vault-core.js"></script>
@@ -142,14 +169,12 @@ async function init() {
     teams.forEach(t => t.assets = assetsFor(t));
     teams.sort((a, b) => b.total - a.total);
 
-    const selA = document.getElementById('teamA');
-    const selB = document.getElementById('teamB');
-    teams.forEach(t => {
-      selA.innerHTML += `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)}</option>`;
-      selB.innerHTML += `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)}</option>`;
-    });
-    selA.value = teams[0].rosterId;
-    selB.value = teams[1]?.rosterId || teams[0].rosterId;
+    const opts = teams.map(t => `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)}</option>`).join('');
+    const selA = document.getElementById('teamA'), selB = document.getElementById('teamB');
+    const setupA = document.getElementById('teamASetup'), setupB = document.getElementById('teamBSetup');
+    [selA, selB, setupA, setupB].forEach(sel => sel.innerHTML = opts);
+    selA.value = setupA.value = teams[0].rosterId;
+    selB.value = setupB.value = teams[1]?.rosterId || teams[0].rosterId;
 
     selA.onchange = () => { selectedA.clear(); render('A'); };
     selB.onchange = () => { selectedB.clear(); render('B'); };
@@ -157,12 +182,27 @@ async function init() {
     document.getElementById('status').textContent = `${teams.length} teams • ${league.name} • ${built.isSF ? 'Superflex' : '1QB'}`;
     document.getElementById('status').className = 'text-[13px] text-emerald-400/80 mt-1';
 
-    render('A'); render('B');
+    document.getElementById('loadRostersBtn').onclick = () => {
+      selA.value = setupA.value;
+      selB.value = setupB.value;
+      selectedA.clear(); selectedB.clear();
+      document.getElementById('setup').classList.add('hidden');
+      document.getElementById('workspace').classList.remove('hidden');
+      document.getElementById('finderPickerBtn').classList.remove('hidden');
+      render('A'); render('B');
+    };
   } catch (e) {
     document.getElementById('status').textContent = e.message || 'Failed to load';
     document.getElementById('status').className = 'text-[13px] text-rose-400 mt-1';
     console.error(e);
   }
+}
+
+function backToSetup() {
+  document.getElementById('workspace').classList.add('hidden');
+  document.getElementById('setup').classList.remove('hidden');
+  document.getElementById('finderPickerBtn').classList.add('hidden');
+  closeFinder();
 }
 
 function teamOf(side) { return teams.find(t => t.rosterId == document.getElementById(`team${side}`).value); }
@@ -282,6 +322,32 @@ function partnerRationale(partner, givingAssets) {
 
 let finderState = null;
 
+// Entry point for the header "Find a Trade" button — no row hovered yet, so let the
+// user pick which team and asset to shop, then hand off to the same search below.
+function openFinderPicker() {
+  if (!teams.length) return;
+  finderState = { side: 'A', key: null, position: 'ANY' };
+  document.getElementById('finder').classList.remove('hidden');
+  document.getElementById('finderPickerRow').classList.remove('hidden');
+  document.getElementById('finderTarget').textContent = 'Pick an asset below to search';
+  document.getElementById('finderPosChips').innerHTML = '';
+  document.getElementById('finderResults').innerHTML = '';
+  renderFinderAssetOptions();
+}
+function renderFinderAssetOptions() {
+  document.getElementById('finderSideChips').innerHTML = ['A', 'B'].map(s =>
+    `<button onclick="finderState.side='${s}'; renderFinderAssetOptions()" class="text-[11px] px-2.5 py-1 rounded-lg border ${finderState.side === s ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-amber-200/50 hover:text-amber-200'}">${Vault.escapeHtml(teamOf(s).teamName)}</button>`
+  ).join('');
+  const team = teamOf(finderState.side);
+  document.getElementById('finderAssetSelect').innerHTML = team.assets.map(a =>
+    `<option value="${a.key}">${Vault.escapeHtml(a.name)} — ${Math.round(a.value).toLocaleString()}</option>`
+  ).join('');
+}
+function searchFromPicker() {
+  const key = document.getElementById('finderAssetSelect').value;
+  openFinder(finderState.side, key);
+}
+
 function openFinder(side, key) {
   finderState = { side, key, position: 'ANY' };
   renderFinder();
@@ -289,6 +355,7 @@ function openFinder(side, key) {
 function closeFinder() {
   finderState = null;
   document.getElementById('finder').classList.add('hidden');
+  document.getElementById('finderPickerRow').classList.add('hidden');
 }
 
 function renderFinder() {
@@ -300,6 +367,7 @@ function renderFinder() {
 
   const box = document.getElementById('finder');
   box.classList.remove('hidden');
+  document.getElementById('finderPickerRow').classList.add('hidden');
   document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-amber-200/40">${Math.round(asset.value).toLocaleString()}</span> <span class="text-amber-200/40">from ${Vault.escapeHtml(team.teamName)}</span>`;
 
   const positions = ['ANY', 'QB', 'RB', 'WR', 'TE', 'PICK'];
