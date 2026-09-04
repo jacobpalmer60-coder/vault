@@ -1,12 +1,11 @@
 /* ============================================================
    VAULT CORE
    Shared config + data pipeline for all Vault pages.
-   Depends on PapaParse being loaded on the page.
    ============================================================ */
 const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
-  PPG_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqxhqyuKK6vu_EoYta5FZ_KdOB8M54Q_qBwJKOUF5KcgbTt2dmHn_FuLj9d-FS8-ta5T0zkU0QEGcN/pub?gid=118408869&single=true&output=csv',
+  PROJECTIONS_URL: 'data/projections.json',
   PICK_YEARS: [2027, 2028, 2029],
   PICK_ROUNDS: [1, 2, 3, 4]
 };
@@ -48,12 +47,6 @@ const Vault = {
     return String(s == null ? '' : s).replace(/[&<>"']/g, m => (
       { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
     ));
-  },
-
-  /* ---------- CSV fetching ---------- */
-  async fetchCsvRows(url) {
-    const text = await fetch(url).then(r => r.text());
-    return Papa.parse(text, { header: true, skipEmptyLines: true }).data;
   },
 
   /* ---------- Sleeper API ---------- */
@@ -115,37 +108,102 @@ const Vault = {
     return map;
   },
 
-  async fetchValueSheets() {
-    const [ktcData, ppgs] = await Promise.all([
-      Vault.fetchKtcValues(),
-      Vault.fetchCsvRows(VAULT_CONFIG.PPG_URL)
-    ]);
-    return { ktcData, ppgs };
+  /* ---------- Season projections (per-league scoring) ----------
+     Every league scores differently (PPR vs half vs standard, TE premium, first-down
+     bonuses...), so one canned PPG number can't be right everywhere. data/projections.json
+     (scripts/fetch-projections.js) stores each player's raw projected stat counts;
+     scoreStats dot-products them against THIS league's actual scoring_settings from
+     Sleeper, so projected PPG always matches how points are really scored here. */
+  async fetchProjections() {
+    const res = await fetch(VAULT_CONFIG.PROJECTIONS_URL);
+    if (!res.ok) throw new Error('Projections fetch failed: ' + res.status);
+    return res.json();
   },
 
-  buildValueMaps({ ktcData, ppgs, isSF }) {
-    const valMap = Vault.buildKtcValueMap(ktcData, isSF);
-    const ppgMap = new Map();
-    ppgs.forEach(r => {
-      const n = r.Player || r.player || '';
-      if (n) ppgMap.set(Vault.norm(n), parseFloat(r['Avg_PPR_0.5_TEP']) || 0);
+  scoreStats(stats, scoringSettings) {
+    let total = 0;
+    for (const [k, w] of Object.entries(scoringSettings || {})) total += (stats[k] || 0) * w;
+    return total;
+  },
+
+  buildProjectedPpgMapById(projData, scoringSettings) {
+    const map = new Map();
+    Object.entries(projData.players || {}).forEach(([pid, p]) => {
+      const gp = p.stats.gp || 0;
+      if (gp) map.set(pid, Vault.scoreStats(p.stats, scoringSettings) / gp);
     });
+    return map;
+  },
+
+  buildProjectedPpgMapByName(projData, scoringSettings) {
+    const map = new Map();
+    Object.values(projData.players || {}).forEach(p => {
+      const gp = p.stats.gp || 0;
+      const key = Vault.normalizeName(p.name);
+      if (gp && key) map.set(key, Vault.scoreStats(p.stats, scoringSettings) / gp);
+    });
+    return map;
+  },
+
+  async fetchValueSheets() {
+    const [ktcData, projData] = await Promise.all([
+      Vault.fetchKtcValues(),
+      Vault.fetchProjections()
+    ]);
+    return { ktcData, projData };
+  },
+
+  buildValueMaps({ ktcData, projData, isSF, scoringSettings }) {
+    const valMap = Vault.buildKtcValueMap(ktcData, isSF);
+    const ppgMap = Vault.buildProjectedPpgMapById(projData, scoringSettings);
     const pickMap = Vault.buildKtcPickMap(ktcData, isSF);
     return { valMap, ppgMap, pickMap };
   },
 
-  /* ---------- Archetype classifier (shared by app.html + team-analyzer.html) ---------- */
+  /* ---------- Archetype classifier (shared by app.html + team-analyzer.html) ----------
+     Built around valP/ppgP terciles rather than absolute thresholds, since those are
+     true in-league percentiles and guaranteed to spread across teams. `bal` (positional
+     balance) only ranges ~69-90 in practice regardless of roster shape, so a static
+     "bal >= 70" gate used to catch nearly every team before more specific rules got a
+     chance — it's now just a tiebreaker within the genuine middle-of-both-axes cell.
+     Thresholds sit at 60/40 rather than the more "natural" 67/33 because percentiles
+     over a small league are discrete steps (e.g. 66.67 for a 10-team league) — a cutoff
+     placed almost exactly on a step, like 67, misclassifies whichever team lands there
+     by a hair. 60/40 sits cleanly between steps for the common league sizes (8-14). */
   archetype(t) {
     const { valP, ppgP, age, bal } = t;
-    if (valP >= 75 && ppgP >= 75 && age >= 24 && age <= 27.5) return ['Elite Contender', 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40'];
-    if (ppgP >= 70 && age >= 27.5) return ['Aging Contender', 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40'];
-    if (ppgP >= 60 && ppgP < 75 && age >= 26) return ['Win-Now Fringe', 'from-amber-600/20 to-yellow-700/20 text-amber-300 border-amber-700/40'];
-    if (age < 25.5 && valP >= 45 && ppgP >= 40 && ppgP < 65) return ['Young Riser', 'from-emerald-600/20 to-teal-600/20 text-emerald-200 border-emerald-600/40'];
-    if (ppgP < 40 && age < 26 && valP >= 35) return ['Pick-Rich Rebuilder', 'from-sky-600/20 to-cyan-600/20 text-sky-200 border-sky-600/40'];
-    if (bal >= 70) return ['Balanced Core', 'from-zinc-600/20 to-neutral-600/20 text-zinc-200 border-zinc-600/40'];
-    if (valP >= 70 && ppgP <= 45) return ['Volatile', 'from-rose-600/20 to-red-600/20 text-rose-200 border-rose-600/40'];
-    if (valP <= 25 && ppgP <= 25) return ['Stripped Rebuilder', 'from-stone-700/30 to-stone-800/30 text-stone-300 border-stone-700/40'];
-    return ['Stuck Middle', 'from-zinc-700/20 to-zinc-800/20 text-zinc-300 border-zinc-700/40'];
+    const vTier = valP > 60 ? 'H' : valP < 40 ? 'L' : 'M';
+    const pTier = ppgP > 60 ? 'H' : ppgP < 40 ? 'L' : 'M';
+
+    if (vTier === 'H' && pTier === 'H') {
+      return age > 27.5
+        ? ['Aging Contender', 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40']
+        : ['Elite Contender', 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40'];
+    }
+    if (vTier === 'H' && pTier === 'M') return ['Win-Now Fringe', 'from-amber-600/20 to-yellow-700/20 text-amber-300 border-amber-700/40'];
+    if (vTier === 'H' && pTier === 'L') return ['Volatile', 'from-rose-600/20 to-red-600/20 text-rose-200 border-rose-600/40'];
+
+    if (vTier === 'M' && pTier === 'H') {
+      return age < 26
+        ? ['Young Riser', 'from-emerald-600/20 to-teal-600/20 text-emerald-200 border-emerald-600/40']
+        : ['Overachiever', 'from-lime-600/20 to-green-600/20 text-lime-200 border-lime-600/40'];
+    }
+    if (vTier === 'M' && pTier === 'M') {
+      return bal >= 78
+        ? ['Balanced Core', 'from-zinc-600/20 to-neutral-600/20 text-zinc-200 border-zinc-600/40']
+        : ['Stuck Middle', 'from-zinc-700/20 to-zinc-800/20 text-zinc-300 border-zinc-700/40'];
+    }
+    if (vTier === 'M' && pTier === 'L') {
+      return age < 26
+        ? ['Pick-Rich Rebuilder', 'from-sky-600/20 to-cyan-600/20 text-sky-200 border-sky-600/40']
+        : ['Treading Water', 'from-slate-600/20 to-slate-700/20 text-slate-200 border-slate-600/40'];
+    }
+
+    if (vTier === 'L' && pTier === 'H') return ['Scrappy Contender', 'from-teal-600/20 to-cyan-700/20 text-teal-200 border-teal-700/40'];
+    if (vTier === 'L' && pTier === 'M') return ['Retooling', 'from-indigo-600/20 to-blue-700/20 text-indigo-200 border-indigo-700/40'];
+    return age < 26
+      ? ['Pick-Rich Rebuilder', 'from-sky-600/20 to-cyan-600/20 text-sky-200 border-sky-600/40']
+      : ['Stripped Rebuilder', 'from-stone-700/30 to-stone-800/30 text-stone-300 border-stone-700/40'];
   },
 
   /* ---------- Full league team-building pipeline ----------
@@ -157,9 +215,9 @@ const Vault = {
      Fixing that drift was the main reason to centralize this. */
   async buildLeagueTeams(leagueId) {
     const { league, users, rosters, players, traded } = await Vault.fetchSleeperCore(leagueId);
-    const { ktcData, ppgs } = await Vault.fetchValueSheets();
+    const { ktcData, projData } = await Vault.fetchValueSheets();
     const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
-    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, ppgs, isSF });
+    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, projData, isSF, scoringSettings: league.scoring_settings });
 
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
@@ -200,7 +258,7 @@ const Vault = {
       const plist = (r.players || []).map(pid => {
         const p = players[String(pid)] || {};
         const nm = `${p.first_name || ''} ${p.last_name || ''}`.trim();
-        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, value: valMap.get(Vault.normalizeName(nm)) || 0, ppg: ppgMap.get(Vault.norm(nm)) || 0 };
+        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, value: valMap.get(Vault.normalizeName(nm)) || 0, ppg: ppgMap.get(String(pid)) || 0 };
       });
       const total = plist.reduce((s, p) => s + p.value, 0);
       const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);

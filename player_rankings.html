@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Player Rankings — The Vault</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -20,7 +19,7 @@
   <header class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
     <div>
       <h1 class="display text-3xl sm:text-4xl font-bold gold-text">Player Rankings</h1>
-      <p class="text-amber-200/50 max-w-xl mt-2">Merge KeepTradeCut values with 0.5 TEP PPG. Sort, filter and find value inefficiencies instantly.</p>
+      <p class="text-amber-200/50 max-w-xl mt-2">Merge KeepTradeCut values with projected PPG, scored using your league's actual settings. Sort, filter and find value inefficiencies instantly.</p>
     </div>
     <div class="glass p-4 min-w-[320px]">
       <label class="text-xs uppercase tracking-wider text-amber-200/50 mb-2 block">Sleeper League</label>
@@ -111,7 +110,7 @@
       <h2 class="text-sm font-semibold uppercase tracking-wider text-amber-200/60 mb-2">Notes</h2>
       <ul class="text-xs text-amber-200/50 space-y-2 leading-relaxed">
         <li>• Value column switches automatically between KTC's Superflex and 1QB values (0.5 TE premium) based on your league's format</li>
-        <li>• PPG = <span class="mono text-amber-200">Avg_PPR_0.5_TEP</span></li>
+        <li>• PPG = season projection ÷ projected games, scored with your loaded league's actual scoring settings (not a generic PPR assumption)</li>
         <li>• Value/PPG = Value ÷ PPG</li>
         <li>• Merge key = normalized player name</li>
       </ul>
@@ -143,6 +142,7 @@
   let posFilter = 'ALL';
   let searchQuery = '';
   let isSF = true; // default assumption until league loads
+  let scoringSettings = null;
 
   function log(msg, type = 'info') {
     const time = new Date().toLocaleTimeString();
@@ -157,69 +157,18 @@
   const fmtFloat = Vault.fmtFloat;
   const posColor = pos => `pos-badge-${['QB','RB','WR','TE'].includes(pos) ? pos : 'default'}`;
 
-  function fixCsvLineMerges(text) {
-    const lines = text.split(/\r?\n/);
-    const out = [];
-    let buf = '';
-    for (let line of lines) {
-      if (!line && !buf) continue;
-      buf = buf ? buf + '\n' + line : line;
-      const quotes = (buf.match(/"/g) || []).length;
-      if (quotes % 2 === 0) { out.push(buf); buf = ''; }
-    }
-    if (buf) out.push(buf);
-    return out.join('\n');
-  }
-
-  function parseCsv(text, fixLines = false) {
-    if (fixLines) text = fixCsvLineMerges(text);
-    return Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false }).data;
-  }
-
-  function findCol(row, candidates) {
-    const keys = Object.keys(row);
-    const low = keys.map(k => [k, k.toLowerCase()]);
-    for (const cand of candidates) {
-      const c = cand.toLowerCase();
-      for (const [orig, lo] of low) {
-        if (lo === c || lo.includes(c)) return orig;
-      }
-    }
-    return null;
-  }
-
-  async function fetchCsv(url, label, fixLines = false) {
-    log(`Fetching ${label}…`);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`${label} fetch failed: ${res.status}`);
-    const text = await res.text();
-    const data = parseCsv(text, fixLines);
-    log(`Parsed ${label}: ${data.length.toLocaleString()} rows`);
-    return data;
-  }
-
   async function loadData() {
     try {
       statFormat.textContent = isSF ? 'Superflex' : '1QB';
       log('Fetching KTC values…');
-      const [ktcData, ppgRaw] = await Promise.all([
+      const [ktcData, projData] = await Promise.all([
         Vault.fetchKtcValues(),
-        fetchCsv(VAULT_CONFIG.PPG_URL, 'PPG', true)
+        Vault.fetchProjections()
       ]);
       log(`KTC values: ${ktcData.count.toLocaleString()} players (updated ${new Date(ktcData.updated).toLocaleDateString()})`);
 
-      const ppgColCandidates = ['Avg_PPR_0.5_TEP', 'avg_ppr_0.5_tep', 'avg_ppr', 'ppg'];
-      const ppgNameCand = ['player', 'name', 'player_name'];
-      const ppgMap = new Map();
-      for (const r of ppgRaw) {
-        const nameCol = findCol(r, ppgNameCand);
-        const ppgCol = findCol(r, ppgColCandidates);
-        if (!nameCol || !ppgCol) continue;
-        const name = Vault.normalizeName(r[nameCol]);
-        const val = parseFloat(r[ppgCol]);
-        if (name && Number.isFinite(val)) ppgMap.set(name, val);
-      }
-      log(`PPG map built: ${ppgMap.size.toLocaleString()} players`);
+      const ppgMap = Vault.buildProjectedPpgMapByName(projData, scoringSettings);
+      log(`Projected PPG map built: ${ppgMap.size.toLocaleString()} players (league scoring)`);
 
       const rows = ktcData.players.map(p => {
         const norm = Vault.normalizeName(p.name);
@@ -356,6 +305,7 @@
       if (!league || league.error) throw new Error('League not found');
       const users = await fetch(`https://api.sleeper.app/v1/league/${id}/users`).then(r => r.json());
       isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+      scoringSettings = league.scoring_settings || {};
       leagueInfo.innerHTML = `
         <div class="font-medium text-amber-100">${Vault.escapeHtml(league.name)}</div>
         <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1">

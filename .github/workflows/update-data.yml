@@ -1,4 +1,4 @@
-name: Update KTC values
+name: Update data
 
 on:
   schedule:
@@ -19,10 +19,11 @@ jobs:
           node-version: '20'
 
       - run: node scripts/fetch-ktc.js
+      - run: node scripts/fetch-projections.js
 
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ktc-values.json
-          git diff --cached --quiet || git commit -m "Update KTC dynasty values"
+          git add data/ktc-values.json data/projections.json
+          git diff --cached --quiet || git commit -m "Update KTC values and projections"
           git push
