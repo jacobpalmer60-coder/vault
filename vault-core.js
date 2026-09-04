@@ -292,10 +292,6 @@ const Vault = {
       return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, plist, bal, picks: own.get(r.roster_id) || [] };
     });
 
-    // Production vs. league average
-    const avgOpt = built.reduce((s, t) => s + t.opt, 0) / built.length;
-    built.forEach(t => t.production = avgOpt ? t.opt / avgOpt * 100 : 100);
-
     // Draft order rank (1 = worst team, picks first; n = best team, picks last),
     // used to convert each pick into its overall pick number for ktcPickSlot.
     const sorted = [...built].sort((a, b) => b.opt - a.opt); // best team first
@@ -314,26 +310,40 @@ const Vault = {
       t.picksValue = sum;
     });
 
-    // Longevity score: 60% roster value + 20% age + 20% pick capital, normalized to league avg = 100
-    const maxVal = Math.max(...built.map(t => t.total));
-    const maxPicks = Math.max(...built.map(t => t.picksValue));
-    built.forEach(t => {
-      const valScore = maxVal ? t.total / maxVal * 100 : 50;
-      const ageScore = Math.max(0, Math.min(100, 100 - ((t.age - 23) * 8)));
-      const pickScore = maxPicks ? t.picksValue / maxPicks * 100 : 50;
-      t.longRaw = valScore * 0.6 + ageScore * 0.2 + pickScore * 0.2;
-    });
-    const avgLong = built.reduce((s, t) => s + t.longRaw, 0) / built.length;
-    built.forEach(t => t.longevity = avgLong ? t.longRaw / avgLong * 100 : 100);
-
-    // Percentiles + archetype
+    /* ---------- Percentiles ----------
+       Everything below keys off in-league percentile rank rather than a ratio to the
+       max/mean team. Ratios compress unevenly when the underlying inputs are
+       correlated (or, for Longevity's blend, anti-correlated — value-rich teams tend
+       to be pick-poor and vice versa, so a weighted average of raw ratios cancels
+       toward the middle for nearly everyone). Percentiles are evenly spread across
+       the league by construction regardless of the data's shape, the same fix that
+       replaced the old `bal >= 70` archetype gate. */
     const vals = built.map(t => t.total).sort((a, b) => a - b);
     const opts = built.map(t => t.opt).sort((a, b) => a - b);
+    const ages = built.map(t => t.age).sort((a, b) => a - b);
+    const pickVals = built.map(t => t.picksValue).sort((a, b) => a - b);
     built.forEach(t => {
       t.valP = vals.indexOf(t.total) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
+      t.ageP = 100 - ages.indexOf(t.age) / (ages.length - 1) * 100; // youngest = 100
+      t.pickP = pickVals.indexOf(t.picksValue) / (pickVals.length - 1) * 100;
+    });
+
+    // Production: percentile of optimal-lineup PPG, rescaled to league avg = 100.
+    const avgPpgP = built.reduce((s, t) => s + t.ppgP, 0) / built.length;
+    built.forEach(t => t.production = avgPpgP ? t.ppgP / avgPpgP * 100 : 100);
+
+    // Longevity: 60% roster value + 20% age + 20% pick capital, each as an in-league
+    // percentile, blended and normalized to league avg = 100.
+    built.forEach(t => { t.longRaw = t.valP * 0.6 + t.ageP * 0.2 + t.pickP * 0.2; });
+    const avgLong = built.reduce((s, t) => s + t.longRaw, 0) / built.length;
+    built.forEach(t => t.longevity = avgLong ? t.longRaw / avgLong * 100 : 100);
+
+    // Archetype (+ a continuous best-to-worst score for sorting by it)
+    built.forEach(t => {
       const [a, c] = Vault.archetype(t);
       t.arch = a; t.archCls = c;
+      t.archScore = t.valP + t.ppgP;
     });
 
     // Column ranks (used by the League Overview table)
