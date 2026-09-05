@@ -7,10 +7,10 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
 </head>
-<body class="text-amber-50 antialiased">
+<body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
@@ -19,15 +19,15 @@
   <header class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
     <div>
       <h1 class="display text-[28px] font-bold gold-text">Player Rankings</h1>
-      <p class="text-amber-200/50 max-w-xl mt-2 text-[14px]">Merge KeepTradeCut values with projected PPG, scored using your league's actual settings. Sort, filter and find value inefficiencies instantly.</p>
+      <p class="text-zinc-400 max-w-xl mt-2 text-[14px]">Merge KeepTradeCut values with projected PPG, scored using your league's actual settings. Sort, filter and find value inefficiencies instantly.</p>
     </div>
     <div class="glass p-4 min-w-[320px]">
-      <label class="text-[11px] uppercase tracking-wider text-amber-200/50 mb-2 block">Sleeper League</label>
+      <label class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2 block">Sleeper League</label>
       <div class="flex gap-2">
-        <input id="leagueId" class="flex-1 bg-black/40 border border-amber-500/15 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-amber-500/60 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow mono" />
+        <input id="leagueId" class="flex-1 bg-black/40 border border-white/8 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-amber-500/60 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow mono" />
         <button id="loadLeague" class="btn-gold-solid px-4 py-2.5 text-[14px]">Load</button>
       </div>
-      <div id="leagueInfo" class="mt-3 text-[12px] text-amber-200/50">Loading league…</div>
+      <div id="leagueInfo" class="mt-3 text-[12px] text-zinc-400">Loading league…</div>
     </div>
   </header>
 
@@ -44,20 +44,20 @@
     <div class="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
       <div class="flex items-center gap-2 flex-wrap">
         <div class="relative">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-200/40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input id="search" placeholder="Search player, team…" class="w-[260px] bg-black/40 border border-amber-500/15 rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-amber-500/60" />
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="search" placeholder="Search player, team…" class="w-[260px] bg-black/40 border border-white/8 rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-amber-500/60" />
         </div>
-        <div class="flex items-center bg-black/40 border border-amber-500/15 rounded-xl p-1">
-          <button data-pos="ALL" class="pos-btn px-3 py-1.5 text-sm rounded-lg bg-amber-500/15 text-amber-200 font-medium">All</button>
+        <div class="flex items-center bg-black/40 border border-white/8 rounded-xl p-1">
+          <button data-pos="ALL" class="pos-btn px-3 py-1.5 text-sm rounded-lg bg-amber-500/15 text-zinc-300 font-medium">All</button>
           <button data-pos="QB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">QB</button>
           <button data-pos="RB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">RB</button>
           <button data-pos="WR" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">WR</button>
           <button data-pos="TE" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">TE</button>
         </div>
       </div>
-      <div class="flex items-center gap-3 text-xs text-amber-200/40">
+      <div class="flex items-center gap-3 text-xs text-zinc-500">
         <span class="hidden sm:inline">Sort by clicking headers</span>
-        <button id="resetFilters" class="px-3 py-1.5 rounded-lg border border-amber-500/15 hover:bg-white/5">Reset</button>
+        <button id="resetFilters" class="px-3 py-1.5 rounded-lg border border-white/8 hover:bg-white/5">Reset</button>
       </div>
     </div>
   </div>
@@ -66,8 +66,8 @@
   <div class="glass overflow-hidden">
     <div class="overflow-x-auto scrollbar max-h-[70vh]">
       <table class="w-full text-sm">
-        <thead class="sticky top-0 z-10 bg-black/80 backdrop-blur-xl border-b border-amber-500/10">
-          <tr class="text-left text-amber-200/50">
+        <thead class="sticky top-0 z-10 bg-black/80 backdrop-blur-xl border-b border-white/5">
+          <tr class="text-left text-zinc-400">
             <th class="px-4 py-3 font-medium w-14">#</th>
             <th class="px-4 py-3 font-medium sortable" data-key="player">Player <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable" data-key="pos">Pos <span class="sort-ind"></span></th>
@@ -78,8 +78,8 @@
             <th class="px-4 py-3 font-medium sortable text-right" data-key="vpRatio">Value/PPG <span class="sort-ind"></span></th>
           </tr>
         </thead>
-        <tbody id="tbody" class="divide-y divide-amber-500/[0.06]">
-          <tr><td colspan="8" class="px-4 py-16 text-center text-amber-200/40">Loading data…</td></tr>
+        <tbody id="tbody" class="divide-y divide-white/[0.06]">
+          <tr><td colspan="8" class="px-4 py-16 text-center text-zinc-500">Loading data…</td></tr>
         </tbody>
       </table>
     </div>
@@ -89,14 +89,14 @@
   <div class="mt-6 grid lg:grid-cols-3 gap-4">
     <div class="glass p-4 lg:col-span-2">
       <div class="flex items-center justify-between mb-2">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-amber-200/60">Status Log</h2>
-        <button id="clearLog" class="text-xs text-amber-200/40 hover:text-amber-200">Clear</button>
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400">Status Log</h2>
+        <button id="clearLog" class="text-xs text-zinc-500 hover:text-white">Clear</button>
       </div>
-      <div id="log" class="h-32 overflow-y-auto scrollbar mono text-xs text-amber-200/50 space-y-1 bg-black/30 rounded-xl p-3 border border-amber-500/10"></div>
+      <div id="log" class="h-32 overflow-y-auto scrollbar mono text-xs text-zinc-400 space-y-1 bg-black/30 rounded-xl p-3 border border-white/5"></div>
     </div>
     <div class="glass p-4">
-      <h2 class="text-sm font-semibold uppercase tracking-wider text-amber-200/60 mb-2">Notes</h2>
-      <ul class="text-xs text-amber-200/50 space-y-2 leading-relaxed">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400 mb-2">Notes</h2>
+      <ul class="text-xs text-zinc-400 space-y-2 leading-relaxed">
         <li>• Value column switches automatically between KTC's Superflex and 1QB values (0.5 TE premium) based on your league's format</li>
         <li>• PPG = season projection ÷ projected games, scored with your loaded league's actual scoring settings (not a generic PPR assumption)</li>
         <li>• Value/PPG = Value ÷ PPG</li>
@@ -105,7 +105,7 @@
     </div>
   </div>
 
-  <footer class="mt-10 text-center text-xs text-amber-200/30">
+  <footer class="mt-10 text-center text-xs text-zinc-600">
     Built for dynasty managers. Data © KeepTradeCut & Sleeper API.
   </footer>
 </div>
@@ -134,7 +134,7 @@
 
   function log(msg, type = 'info') {
     const time = new Date().toLocaleTimeString();
-    const color = type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-amber-400' : 'text-amber-200/40';
+    const color = type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-amber-400' : 'text-zinc-500';
     const line = document.createElement('div');
     line.innerHTML = `<span class="${color}">[${time}]</span> ${msg}`;
     logEl.appendChild(line);
@@ -225,7 +225,7 @@
 
   function renderTable() {
     if (filteredRows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-amber-200/40">No players match filters</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-zinc-500">No players match filters</td></tr>`;
       return;
     }
     const frag = document.createDocumentFragment();
@@ -233,15 +233,15 @@
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-amber-500/5 transition';
       tr.innerHTML = `
-        <td class="px-4 py-3 text-amber-200/40 mono text-xs">${i + 1}</td>
-        <td class="px-4 py-3 font-medium text-amber-50">${Vault.escapeHtml(r.player)}</td>
+        <td class="px-4 py-3 text-zinc-500 mono text-xs">${i + 1}</td>
+        <td class="px-4 py-3 font-medium text-zinc-100">${Vault.escapeHtml(r.player)}</td>
         <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${posColor(r.pos)}">${r.pos || '—'}</span></td>
-        <td class="px-4 py-3 text-amber-200/60 mono text-xs">${r.team || '—'}</td>
-        <td class="px-4 py-3 text-right mono text-xs text-amber-200/60">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
-        <td class="px-4 py-3 text-right mono font-medium text-amber-50">${fmtInt(r.value)}</td>
-        <td class="px-4 py-3 text-right mono text-amber-200/60">${fmtFloat(r.ppg, 2)}</td>
+        <td class="px-4 py-3 text-zinc-400 mono text-xs">${r.team || '—'}</td>
+        <td class="px-4 py-3 text-right mono text-xs text-zinc-400">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
+        <td class="px-4 py-3 text-right mono font-medium text-zinc-100">${fmtInt(r.value)}</td>
+        <td class="px-4 py-3 text-right mono text-zinc-400">${fmtFloat(r.ppg, 2)}</td>
         <td class="px-4 py-3 text-right mono">
-          <span class="${r.vpRatio != null && r.vpRatio < 300 ? 'text-emerald-400' : r.vpRatio != null && r.vpRatio > 600 ? 'text-amber-400' : 'text-amber-200/70'}">
+          <span class="${r.vpRatio != null && r.vpRatio < 300 ? 'text-emerald-400' : r.vpRatio != null && r.vpRatio > 600 ? 'text-amber-400' : 'text-zinc-300'}">
             ${r.vpRatio != null ? fmtFloat(r.vpRatio, 0) : '—'}
           </span>
         </td>
@@ -269,8 +269,8 @@
 
   document.querySelectorAll('.pos-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('bg-amber-500/15', 'text-amber-200', 'font-medium'));
-      btn.classList.add('bg-amber-500/15', 'text-amber-200', 'font-medium');
+      document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('bg-amber-500/15', 'text-zinc-300', 'font-medium'));
+      btn.classList.add('bg-amber-500/15', 'text-zinc-300', 'font-medium');
       posFilter = btn.dataset.pos;
       applyFiltersAndRender();
     });
@@ -295,7 +295,7 @@
       isSF = (league.roster_positions || []).includes('SUPER_FLEX');
       scoringSettings = league.scoring_settings || {};
       leagueInfo.innerHTML = `
-        <div class="font-medium text-amber-100">${Vault.escapeHtml(league.name)}</div>
+        <div class="font-medium text-zinc-300">${Vault.escapeHtml(league.name)}</div>
         <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
           <span>Season ${league.season}</span>
           <span>•</span>

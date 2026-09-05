@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Vault — Sleeper x KeepTradeCut</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&family=Cinzel:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vault.css">
 </head>
 <body class="min-h-screen text-zinc-100 antialiased">
@@ -26,71 +26,71 @@
         <div id="step-username">
           <label class="block text-sm font-medium text-zinc-300 mb-2">Sleeper Username</label>
           <div class="flex gap-2">
-            <input id="username" type="text" placeholder="Username" class="flex-1 h-12 px-4 rounded-xl bg-black/50 border border-amber-500/20 focus:border-amber-500/60 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] outline-none transition-shadow" />
+            <input id="username" type="text" placeholder="Username" class="flex-1 h-12 px-4 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] outline-none transition-shadow" />
             <button id="loadBtn" class="btn-gold-solid h-12 px-5">Load Leagues</button>
           </div>
           <p id="errorMsg" class="hidden mt-3 text-sm text-red-400"></p>
         </div>
 
         <!-- Or jump straight to a league ID -->
-        <div class="mt-6 pt-6 border-t border-amber-500/10">
+        <div class="mt-6 pt-6 border-t border-white/5">
           <label class="block text-sm font-medium text-zinc-300 mb-2">Or enter a Sleeper League ID directly</label>
           <div class="flex gap-2">
-            <input id="directLeagueId" type="text" placeholder="Enter league id here" class="flex-1 h-12 px-4 rounded-xl bg-black/50 border border-amber-500/20 focus:border-amber-500/60 outline-none mono text-sm" />
-            <button id="directBtn" class="btn-gold h-12 px-5 text-sm text-amber-100">Go</button>
+            <input id="directLeagueId" type="text" placeholder="Enter league id here" class="flex-1 h-12 px-4 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 outline-none mono text-sm" />
+            <button id="directBtn" class="btn-gold h-12 px-5 text-sm text-zinc-300">Go</button>
           </div>
         </div>
 
         <!-- League Select -->
-        <div id="step-league" class="hidden mt-8 pt-8 border-t border-amber-500/10">
+        <div id="step-league" class="hidden mt-8 pt-8 border-t border-white/5">
           <label class="block text-sm font-medium text-zinc-300 mb-2">Select League</label>
-          <select id="leagueSelect" class="w-full h-12 px-4 rounded-xl bg-black/50 border border-amber-500/20"></select>
+          <select id="leagueSelect" class="w-full h-12 px-4 rounded-xl bg-black/50 border border-white/10"></select>
         </div>
 
         <!-- Actions -->
         <div id="step-actions" class="hidden mt-8">
           <div class="grid gap-3">
-            <a id="btnOverview" href="#" class="group flex items-center justify-between p-4 rounded-2xl border border-amber-500/15 bg-gradient-to-r from-amber-500/[0.07] to-transparent hover:border-amber-500/40 hover:from-amber-500/[0.11] transition-all hover:-translate-y-0.5">
+            <a id="btnOverview" href="#" class="group flex items-center justify-between p-4 rounded-2xl border border-white/8 bg-gradient-to-r from-amber-500/[0.07] to-transparent hover:border-amber-500/40 hover:from-amber-500/[0.11] transition-all hover:-translate-y-0.5">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/10 flex items-center justify-center text-amber-400">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                 </div>
                 <div>
-                  <div class="font-semibold text-amber-50">League Overview</div>
-                  <div class="text-xs text-amber-200/40">Roster health & standings</div>
+                  <div class="font-semibold text-zinc-100">League Overview</div>
+                  <div class="text-xs text-zinc-500">Roster health & standings</div>
                 </div>
               </div>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-amber-500/30 transition-transform group-hover:text-amber-400 group-hover:translate-x-0.5"><path d="M9 18l6-6-6-6"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-zinc-600 transition-transform group-hover:text-amber-400 group-hover:translate-x-0.5"><path d="M9 18l6-6-6-6"/></svg>
             </a>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <a id="btnRankings" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 hover:bg-black/60 transition-all hover:-translate-y-0.5">
-                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+              <a id="btnRankings" href="#" class="group flex flex-col p-4 rounded-2xl border border-white/5 bg-black/40 hover:border-amber-500/40 hover:bg-black/60 transition-all hover:-translate-y-0.5">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/10 flex items-center justify-center text-amber-400 mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
                 </div>
-                <div class="font-semibold text-amber-50">Player Rankings</div>
-                <div class="text-xs text-amber-200/40 mt-1">Dynasty & redraft values</div>
+                <div class="font-semibold text-zinc-100">Player Rankings</div>
+                <div class="text-xs text-zinc-500 mt-1">Dynasty & redraft values</div>
               </a>
 
-              <a id="btnTrade" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 hover:bg-black/60 transition-all hover:-translate-y-0.5">
-                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+              <a id="btnTrade" href="#" class="group flex flex-col p-4 rounded-2xl border border-white/5 bg-black/40 hover:border-amber-500/40 hover:bg-black/60 transition-all hover:-translate-y-0.5">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/10 flex items-center justify-center text-amber-400 mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4M17 8v12M3 12h4M17 12h4"/></svg>
                 </div>
-                <div class="font-semibold text-amber-50">Trade Calculator</div>
-                <div class="text-xs text-amber-200/40 mt-1">Fair value & win-now moves</div>
+                <div class="font-semibold text-zinc-100">Trade Calculator</div>
+                <div class="text-xs text-zinc-500 mt-1">Fair value & win-now moves</div>
               </a>
 
-              <a id="btnAnalyzer" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/30 bg-black/40 hover:border-amber-500/60 hover:bg-black/60 transition-all hover:-translate-y-0.5 ring-1 ring-amber-500/20">
-                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
+              <a id="btnAnalyzer" href="#" class="group flex flex-col p-4 rounded-2xl border border-white/14 bg-black/40 hover:border-amber-500/60 hover:bg-black/60 transition-all hover:-translate-y-0.5 ring-1 ring-amber-500/20">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/10 flex items-center justify-center text-amber-400 mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                 </div>
-                <div class="font-semibold text-amber-50">Team Analyzer</div>
-                <div class="text-xs text-amber-200/40 mt-1">12 archetypes & trade fits</div>
+                <div class="font-semibold text-zinc-100">Team Analyzer</div>
+                <div class="text-xs text-zinc-500 mt-1">12 archetypes & trade fits</div>
               </a>
             </div>
           </div>
 
-          <div class="mt-4 text-xs text-amber-200/40">League saved locally — you can switch it any time from the nav bar.</div>
+          <div class="mt-4 text-xs text-zinc-500">League saved locally — you can switch it any time from the nav bar.</div>
         </div>
       </div>
     </div>

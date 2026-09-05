@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>THE VAULT • Gold Dynasty</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
 </head>
-<body class="text-amber-50 antialiased">
+<body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
@@ -17,18 +17,18 @@
   <div class="flex items-center justify-between mb-8">
     <div>
       <h1 class="display text-[28px] gold-text">League Overview</h1>
-      <div id="status" class="mt-2 flex items-center gap-3 text-amber-200/70 text-sm">
+      <div id="status" class="mt-2 flex items-center gap-3 text-zinc-300 text-sm">
         <div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>
       </div>
     </div>
-    <button id="refresh" class="btn-gold px-5 py-2.5 text-sm text-amber-100">Refresh Data</button>
+    <button id="refresh" class="btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
   </div>
 
   <div class="card rounded-vault overflow-hidden">
     <div class="overflow-x-auto scrollbar">
       <table class="w-full text-[13px]">
-        <thead class="bg-black/40 border-b border-amber-500/10 sticky top-0">
-          <tr class="text-[11px] uppercase tracking-wider text-amber-200/45">
+        <thead class="bg-black/40 border-b border-white/5 sticky top-0">
+          <tr class="text-[11px] uppercase tracking-wider text-zinc-500">
             <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="teamName">Team</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="total">Total Value</th>
             <th class="text-left px-3 py-3.5 font-medium min-w-[170px]">Position Split</th>
@@ -52,29 +52,29 @@
   <div class="mt-8 card rounded-vault p-6">
     <h2 class="display text-[20px] gold-text mb-4">Legend</h2>
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]">
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Total Value</span><span class="text-amber-100/50"> — Sum of player values</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Position Split</span><span class="text-amber-100/50"> — Share of value by QB/RB/WR/TE</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Picks</span><span class="text-amber-100/50"> — 2027-29 R1-4 live from Sleeper</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Opt PPG</span><span class="text-amber-100/50"> — Best lineup, league scoring</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Production</span><span class="text-amber-100/50"> — vs league avg (100)</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Longevity</span><span class="text-amber-100/50"> — 60% Val + 20% Age + 20% Picks</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Archetype</span><span class="text-amber-100/50"> — Build type, from trade value vs. current scoring (see guide below)</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Total Value</span><span class="text-zinc-400"> — Sum of player values</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Position Split</span><span class="text-zinc-400"> — Share of value by QB/RB/WR/TE</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Picks</span><span class="text-zinc-400"> — 2027-29 R1-4 live from Sleeper</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Opt PPG</span><span class="text-zinc-400"> — Best lineup, league scoring</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Production</span><span class="text-zinc-400"> — vs league avg (100)</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Longevity</span><span class="text-zinc-400"> — 60% Val + 20% Age + 20% Picks</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from trade value vs. current scoring (see guide below)</span></div>
     </div>
   </div>
 
   <div class="mt-6 card rounded-vault p-6">
     <h2 class="display text-[20px] gold-text mb-1">Archetype Guide</h2>
-    <p class="text-[12px] text-amber-100/40 mb-4">Every archetype comes from just two axes — a team's dynasty trade value vs. league average, and its current-season scoring vs. league average — plus age or positional balance to break ties within a tier.</p>
+    <p class="text-[12px] text-zinc-500 mb-4">Every archetype comes from just two axes — a team's dynasty trade value vs. league average, and its current-season scoring vs. league average — plus age or positional balance to break ties within a tier.</p>
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]" id="archGuide"></div>
   </div>
 
-  <div class="mt-10 pt-6 border-t border-amber-500/10 flex flex-col md:flex-row items-center justify-center gap-3 text-[12px] text-amber-200/60">
-    <span class="uppercase tracking-widest text-amber-200/40">Powered by:</span>
-    <a href="https://keeptradecut.com/" target="_blank" class="hover:text-amber-200">KeepTradeCut</a>
-    <span class="text-amber-500/20">•</span>
-    <a href="https://www.fantasypros.com/" target="_blank" class="hover:text-amber-200">FantasyPros</a>
-    <span class="text-amber-500/20">•</span>
-    <a href="https://sleeper.com/" target="_blank" class="hover:text-amber-200">Sleeper</a>
+  <div class="mt-10 pt-6 border-t border-white/5 flex flex-col md:flex-row items-center justify-center gap-3 text-[12px] text-zinc-400">
+    <span class="uppercase tracking-widest text-zinc-500">Powered by:</span>
+    <a href="https://keeptradecut.com/" target="_blank" class="hover:text-white">KeepTradeCut</a>
+    <span class="text-zinc-600">•</span>
+    <a href="https://www.fantasypros.com/" target="_blank" class="hover:text-white">FantasyPros</a>
+    <span class="text-zinc-600">•</span>
+    <a href="https://sleeper.com/" target="_blank" class="hover:text-white">Sleeper</a>
   </div>
 </main>
 
@@ -83,13 +83,13 @@
 <script>
 let teams = [], sort = { key: 'total', dir: -1 }, expanded = new Set();
 
-const POS_COLOR = { QB: 'bg-sky-400/60', RB: 'bg-emerald-400/60', WR: 'bg-fuchsia-400/60', TE: 'bg-amber-400/60' };
+const POS_COLOR = { QB: 'bg-fuchsia-400/60', RB: 'bg-emerald-400/60', WR: 'bg-sky-400/60', TE: 'bg-amber-400/60' };
 
 // Static reference (doesn't depend on this league's teams), so it renders once up front.
 document.getElementById('archGuide').innerHTML = Object.entries(Vault.ARCHETYPE_INFO).map(([name, info]) => `
   <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]">
     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border bg-gradient-to-r mb-1.5 ${info.cls}">${name}</span>
-    <div class="text-amber-100/50 text-[12px]">${Vault.escapeHtml(info.desc)}</div>
+    <div class="text-zinc-400 text-[12px]">${Vault.escapeHtml(info.desc)}</div>
   </div>`).join('');
 
 function microBar(val, max) {
@@ -97,7 +97,7 @@ function microBar(val, max) {
   return `<div class="mt-1.5 h-[3px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full bg-amber-400/50 rounded-full" style="width:${pct}%"></div></div>`;
 }
 
-const POS_TEXT = { QB: 'text-sky-300/80', RB: 'text-emerald-300/80', WR: 'text-fuchsia-300/80', TE: 'text-amber-300/80' };
+const POS_TEXT = { QB: 'text-fuchsia-300/80', RB: 'text-emerald-300/80', WR: 'text-sky-300/80', TE: 'text-amber-300/80' };
 
 function posSplitBar(t) {
   const parts = ['QB', 'RB', 'WR', 'TE'].map(p => ({ pos: p, val: t[p.toLowerCase()] }));
@@ -143,16 +143,16 @@ function render() {
     return `<tr class="team-row" data-id="${t.rosterId}">
       <td class="px-6 py-3.5">
         <div class="flex items-center gap-3">
-          <span class="w-5 text-right text-[11px] font-mono text-amber-200/35">${t.rank}</span>
+          <span class="w-5 text-right text-[11px] font-mono text-zinc-500">${t.rank}</span>
           <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
           <div class="min-w-0">
             <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
-            <div class="text-[11px] text-amber-200/40 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks</div>
+            <div class="text-[11px] text-zinc-500 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks</div>
           </div>
         </div>
       </td>
       <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-amber-50/90">${Math.round(t.total).toLocaleString()}</div>
+        <div class="font-mono text-[13px] text-zinc-100">${Math.round(t.total).toLocaleString()}</div>
         ${microBar(t.total, maxTotal)}
       </td>
       <td class="px-3 py-3.5">${posSplitBar(t)}</td>
@@ -173,20 +173,20 @@ function render() {
         ${microBar(t.te, maxTe)}
       </td>
       <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-amber-50/80">${Math.round(t.picksValue).toLocaleString()}</div>
+        <div class="font-mono text-[13px] text-zinc-200">${Math.round(t.picksValue).toLocaleString()}</div>
         ${microBar(t.picksValue, maxPicks)}
       </td>
       <td class="px-3 py-3.5 text-right font-mono text-[13px] text-zinc-400">${t.age.toFixed(1)}</td>
       <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-amber-50/80">${t.opt.toFixed(1)}</div>
+        <div class="font-mono text-[13px] text-zinc-200">${t.opt.toFixed(1)}</div>
         ${microBar(t.opt, maxOpt)}
       </td>
       <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-amber-50/80">${Math.round(t.production)}</div>
+        <div class="font-mono text-[13px] text-zinc-200">${Math.round(t.production)}</div>
         ${microBar(t.production, maxProduction)}
       </td>
       <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-amber-50/80">${Math.round(t.longevity)}</div>
+        <div class="font-mono text-[13px] text-zinc-200">${Math.round(t.longevity)}</div>
         ${microBar(t.longevity, maxLongevity)}
       </td>
       <td class="px-6 py-3.5"><span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span></td>
