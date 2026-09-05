@@ -109,15 +109,15 @@
        seeing its effect are side by side instead of a scroll apart. -->
   <div class="grid lg:grid-cols-[1.15fr_1fr_1fr_1.15fr] gap-4">
     <!-- Team A roster -->
-    <div class="group min-w-0">
-      <div class="flex items-center justify-between mb-3 gap-2">
+    <div class="group min-w-0 lg:col-start-1 lg:row-start-1">
+      <div class="mb-3">
         <div class="flex items-center gap-2.5 min-w-0">
           <div class="w-8 h-8 shrink-0 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-[13px] font-semibold text-black">A</div>
-          <select id="teamA" class="bg-transparent text-[16px] font-medium outline-none cursor-pointer hover:text-white transition-colors min-w-0 truncate"></select>
+          <select id="teamA" class="flex-1 min-w-0 bg-transparent text-[16px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
         </div>
-        <div class="text-right shrink-0">
+        <div class="flex items-center gap-2 mt-1.5 pl-[42px]">
           <div class="text-[12px] text-amber-200/40 mono" id="totalA"></div>
-          <span id="archA" class="text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1"></span>
+          <span id="archA" class="text-[11px] px-2 py-0.5 rounded-full border"></span>
         </div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
@@ -126,21 +126,21 @@
     </div>
 
     <!-- Team A analysis -->
-    <div id="analysisA" class="hidden min-w-0"></div>
+    <div id="analysisA" class="hidden min-w-0 lg:col-start-2 lg:row-start-1"></div>
 
     <!-- Team B analysis -->
-    <div id="analysisB" class="hidden min-w-0"></div>
+    <div id="analysisB" class="hidden min-w-0 lg:col-start-3 lg:row-start-1"></div>
 
     <!-- Team B roster -->
-    <div class="group min-w-0">
-      <div class="flex items-center justify-between mb-3 gap-2">
+    <div class="group min-w-0 lg:col-start-4 lg:row-start-1">
+      <div class="mb-3">
         <div class="flex items-center gap-2.5 min-w-0">
           <div class="w-8 h-8 shrink-0 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-[13px] font-semibold text-black">B</div>
-          <select id="teamB" class="bg-transparent text-[16px] font-medium outline-none cursor-pointer hover:text-white transition-colors min-w-0 truncate"></select>
+          <select id="teamB" class="flex-1 min-w-0 bg-transparent text-[16px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
         </div>
-        <div class="text-right shrink-0">
+        <div class="flex items-center gap-2 mt-1.5 pl-[42px]">
           <div class="text-[12px] text-amber-200/40 mono" id="totalB"></div>
-          <span id="archB" class="text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1"></span>
+          <span id="archB" class="text-[11px] px-2 py-0.5 rounded-full border"></span>
         </div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
@@ -148,7 +148,7 @@
       </div>
     </div>
 
-    <div id="emptyState" class="lg:col-start-2 lg:col-span-2 text-center text-[13px] text-amber-200/30 py-8">
+    <div id="emptyState" class="lg:col-start-2 lg:col-span-2 lg:row-start-1 text-center text-[13px] text-amber-200/30 py-8">
       Select players or picks from either side to build a trade.
     </div>
   </div>
@@ -233,7 +233,7 @@ function assetRow(side, a, isSelected, extra) {
         <div class="text-right">
           <div class="text-[13px] mono font-medium ${isSelected ? 'text-white' : 'text-amber-200/60'}">${Math.round(a.value).toLocaleString()}</div>
         </div>
-        <div class="opacity-0 group-hover/item:opacity-100 transition-opacity flex gap-1.5 shrink-0">
+        <div class="hidden group-hover/item:flex gap-1.5 shrink-0">
           <button onclick="event.stopPropagation(); matchTarget('${side}','${a.key}')" title="Build a package from the other side to match this" class="text-[11px] px-2 py-1 rounded-lg border border-amber-500/20 text-amber-300/70 hover:text-amber-200 hover:border-amber-500/40">Match</button>
           <button onclick="event.stopPropagation(); openFinder('${side}','${a.key}')" title="Shop this against every team in the league" class="text-[11px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
         </div>
