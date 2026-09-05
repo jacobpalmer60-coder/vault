@@ -80,18 +80,16 @@ function historyVerdict(pctDiff, dValueAdjA, fitA, fitB, teamAName, teamBName, a
     return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
   }
 
-  // Fit can score well for both sides while the dollar value still sits in the
-  // Borderline band shown next to this label — don't claim an unqualified
-  // "Great"/"Fair" trade when the price tag next to it says otherwise.
-  const pricey = pctDiff >= VAULT_CONFIG.FAIR_PCT;
-  if (good(fitA) && good(fitB)) return pricey
-    ? { tone: 'neutral', label: 'Good Fit for Both, But Value Tilted', text }
-    : { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
+  // Below the Lopsided cutoff, a real dollar tilt is the norm for an actual trade
+  // (median real trade runs ~22% off) — not a finding worth naming in the label.
+  // The Fair/Borderline/Lopsided badge next to this already communicates the price
+  // gap; this label speaks to fit only.
+  if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
   if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };
   if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: 'Won for Team A', text };
   if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: 'Won for Team B', text };
   if (good(fitA) || good(fitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
-  return { tone: 'neutral', label: pricey ? 'Workable Trade, Value Tilted' : 'Fair Trade', text };
+  return { tone: 'neutral', label: 'Fair Trade', text };
 }
 
 function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap) {
@@ -226,7 +224,7 @@ function renderCard(g) {
         </div>
       </div>
       <div class="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-white/5">
-        <p class="text-[12.5px] text-zinc-400 max-w-[560px] leading-relaxed">${Vault.buildSynopsis(g.verdict.text, notes.map(n => ({ ...n, text: `${n.who}: ${n.text}` })))}${g.anyMissingValue ? ' <span class="text-zinc-600">(some asset values unavailable)</span>' : ''}</p>
+        <p class="text-[12.5px] text-zinc-400 max-w-[560px] leading-relaxed">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-600">(some asset values unavailable)</span>' : ''}</p>
         <div class="text-[11px] ${fairColor(g.pctDiff)} shrink-0" title="Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — calibrated against ~19,300 real trades from KeepTradeCut's trade database.">${bucket} · ${g.pctDiff.toFixed(0)}% off</div>
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">

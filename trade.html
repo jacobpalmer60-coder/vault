@@ -868,19 +868,17 @@ function overallVerdict(resA, resB, pctDiff, dValueAdjA, teamAName, teamBName, a
     return { tone: 'bad', label: `Lopsided — Favors Team ${favored}`, text };
   }
 
-  // Fit can score well for both sides while the dollar value still sits in the
-  // Borderline band shown next to this label — don't claim an unqualified
-  // "Good"/"Fair" trade when the price tag next to it says otherwise.
-  const pricey = pctDiff >= VAULT_CONFIG.FAIR_PCT;
+  // Below the Lopsided cutoff, a real dollar tilt is the norm for an actual trade
+  // (median real trade runs ~22% off) — not a finding worth naming in the label.
+  // The Fair/Borderline/Lopsided badge next to this already communicates the price
+  // gap; this label speaks to fit only.
   const scoreA = resA.fit, scoreB = resB.fit;
-  if (good(scoreA) && good(scoreB)) return pricey
-    ? { tone: 'neutral', label: 'Good Fit for Both, But Value Tilted', text }
-    : { tone: 'good', label: 'Now That’s a Good Trade', text };
+  if (good(scoreA) && good(scoreB)) return { tone: 'good', label: 'Now That’s a Good Trade', text };
   if (bad(scoreA) && bad(scoreB)) return { tone: 'bad', label: 'Bad Trade for Both Sides', text };
   if (good(scoreA) && bad(scoreB)) return { tone: 'neutral', label: 'Solid for Team A', text };
   if (good(scoreB) && bad(scoreA)) return { tone: 'neutral', label: 'Solid for Team B', text };
   if (good(scoreA) || good(scoreB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
-  return { tone: 'neutral', label: pricey ? 'Workable Trade, Value Tilted' : 'Fair, But Unremarkable', text };
+  return { tone: 'neutral', label: 'Fair, But Unremarkable', text };
 }
 
 // Labels the trade itself — not either team's fit, but what kind of transaction this is.
