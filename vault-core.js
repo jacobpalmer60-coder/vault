@@ -730,6 +730,25 @@ const Vault = {
     return null;
   },
 
+  /* Turns a short one-line headline/verdict plus a pile of already-well-formed bullet
+     notes into a 2-3 sentence prose synopsis, so a reader gets the gist without
+     parsing every bullet — the lead line, then the single most relevant downside and
+     upside (the first bad/good note in the array; every caller already orders notes
+     most-specific-signal-first, so "first" is a reasonable stand-in for "most
+     relevant" without needing a separate weight on each one). Reuses the notes'
+     existing text verbatim rather than re-synthesizing new prose from their pieces,
+     so the synopsis can never say something the bullets below it don't already back
+     up. The full bullet list still renders separately for anyone who wants every
+     reason, not just the headline two. */
+  buildSynopsis(leadText, notes) {
+    const meaningful = notes.filter(n => !n.isArchetype && n.tone !== 'neutral');
+    const bad = meaningful.find(n => n.tone === 'bad');
+    const good = meaningful.find(n => n.tone === 'good');
+    const trimmed = (leadText || '').trim();
+    const lead = trimmed ? (/[.!?]$/.test(trimmed) ? trimmed : trimmed + '.') : '';
+    return [lead, bad && bad.text, good && good.text].filter(Boolean).join(' ');
+  },
+
   /* A player already producing like a proven starter, regardless of age — the Jahmyr
      Gibbs case: young, but already an elite every-week producer, not a "developmental"
      asset a contender should have to wait on. Reuses VBA_REFERENCE (5500) as the bar,
