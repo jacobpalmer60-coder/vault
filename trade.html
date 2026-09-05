@@ -275,7 +275,7 @@ function render(side) {
   const archEl = document.getElementById(`arch${side}`);
   archEl.textContent = team.arch;
   archEl.title = Vault.ARCHETYPE_INFO[team.arch]?.desc || '';
-  archEl.className = `text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1 cursor-help ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
+  archEl.className = `text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1 ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
 
   const visible = filter === 'ALL' ? team.assets : team.assets.filter(a => filter === 'PICK' ? a.type === 'pick' : a.pos === filter);
   container.innerHTML = visible.length
@@ -763,19 +763,35 @@ function windowShiftNote(befWin, aftWin) {
 }
 
 // Synthesizes value fairness + timeline/production fit + positional need + window
-// shift (all already folded into each side's `fit` score and headline) into one
-// top-level grade for the trade as a whole — the "now that's a good trade" call.
-function overallVerdict(resA, resB, headA, headB) {
-  const scoreA = resA.fit + (headA.tone === 'good' ? 1 : headA.tone === 'bad' ? -1 : 0);
-  const scoreB = resB.fit + (headB.tone === 'good' ? 1 : headB.tone === 'bad' ? -1 : 0);
+// shift into one top-level grade — gated on the actual value gap FIRST, so this can
+// never contradict the Fair/Borderline/Lopsided label already shown on the trade bar
+// (previously fit alone drove the verdict, so a 29%-off trade could still read as
+// "Fair, But Unremarkable" if timeline/positional fit happened to cancel out).
+// Fit only decides the sub-label once value itself is close enough to call fair.
+function overallVerdict(resA, resB, pctDiff, dValueAdjA) {
   const good = s => s >= 3, bad = s => s <= -2;
 
-  if (good(scoreA) && good(scoreB)) return { tone: 'good', label: 'Now That’s a Good Trade', text: 'Both sides come out ahead on value, timeline, and roster fit — a genuine win-win.' };
-  if (bad(scoreA) && bad(scoreB)) return { tone: 'bad', label: 'Bad Trade for Both Sides', text: 'Neither team actually improves here — value, timeline, and roster need all point the wrong way for both.' };
-  if (good(scoreA) && bad(scoreB)) return { tone: 'bad', label: 'Lopsided — Favors Team A', text: 'Team A checks the boxes on value, timeline, and need; Team B is giving up more than it gets back.' };
-  if (good(scoreB) && bad(scoreA)) return { tone: 'bad', label: 'Lopsided — Favors Team B', text: 'Team B checks the boxes on value, timeline, and need; Team A is giving up more than it gets back.' };
-  if (good(scoreA) || good(scoreB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text: 'One team clearly benefits; the other isn’t hurt, just doesn’t gain as much on value, timeline, or need.' };
-  return { tone: 'neutral', label: 'Fair, But Unremarkable', text: 'Roughly even on value and fit for both sides — not a bad trade, just not a standout one either.' };
+  if (pctDiff >= 15) {
+    const favored = dValueAdjA >= 0 ? 'A' : 'B';
+    const behind = favored === 'A' ? 'B' : 'A';
+    const behindRes = favored === 'A' ? resB : resA;
+    const softened = behindRes.fit >= 3;
+    return {
+      tone: 'bad',
+      label: `Lopsided — Favors Team ${favored}`,
+      text: softened
+        ? `Team ${favored} is well ahead on raw value, but Team ${behind} is buying real timeline and roster fit with that gap — worth it if that's what Team ${behind} actually needs.`
+        : `Team ${favored} is well ahead on value with little to show for Team ${behind} beyond the raw numbers.`
+    };
+  }
+
+  const scoreA = resA.fit, scoreB = resB.fit;
+  if (good(scoreA) && good(scoreB)) return { tone: 'good', label: 'Now That’s a Good Trade', text: 'Value is close, and both sides come out ahead on timeline and roster fit — a genuine win-win.' };
+  if (bad(scoreA) && bad(scoreB)) return { tone: 'bad', label: 'Bad Trade for Both Sides', text: 'Value is close, but neither team actually improves its timeline or roster fit here.' };
+  if (good(scoreA) && bad(scoreB)) return { tone: 'neutral', label: 'Solid for Team A', text: 'Value is close, but Team A comes out ahead on timeline and roster fit while Team B doesn’t.' };
+  if (good(scoreB) && bad(scoreA)) return { tone: 'neutral', label: 'Solid for Team B', text: 'Value is close, but Team B comes out ahead on timeline and roster fit while Team A doesn’t.' };
+  if (good(scoreA) || good(scoreB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text: 'Value is close, and one team clearly benefits on fit while the other isn’t hurt, just doesn’t gain as much.' };
+  return { tone: 'neutral', label: 'Fair, But Unremarkable', text: 'Value is close and neither side’s timeline or roster fit changes much — not a bad trade, just not a standout one either.' };
 }
 
 // Labels the trade itself — not either team's fit, but what kind of transaction this is.
@@ -887,7 +903,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
       </div>`;
   });
 
-  const verdict = overallVerdict(resA, resB, heads.A, heads.B);
+  const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
+  const verdict = overallVerdict(resA, resB, pctDiff, dValueAdjA);
   document.getElementById('tradeVerdict').innerHTML = `
     <div class="flex items-center gap-2 mb-1.5">
       <span class="size-2.5 rounded-full ${TONE_DOT[verdict.tone]}"></span>
