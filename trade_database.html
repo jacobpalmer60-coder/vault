@@ -26,8 +26,15 @@
     not an exact KeepTradeCut setting id.
   </p>
 
-  <div id="matchBar" class="card rounded-vault-sm p-4 mb-5"></div>
+  <div id="matchBar" class="card rounded-vault-sm p-4 mb-4"></div>
 
+  <div class="relative mb-5">
+    <input id="searchInput" type="text" autocomplete="off" placeholder="Search a player or pick on either side of the trade…"
+      class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
+    <button id="searchClear" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500 hover:text-white">Clear</button>
+  </div>
+
+  <div id="resultCount" class="text-[11px] text-zinc-500 mb-3"></div>
   <div id="list" class="space-y-4"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
 </div>
@@ -140,7 +147,12 @@ async function init() {
     });
 
     const { tier, pool } = findMatches(tradesData.trades || [], sig);
-    const sorted = [...pool].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 40);
+    // Resolve names once per trade (both sides) so search can match against either
+    // side without re-walking playerMap/pickMap on every keystroke.
+    pool.forEach(t => {
+      t.names1 = t.t1.map(id => assetLabel(id, playerMap, pickMap).name.toLowerCase());
+      t.names2 = t.t2.map(id => assetLabel(id, playerMap, pickMap).name.toLowerCase());
+    });
 
     document.getElementById('matchBar').innerHTML = `
       <div class="flex items-center justify-between gap-3 flex-wrap">
@@ -156,14 +168,37 @@ async function init() {
 
     const list = document.getElementById('list');
     const empty = document.getElementById('empty');
-    if (!sorted.length) {
-      list.innerHTML = '';
-      empty.classList.remove('hidden');
-      empty.textContent = 'No comparable trades found for this league\'s format right now.';
-      return;
+    const resultCount = document.getElementById('resultCount');
+    const searchInput = document.getElementById('searchInput');
+    const searchClear = document.getElementById('searchClear');
+    const CAP = 40;
+
+    function renderList(query) {
+      const q = query.trim().toLowerCase();
+      const matches = q ? pool.filter(t => t.names1.some(n => n.includes(q)) || t.names2.some(n => n.includes(q))) : pool;
+      const sorted = [...matches].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, CAP);
+
+      resultCount.textContent = q
+        ? `${matches.length.toLocaleString()} trade${matches.length === 1 ? '' : 's'} matching "${query.trim()}"${matches.length > CAP ? ` — showing ${CAP} most recent` : ''}`
+        : (pool.length > CAP ? `Showing ${CAP} most recent of ${pool.length.toLocaleString()}` : '');
+
+      if (!sorted.length) {
+        list.innerHTML = '';
+        empty.classList.remove('hidden');
+        empty.textContent = q ? `No matching trades found for "${query.trim()}".` : 'No comparable trades found for this league\'s format right now.';
+        return;
+      }
+      empty.classList.add('hidden');
+      list.innerHTML = sorted.map(t => renderCard(t, playerMap, pickMap)).join('');
     }
-    empty.classList.add('hidden');
-    list.innerHTML = sorted.map(t => renderCard(t, playerMap, pickMap)).join('');
+
+    searchInput.oninput = () => {
+      searchClear.classList.toggle('hidden', !searchInput.value);
+      renderList(searchInput.value);
+    };
+    searchClear.onclick = () => { searchInput.value = ''; searchClear.classList.add('hidden'); renderList(''); searchInput.focus(); };
+
+    renderList('');
   } catch (e) {
     console.error(e);
     status.textContent = e.message || 'Failed to load';
