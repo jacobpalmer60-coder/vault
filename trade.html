@@ -223,7 +223,7 @@ function assetRow(side, a, isSelected, extra) {
   const sub = a.type === 'pick' ? `<span class="text-[11px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="text-[11px] text-amber-200/40">${a.pos}</span><span class="text-[11px] text-amber-200/30">${a.team || ''}</span>`;
   return `
     <div class="group/item ${extra || ''}">
-      <div onclick="toggle('${side}','${a.key}')" class="flex items-center gap-3 px-3 py-2.5 mx-1 my-1 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
+      <div onclick="toggle('${side}','${a.key}')" class="flex items-center gap-3 px-3 py-1.5 mx-1 my-0.5 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline gap-2">
             <span class="text-[14px] truncate ${isSelected ? 'text-white' : 'text-amber-50/90 group-hover/item:text-white'}">${Vault.escapeHtml(a.name)}</span>
@@ -250,7 +250,7 @@ function similarRow(side, a) {
   const selected = side === 'A' ? selectedA : selectedB;
   const alts = team.assets.filter(x => x.key !== a.key && !selected.has(x.key)).sort((x, y) => Math.abs(x.value - a.value) - Math.abs(y.value - a.value)).slice(0, 3);
   if (!alts.length) return '';
-  return `<div class="mx-1 mb-2 px-3 py-2 rounded-lg bg-black/30 flex items-center gap-2 flex-wrap text-[11px]">
+  return `<div class="mx-1 mb-1 px-3 py-1.5 rounded-lg bg-black/30 flex items-center gap-2 flex-wrap text-[11px]">
     <span class="text-amber-200/40 uppercase tracking-wider">Similar value</span>
     ${alts.map(x => `<button onclick="event.stopPropagation(); swap('${side}','${a.key}','${x.key}')" class="px-2 py-1 rounded-lg border border-white/10 hover:border-amber-500/40 hover:text-amber-200 text-amber-100/70">${Vault.escapeHtml(x.name)} <span class="mono text-amber-200/40">${Math.round(x.value).toLocaleString()}</span></button>`).join('')}
   </div>`;
