@@ -98,7 +98,7 @@ function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgM
     if (toRoster !== sideRosterId) return;
     const p = playersDb[pid] || {};
     const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`;
-    assets.push({ type: 'player', name, pos: p.position || '', age: p.age || 0, ppg: ppgMap.get(pid) || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
+    assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, ppg: ppgMap.get(pid) || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
   });
   (tx.draft_picks || []).forEach(pk => {
     if (pk.owner_id !== sideRosterId) return;
@@ -108,7 +108,7 @@ function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgM
   return assets;
 }
 
-function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap) {
+function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots) {
   const [rA, rB] = tx.roster_ids;
   const teamA = teamById.get(rA), teamB = teamById.get(rB);
   if (!teamA || !teamB) return null;
@@ -129,13 +129,26 @@ function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgM
   const timelineB = Vault.timelineFitNotes(teamB, toB, toA);
   const archA = Vault.archetypeFitNotes(teamA, toA, toB);
   const archB = Vault.archetypeFitNotes(teamB, toB, toA);
-  const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit;
-  const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit;
+
+  // Reconstruct each team's optimal-lineup PPG the day before this trade by running
+  // Vault.simulateTrade in reverse: passing what each side actually RECEIVED as the
+  // "give" list undoes the trade against their CURRENT roster. `before` comes back as
+  // today's (post-trade) state, `after` as the reconstructed pre-trade state — so the
+  // real swing this trade caused is before.opt - after.opt, same sign convention as
+  // trade.html's live after-before.
+  const sim = Vault.simulateTrade(teams, slots, rA, rB, toA, toB);
+  const dOptA = sim.before.A.opt - sim.after.A.opt;
+  const dOptB = sim.before.B.opt - sim.after.B.opt;
+  const optNoteA = Vault.optShiftNote(timelineA.mode, dOptA);
+  const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
+
+  const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0);
+  const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0);
 
   const verdict = historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
   const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
+  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, dOptA, dOptB, optNoteA, optNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
 }
 
 // League-wide "how are we doing" rollup — one row per team across every graded
@@ -193,6 +206,12 @@ function assetChips(list) {
   return list.map(a => `<span class="inline-flex items-center gap-1.5 mr-3 mb-1"><span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span><span class="text-zinc-500 text-[12px] mono">${a.value > 0 ? Math.round(a.value).toLocaleString() : '—'}</span></span>`).join('');
 }
 
+function optDeltaHtml(dOpt) {
+  if (Math.abs(dOpt) <= 0.05) return '';
+  const color = dOpt > 0 ? 'text-emerald-400/80' : 'text-rose-400/80';
+  return ` · Opt PPG <span class="${color}">${dOpt > 0 ? '+' : ''}${dOpt.toFixed(1)}</span>`;
+}
+
 function renderCard(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const bucket = fairBucket(g.pctDiff);
@@ -200,9 +219,11 @@ function renderCard(g) {
     ...g.archA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.timelineA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.fitA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
+    ...(g.optNoteA ? [{ ...g.optNoteA, who: g.teamA.teamName }] : []),
     ...g.archB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
     ...g.timelineB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
-    ...g.fitB.notes.map(n => ({ ...n, who: g.teamB.teamName }))
+    ...g.fitB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
+    ...(g.optNoteB ? [{ ...g.optNoteB, who: g.teamB.teamName }] : [])
   ];
   return `
     <div class="card rounded-vault-sm p-5">
@@ -215,11 +236,11 @@ function renderCard(g) {
       </div>
       <div class="grid md:grid-cols-2 gap-4 mb-4">
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team A · ${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team A · ${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}${optDeltaHtml(g.dOptA)}</span></div>
           <div class="text-[13px]">${assetChips(g.toA)}</div>
         </div>
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team B · ${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team B · ${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}${optDeltaHtml(g.dOptB)}</span></div>
           <div class="text-[13px]">${assetChips(g.toB)}</div>
         </div>
       </div>
@@ -278,7 +299,7 @@ async function init() {
   const status = document.getElementById('status');
   try {
     const leagueId = Vault.getLeagueId();
-    const { league, isSF, teams } = await Vault.buildLeagueTeams(leagueId);
+    const { league, isSF, teams, slots } = await Vault.buildLeagueTeams(leagueId);
 
     status.textContent = 'Loading player database and trade history…';
     const [playersDb, ktcData, projData, ...weeks] = await Promise.all([
@@ -299,7 +320,7 @@ async function init() {
     const seen = new Set();
     const trades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2 && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
 
-    allGraded = trades.map(tx => gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap)).filter(Boolean);
+    allGraded = trades.map(tx => gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots)).filter(Boolean);
 
     status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-emerald-400/80 mt-1';

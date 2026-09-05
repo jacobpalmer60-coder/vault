@@ -722,6 +722,26 @@ const Vault = {
     return { mode, dAge, dPicks, fit, notes };
   },
 
+  /* Mode-aware read on an optimal-starting-lineup PPG swing (dOpt = after.opt -
+     before.opt from a real or reconstructed before/after roster pair). Shared by
+     trade.html's analyzeSide (live before/after) and Trade Grades (reconstructs
+     before/after via Vault.simulateTrade run in reverse on a historical trade) so
+     both use the exact same current-lineup-strength read. */
+  optShiftNote(mode, dOpt) {
+    if (mode === 'rebuild') {
+      if (dOpt > 5) return { tone: 'neutral', text: `Raises optimal PPG by ${dOpt.toFixed(1)}, but current-season points aren't the priority right now.`, fit: 0 };
+      return null;
+    }
+    if (mode === 'contend') {
+      if (dOpt > 3) return { tone: 'good', text: `Raises optimal lineup PPG by ${dOpt.toFixed(1)} — a real scoring upgrade right now.`, fit: 2 };
+      if (dOpt < -3) return { tone: 'bad', text: `Drops optimal PPG by ${Math.abs(dOpt).toFixed(1)} — hurts scoring while you're trying to win.`, fit: -2 };
+      return null;
+    }
+    if (dOpt > 3) return { tone: 'good', text: `Raises optimal lineup PPG by ${dOpt.toFixed(1)}.`, fit: 1 };
+    if (dOpt < -3) return { tone: 'bad', text: `Drops optimal lineup PPG by ${Math.abs(dOpt).toFixed(1)}.`, fit: -1 };
+    return null;
+  },
+
   /* Position-aware young/prime/veteran read on a single PLAYER — 'young' (a rebuild
      target), 'veteran' (a contend target), or null for prime-years players, who are
      good for either timeline and so get no archetype adjustment. Unknown/missing age
