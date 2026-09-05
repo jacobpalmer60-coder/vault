@@ -172,7 +172,7 @@ function renderSingle(t) {
         <div class="flex items-end gap-1.5 h-[70px]">${win.proj.map((v, i) => `<div class="flex-1 flex flex-col items-center"><div class="w-full bg-gradient-to-t from-amber-600/30 to-amber-400/90 rounded-t" style="height:${Math.max(8, v / win.peak * 100)}%" title="${win.startYear + i}: ${v.toLocaleString()} value, ${win.projPPG[i].toFixed(1)} PPG"></div></div>`).join('')}</div>
         <div class="flex justify-between text-[11px] mt-1 text-zinc-500">${win.proj.map((v, i) => `<span>${win.startYear + i}</span>`).join('')}</div>
         <div class="mt-2 h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex">${win.proj.map((v, i) => `<div class="h-full ${win.inWindow[i] ? 'bg-amber-400' : 'bg-zinc-700'}" style="width:${100 / win.proj.length}%"></div>`).join('')}</div>
-        <div class="text-center text-[11px] mt-1.5 text-amber-300">${win.inWindow.some(x => x) ? (win.windowEnd - win.windowStart + 1) + 'yr window' : 'No window'} • Peak ${Math.round(win.peak).toLocaleString()} in ${win.peakYear}</div>
+        <div class="text-center text-[11px] mt-1.5 text-amber-300">${win.hasWindow ? (win.windowEnd - win.windowStart + 1) + 'yr window' : 'No window'} • Peak ${Math.round(win.peak).toLocaleString()} in ${win.peakYear}</div>
         <div class="mt-3 pt-2 border-t border-zinc-800 text-[11px] text-zinc-500 space-y-1">
           <div class="flex items-center gap-1.5"><span class="w-3 h-1.5 bg-amber-400 rounded"></span> In window (value ≥88% peak + PPG ≥ playoff line)</div>
           <div class="flex items-center gap-1.5"><span class="w-3 h-1.5 bg-zinc-700 rounded"></span> Outside window</div>

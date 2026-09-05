@@ -455,6 +455,7 @@ const Vault = {
     const years = 5;
     const proj = [];
     for (let y = 0; y < years; y++) {
+      const projYear = startYear + y;
       let val = 0;
       t.plist.forEach(p => {
         let decay = 1;
@@ -465,6 +466,12 @@ const Vault = {
         if (p.pos === 'TE' && age > 28) decay = Math.pow(0.93, age - 28);
         val += p.value * decay;
       });
+      // Draft picks convert into roster value once their draft year arrives.
+      // Previously picks were invisible to this projection entirely — existing
+      // players only ever decay, so a team's value could never exceed today's,
+      // which meant a rebuilder's future window (arriving once its picks turn
+      // into players) could never show up, no matter how pick-rich the team was.
+      (t.picks || []).forEach(p => { if (projYear >= p.season) val += p.value || 0; });
       proj.push(Math.round(val));
     }
     const peak = Math.max(...proj);
@@ -478,9 +485,18 @@ const Vault = {
     const valueThreshold = peak * 0.88;
     const inWindow = proj.map((v, i) => v >= valueThreshold && projPPG[i] >= playoffLine * 0.97);
 
+    // No fake fallback: if no projected year actually clears the bar, windowStart/
+    // End are null rather than silently defaulting to startYear (which used to be
+    // indistinguishable from a genuine 1-year window starting right now).
+    const hasWindow = inWindow.some(x => x);
     const startIdx = inWindow.indexOf(true);
     const endIdx = inWindow.lastIndexOf(true);
-    return { proj, projPPG, peakYear: year, peak, startYear, inWindow, windowStart: startIdx >= 0 ? startYear + startIdx : startYear, windowEnd: endIdx >= 0 ? startYear + endIdx : startYear, years, playoffLine, playoffSpots };
+    return {
+      proj, projPPG, peakYear: year, peak, startYear, inWindow, hasWindow,
+      windowStart: hasWindow ? startYear + startIdx : null,
+      windowEnd: hasWindow ? startYear + endIdx : null,
+      years, playoffLine, playoffSpots
+    };
   },
 
   /* ---------- Flaws ----------

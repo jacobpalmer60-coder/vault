@@ -656,7 +656,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
         <div class="grid grid-cols-3 gap-2 text-center pt-3 border-t border-white/5">
           <div><div class="text-[16px] font-mono">${aft.age.toFixed(1)}</div><div class="text-[11px] text-amber-200/40">Age</div></div>
           <div><div class="text-[16px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[11px] text-amber-200/40">Opt PPG</div></div>
-          <div><div class="text-[16px] font-mono">${win.windowStart}-${win.windowEnd}</div><div class="text-[11px] text-amber-200/40">Window</div></div>
+          <div><div class="text-[16px] font-mono">${win.hasWindow ? win.windowStart + '-' + win.windowEnd : 'None'}</div><div class="text-[11px] text-amber-200/40">Window</div></div>
         </div>
       </div>`;
   });
