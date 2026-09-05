@@ -98,25 +98,17 @@
     <div id="finderResults" class="space-y-2"></div>
   </div>
 
-  <!-- Analysis (expands once a trade is proposed) — kept above the roster grid so it
-       stays visible while you keep adding/removing assets below. -->
-  <div id="analysis" class="hidden mb-6">
+  <!-- Trade-wide verdict + archetype (applies to both sides, so spans full width) -->
+  <div id="analysisHeader" class="hidden mb-6">
     <h2 class="display text-[24px] gold-text mb-3">Trade Analysis</h2>
     <div id="tradeVerdict" class="card rounded-2xl p-5 mb-4"></div>
-    <div id="tradeArchetype" class="card rounded-2xl p-4 mb-4"></div>
-    <div class="grid lg:grid-cols-2 gap-5">
-      <div id="analysisA"></div>
-      <div id="analysisB"></div>
-    </div>
+    <div id="tradeArchetype" class="card rounded-2xl p-4"></div>
   </div>
 
-  <div id="emptyState" class="mb-6 text-center text-[13px] text-amber-200/30">
-    Select players or picks from either side to build a trade.
-  </div>
-
-  <!-- Main Grid -->
-  <div class="grid lg:grid-cols-2 gap-5">
-    <!-- Team A -->
+  <!-- Four-up: each roster sits next to its own analysis, so picking an asset and
+       seeing its effect are side by side instead of a scroll apart. -->
+  <div class="grid lg:grid-cols-4 gap-5">
+    <!-- Team A roster -->
     <div class="group">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2.5">
@@ -129,11 +121,17 @@
         </div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
-        <div id="playersA" class="scrollbar max-h-[440px] overflow-auto p-1"></div>
+        <div id="playersA" class="scrollbar max-h-[70vh] overflow-auto p-1"></div>
       </div>
     </div>
 
-    <!-- Team B -->
+    <!-- Team A analysis -->
+    <div id="analysisA" class="hidden"></div>
+
+    <!-- Team B analysis -->
+    <div id="analysisB" class="hidden"></div>
+
+    <!-- Team B roster -->
     <div class="group">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2.5">
@@ -146,8 +144,12 @@
         </div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
-        <div id="playersB" class="scrollbar max-h-[440px] overflow-auto p-1"></div>
+        <div id="playersB" class="scrollbar max-h-[70vh] overflow-auto p-1"></div>
       </div>
+    </div>
+
+    <div id="emptyState" class="lg:col-start-2 lg:col-span-2 text-center text-[13px] text-amber-200/30 py-8">
+      Select players or picks from either side to build a trade.
     </div>
   </div>
   </div><!-- /workspace -->
@@ -573,11 +575,13 @@ function updateTrade() {
 
   const bar = document.getElementById('tradeBar');
   const empty = document.getElementById('emptyState');
-  const analysis = document.getElementById('analysis');
+  const header = document.getElementById('analysisHeader');
 
   if (!aAssets.length && !bAssets.length) {
     bar.classList.add('hidden');
-    analysis.classList.add('hidden');
+    header.classList.add('hidden');
+    document.getElementById('analysisA').classList.add('hidden');
+    document.getElementById('analysisB').classList.add('hidden');
     empty.classList.remove('hidden');
     return;
   }
@@ -767,9 +771,16 @@ function classifyTrade(resA, resB, aAssets, bAssets) {
 }
 
 function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
-  const analysis = document.getElementById('analysis');
-  if (!aAssets.length && !bAssets.length) { analysis.classList.add('hidden'); return; }
-  analysis.classList.remove('hidden');
+  const header = document.getElementById('analysisHeader');
+  if (!aAssets.length && !bAssets.length) {
+    header.classList.add('hidden');
+    document.getElementById('analysisA').classList.add('hidden');
+    document.getElementById('analysisB').classList.add('hidden');
+    return;
+  }
+  header.classList.remove('hidden');
+  document.getElementById('analysisA').classList.remove('hidden');
+  document.getElementById('analysisB').classList.remove('hidden');
 
   const giveA = aAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, season: a.season, round: a.round, original: a.original, tier: a.tier }));
   const giveB = bAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, season: a.season, round: a.round, original: a.original, tier: a.tier }));
