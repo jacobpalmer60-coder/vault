@@ -1013,7 +1013,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
         </details>` : ''}
         <div class="grid grid-cols-3 gap-1 text-center pt-3 border-t border-white/5">
           <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="text-[11px] text-zinc-500">Age</div></div>
-          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[11px] text-zinc-500">Opt PPG</div></div>
+          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}<span class="text-[11px] ml-1 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-600'}">${Math.abs(res.dOpt) > 0.05 ? (res.dOpt > 0 ? '+' : '') + res.dOpt.toFixed(1) : ''}</span></div><div class="text-[11px] text-zinc-500">Opt PPG</div></div>
           <div><div class="text-[14px] font-mono">${win.hasWindow ? win.windowStart + '-' + win.windowEnd : 'None'}</div><div class="text-[11px] text-zinc-500">Window</div></div>
         </div>
       </div>`;
