@@ -28,6 +28,8 @@
     stood on the day the trade happened.
   </p>
 
+  <div id="teamSummary" class="hidden mb-6"></div>
+
   <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
     <div id="posFilter" class="flex gap-1.5 flex-wrap"></div>
     <div class="flex items-center gap-1.5">
@@ -123,8 +125,58 @@ function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgM
   const verdict = historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB);
   const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, verdict, anyMissingValue, created: tx.created };
+  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
 }
+
+// League-wide "how are we doing" rollup — one row per team across every graded
+// trade, sorted by net value so it reads as a leaderboard. netValue and fit are
+// both signed from that team's side of each trade they were part of.
+function renderTeamSummary(graded) {
+  const box = document.getElementById('teamSummary');
+  if (!graded.length) { box.classList.add('hidden'); return; }
+
+  const byTeam = new Map();
+  graded.forEach(g => {
+    [[g.teamA, g.dValueAdjA, g.combinedFitA], [g.teamB, -g.dValueAdjA, g.combinedFitB]].forEach(([team, dVal, fit]) => {
+      if (!byTeam.has(team.teamName)) byTeam.set(team.teamName, { trades: 0, netValue: 0, fitSum: 0, won: 0, lost: 0 });
+      const s = byTeam.get(team.teamName);
+      s.trades++; s.netValue += dVal; s.fitSum += fit;
+      if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
+    });
+  });
+
+  const rows = [...byTeam.entries()].sort((a, b) => b[1].netValue - a[1].netValue);
+
+  box.classList.remove('hidden');
+  box.innerHTML = `
+    <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">League Trade Summary</div>
+    <div class="card rounded-vault-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-[13px]">
+          <thead class="bg-black/40 border-b border-white/5">
+            <tr class="text-[11px] uppercase tracking-wider text-zinc-500">
+              <th class="text-left px-4 py-2.5">Team</th>
+              <th class="text-right px-3 py-2.5">Trades</th>
+              <th class="text-right px-3 py-2.5" title="Trades where they gained value vs. lost it">W-L</th>
+              <th class="text-right px-3 py-2.5" title="Net VBA-adjusted value gained/lost across every trade">Net Value</th>
+              <th class="text-right px-4 py-2.5" title="Positional need + rebuild/contend timeline fit, summed across every trade">Timeline/Need Fit</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            ${rows.map(([name, s]) => `
+              <tr>
+                <td class="px-4 py-2.5 font-medium">${Vault.escapeHtml(name)}</td>
+                <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.trades}</td>
+                <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.won}-${s.lost}</td>
+                <td class="px-3 py-2.5 text-right mono font-medium ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</td>
+                <td class="px-4 py-2.5 text-right mono ${s.fitSum > 0.5 ? 'text-emerald-400/80' : s.fitSum < -0.5 ? 'text-rose-400/80' : 'text-zinc-500'}">${fmtSigned(s.fitSum, 1)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+function fmtSigned(n, decimals = 0) { return (n >= 0 ? '+' : '') + n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
 
 function assetChips(list) {
   if (!list.length) return '<span class="text-zinc-600">Nothing</span>';
@@ -235,6 +287,7 @@ async function init() {
 
     status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-emerald-400/80 mt-1';
+    renderTeamSummary(allGraded);
     renderFilters();
     renderList();
   } catch (e) {
