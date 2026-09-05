@@ -54,9 +54,9 @@ async function main() {
     if (p.position === 'RDP') {
       const m = p.playerName.match(pickNamePattern);
       if (!m) continue; // unrecognized pick name format — skip rather than guess
-      picks.push({ season: +m[1], slot: m[2].toLowerCase(), round: +m[3], ...row });
+      picks.push({ season: +m[1], slot: m[2].toLowerCase(), round: +m[3], ktcId: p.playerID, ...row });
     } else {
-      players.push({ name: p.playerName, pos: p.position, team: p.team || '', age: p.age || null, rookie: !!p.rookie, ...row });
+      players.push({ name: p.playerName, ktcId: p.playerID, pos: p.position, team: p.team || '', age: p.age || null, rookie: !!p.rookie, ...row });
     }
   }
 

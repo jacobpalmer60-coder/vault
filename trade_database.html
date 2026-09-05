@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trade Database — The Vault</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[1100px] mx-auto p-6 lg:p-8">
+  <div class="mb-2">
+    <h1 class="display text-[28px] font-semibold gold-text">Trade Database</h1>
+    <p id="status" class="text-[13px] text-zinc-500 mt-1">Loading…</p>
+  </div>
+  <p class="text-[12px] text-zinc-500 max-w-[720px] mb-5 leading-relaxed">
+    Real trades from other KeepTradeCut-tracked leagues, filtered to match
+    <span class="text-zinc-400">this league's own format</span> — team count, QB slots,
+    PPR, and TE premium — so what you're seeing actually happened under rules like yours.
+    Rolling ~8-day window; PPR/TE-premium tiers are matched by nearest scoring convention,
+    not an exact KeepTradeCut setting id.
+  </p>
+
+  <div id="matchBar" class="card rounded-vault-sm p-4 mb-5"></div>
+
+  <div id="list" class="space-y-4"></div>
+  <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+</div>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+const TIER_LABEL = {
+  full: 'Exact match — team count, QB slots, PPR, and TE premium',
+  noStarters: 'Exact match — team count, QB slots, PPR, and TE premium',
+  noTep: 'Relaxed — matched on team count, QB slots, and PPR (any TE premium)',
+  noPpr: 'Relaxed — matched on team count and QB slots only (any PPR/TE premium)'
+};
+
+function pprCode(rec) {
+  if (rec === 1) return 3;
+  if (rec === 0.5) return 2;
+  if (rec === 0) return 1;
+  return 4; // doesn't match a flat 0/.5/1 tier — treat as KTC's "Tiered" bucket
+}
+function tepCode(bonus) {
+  if (!bonus || bonus <= 0) return 0;
+  if (bonus <= 0.5) return 1;
+  if (bonus <= 1) return 2;
+  return 3;
+}
+function pprLabel(code) { return { 1: '0 PPR', 2: '0.5 PPR', 3: '1 PPR', 4: 'Tiered PPR' }[code] || '—'; }
+function tepLabel(code) { return { 0: 'No TE Premium', 1: 'TE+', 2: 'TE++', 3: 'TE+++' }[code] || '—'; }
+
+function assetLabel(id, playerMap, pickMap) {
+  if (!/^\d+$/.test(id)) return { name: id, value: 0 }; // "2027 Round 2" / "2026 Pick 1.06" style labels
+  const p = playerMap.get(+id);
+  if (p) return { name: p.name, value: p.value };
+  const pk = pickMap.get(+id);
+  if (pk) return { name: pk.label, value: pk.value };
+  return { name: `Unknown asset #${id}`, value: 0 };
+}
+
+function assetChips(ids, playerMap, pickMap) {
+  if (!ids.length) return '<span class="text-zinc-600">Nothing</span>';
+  return ids.map(id => {
+    const a = assetLabel(id, playerMap, pickMap);
+    return `<span class="inline-flex items-center gap-1.5 mr-3 mb-1"><span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span>${a.value > 0 ? `<span class="text-zinc-500 text-[12px] mono">${Math.round(a.value).toLocaleString()}</span>` : ''}</span>`;
+  }).join('');
+}
+
+function renderCard(t, playerMap, pickMap) {
+  const date = new Date(t.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return `
+    <div class="card rounded-vault-sm p-5">
+      <div class="text-[12px] text-zinc-500 mono mb-3">${date}</div>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team 1 received</div>
+          <div class="text-[13px]">${assetChips(t.t1, playerMap, pickMap)}</div>
+        </div>
+        <div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team 2 received</div>
+          <div class="text-[13px]">${assetChips(t.t2, playerMap, pickMap)}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// Tries progressively looser filters until there's a workable sample — teams and QB
+// slots always match exactly (the two dimensions we're fully confident mapping), PPR
+// and TE premium relax first since our tier mapping is an approximation of KTC's own.
+function findMatches(trades, sig) {
+  const base = t => t.teams === sig.teams && t.qbs === sig.qbs;
+  let pool = trades.filter(t => base(t) && t.ppr === sig.ppr && t.tep === sig.tep && t.starters === sig.starters);
+  if (pool.length >= 8) return { tier: 'full', pool };
+  pool = trades.filter(t => base(t) && t.ppr === sig.ppr && t.tep === sig.tep);
+  if (pool.length >= 8) return { tier: 'noStarters', pool };
+  pool = trades.filter(t => base(t) && t.ppr === sig.ppr);
+  if (pool.length >= 8) return { tier: 'noTep', pool };
+  return { tier: 'noPpr', pool: trades.filter(base) };
+}
+
+async function init() {
+  const status = document.getElementById('status');
+  try {
+    const leagueId = Vault.getLeagueId();
+    const [league, ktcData, tradesData] = await Promise.all([
+      fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()),
+      Vault.fetchKtcValues(),
+      fetch('data/ktc-trades.json').then(r => r.json())
+    ]);
+    if (!league || league.error) throw new Error('League not found.');
+
+    const rosterPositions = league.roster_positions || [];
+    const isSF = rosterPositions.filter(p => p === 'QB' || p === 'SUPER_FLEX').length >= 2;
+    const sig = {
+      teams: league.total_rosters,
+      qbs: isSF ? 2 : 1,
+      ppr: pprCode(league.scoring_settings?.rec ?? 0),
+      tep: tepCode(league.scoring_settings?.bonus_rec_te ?? 0),
+      starters: rosterPositions.filter(s => !['BN', 'IR', 'TAXI'].includes(s)).length
+    };
+
+    const playerMap = new Map();
+    (ktcData.players || []).forEach(p => {
+      if (p.ktcId != null) playerMap.set(p.ktcId, { name: p.name, value: isSF ? p.sf : p.oneQB });
+    });
+    const pickMap = new Map();
+    (ktcData.picks || []).forEach(p => {
+      if (p.ktcId == null) return;
+      const tier = p.slot.charAt(0).toUpperCase() + p.slot.slice(1);
+      const ord = p.round === 1 ? 'st' : p.round === 2 ? 'nd' : p.round === 3 ? 'rd' : 'th';
+      pickMap.set(p.ktcId, { label: `${p.season} ${tier} ${p.round}${ord}`, value: isSF ? p.sf : p.oneQB });
+    });
+
+    const { tier, pool } = findMatches(tradesData.trades || [], sig);
+    const sorted = [...pool].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 40);
+
+    document.getElementById('matchBar').innerHTML = `
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div class="text-[13px] font-medium text-zinc-200">${sig.teams}-team, ${isSF ? 'Superflex' : '1QB'}, ${pprLabel(sig.ppr)}, ${tepLabel(sig.tep)}, ${sig.starters} starters</div>
+          <div class="text-[11px] text-amber-300/70 mt-1">${TIER_LABEL[tier]}</div>
+        </div>
+        <div class="text-[12px] text-zinc-500 shrink-0">${pool.length.toLocaleString()} matching trade${pool.length === 1 ? '' : 's'} found</div>
+      </div>`;
+
+    status.textContent = `${tradesData.count.toLocaleString()} trades in database • updated ${new Date(tradesData.updated).toLocaleDateString()}`;
+    status.className = 'text-[13px] text-emerald-400/80 mt-1';
+
+    const list = document.getElementById('list');
+    const empty = document.getElementById('empty');
+    if (!sorted.length) {
+      list.innerHTML = '';
+      empty.classList.remove('hidden');
+      empty.textContent = 'No comparable trades found for this league\'s format right now.';
+      return;
+    }
+    empty.classList.add('hidden');
+    list.innerHTML = sorted.map(t => renderCard(t, playerMap, pickMap)).join('');
+  } catch (e) {
+    console.error(e);
+    status.textContent = e.message || 'Failed to load';
+    status.className = 'text-[13px] text-rose-400 mt-1';
+  }
+}
+init();
+</script>
+</body>
+</html>

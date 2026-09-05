@@ -63,7 +63,7 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-zinc-600 transition-transform group-hover:text-amber-400 group-hover:translate-x-0.5"><path d="M9 18l6-6-6-6"/></svg>
             </a>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <a id="btnRankings" href="#" class="group flex flex-col p-4 rounded-2xl border border-white/5 bg-black/40 hover:border-amber-500/40 hover:bg-black/60 transition-all hover:-translate-y-0.5">
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/10 flex items-center justify-center text-amber-400 mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
@@ -95,6 +95,14 @@
                 <div class="font-semibold text-zinc-100">Trade Grades</div>
                 <div class="text-xs text-zinc-500 mt-1">Every completed trade, reviewed</div>
               </a>
+
+              <a id="btnDatabase" href="#" class="group flex flex-col p-4 rounded-2xl border border-white/5 bg-black/40 hover:border-amber-500/40 hover:bg-black/60 transition-all hover:-translate-y-0.5">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/10 flex items-center justify-center text-amber-400 mb-3">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+                </div>
+                <div class="font-semibold text-zinc-100">Trade Database</div>
+                <div class="text-xs text-zinc-500 mt-1">Real trades in your league's format</div>
+              </a>
             </div>
           </div>
 
@@ -110,7 +118,7 @@
       const $ = id => document.getElementById(id);
       const username = $('username'), loadBtn = $('loadBtn'), leagueSelect = $('leagueSelect');
       const stepLeague = $('step-league'), stepActions = $('step-actions'), errorMsg = $('errorMsg');
-      const btns = { overview: $('btnOverview'), rankings: $('btnRankings'), trade: $('btnTrade'), analyzer: $('btnAnalyzer'), grades: $('btnGrades') };
+      const btns = { overview: $('btnOverview'), rankings: $('btnRankings'), trade: $('btnTrade'), analyzer: $('btnAnalyzer'), grades: $('btnGrades'), database: $('btnDatabase') };
 
       async function loadLeagues() {
         const user = username.value.trim();
@@ -141,6 +149,7 @@
         btns.trade.href = Vault.linkTo('trade.html', id);
         btns.analyzer.href = Vault.linkTo('team-analyzer.html', id);
         btns.grades.href = Vault.linkTo('trade_grades.html', id);
+        btns.database.href = Vault.linkTo('trade_database.html', id);
         stepActions.classList.remove('hidden');
       }
 
