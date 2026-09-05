@@ -20,6 +20,7 @@
       <p id="status" class="text-[13px] text-amber-200/50 mt-1">Connecting...</p>
     </div>
     <div class="flex items-center gap-2">
+      <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-emerald-500/25 text-[12px] text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">✨ Suggest a Trade</button>
       <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-sky-500/25 text-[12px] text-sky-300/80 hover:text-sky-200 hover:border-sky-500/50 hover:bg-sky-500/5 transition-colors">🔍 Find a Trade</button>
       <div class="h-8 px-3 rounded-lg bg-black/40 border border-amber-500/15 flex items-center gap-2 text-[12px] text-amber-200/50">
         <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
@@ -101,6 +102,11 @@
     </div>
     <div id="finderResults" class="space-y-2"></div>
   </div>
+
+  <!-- Suggest a Trade: searches the whole league for genuinely fair trades for
+       Team A, no manual asset-picking required — for a user who doesn't know
+       who's on which roster or what anything is worth. -->
+  <div id="suggestPanel" class="hidden mb-4 p-4 rounded-2xl card"></div>
 
   <!-- Trade-wide verdict + archetype (applies to both sides, so spans full width) -->
   <div id="analysisHeader" class="hidden mb-6">
@@ -209,6 +215,7 @@ async function init() {
       document.getElementById('setup').classList.add('hidden');
       document.getElementById('workspace').classList.remove('hidden');
       document.getElementById('finderPickerBtn').classList.remove('hidden');
+      document.getElementById('suggestBtn').classList.remove('hidden');
       renderPosFilter('A'); renderPosFilter('B');
       render('A'); render('B');
     };
@@ -223,6 +230,8 @@ function backToSetup() {
   document.getElementById('workspace').classList.add('hidden');
   document.getElementById('setup').classList.remove('hidden');
   document.getElementById('finderPickerBtn').classList.add('hidden');
+  document.getElementById('suggestBtn').classList.add('hidden');
+  document.getElementById('suggestPanel').classList.add('hidden');
   closeFinder();
 }
 
@@ -307,6 +316,110 @@ function toggle(side, key) {
 
 function resetTrade() {
   selectedA.clear(); selectedB.clear();
+  render('A'); render('B');
+}
+
+// Filters a roster down to assets actually worth anchoring a trade around — skips
+// deep-bench chaff so the search stays fast and the results stay realistic (nobody
+// is trading their QB4 as the headline of a deal).
+function tradeableAssets(team) {
+  const floor = Math.max(300, team.total * 0.02);
+  return team.assets.filter(a => a.value >= floor).sort((a, b) => b.value - a.value).slice(0, 15);
+}
+
+let suggestState = [];
+
+// Searches every other team for a trade that reads as genuinely fair for Team A —
+// no manual asset-picking required. For each partner, tries sending each of Team A's
+// meaningful assets for the partner's best matching package back (and the reverse:
+// acquiring each of the partner's meaningful assets for Team A's best matching
+// package), scores every candidate through the exact same holistic verdict the
+// manual builder uses, and keeps only the ones that don't grade as lopsided.
+function suggestTrade() {
+  closeFinder();
+  const box = document.getElementById('suggestPanel');
+  box.classList.remove('hidden');
+  box.innerHTML = `<div class="text-[12px] text-amber-200/50 py-2">Searching the league for fair trades…</div>`;
+  setTimeout(runSuggestTradeSearch, 30);
+}
+
+function runSuggestTradeSearch() {
+  const myTeam = teamOf('A');
+  const partners = teams.filter(t => t.rosterId !== myTeam.rosterId);
+  const myAnchors = tradeableAssets(myTeam);
+  const candidates = [];
+
+  const consider = (partner, giveA, giveB) => {
+    const aValAdj = giveA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const bValAdj = giveB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const result = computeTradeAnalysis(myTeam, partner, giveA, giveB, aValAdj, bValAdj);
+    if (result.verdict.tone !== 'bad') candidates.push({ partner, giveA, giveB, result });
+  };
+
+  partners.forEach(partner => {
+    // Direction 1: Team A sends one meaningful asset, gets back the partner's best
+    // matching package (mirrors the "Find" shop-out flow, run automatically).
+    myAnchors.forEach(mine => {
+      const combo = bestCombo(partner.assets, mine.value);
+      if (combo) consider(partner, [mine], combo.combo);
+    });
+    // Direction 2: Team A acquires one of the partner's meaningful assets, sending
+    // its own best matching package (mirrors the Finder's acquire-mode flow).
+    tradeableAssets(partner).forEach(theirs => {
+      const combo = bestCombo(myTeam.assets, theirs.value);
+      if (combo) consider(partner, combo.combo, [theirs]);
+    });
+  });
+
+  const toneRank = { good: 2, neutral: 1, bad: 0 };
+  candidates.sort((x, y) => {
+    const t = toneRank[y.result.verdict.tone] - toneRank[x.result.verdict.tone];
+    if (t) return t;
+    const fit = (y.result.resA.fit + y.result.resB.fit) - (x.result.resA.fit + x.result.resB.fit);
+    if (fit) return fit;
+    return x.result.pctDiff - y.result.pctDiff;
+  });
+
+  renderSuggestions(candidates.slice(0, 3));
+}
+
+function renderSuggestions(candidates) {
+  suggestState = candidates;
+  const box = document.getElementById('suggestPanel');
+  const myTeam = teamOf('A');
+  if (!candidates.length) {
+    box.innerHTML = `<div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-2">Suggested Trades</div><div class="text-[12px] text-amber-200/40 py-2">No trade across the league reads as genuinely fair for ${Vault.escapeHtml(myTeam.teamName)} right now — try building one manually below, or check back after rosters change.</div>`;
+    return;
+  }
+  box.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-[11px] text-amber-200/40 uppercase tracking-wider">Suggested Trades for ${Vault.escapeHtml(myTeam.teamName)}</div>
+      <button onclick="document.getElementById('suggestPanel').classList.add('hidden')" class="text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-amber-200/50 hover:text-amber-200 hover:border-white/20">Close</button>
+    </div>
+    <div class="space-y-2">
+      ${candidates.map((c, i) => `
+        <div class="p-3 rounded-xl bg-black/30">
+          <div class="flex items-center justify-between gap-4 flex-wrap mb-1.5">
+            <div class="text-[13px] font-medium">vs. ${Vault.escapeHtml(c.partner.teamName)}</div>
+            <button onclick="useSuggestion(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid shrink-0">Use This Trade</button>
+          </div>
+          <div class="text-[12px] text-amber-100/70 mb-1.5">You send <span class="text-amber-100/90">${c.giveA.map(a => Vault.escapeHtml(a.name)).join(', ')}</span> for <span class="text-amber-100/90">${c.giveB.map(a => Vault.escapeHtml(a.name)).join(', ')}</span></div>
+          <div class="flex items-center gap-2">
+            <span class="size-2 rounded-full ${TONE_DOT[c.result.verdict.tone]}"></span>
+            <span class="text-[12px] font-medium ${TONE[c.result.verdict.tone]}">${c.result.verdict.label}</span>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function useSuggestion(i) {
+  const c = suggestState[i];
+  if (!c) return;
+  document.getElementById('teamB').value = c.partner.rosterId;
+  selectedA.clear(); selectedB.clear();
+  c.giveA.forEach(a => selectedA.add(a.key));
+  c.giveB.forEach(a => selectedB.add(a.key));
+  document.getElementById('suggestPanel').classList.add('hidden');
   render('A'); render('B');
 }
 
@@ -831,18 +944,11 @@ function classifyTrade(resA, resB, aAssets, bAssets) {
   return { label, desc };
 }
 
-function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
-  const header = document.getElementById('analysisHeader');
-  if (!aAssets.length && !bAssets.length) {
-    header.classList.add('hidden');
-    document.getElementById('analysisA').classList.add('hidden');
-    document.getElementById('analysisB').classList.add('hidden');
-    return;
-  }
-  header.classList.remove('hidden');
-  document.getElementById('analysisA').classList.remove('hidden');
-  document.getElementById('analysisB').classList.remove('hidden');
-
+// Pure computation, no DOM access — shared by renderAnalysis (draws the result) and
+// suggestTrade (scores many candidate trades to find good ones without drawing
+// anything). Takes the two teams and what each side gives, returns everything
+// needed to either render or just rank a candidate.
+function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   const giveA = aAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, season: a.season, round: a.round, original: a.original, tier: a.tier }));
   const giveB = bAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, season: a.season, round: a.round, original: a.original, tier: a.tier }));
 
@@ -855,12 +961,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   const resA = analyzeSide(before.A, after.A);
   const resB = analyzeSide(before.B, after.B);
   const trade = classifyTrade(resA, resB, aAssets, bAssets);
-  document.getElementById('tradeArchetype').innerHTML = `
-    <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Trade Archetype</div>
-    <div class="text-[16px] font-medium gold-text mb-1">${trade.label}</div>
-    <div class="text-[13px] text-amber-100/70">${trade.desc}</div>`;
 
-  const heads = {};
+  const heads = {}, wins = {};
   [['A', before.A, after.A, resA, dValueAdjA, bAssets, aAssets], ['B', before.B, after.B, resB, dValueAdjB, aAssets, bAssets]].forEach(([side, bef, aft, res, dValueAdj, incoming, outgoing]) => {
     // Positional need/surplus fit for the specific assets moving this direction —
     // judged against the team's roster BEFORE the trade, not the shifting post-trade pool.
@@ -873,9 +975,39 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
     res.fit += shift.fit;
 
     res.notes = [...posResult.notes, ...(shift.note ? [shift.note] : []), ...res.notes];
+    heads[side] = headline(dValueAdj, avgSideAdj, res.fit);
+    wins[side] = win;
+  });
 
-    const head = headline(dValueAdj, avgSideAdj, res.fit);
-    heads[side] = head;
+  const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
+  const verdict = overallVerdict(resA, resB, pctDiff, dValueAdjA);
+
+  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, verdict };
+}
+
+function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
+  const header = document.getElementById('analysisHeader');
+  if (!aAssets.length && !bAssets.length) {
+    header.classList.add('hidden');
+    document.getElementById('analysisA').classList.add('hidden');
+    document.getElementById('analysisB').classList.add('hidden');
+    return;
+  }
+  header.classList.remove('hidden');
+  document.getElementById('analysisA').classList.remove('hidden');
+  document.getElementById('analysisB').classList.remove('hidden');
+
+  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, verdict } =
+    computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
+
+  document.getElementById('tradeArchetype').innerHTML = `
+    <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Trade Archetype</div>
+    <div class="text-[16px] font-medium gold-text mb-1">${trade.label}</div>
+    <div class="text-[13px] text-amber-100/70">${trade.desc}</div>`;
+
+  [['A', before.A, after.A, resA, dValueAdjA], ['B', before.B, after.B, resB, dValueAdjB]].forEach(([side, bef, aft, res, dValueAdj]) => {
+    const head = heads[side];
+    const win = wins[side];
     document.getElementById(`analysis${side}`).innerHTML = `
       <div class="card rounded-vault-sm p-4 min-w-0">
         <div class="flex items-center justify-between gap-2 mb-3">
@@ -903,8 +1035,6 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
       </div>`;
   });
 
-  const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
-  const verdict = overallVerdict(resA, resB, pctDiff, dValueAdjA);
   document.getElementById('tradeVerdict').innerHTML = `
     <div class="flex items-center gap-2 mb-1.5">
       <span class="size-2.5 rounded-full ${TONE_DOT[verdict.tone]}"></span>
