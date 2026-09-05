@@ -62,7 +62,7 @@
         </div>
       </div>
       <div class="text-right">
-        <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Difference</div>
+        <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value.">Difference <span class="text-amber-200/25">(value-adj)</span></div>
         <div id="diff" class="text-[22px] font-semibold mono"></div>
       </div>
     </div>
@@ -270,13 +270,16 @@ function swap(side, outKey, inKey) {
   render(side);
 }
 
-/* Package builder: best combo of `pool` (unselected assets) closest to targetValue */
-function bestCombo(pool, targetValue) {
+/* Package builder core: pool of assets, target already in VBA-adjusted-value space.
+   All combo search happens here so gap-closer, Match, and the Finder agree with the
+   same fairness math the analysis panel uses — a suggested combo should still look
+   fair once VBA is applied to it, not just fair by raw KTC sum. */
+function comboSearchAdj(pool, targetAdj) {
   let best = null;
   const consider = combo => {
-    const sum = combo.reduce((s, a) => s + a.value, 0);
-    const diff = Math.abs(sum - targetValue);
-    if (!best || diff < best.diff || (diff === best.diff && combo.length < best.combo.length)) best = { combo, sum, diff };
+    const sumAdj = combo.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const diff = Math.abs(sumAdj - targetAdj);
+    if (!best || diff < best.diff || (diff === best.diff && combo.length < best.combo.length)) best = { combo, diff };
   };
   pool.forEach(a => consider([a]));
   for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) consider([pool[i], pool[j]]);
@@ -284,20 +287,36 @@ function bestCombo(pool, targetValue) {
   return best;
 }
 
+/* Public entry point: pool + a RAW target value (a real KTC asset/gap value) —
+   returns the combo whose VBA-adjusted sum is closest to the target's adjusted
+   value. `sum` is the raw KTC total (for display); `pctOff` is how far off in
+   adjusted-space terms, the same basis the trade bar and headline use. */
+function bestCombo(pool, targetValueRaw) {
+  const targetAdj = Vault.adjustedValue(targetValueRaw);
+  const best = comboSearchAdj(pool, targetAdj);
+  if (!best) return null;
+  const sum = best.combo.reduce((s, a) => s + a.value, 0);
+  return { combo: best.combo, sum, diff: best.diff, pctOff: targetAdj ? best.diff / targetAdj * 100 : 0 };
+}
+
 /* Like bestCombo, but requires the combo to include one asset matching `posFilter`
    (a position, or 'PICK' for any pick) if given — that anchor asset is picked closest
-   to the target value, then the remaining gap is filled from the rest of the pool. */
-function anchoredCombo(pool, targetValue, posFilter) {
-  if (!posFilter || posFilter === 'ANY') return bestCombo(pool, targetValue);
+   to the target value (in adjusted space), then the remaining adjusted-value gap is
+   filled from the rest of the pool. */
+function anchoredCombo(pool, targetValueRaw, posFilter) {
+  if (!posFilter || posFilter === 'ANY') return bestCombo(pool, targetValueRaw);
   const anchors = pool.filter(a => posFilter === 'PICK' ? a.type === 'pick' : a.pos === posFilter);
   if (!anchors.length) return null;
-  const anchor = [...anchors].sort((a, b) => Math.abs(a.value - targetValue) - Math.abs(b.value - targetValue))[0];
-  const remaining = targetValue - anchor.value;
+  const targetAdj = Vault.adjustedValue(targetValueRaw);
+  const anchor = [...anchors].sort((a, b) => Math.abs(Vault.adjustedValue(a.value) - targetAdj) - Math.abs(Vault.adjustedValue(b.value) - targetAdj))[0];
+  const anchorAdj = Vault.adjustedValue(anchor.value);
+  const remainingAdj = targetAdj - anchorAdj;
   const fillerPool = pool.filter(a => a.key !== anchor.key);
-  const filler = Math.abs(remaining) > targetValue * 0.06 ? bestCombo(fillerPool, remaining) : null;
+  const filler = Math.abs(remainingAdj) > targetAdj * 0.06 ? comboSearchAdj(fillerPool, remainingAdj) : null;
   const combo = filler ? [anchor, ...filler.combo] : [anchor];
   const sum = combo.reduce((s, a) => s + a.value, 0);
-  return { combo, sum, diff: Math.abs(sum - targetValue) };
+  const diff = Math.abs(combo.reduce((s, a) => s + Vault.adjustedValue(a.value), 0) - targetAdj);
+  return { combo, sum, diff, pctOff: targetAdj ? diff / targetAdj * 100 : 0 };
 }
 
 // Why might `partner` realistically part with `givingAssets`? Reuses the same
@@ -379,8 +398,7 @@ function renderFinder() {
   const results = partners.map(partner => {
     const combo = anchoredCombo(partner.assets, asset.value, position);
     if (!combo) return null;
-    const pctOff = combo.diff / asset.value * 100;
-    return { partner, combo, pctOff, rationale: partnerRationale(partner, combo.combo) };
+    return { partner, combo, pctOff: combo.pctOff, rationale: partnerRationale(partner, combo.combo) };
   }).filter(Boolean).sort((a, b) => a.pctOff - b.pctOff).slice(0, 5);
 
   const resultsEl = document.getElementById('finderResults');
@@ -447,6 +465,10 @@ function updateTrade() {
   const bAssets = [...selectedB].map(k => teamB.assets.find(x => x.key === k)).filter(Boolean);
   const aVal = aAssets.reduce((s, a) => s + a.value, 0);
   const bVal = bAssets.reduce((s, a) => s + a.value, 0);
+  // Fairness is judged in VBA-adjusted space throughout (see Vault.adjustedValue) —
+  // raw sums above are for the line-item display only.
+  const aValAdj = aAssets.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+  const bValAdj = bAssets.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
 
   const bar = document.getElementById('tradeBar');
   const empty = document.getElementById('emptyState');
@@ -468,30 +490,31 @@ function updateTrade() {
     ? bAssets.map(a => `<span class="inline-flex items-center gap-1.5 mr-3"><span>${Vault.escapeHtml(a.name)}</span><span class="text-amber-200/40 text-[13px] mono">${Math.round(a.value).toLocaleString()}</span></span>`).join('')
     : '<span class="text-amber-200/30">Nothing selected</span>';
 
-  const diff = Math.abs(aVal - bVal);
-  const avgSide = (aVal + bVal) / 2 || 1;
-  const pctDiff = diff / avgSide * 100;
+  const diffAdj = Math.abs(aValAdj - bValAdj);
+  const avgSideAdj = (aValAdj + bValAdj) / 2 || 1;
+  const pctDiff = diffAdj / avgSideAdj * 100;
   const diffEl = document.getElementById('diff');
-  diffEl.textContent = diff.toLocaleString();
+  diffEl.textContent = Math.round(diffAdj).toLocaleString();
   diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiff < 6 ? 'text-emerald-400' : pctDiff < 15 ? 'text-amber-400' : 'text-amber-200/50');
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
   if (pctDiff > 8 && (aAssets.length || bAssets.length)) {
-    const behindSide = aVal < bVal ? 'A' : 'B';
+    const behindSide = aValAdj < bValAdj ? 'A' : 'B';
     const behindTeam = teamOf(behindSide);
     const behindSel = behindSide === 'A' ? selectedA : selectedB;
-    const need = Math.abs(aVal - bVal);
+    const neededAdj = Math.abs(aValAdj - bValAdj);
     const pool = behindTeam.assets.filter(a => !behindSel.has(a.key));
-    const combo = bestCombo(pool, need);
+    const best = comboSearchAdj(pool, neededAdj);
+    const combo = best ? { combo: best.combo, sum: best.combo.reduce((s, a) => s + a.value, 0) } : null;
     if (combo) {
       gapBox.classList.remove('hidden');
-      gapBox.innerHTML = `<div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-2">Team ${behindSide} is behind by ${Math.round(need).toLocaleString()} — close the gap</div>
+      gapBox.innerHTML = `<div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-2">Team ${behindSide} is behind by ${Math.round(neededAdj).toLocaleString()} (value-adjusted) — close the gap</div>
         <div class="flex flex-wrap gap-2">${combo.combo.map(a => `<button onclick="toggle('${behindSide}','${a.key}')" class="px-2.5 py-1.5 rounded-lg border border-amber-500/20 hover:border-amber-500/50 hover:text-amber-200 text-[12px] text-amber-100/80">+ ${Vault.escapeHtml(a.name)} <span class="mono text-amber-200/40">${Math.round(a.value).toLocaleString()}</span></button>`).join('')}</div>`;
     } else gapBox.classList.add('hidden');
   } else gapBox.classList.add('hidden');
 
-  renderAnalysis(teamA, teamB, aAssets, bAssets);
+  renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
 }
 
 function teamMode(t) {
@@ -586,7 +609,7 @@ function classifyTrade(resA, resB, aAssets, bAssets) {
   return { label, desc };
 }
 
-function renderAnalysis(teamA, teamB, aAssets, bAssets) {
+function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   const analysis = document.getElementById('analysis');
   if (!aAssets.length && !bAssets.length) { analysis.classList.add('hidden'); return; }
   analysis.classList.remove('hidden');
@@ -595,7 +618,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets) {
   const giveB = bAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, season: a.season, round: a.round, original: a.original, tier: a.tier }));
 
   const { before, after, pool } = Vault.simulateTrade(teams, slots, teamA.rosterId, teamB.rosterId, giveA, giveB);
-  const avgSide = (aAssets.reduce((s, a) => s + a.value, 0) + bAssets.reduce((s, a) => s + a.value, 0)) / 2 || 1;
+  const avgSideAdj = (aValAdj + bValAdj) / 2 || 1;
+  // Value delta in VBA-adjusted terms — same basis as the trade bar, not raw KTC sum.
+  const dValueAdjA = bValAdj - aValAdj;
+  const dValueAdjB = aValAdj - bValAdj;
 
   const resA = analyzeSide(before.A, after.A);
   const resB = analyzeSide(before.B, after.B);
@@ -605,9 +631,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets) {
     <div class="text-[16px] font-medium gold-text mb-1">${trade.label}</div>
     <div class="text-[13px] text-amber-100/70">${trade.desc}</div>`;
 
-  [['A', before.A, after.A, resA], ['B', before.B, after.B, resB]].forEach(([side, bef, aft, res]) => {
+  [['A', before.A, after.A, resA, dValueAdjA], ['B', before.B, after.B, resB, dValueAdjB]].forEach(([side, bef, aft, res, dValueAdj]) => {
     const win = Vault.contentionWindow(aft, pool);
-    const head = headline(res.dValue, avgSide, res.fit);
+    const head = headline(dValueAdj, avgSideAdj, res.fit);
     document.getElementById(`analysis${side}`).innerHTML = `
       <div class="card rounded-[24px] p-5">
         <div class="flex items-center justify-between mb-3">
@@ -616,8 +642,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets) {
             <div class="text-[11px] mt-0.5 ${TONE.neutral}">${MODE_LABEL[res.mode]}</div>
           </div>
           <div class="text-right">
-            <div class="text-[13px] font-mono ${res.dValue >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtSigned(res.dValue)}</div>
-            <div class="text-[10px] text-amber-200/40">value Δ</div>
+            <div class="text-[13px] font-mono ${dValueAdj >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtSigned(dValueAdj)}</div>
+            <div class="text-[10px] text-amber-200/40">value Δ (adj)</div>
           </div>
         </div>
         <div class="flex items-center gap-2 mb-4">

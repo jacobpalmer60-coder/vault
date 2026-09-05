@@ -7,7 +7,9 @@ const VAULT_CONFIG = {
   KTC_URL: 'data/ktc-values.json',
   PROJECTIONS_URL: 'data/projections.json',
   PICK_YEARS: [2027, 2028, 2029],
-  PICK_ROUNDS: [1, 2, 3, 4]
+  PICK_ROUNDS: [1, 2, 3, 4],
+  KTC_MAX_VALUE: 9999,
+  VBA_EXPONENT: 1.2 // Value Based Adjustment: consolidation premium for elite assets. Tune here.
 };
 
 /* ---------- League ID handling (shared across every page) ---------- */
@@ -41,6 +43,18 @@ const Vault = {
       .replace(/\s+/g, ' ');
   },
   clean(v) { return parseFloat(String(v || '').replace(/,/g, '')) || 0; },
+  /* ---------- Value Based Adjustment (VBA) ----------
+     Raw KTC values are linear/additive, but two 3000-value players aren't really
+     equal to one 6000-value player — roster spots are scarce and depth is
+     fungible in a way a true stud isn't ("consolidation premium"). This anchors
+     the top of the KTC scale (9999 stays 9999) and discounts everything below it,
+     more aggressively for lower values than higher ones, so summing several
+     mid-tier assets falls further short of one big one even at equal raw totals.
+     Trade Calculator only — team power rankings elsewhere stay on raw KTC value. */
+  adjustedValue(v, k = VAULT_CONFIG.VBA_EXPONENT) {
+    if (v <= 0) return 0;
+    return v * Math.pow(v / VAULT_CONFIG.KTC_MAX_VALUE, k - 1);
+  },
   meanStd(arr) {
     const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
     const std = Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length);
