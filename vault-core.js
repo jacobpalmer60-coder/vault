@@ -15,7 +15,14 @@ const VAULT_CONFIG = {
   // flagged with a +5239 "Value Adjustment" on Chase, a ~53% premium) rather
   // than picked by feel — see Vault.adjustedValue.
   VBA_REFERENCE: 5500,
-  VBA_EXPONENT: 1.7
+  VBA_EXPONENT: 1.7,
+  // How much a position's need/surplus status (see Vault.positionalProfile) scales
+  // an asset's value to the team involved — a real need is worth more than sticker
+  // price to the team receiving it (or costs more than sticker price to give up),
+  // a surplus position is worth less either way. Applied per-asset so the swing
+  // scales with the asset's own value, not a flat bonus regardless of size.
+  POS_NEED_MULTIPLIER: 1.15,
+  POS_SURPLUS_MULTIPLIER: 0.85
 };
 
 /* ---------- League ID handling (shared across every page) ---------- */
@@ -553,6 +560,18 @@ const Vault = {
     const needs = Object.entries(posPct).filter(([, v]) => v < 0.35).map(([k]) => k);
     const surpluses = Object.entries(posPct).filter(([, v]) => v > 0.65).map(([k]) => k);
     return { posPct, needs, surpluses };
+  },
+
+  /* Scales a value by a team's need/surplus status at `pos` (from positionalProfile)
+     — used both for what a team receives (a need is worth more than sticker price)
+     and for what it gives up (a surplus costs less than sticker price to part with;
+     a need costs more). Picks and any position outside qb/rb/wr/te pass through
+     unscaled, since positionalProfile only tracks those four. */
+  needAdjustedValue(value, pos, profile) {
+    const k = (pos || '').toLowerCase();
+    if (profile.needs.includes(k)) return value * VAULT_CONFIG.POS_NEED_MULTIPLIER;
+    if (profile.surpluses.includes(k)) return value * VAULT_CONFIG.POS_SURPLUS_MULTIPLIER;
+    return value;
   },
 
   /* ---------- Flaws ----------
