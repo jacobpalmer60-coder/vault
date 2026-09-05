@@ -6,7 +6,14 @@ const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
   PROJECTIONS_URL: 'data/projections.json',
-  PICK_YEARS: [2027, 2028, 2029],
+  // Includes the CURRENT year, not just future ones — a rookie class isn't off the
+  // board just because its calendar year has started; leagues keep trading that
+  // year's picks right up until their own rookie draft happens, and KTC keeps
+  // pricing them the same way. Excluding the current year (this used to start at
+  // next year only) meant any pick for it silently priced at $0 everywhere — no
+  // error, just a real asset invisibly worth nothing, making real trades that
+  // included one look far more lopsided than they were.
+  PICK_YEARS: [2026, 2027, 2028, 2029],
   PICK_ROUNDS: [1, 2, 3, 4],
   // Value Based Adjustment: boosts assets above VBA_REFERENCE, discounts those
   // below it, so a single elite piece outweighs several mid-tier pieces summing
