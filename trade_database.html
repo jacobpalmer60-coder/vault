@@ -28,10 +28,13 @@
 
   <div id="matchBar" class="card rounded-vault-sm p-4 mb-4"></div>
 
-  <div class="relative mb-5">
-    <input id="searchInput" type="text" autocomplete="off" placeholder="Search a player or pick on either side of the trade…"
-      class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
-    <button id="searchClear" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500 hover:text-white">Clear</button>
+  <div class="flex items-center gap-3 mb-5">
+    <input id="searchSideA" type="text" autocomplete="off" placeholder="e.g. Justin Herbert"
+      class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
+    <span class="text-[11px] text-zinc-500 uppercase tracking-wider shrink-0">for</span>
+    <input id="searchSideB" type="text" autocomplete="off" placeholder="e.g. Brock Purdy"
+      class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
+    <button id="searchClear" class="hidden shrink-0 text-[11px] text-zinc-500 hover:text-white px-2">Clear</button>
   </div>
 
   <div id="resultCount" class="text-[11px] text-zinc-500 mb-3"></div>
@@ -169,36 +172,54 @@ async function init() {
     const list = document.getElementById('list');
     const empty = document.getElementById('empty');
     const resultCount = document.getElementById('resultCount');
-    const searchInput = document.getElementById('searchInput');
+    const searchSideA = document.getElementById('searchSideA');
+    const searchSideB = document.getElementById('searchSideB');
     const searchClear = document.getElementById('searchClear');
     const CAP = 40;
+    const sideHas = (names, q) => names.some(n => n.includes(q));
 
-    function renderList(query) {
-      const q = query.trim().toLowerCase();
-      const matches = q ? pool.filter(t => t.names1.some(n => n.includes(q)) || t.names2.some(n => n.includes(q))) : pool;
+    // Two boxes so "Justin Herbert for Brock Purdy" finds trades where each name
+    // landed on a DIFFERENT side — not just both mentioned somewhere in the trade.
+    // Side order in the underlying data (t1/t2) is arbitrary, so both orderings count.
+    // Either box alone behaves like a single side-agnostic search.
+    function renderList() {
+      const qA = searchSideA.value.trim().toLowerCase();
+      const qB = searchSideB.value.trim().toLowerCase();
+      let matches;
+      if (!qA && !qB) {
+        matches = pool;
+      } else if (qA && qB) {
+        matches = pool.filter(t => (sideHas(t.names1, qA) && sideHas(t.names2, qB)) || (sideHas(t.names1, qB) && sideHas(t.names2, qA)));
+      } else {
+        const q = qA || qB;
+        matches = pool.filter(t => sideHas(t.names1, q) || sideHas(t.names2, q));
+      }
       const sorted = [...matches].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, CAP);
 
-      resultCount.textContent = q
-        ? `${matches.length.toLocaleString()} trade${matches.length === 1 ? '' : 's'} matching "${query.trim()}"${matches.length > CAP ? ` — showing ${CAP} most recent` : ''}`
+      const label = qA && qB ? `"${searchSideA.value.trim()}" for "${searchSideB.value.trim()}"` : (qA || qB ? `"${(searchSideA.value || searchSideB.value).trim()}"` : '');
+      resultCount.textContent = label
+        ? `${matches.length.toLocaleString()} trade${matches.length === 1 ? '' : 's'} matching ${label}${matches.length > CAP ? ` — showing ${CAP} most recent` : ''}`
         : (pool.length > CAP ? `Showing ${CAP} most recent of ${pool.length.toLocaleString()}` : '');
 
       if (!sorted.length) {
         list.innerHTML = '';
         empty.classList.remove('hidden');
-        empty.textContent = q ? `No matching trades found for "${query.trim()}".` : 'No comparable trades found for this league\'s format right now.';
+        empty.textContent = label ? `No matching trades found for ${label}.` : 'No comparable trades found for this league\'s format right now.';
         return;
       }
       empty.classList.add('hidden');
       list.innerHTML = sorted.map(t => renderCard(t, playerMap, pickMap)).join('');
     }
 
-    searchInput.oninput = () => {
-      searchClear.classList.toggle('hidden', !searchInput.value);
-      renderList(searchInput.value);
+    const handleInput = () => {
+      searchClear.classList.toggle('hidden', !searchSideA.value && !searchSideB.value);
+      renderList();
     };
-    searchClear.onclick = () => { searchInput.value = ''; searchClear.classList.add('hidden'); renderList(''); searchInput.focus(); };
+    searchSideA.oninput = handleInput;
+    searchSideB.oninput = handleInput;
+    searchClear.onclick = () => { searchSideA.value = ''; searchSideB.value = ''; searchClear.classList.add('hidden'); renderList(); searchSideA.focus(); };
 
-    renderList('');
+    renderList();
   } catch (e) {
     console.error(e);
     status.textContent = e.message || 'Failed to load';
