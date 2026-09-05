@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trade Grades — The Vault</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[1100px] mx-auto p-6 lg:p-8">
+  <div class="mb-2">
+    <h1 class="display text-[28px] font-semibold gold-text">Trade Grades</h1>
+    <p id="status" class="text-[13px] text-zinc-500 mt-1">Loading league…</p>
+  </div>
+  <p class="text-[12px] text-zinc-500 max-w-[720px] mb-6 leading-relaxed">
+    Every completed trade this season, graded with the same value fairness and
+    positional-need reasoning as the Trade Calculator — value uses today's KeepTradeCut
+    prices and roster fit reflects each team's <span class="text-zinc-400">current</span> roster,
+    not the roster on the day the trade happened.
+  </p>
+
+  <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
+    <div id="posFilter" class="flex gap-1.5 flex-wrap"></div>
+    <div class="flex items-center gap-1.5">
+      <span class="text-[11px] text-zinc-500 uppercase tracking-wider mr-1">Sort</span>
+      <div id="sortToggle" class="flex gap-1.5"></div>
+    </div>
+  </div>
+
+  <div id="list" class="space-y-4"></div>
+  <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+</div>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
+const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
+const FAIR_FILTERS = ['All', 'Fair', 'Borderline', 'Lopsided'];
+const SORTS = { recent: 'Most Recent', lopsided: 'Most Lopsided' };
+
+let allGraded = [];
+let fairFilter = 'All';
+let sortKey = 'recent';
+
+function fairBucket(pctDiff) {
+  return pctDiff < 6 ? 'Fair' : pctDiff < 15 ? 'Borderline' : 'Lopsided';
+}
+function fairColor(pctDiff) {
+  return pctDiff < 6 ? 'text-emerald-400/70' : pctDiff < 15 ? 'text-amber-400/70' : 'text-zinc-500';
+}
+
+// Mirrors trade.html's overallVerdict, but built on positional fit alone — a
+// completed trade has no "before roster" to reconstruct, so there's no timeline/
+// window-shift signal here, only value fairness (gated first, same as the
+// calculator) and each side's current-roster positional fit.
+function historyVerdict(pctDiff, dValueAdjA, posFitA, posFitB) {
+  const good = s => s >= 2, bad = s => s <= -2;
+  if (pctDiff >= 15) {
+    const favored = dValueAdjA >= 0 ? 'A' : 'B';
+    const behind = favored === 'A' ? 'B' : 'A';
+    return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text: `Team ${favored} came out well ahead on value; Team ${behind} got comparatively little back.` };
+  }
+  if (good(posFitA) && good(posFitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text: 'Value was close, and it addressed a real roster need for both teams.' };
+  if (bad(posFitA) && bad(posFitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text: 'Value was close, but neither side’s roster fit improved much — value for value with no real need addressed.' };
+  if (good(posFitA) && bad(posFitB)) return { tone: 'neutral', label: 'Won for Team A', text: 'Value was close, but Team A addressed a real need while Team B didn’t get much fit benefit.' };
+  if (good(posFitB) && bad(posFitA)) return { tone: 'neutral', label: 'Won for Team B', text: 'Value was close, but Team B addressed a real need while Team A didn’t get much fit benefit.' };
+  if (good(posFitA) || good(posFitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text: 'Value was close; one team addressed a real need, the other wasn’t hurt but didn’t gain much fit either.' };
+  return { tone: 'neutral', label: 'Fair Trade', text: 'Value was close for both sides, without a standout positional need on either end.' };
+}
+
+function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey) {
+  const assets = [];
+  Object.entries(tx.adds || {}).forEach(([pid, toRoster]) => {
+    if (toRoster !== sideRosterId) return;
+    const p = playersDb[pid] || {};
+    const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`;
+    assets.push({ type: 'player', name, pos: p.position || '', age: p.age || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
+  });
+  (tx.draft_picks || []).forEach(pk => {
+    if (pk.owner_id !== sideRosterId) return;
+    const info = pickValueByKey.get(`${pk.season}-${pk.round}-${pk.roster_id}`);
+    assets.push({ type: 'pick', name: `${pk.season} R${pk.round}`, pos: 'PICK', age: 0, value: info ? info.value : 0 });
+  });
+  return assets;
+}
+
+function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams) {
+  const [rA, rB] = tx.roster_ids;
+  const teamA = teamById.get(rA), teamB = teamById.get(rB);
+  if (!teamA || !teamB) return null;
+
+  const toA = resolveAssets(tx, rA, playersDb, valMap, pickValueByKey); // what A received (B gave)
+  const toB = resolveAssets(tx, rB, playersDb, valMap, pickValueByKey); // what B received (A gave)
+  if (!toA.length && !toB.length) return null;
+
+  const aGaveAdj = toB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+  const bGaveAdj = toA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+  const avgAdj = (aGaveAdj + bGaveAdj) / 2 || 1;
+  const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
+  const dValueAdjA = bGaveAdj - aGaveAdj; // positive = A came out ahead on value
+
+  const fitA = Vault.positionalFitNotes(teamA, teams, toA, toB);
+  const fitB = Vault.positionalFitNotes(teamB, teams, toB, toA);
+
+  const verdict = historyVerdict(pctDiff, dValueAdjA, fitA.posFit, fitB.posFit);
+  const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
+
+  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, verdict, anyMissingValue, created: tx.created };
+}
+
+function assetChips(list) {
+  if (!list.length) return '<span class="text-zinc-600">Nothing</span>';
+  return list.map(a => `<span class="inline-flex items-center gap-1.5 mr-3 mb-1"><span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span><span class="text-zinc-500 text-[12px] mono">${a.value > 0 ? Math.round(a.value).toLocaleString() : '—'}</span></span>`).join('');
+}
+
+function renderCard(g) {
+  const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const bucket = fairBucket(g.pctDiff);
+  const notes = [...g.fitA.notes.map(n => ({ ...n, who: g.teamA.teamName })), ...g.fitB.notes.map(n => ({ ...n, who: g.teamB.teamName }))];
+  return `
+    <div class="card rounded-vault-sm p-5">
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <div class="text-[12px] text-zinc-500 mono">${date}</div>
+        <div class="flex items-center gap-2">
+          <span class="size-2 rounded-full ${TONE_DOT[g.verdict.tone]}"></span>
+          <span class="text-[13px] font-medium ${TONE[g.verdict.tone]}">${g.verdict.label}</span>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamA.teamName)} received</div>
+          <div class="text-[13px]">${assetChips(g.toA)}</div>
+        </div>
+        <div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamB.teamName)} received</div>
+          <div class="text-[13px]">${assetChips(g.toB)}</div>
+        </div>
+      </div>
+      <div class="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-white/5">
+        <p class="text-[12.5px] text-zinc-400 max-w-[520px]">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-600">(some asset values unavailable)</span>' : ''}</p>
+        <div class="text-[11px] ${fairColor(g.pctDiff)} shrink-0">${bucket} · ${g.pctDiff.toFixed(0)}% off</div>
+      </div>
+      ${notes.length ? `<div class="mt-3 pt-3 border-t border-white/5 space-y-1.5">
+        ${notes.map(n => `<div class="flex gap-2 text-[12px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="text-zinc-500">${Vault.escapeHtml(n.who)}:</span> <span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
+      </div>` : ''}
+    </div>`;
+}
+
+function renderFilters() {
+  document.getElementById('posFilter').innerHTML = FAIR_FILTERS.map(f =>
+    `<button onclick="setFairFilter('${f}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${fairFilter === f ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${f}</button>`
+  ).join('');
+  document.getElementById('sortToggle').innerHTML = Object.entries(SORTS).map(([k, label]) =>
+    `<button onclick="setSort('${k}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${sortKey === k ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`
+  ).join('');
+}
+
+function setFairFilter(f) { fairFilter = f; renderFilters(); renderList(); }
+function setSort(k) { sortKey = k; renderFilters(); renderList(); }
+
+function renderList() {
+  let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => fairBucket(g.pctDiff) === fairFilter);
+  items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.pctDiff - a.pctDiff : b.created - a.created);
+
+  const list = document.getElementById('list');
+  const empty = document.getElementById('empty');
+  if (!items.length) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    empty.textContent = allGraded.length ? `No ${fairFilter.toLowerCase()} trades found.` : 'No completed trades found for this league yet.';
+    return;
+  }
+  empty.classList.add('hidden');
+  list.innerHTML = items.map(renderCard).join('');
+}
+
+async function init() {
+  const status = document.getElementById('status');
+  try {
+    const leagueId = Vault.getLeagueId();
+    const { league, isSF, teams } = await Vault.buildLeagueTeams(leagueId);
+
+    status.textContent = 'Loading player database and trade history…';
+    const [playersDb, ktcData, ...weeks] = await Promise.all([
+      fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
+      Vault.fetchKtcValues(),
+      ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
+    ]);
+    const valMap = Vault.buildKtcValueMap(ktcData, isSF);
+
+    const pickValueByKey = new Map();
+    teams.forEach(t => t.picks.forEach(p => pickValueByKey.set(`${p.season}-${p.round}-${p.original}`, p)));
+    const teamById = new Map(teams.map(t => [t.rosterId, t]));
+
+    const seen = new Set();
+    const trades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2 && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
+
+    allGraded = trades.map(tx => gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams)).filter(Boolean);
+
+    status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
+    status.className = 'text-[13px] text-emerald-400/80 mt-1';
+    renderFilters();
+    renderList();
+  } catch (e) {
+    console.error(e);
+    status.textContent = e.message || 'Failed to load';
+    status.className = 'text-[13px] text-rose-400 mt-1';
+  }
+}
+init();
+</script>
+</body>
+</html>

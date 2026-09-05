@@ -574,6 +574,56 @@ const Vault = {
     return value;
   },
 
+  /* Need/surplus scales each asset's OWN value (via needAdjustedValue) rather than
+     handing out a flat bonus/penalty regardless of size — a superstar filling a real
+     need should swing this far more than a bench piece at the same position.
+     `dollarSwing` is the total effective-value gain/loss this causes (positive helps
+     this team), converted to a fit-scale contribution proportional to team size.
+     Shared by the Trade Calculator (a proposed trade) and Trade Grades (a completed
+     one) — both just need `team`, the league, and what moved in which direction. */
+  positionalFitNotes(team, allTeams, incoming, outgoing) {
+    const profile = Vault.positionalProfile(team, allTeams);
+    const notes = [];
+    let dollarSwing = 0;
+
+    const scan = (list, isIncoming) => {
+      ['QB', 'RB', 'WR', 'TE'].forEach(POS => {
+        const assets = list.filter(a => a.pos === POS);
+        if (!assets.length) return;
+        // Display math stays in raw-dollar terms so "worth more/less than sticker
+        // price" is always literally true — VBA-adjusted values are used separately,
+        // below, only for the internal fit-score contribution (never shown), since
+        // showing a VBA-discounted small asset next to its need-boosted-but-still-
+        // smaller-than-raw counterpart would read backwards (looks like a discount
+        // even though the need multiplier is genuinely boosting it).
+        const rawSum = assets.reduce((s, a) => s + a.value, 0);
+        const weightedRaw = assets.reduce((s, a) => s + Vault.needAdjustedValue(a.value, POS, profile), 0);
+        const adjSum = assets.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+        const weightedAdj = assets.reduce((s, a) => s + Vault.needAdjustedValue(Vault.adjustedValue(a.value), POS, profile), 0);
+        const delta = weightedAdj - adjSum; // >0 = need multiplier applied, <0 = surplus discount
+        if (Math.abs(delta) < 1) return;
+        const rawDisplay = Math.round(rawSum).toLocaleString();
+        const weightedDisplay = Math.round(weightedRaw).toLocaleString();
+        if (isIncoming) {
+          dollarSwing += delta;
+          notes.push(delta > 0
+            ? { tone: 'good', text: `Adds ${rawDisplay} at ${POS}, a genuine roster need — worth closer to ${weightedDisplay} to this team than sticker price.` }
+            : { tone: 'bad', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — really worth closer to ${weightedDisplay} here.` });
+        } else {
+          dollarSwing -= delta;
+          notes.push(delta < 0
+            ? { tone: 'good', text: `Deals from ${POS} surplus — worth closer to ${weightedDisplay} to this team than its ${rawDisplay} sticker price.` }
+            : { tone: 'bad', text: `Gives up ${POS} value at a position this team is already thin — costs more than the ${rawDisplay} sticker price suggests.` });
+        }
+      });
+    };
+    scan(incoming, true);
+    scan(outgoing, false);
+
+    const posFit = team.total ? Math.max(-3, Math.min(3, dollarSwing / team.total * 120)) : 0;
+    return { posFit, notes };
+  },
+
   /* ---------- Flaws ----------
      Deliberately broad: this used to require a near-catastrophic gap (e.g. a
      position at <55% of league average) before flagging anything, which meant

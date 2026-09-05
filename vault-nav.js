@@ -9,7 +9,8 @@
     { key: 'overview', label: 'League Overview', href: 'app.html' },
     { key: 'analyzer', label: 'Team Analyzer', href: 'team-analyzer.html' },
     { key: 'rankings', label: 'Player Rankings', href: 'player_rankings.html' },
-    { key: 'trade', label: 'Trade Calculator', href: 'trade.html' }
+    { key: 'trade', label: 'Trade Calculator', href: 'trade.html' },
+    { key: 'grades', label: 'Trade Grades', href: 'trade_grades.html' }
   ];
 
   function currentPage() {
@@ -28,12 +29,12 @@
          class="relative px-3.5 py-2 rounded-full text-[12px] font-medium transition-colors whitespace-nowrap
                 ${active === t.key
                   ? 'bg-amber-500/15 text-amber-200 border border-amber-500/30'
-                  : 'text-amber-200/50 border border-transparent hover:text-amber-200 hover:bg-amber-500/5'}">
+                  : 'text-zinc-400 border border-transparent hover:text-white hover:bg-amber-500/5'}">
         ${t.label}
       </a>`).join('');
 
     mount.innerHTML = `
-      <header class="sticky top-0 z-40 border-b border-amber-500/10 bg-black/70 backdrop-blur-xl">
+      <header class="sticky top-0 z-40 border-b border-white/8 bg-black/70 backdrop-blur-xl">
         <div class="max-w-[1500px] mx-auto px-4 sm:px-6 h-16 flex flex-wrap items-center justify-between gap-3">
           <a href="index.html" class="flex items-center gap-3 shrink-0 group">
             <div class="size-9 rounded-full bg-gradient-to-br from-amber-300 to-yellow-600 p-[1.5px] shadow-[0_0_20px_rgba(250,204,21,0.25)] transition-shadow group-hover:shadow-[0_0_28px_rgba(250,204,21,0.4)]">
