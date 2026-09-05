@@ -709,34 +709,55 @@ const Vault = {
     return null;
   },
 
-  /* Does the specific asset TYPE moving fit the team's own timeline (rebuild/contend/
+  /* A player already producing like a proven starter, regardless of age — the Jahmyr
+     Gibbs case: young, but already an elite every-week producer, not a "developmental"
+     asset a contender should have to wait on. Reuses VBA_REFERENCE (5500) as the bar,
+     since that's already the point where VBA itself starts treating a player as
+     plus-starter-caliber rather than discounting them — not a new arbitrary number. */
+  isProvenProducer(a) {
+    return a.type === 'player' && a.ppg > 0 && a.value >= VAULT_CONFIG.VBA_REFERENCE;
+  },
+
+  /* Does the specific asset moving fit the team's own timeline (rebuild/contend/
      flexible, from teamMode) — a rebuilder should see a pick or a young player as
      worth MORE than sticker price (exactly what they're stockpiling for) and a proven
      veteran as worth LESS, on paper value fairness aside; a contender gets the
-     opposite read. This is deliberately about asset TYPE (pick/age-band), not the
-     team's current production level — a young stud is still a great get for a
-     contender on raw value/production grounds; this only asks whether the TYPE of
-     asset matches the plan. Flexible teams, and any PLAYER in their position's prime
-     years (assetTimelineClass returns null), get no adjustment either way — a 25-
-     year-old WR isn't a rebuild-only asset the way a 25-year-old RB is. Scales with
-     the asset's own value (via the same raw-display/adjusted-scoring split as
-     positionalFitNotes) rather than a flat bonus regardless of size. */
+     opposite read. Age band decides this for a rebuilder regardless of current
+     production — a rebuild wants the years whether the player has broken out yet or
+     not. A contender's read also checks production: a young player who's ALREADY an
+     elite producer (isProvenProducer) isn't treated as a misfit just for being young
+     — see the module comment above. Flexible teams, and any PLAYER in their
+     position's prime years with no production override (assetTimelineClass returns
+     null), get no adjustment either way. Scales with the asset's own value (via the
+     same raw-display/adjusted-scoring split as positionalFitNotes) rather than a flat
+     bonus regardless of size. */
   archetypeFitNotes(team, incoming, outgoing) {
     const mode = Vault.teamMode(team);
     const notes = [];
     if (mode === 'flexible') return { archFit: 0, notes };
     let dollarSwing = 0;
 
-    const classOf = a => a.type === 'pick' ? 'young' : Vault.assetTimelineClass(a);
     const kindOf = (a, cls) => a.type === 'pick' ? 'a future pick' : (cls === 'young' ? `a ${a.age}-year-old` : 'a proven veteran');
     const planWord = mode === 'rebuild' ? 'rebuild' : 'win-now push';
+
+    // Returns null (no archetype read at all) or a {fitsMode, cls} verdict for one asset.
+    const evaluate = a => {
+      if (a.type === 'pick') return { fitsMode: mode === 'rebuild', cls: 'young' };
+      const cls = Vault.assetTimelineClass(a);
+      if (cls == null) return null; // prime-years player — good for either timeline
+      if (mode === 'rebuild') return { fitsMode: cls === 'young', cls };
+      // contend: a young-but-already-producing player reads as neither a misfit
+      // nor specifically the reason the trade fits — same as a prime-years player.
+      if (cls === 'young' && Vault.isProvenProducer(a)) return null;
+      return { fitsMode: cls === 'veteran', cls };
+    };
 
     const scan = (list, isIncoming) => {
       list.forEach(a => {
         if (!(a.value > 0)) return;
-        const cls = classOf(a);
-        if (cls == null) return; // prime-years player or unknown age — no archetype read either way
-        const fitsMode = mode === 'rebuild' ? cls === 'young' : cls === 'veteran';
+        const verdict = evaluate(a);
+        if (!verdict) return;
+        const { fitsMode, cls } = verdict;
         const mult = fitsMode ? VAULT_CONFIG.ARCH_FIT_MULTIPLIER : VAULT_CONFIG.ARCH_MISFIT_MULTIPLIER;
         const rawDisplay = Math.round(a.value).toLocaleString();
         const weightedDisplay = Math.round(a.value * mult).toLocaleString();

@@ -80,13 +80,13 @@ function historyVerdict(pctDiff, dValueAdjA, fitA, fitB) {
   return { tone: 'neutral', label: 'Fair Trade', text: 'Value was close for both sides, without a standout need or timeline fit on either end.' };
 }
 
-function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey) {
+function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap) {
   const assets = [];
   Object.entries(tx.adds || {}).forEach(([pid, toRoster]) => {
     if (toRoster !== sideRosterId) return;
     const p = playersDb[pid] || {};
     const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`;
-    assets.push({ type: 'player', name, pos: p.position || '', age: p.age || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
+    assets.push({ type: 'player', name, pos: p.position || '', age: p.age || 0, ppg: ppgMap.get(pid) || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
   });
   (tx.draft_picks || []).forEach(pk => {
     if (pk.owner_id !== sideRosterId) return;
@@ -96,13 +96,13 @@ function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey) {
   return assets;
 }
 
-function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams) {
+function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap) {
   const [rA, rB] = tx.roster_ids;
   const teamA = teamById.get(rA), teamB = teamById.get(rB);
   if (!teamA || !teamB) return null;
 
-  const toA = resolveAssets(tx, rA, playersDb, valMap, pickValueByKey); // what A received (B gave)
-  const toB = resolveAssets(tx, rB, playersDb, valMap, pickValueByKey); // what B received (A gave)
+  const toA = resolveAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap); // what A received (B gave)
+  const toB = resolveAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap); // what B received (A gave)
   if (!toA.length && !toB.length) return null;
 
   const aGaveAdj = toB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
@@ -206,12 +206,16 @@ async function init() {
     const { league, isSF, teams } = await Vault.buildLeagueTeams(leagueId);
 
     status.textContent = 'Loading player database and trade history…';
-    const [playersDb, ktcData, ...weeks] = await Promise.all([
+    const [playersDb, ktcData, projData, ...weeks] = await Promise.all([
       fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
       Vault.fetchKtcValues(),
+      Vault.fetchProjections(),
       ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
     ]);
     const valMap = Vault.buildKtcValueMap(ktcData, isSF);
+    // Needed so archetypeFitNotes can tell a young-but-already-elite producer (e.g.
+    // Jahmyr Gibbs) from an unproven youngster of the same age — see isProvenProducer.
+    const ppgMap = Vault.buildProjectedPpgMapById(projData, league.scoring_settings);
 
     const pickValueByKey = new Map();
     teams.forEach(t => t.picks.forEach(p => pickValueByKey.set(`${p.season}-${p.round}-${p.original}`, p)));
@@ -220,7 +224,7 @@ async function init() {
     const seen = new Set();
     const trades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2 && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
 
-    allGraded = trades.map(tx => gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams)).filter(Boolean);
+    allGraded = trades.map(tx => gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap)).filter(Boolean);
 
     status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-emerald-400/80 mt-1';
