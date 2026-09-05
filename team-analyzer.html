@@ -70,19 +70,29 @@ function getTradePartners(t, all) {
     posPct[k] = arr.indexOf(t[k]) / (arr.length - 1);
   });
   const needs = Object.entries(posPct).filter(([k, v]) => v < 0.35).map(([k]) => k);
+  const surpluses = Object.entries(posPct).filter(([k, v]) => v > 0.65).map(([k]) => k);
 
   return all.filter(o => o.rosterId !== t.rosterId).map(o => {
     const oPos = {}; ['qb', 'rb', 'wr', 'te'].forEach(k => { const arr = all.map(x => x[k]).sort((a, b) => a - b); oPos[k] = arr.indexOf(o[k]) / (arr.length - 1); });
     const theirSurplus = Object.entries(oPos).filter(([k, v]) => v > 0.65).map(([k]) => k);
     const theirNeeds = Object.entries(oPos).filter(([k, v]) => v < 0.35).map(([k]) => k);
-    const surpluses = Object.entries(posPct).filter(([k, v]) => v > 0.65).map(([k]) => k);
+
     let score = 0;
-    needs.forEach(n => { if (theirSurplus.includes(n)) score += 3; });
-    surpluses.forEach(s => { if (theirNeeds.includes(s)) score += 2; });
-    if (Math.abs(t.age - o.age) > 2.5) score += 1;
-    if (t.picksValue < 5000 && o.picksValue > 8000) score += 2;
-    if (t.picksValue > 8000 && o.picksValue < 5000) score += 2;
-    return { ...o, fit: score };
+    const reasons = [];
+    needs.forEach(n => {
+      if (theirSurplus.includes(n)) { score += 3; reasons.push(`They're deep at ${n.toUpperCase()} — your biggest need`); }
+    });
+    surpluses.forEach(s => {
+      if (theirNeeds.includes(s)) { score += 2; reasons.push(`You're deep at ${s.toUpperCase()} — something they're missing`); }
+    });
+    if (Math.abs(t.age - o.age) > 2.5) {
+      score += 1;
+      reasons.push(t.age > o.age ? `They're ${(t.age - o.age).toFixed(1)} yrs younger — different timelines can make a deal work` : `You're ${(o.age - t.age).toFixed(1)} yrs younger — different timelines can make a deal work`);
+    }
+    if (t.picksValue < 5000 && o.picksValue > 8000) { score += 2; reasons.push(`They're pick-rich (${Math.round(o.picksValue).toLocaleString()}) while you're pick-poor`); }
+    if (t.picksValue > 8000 && o.picksValue < 5000) { score += 2; reasons.push(`You're pick-rich while they're pick-poor (${Math.round(o.picksValue).toLocaleString()})`); }
+    if (!reasons.length) reasons.push('Roughly matched value and timeline — no glaring need overlap');
+    return { ...o, fit: score, reasons };
   }).sort((a, b) => b.fit - a.fit).slice(0, 2);
 }
 
@@ -148,7 +158,14 @@ function renderSingle(t) {
       </div>
       <div class="bg-black/40 rounded-2xl p-4 border border-emerald-500/20">
         <div class="text-[11px] uppercase tracking-widest text-emerald-300/70 mb-2">Best Trade Partners</div>
-        <div class="space-y-2">${partners.map(p => `<div class="flex justify-between items-center"><div><div class="text-[13px]">${Vault.escapeHtml(p.teamName)}</div><div class="text-[11px] text-zinc-500">${p.arch}</div></div><div class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">${p.fit}/10 fit</div></div>`).join('')}</div>
+        <div class="space-y-3">${partners.map(p => `
+          <div>
+            <div class="flex justify-between items-center">
+              <div><div class="text-[13px]">${Vault.escapeHtml(p.teamName)}</div><div class="text-[11px] text-zinc-500">${p.arch}</div></div>
+              <div class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0">${p.fit}/10 fit</div>
+            </div>
+            <div class="mt-1.5 space-y-0.5">${p.reasons.map(r => `<div class="flex gap-1.5 text-[11px] text-zinc-400"><span class="text-emerald-500/60">•</span><span>${r}</span></div>`).join('')}</div>
+          </div>`).join('')}</div>
       </div>
       <div class="bg-black/40 rounded-2xl p-4 border border-amber-500/20">
         <div class="text-[11px] uppercase tracking-widest text-amber-300/70 mb-2">Contention Window (5yr)</div>
