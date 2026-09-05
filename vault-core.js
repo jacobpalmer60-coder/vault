@@ -210,6 +210,29 @@ const Vault = {
     return { valMap, ppgMap, pickMap };
   },
 
+  /* One-line meaning + badge color of each label `archetype()` can return, keyed by
+     name — shown as tooltips wherever an archetype pill appears and as the glossary
+     on League Overview. Kept separate from `archetype()` itself (rather than folding
+     descriptions into its branches) so the classification logic stays about the two
+     axes it actually reads, not string/color content — `cls` is duplicated from
+     `archetype()`'s return value so the glossary can render every archetype's color
+     even for one absent from the current league. */
+  ARCHETYPE_INFO: {
+    'Elite Contender': { cls: 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40', desc: 'Top-tier trade value AND top-tier scoring, with a still-young core — built to win now and keep winning for a while.' },
+    'Aging Contender': { cls: 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40', desc: 'Elite value and production today, but the core is getting old — the championship window is open now, not for long.' },
+    'Win-Now Fringe': { cls: 'from-amber-600/20 to-yellow-700/20 text-amber-300 border-amber-700/40', desc: 'Strong trade value but only middling weekly scoring — the pieces are valuable on paper, the lineup isn’t translating that into points yet.' },
+    'Volatile': { cls: 'from-rose-600/20 to-red-600/20 text-rose-200 border-rose-600/40', desc: 'High trade value that isn’t showing up on the scoreboard — hurt or underperforming stars, or a lineup that can’t unlock what the roster is worth.' },
+    'Young Riser': { cls: 'from-emerald-600/20 to-teal-600/20 text-emerald-200 border-emerald-600/40', desc: 'Middling trade value but scoring like a contender, and young — production is ahead of where the market has this roster valued.' },
+    'Overachiever': { cls: 'from-lime-600/20 to-green-600/20 text-lime-200 border-lime-600/40', desc: 'Outscoring what the roster’s trade value would suggest — getting more out of these players than KTC gives them credit for.' },
+    'Balanced Core': { cls: 'from-zinc-600/20 to-neutral-600/20 text-zinc-200 border-zinc-600/40', desc: 'Average value and average production, spread evenly across positions — no glaring hole, but no standout strength either.' },
+    'Stuck Middle': { cls: 'from-zinc-700/20 to-zinc-800/20 text-zinc-300 border-zinc-700/40', desc: 'Average value and production, but lopsided across positions — one or two spots are carrying the team while others lag.' },
+    'Pick-Rich Rebuilder': { cls: 'from-sky-600/20 to-cyan-600/20 text-sky-200 border-sky-600/40', desc: 'Low on current scoring but young and/or holding real draft capital — positioned to get better, not worse, over the next few seasons.' },
+    'Treading Water': { cls: 'from-slate-600/20 to-slate-700/20 text-slate-200 border-slate-600/40', desc: 'Not scoring, not particularly valuable, and not young enough to just be building for later — the least clearly-positioned kind of roster.' },
+    'Scrappy Contender': { cls: 'from-teal-600/20 to-cyan-700/20 text-teal-200 border-teal-700/40', desc: 'Below-average trade value but scoring like a contender — punching above its weight, often on a few efficient or lucky performers.' },
+    'Retooling': { cls: 'from-indigo-600/20 to-blue-700/20 text-indigo-200 border-indigo-700/40', desc: 'Below-average value and middling production — neither clearly rebuilding nor competing; a roster in flux.' },
+    'Stripped Rebuilder': { cls: 'from-stone-700/30 to-stone-800/30 text-stone-300 border-stone-700/40', desc: 'Low value, low production, and an older core — the furthest from competing, with the least short- or long-term asset base.' }
+  },
+
   /* ---------- Archetype classifier (shared by app.html + team-analyzer.html) ----------
      Built around valP/ppgP terciles rather than absolute thresholds, since those are
      true in-league percentiles and guaranteed to spread across teams. `bal` (positional

@@ -137,7 +137,7 @@ function renderSingle(t) {
         <h2 class="display text-[24px] gold-text">${Vault.escapeHtml(t.teamName)}</h2>
         <p class="text-[12px] text-amber-200/60">${Vault.escapeHtml(t.username)} • Rank #${t.rank} • Peak: ${win.peakYear}</p>
       </div>
-      <span class="px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
+      <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls} cursor-help">${t.arch}</span>
     </div>
     <div class="grid md:grid-cols-4 gap-4 mt-6">
       ${bars.map(b => `<div class="stat-tile"><div class="stat-label">${b.l}</div><div class="stat-value">${b.v}</div></div>`).join('')}
@@ -185,7 +185,7 @@ function renderSummary(teams) {
     <tr class="hover:bg-amber-500/5 cursor-pointer" onclick="document.getElementById('teamSelect').value='${t.rosterId}';document.getElementById('teamSelect').dispatchEvent(new Event('change'))">
       <td class="px-4 py-3 text-amber-300/70">${t.rank}</td>
       <td class="px-4 py-3"><div class="font-medium">${Vault.escapeHtml(t.teamName)}</div><div class="text-[11px] text-amber-200/40">${Vault.escapeHtml(t.username)}</div></td>
-      <td class="px-4 py-3"><span class="px-2.5 py-1 rounded-full text-[11px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span></td>
+      <td class="px-4 py-3"><span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="px-2.5 py-1 rounded-full text-[11px] border bg-gradient-to-r ${t.archCls} cursor-help">${t.arch}</span></td>
       <td class="px-3 py-3 text-right font-mono">${Math.round(t.total).toLocaleString()}</td>
       <td class="px-3 py-3 text-right font-mono text-emerald-300/80">${t.opt.toFixed(1)}</td>
       <td class="px-3 py-3 text-right font-mono">${t.age.toFixed(1)}</td>

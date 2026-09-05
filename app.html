@@ -58,8 +58,14 @@
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Opt PPG</span><span class="text-amber-100/50"> — Best lineup, league scoring</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Production</span><span class="text-amber-100/50"> — vs league avg (100)</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Longevity</span><span class="text-amber-100/50"> — 60% Val + 20% Age + 20% Picks</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Archetype</span><span class="text-amber-100/50"> — Build type</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Archetype</span><span class="text-amber-100/50"> — Build type, from trade value vs. current scoring (see guide below)</span></div>
     </div>
+  </div>
+
+  <div class="mt-6 card rounded-vault p-6">
+    <h2 class="display text-[20px] gold-text mb-1">Archetype Guide</h2>
+    <p class="text-[12px] text-amber-100/40 mb-4">Every archetype comes from just two axes — a team's dynasty trade value vs. league average, and its current-season scoring vs. league average — plus age or positional balance to break ties within a tier.</p>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]" id="archGuide"></div>
   </div>
 
   <div class="mt-10 pt-6 border-t border-amber-500/10 flex flex-col md:flex-row items-center justify-center gap-3 text-[12px] text-amber-200/60">
@@ -78,6 +84,13 @@
 let teams = [], sort = { key: 'total', dir: -1 }, expanded = new Set();
 
 const POS_COLOR = { QB: 'bg-sky-400/60', RB: 'bg-emerald-400/60', WR: 'bg-fuchsia-400/60', TE: 'bg-amber-400/60' };
+
+// Static reference (doesn't depend on this league's teams), so it renders once up front.
+document.getElementById('archGuide').innerHTML = Object.entries(Vault.ARCHETYPE_INFO).map(([name, info]) => `
+  <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]">
+    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border bg-gradient-to-r mb-1.5 ${info.cls}">${name}</span>
+    <div class="text-amber-100/50 text-[12px]">${Vault.escapeHtml(info.desc)}</div>
+  </div>`).join('');
 
 function microBar(val, max) {
   const pct = max > 0 ? Math.max(3, Math.min(100, val / max * 100)) : 0;
@@ -176,7 +189,7 @@ function render() {
         <div class="font-mono text-[13px] text-amber-50/80">${Math.round(t.longevity)}</div>
         ${microBar(t.longevity, maxLongevity)}
       </td>
-      <td class="px-6 py-3.5"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span></td>
+      <td class="px-6 py-3.5"><span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border cursor-help ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span></td>
     </tr>
     ${exp ? `<tr><td colspan="13" class="px-6 pb-6 bg-black/40"><div class="grid lg:grid-cols-5 gap-6 pt-4">${['QB', 'RB', 'WR', 'TE'].map(pos => { const ps = t.plist.filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8); return `<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${pos}</div><div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-300 truncate mr-2">${Vault.escapeHtml(p.name) || '—'}</span><span class="font-mono text-zinc-500">${Math.round(p.value).toLocaleString()}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div>`; }).join('')}<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">2027-29 Picks</div><div class="space-y-1.5 max-h-[180px] overflow-auto pr-2 scrollbar">${t.picks.sort((a, b) => a.season - b.season || a.round - b.round).map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-400">${p.season} R${p.round} <span class="text-zinc-600">(orig ${p.original})</span></span><span class="font-mono ${p.tier === 'early' ? 'text-emerald-400' : p.tier === 'mid' ? 'text-amber-300' : 'text-rose-400'}">${p.tier}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div></div></td></tr>` : ''}`;
   }).join('');

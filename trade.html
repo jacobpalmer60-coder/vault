@@ -65,8 +65,9 @@
       </div>
       <div class="flex items-center gap-4">
         <div class="text-right">
-          <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value.">Difference <span class="text-amber-200/25">(value-adj)</span></div>
+          <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value. Under 6% off is considered fair, 6-15% is borderline, and above 15% is lopsided.">Difference <span class="text-amber-200/25">(value-adj)</span></div>
           <div id="diff" class="text-[22px] font-semibold mono"></div>
+          <div id="diffLabel" class="text-[11px] mt-0.5"></div>
         </div>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-amber-200/50 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
@@ -273,7 +274,8 @@ function render(side) {
   document.getElementById(`total${side}`).textContent = `${team.assets.length} assets • ${Math.round(team.total).toLocaleString()}`;
   const archEl = document.getElementById(`arch${side}`);
   archEl.textContent = team.arch;
-  archEl.className = `text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1 ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
+  archEl.title = Vault.ARCHETYPE_INFO[team.arch]?.desc || '';
+  archEl.className = `text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1 cursor-help ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
 
   const visible = filter === 'ALL' ? team.assets : team.assets.filter(a => filter === 'PICK' ? a.type === 'pick' : a.pos === filter);
   container.innerHTML = visible.length
@@ -639,6 +641,11 @@ function updateTrade() {
   const diffEl = document.getElementById('diff');
   diffEl.textContent = Math.round(diffAdj).toLocaleString();
   diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiff < 6 ? 'text-emerald-400' : pctDiff < 15 ? 'text-amber-400' : 'text-amber-200/50');
+  // Fairness label spells out the same <6%/<15% thresholds the color already
+  // encodes, since a raw dollar diff alone doesn't tell you what counts as fair.
+  const diffLabelEl = document.getElementById('diffLabel');
+  diffLabelEl.textContent = (pctDiff < 6 ? 'Fair' : pctDiff < 15 ? 'Borderline' : 'Lopsided') + ` · ${pctDiff.toFixed(0)}% off`;
+  diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiff < 6 ? 'text-emerald-400/70' : pctDiff < 15 ? 'text-amber-400/70' : 'text-amber-200/40');
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
