@@ -63,9 +63,12 @@
           <div id="giveB" class="text-[16px] font-medium"></div>
         </div>
       </div>
-      <div class="text-right">
-        <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value.">Difference <span class="text-amber-200/25">(value-adj)</span></div>
-        <div id="diff" class="text-[22px] font-semibold mono"></div>
+      <div class="flex items-center gap-4">
+        <div class="text-right">
+          <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value.">Difference <span class="text-amber-200/25">(value-adj)</span></div>
+          <div id="diff" class="text-[22px] font-semibold mono"></div>
+        </div>
+        <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-amber-200/50 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
     <div id="gapClose" class="hidden mt-3 pt-3 border-t border-white/5"></div>
@@ -298,6 +301,11 @@ function toggle(side, key) {
   const set = side === 'A' ? selectedA : selectedB;
   set.has(key) ? set.delete(key) : set.add(key);
   render(side);
+}
+
+function resetTrade() {
+  selectedA.clear(); selectedB.clear();
+  render('A'); render('B');
 }
 
 function swap(side, outKey, inKey) {
@@ -613,11 +621,16 @@ function updateTrade() {
   empty.classList.add('hidden');
   bar.classList.remove('hidden');
 
+  const giveChip = (side, a) => `<button onclick="toggle('${side}','${a.key}')" title="Remove from trade" class="group/give inline-flex items-center gap-1.5 mr-3 mb-1 hover:text-rose-300 transition-colors">
+      <span class="group-hover/give:line-through">${Vault.escapeHtml(a.name)}</span>
+      <span class="text-amber-200/40 text-[13px] mono group-hover/give:text-rose-300/60">${Math.round(a.value).toLocaleString()}</span>
+      <span class="text-rose-400/0 group-hover/give:text-rose-400/70 text-[12px] transition-colors">✕</span>
+    </button>`;
   document.getElementById('giveA').innerHTML = aAssets.length
-    ? aAssets.map(a => `<span class="inline-flex items-center gap-1.5 mr-3"><span>${Vault.escapeHtml(a.name)}</span><span class="text-amber-200/40 text-[13px] mono">${Math.round(a.value).toLocaleString()}</span></span>`).join('')
+    ? aAssets.map(a => giveChip('A', a)).join('')
     : '<span class="text-amber-200/30">Nothing selected</span>';
   document.getElementById('giveB').innerHTML = bAssets.length
-    ? bAssets.map(a => `<span class="inline-flex items-center gap-1.5 mr-3"><span>${Vault.escapeHtml(a.name)}</span><span class="text-amber-200/40 text-[13px] mono">${Math.round(a.value).toLocaleString()}</span></span>`).join('')
+    ? bAssets.map(a => giveChip('B', a)).join('')
     : '<span class="text-amber-200/30">Nothing selected</span>';
 
   const diffAdj = Math.abs(aValAdj - bValAdj);
