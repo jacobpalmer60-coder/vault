@@ -133,6 +133,7 @@
   <!-- Analysis (expands once a trade is proposed) -->
   <div id="analysis" class="hidden mt-6">
     <h2 class="display text-[24px] gold-text mb-3">Trade Analysis</h2>
+    <div id="tradeVerdict" class="card rounded-2xl p-5 mb-4"></div>
     <div id="tradeArchetype" class="card rounded-2xl p-4 mb-4"></div>
     <div class="grid lg:grid-cols-2 gap-5">
       <div id="analysisA"></div>
@@ -574,6 +575,62 @@ function headline(dValue, avgSide, fit) {
   return { tone: 'bad', text: `Behind on value (${pct.toFixed(0)}%) and a poor fit` };
 }
 
+// Checks whether the specific assets moving into/out of a team's roster address or
+// worsen a real positional imbalance — using the team's PRE-trade percentile profile
+// against the full league (`teams`), not the post-trade pool, since the question is
+// "were they already deep/thin here" rather than a moving target. A value-matched
+// trade shouldn't read as good if it just piles more value onto a surplus position.
+function positionalFitNotes(team, allTeams, incoming, outgoing) {
+  const { needs, surpluses } = Vault.positionalProfile(team, allTeams);
+  const posValue = (list, pos) => list.filter(a => a.pos === pos).reduce((s, a) => s + a.value, 0);
+  const notes = [];
+  let posFit = 0;
+
+  ['QB', 'RB', 'WR', 'TE'].forEach(POS => {
+    const k = POS.toLowerCase();
+    const inVal = posValue(incoming, POS);
+    const outVal = posValue(outgoing, POS);
+    if (inVal > 0) {
+      if (surpluses.includes(k)) { posFit -= 2; notes.push({ tone: 'bad', text: `Adds ${Math.round(inVal).toLocaleString()} more ${POS} value to a room that's already deep — doesn't address a real need.` }); }
+      else if (needs.includes(k)) { posFit += 2; notes.push({ tone: 'good', text: `Adds ${Math.round(inVal).toLocaleString()} at ${POS}, a genuine roster need.` }); }
+    }
+    if (outVal > 0) {
+      if (surpluses.includes(k)) { posFit += 1; notes.push({ tone: 'good', text: `Deals from ${POS} surplus — value that was sitting on the bench anyway.` }); }
+      else if (needs.includes(k)) { posFit -= 1; notes.push({ tone: 'bad', text: `Gives up ${POS} value at a position you're already thin.` }); }
+    }
+  });
+  return { posFit, notes };
+}
+
+// Compares pre- and post-trade contention windows so a trade that opens, widens,
+// narrows, or closes a team's window gets credit/blame beyond the raw value swing.
+function windowShiftNote(befWin, aftWin) {
+  if (!befWin.hasWindow && aftWin.hasWindow) return { fit: 2, note: { tone: 'good', text: `Opens a contention window (${aftWin.windowStart}-${aftWin.windowEnd}) that didn't exist before.` } };
+  if (befWin.hasWindow && !aftWin.hasWindow) return { fit: -2, note: { tone: 'bad', text: `Closes what was a ${befWin.windowStart}-${befWin.windowEnd} contention window.` } };
+  if (befWin.hasWindow && aftWin.hasWindow) {
+    const widened = (aftWin.windowEnd - aftWin.windowStart) - (befWin.windowEnd - befWin.windowStart);
+    if (widened > 0) return { fit: 1, note: { tone: 'good', text: `Widens the contention window (${befWin.windowStart}-${befWin.windowEnd} → ${aftWin.windowStart}-${aftWin.windowEnd}).` } };
+    if (widened < 0) return { fit: -1, note: { tone: 'bad', text: `Narrows the contention window (${befWin.windowStart}-${befWin.windowEnd} → ${aftWin.windowStart}-${aftWin.windowEnd}).` } };
+  }
+  return { fit: 0, note: null };
+}
+
+// Synthesizes value fairness + timeline/production fit + positional need + window
+// shift (all already folded into each side's `fit` score and headline) into one
+// top-level grade for the trade as a whole — the "now that's a good trade" call.
+function overallVerdict(resA, resB, headA, headB) {
+  const scoreA = resA.fit + (headA.tone === 'good' ? 1 : headA.tone === 'bad' ? -1 : 0);
+  const scoreB = resB.fit + (headB.tone === 'good' ? 1 : headB.tone === 'bad' ? -1 : 0);
+  const good = s => s >= 3, bad = s => s <= -2;
+
+  if (good(scoreA) && good(scoreB)) return { tone: 'good', label: 'Now That’s a Good Trade', text: 'Both sides come out ahead on value, timeline, and roster fit — a genuine win-win.' };
+  if (bad(scoreA) && bad(scoreB)) return { tone: 'bad', label: 'Bad Trade for Both Sides', text: 'Neither team actually improves here — value, timeline, and roster need all point the wrong way for both.' };
+  if (good(scoreA) && bad(scoreB)) return { tone: 'bad', label: 'Lopsided — Favors Team A', text: 'Team A checks the boxes on value, timeline, and need; Team B is giving up more than it gets back.' };
+  if (good(scoreB) && bad(scoreA)) return { tone: 'bad', label: 'Lopsided — Favors Team B', text: 'Team B checks the boxes on value, timeline, and need; Team A is giving up more than it gets back.' };
+  if (good(scoreA) || good(scoreB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text: 'One team clearly benefits; the other isn’t hurt, just doesn’t gain as much on value, timeline, or need.' };
+  return { tone: 'neutral', label: 'Fair, But Unremarkable', text: 'Roughly even on value and fit for both sides — not a bad trade, just not a standout one either.' };
+}
+
 // Labels the trade itself — not either team's fit, but what kind of transaction this is.
 function classifyTrade(resA, resB, aAssets, bAssets) {
   const aSellsProd = resA.dOpt < -3 && resA.dPicks > 500;
@@ -633,9 +690,22 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
     <div class="text-[16px] font-medium gold-text mb-1">${trade.label}</div>
     <div class="text-[13px] text-amber-100/70">${trade.desc}</div>`;
 
-  [['A', before.A, after.A, resA, dValueAdjA], ['B', before.B, after.B, resB, dValueAdjB]].forEach(([side, bef, aft, res, dValueAdj]) => {
+  const heads = {};
+  [['A', before.A, after.A, resA, dValueAdjA, bAssets, aAssets], ['B', before.B, after.B, resB, dValueAdjB, aAssets, bAssets]].forEach(([side, bef, aft, res, dValueAdj, incoming, outgoing]) => {
+    // Positional need/surplus fit for the specific assets moving this direction —
+    // judged against the team's roster BEFORE the trade, not the shifting post-trade pool.
+    const posResult = positionalFitNotes(bef, teams, incoming, outgoing);
+    res.fit += posResult.posFit;
+
+    const befWin = Vault.contentionWindow(bef, teams);
     const win = Vault.contentionWindow(aft, pool);
+    const shift = windowShiftNote(befWin, win);
+    res.fit += shift.fit;
+
+    res.notes = [...posResult.notes, ...(shift.note ? [shift.note] : []), ...res.notes];
+
     const head = headline(dValueAdj, avgSideAdj, res.fit);
+    heads[side] = head;
     document.getElementById(`analysis${side}`).innerHTML = `
       <div class="card rounded-vault-sm p-5">
         <div class="flex items-center justify-between mb-3">
@@ -662,6 +732,14 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
         </div>
       </div>`;
   });
+
+  const verdict = overallVerdict(resA, resB, heads.A, heads.B);
+  document.getElementById('tradeVerdict').innerHTML = `
+    <div class="flex items-center gap-2 mb-1.5">
+      <span class="size-2.5 rounded-full ${TONE_DOT[verdict.tone]}"></span>
+      <div class="text-[19px] font-semibold ${TONE[verdict.tone]}">${verdict.label}</div>
+    </div>
+    <div class="text-[13px] text-amber-100/70">${verdict.text}</div>`;
 }
 
 init();

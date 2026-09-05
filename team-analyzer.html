@@ -64,18 +64,10 @@
 const $ = s => document.querySelector(s);
 
 function getTradePartners(t, all) {
-  const posPct = {};
-  ['qb', 'rb', 'wr', 'te'].forEach(k => {
-    const arr = all.map(x => x[k]).sort((a, b) => a - b);
-    posPct[k] = arr.indexOf(t[k]) / (arr.length - 1);
-  });
-  const needs = Object.entries(posPct).filter(([k, v]) => v < 0.35).map(([k]) => k);
-  const surpluses = Object.entries(posPct).filter(([k, v]) => v > 0.65).map(([k]) => k);
+  const { needs, surpluses } = Vault.positionalProfile(t, all);
 
   return all.filter(o => o.rosterId !== t.rosterId).map(o => {
-    const oPos = {}; ['qb', 'rb', 'wr', 'te'].forEach(k => { const arr = all.map(x => x[k]).sort((a, b) => a - b); oPos[k] = arr.indexOf(o[k]) / (arr.length - 1); });
-    const theirSurplus = Object.entries(oPos).filter(([k, v]) => v > 0.65).map(([k]) => k);
-    const theirNeeds = Object.entries(oPos).filter(([k, v]) => v < 0.35).map(([k]) => k);
+    const { needs: theirNeeds, surpluses: theirSurplus } = Vault.positionalProfile(o, all);
 
     let score = 0;
     const reasons = [];

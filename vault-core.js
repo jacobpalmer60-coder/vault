@@ -8,8 +8,14 @@ const VAULT_CONFIG = {
   PROJECTIONS_URL: 'data/projections.json',
   PICK_YEARS: [2027, 2028, 2029],
   PICK_ROUNDS: [1, 2, 3, 4],
-  KTC_MAX_VALUE: 9999,
-  VBA_EXPONENT: 1.2 // Value Based Adjustment: consolidation premium for elite assets. Tune here.
+  // Value Based Adjustment: boosts assets above VBA_REFERENCE, discounts those
+  // below it, so a single elite piece outweighs several mid-tier pieces summing
+  // to the same raw value. Fitted against a real KeepTradeCut trade-calculator
+  // comparison (Ja'Marr Chase vs. DeVonta Smith + Brock Purdy, which KTC itself
+  // flagged with a +5239 "Value Adjustment" on Chase, a ~53% premium) rather
+  // than picked by feel — see Vault.adjustedValue.
+  VBA_REFERENCE: 5500,
+  VBA_EXPONENT: 1.7
 };
 
 /* ---------- League ID handling (shared across every page) ---------- */
@@ -46,14 +52,24 @@ const Vault = {
   /* ---------- Value Based Adjustment (VBA) ----------
      Raw KTC values are linear/additive, but two 3000-value players aren't really
      equal to one 6000-value player — roster spots are scarce and depth is
-     fungible in a way a true stud isn't ("consolidation premium"). This anchors
-     the top of the KTC scale (9999 stays 9999) and discounts everything below it,
-     more aggressively for lower values than higher ones, so summing several
-     mid-tier assets falls further short of one big one even at equal raw totals.
-     Trade Calculator only — team power rankings elsewhere stay on raw KTC value. */
+     fungible in a way a true stud isn't ("consolidation premium").
+
+     v1 of this anchored the boost to the top of the KTC scale (9999) and only
+     ever discounted values below it — which meant a near-ceiling asset (e.g. a
+     top-3 overall player already at ~9960) got almost no premium no matter how
+     high the exponent went, exactly backwards from where a real premium matters
+     most. Confirmed against KeepTradeCut's own trade calculator: they apply an
+     explicit "Value Adjustment" that boosts a concentrated star well above its
+     raw value rather than discounting the fragmented side, so v1 couldn't
+     reproduce that shape at all.
+
+     v2 instead boosts anything above VBA_REFERENCE and discounts anything below
+     it, unbounded — so an elite asset's premium keeps growing the closer it gets
+     to the top of the scale, instead of flattening out near a ceiling. */
   adjustedValue(v, k = VAULT_CONFIG.VBA_EXPONENT) {
     if (v <= 0) return 0;
-    return v * Math.pow(v / VAULT_CONFIG.KTC_MAX_VALUE, k - 1);
+    const ref = VAULT_CONFIG.VBA_REFERENCE;
+    return ref * Math.pow(v / ref, k);
   },
   meanStd(arr) {
     const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -497,6 +513,23 @@ const Vault = {
       windowEnd: hasWindow ? startYear + endIdx : null,
       years, playoffLine, playoffSpots
     };
+  },
+
+  /* ---------- Positional profile ----------
+     Percentile-ranks a team's qb/rb/wr/te value against the rest of the league to
+     flag genuine needs (<35th pct) and surpluses (>65th pct). Shared by Team
+     Analyzer's trade-partner finder and the Trade Calculator's per-trade fit check
+     (an incoming asset at a surplus position shouldn't read as a win just because
+     the value matches). */
+  positionalProfile(t, all) {
+    const posPct = {};
+    ['qb', 'rb', 'wr', 'te'].forEach(k => {
+      const arr = all.map(x => x[k]).sort((a, b) => a - b);
+      posPct[k] = arr.length > 1 ? arr.indexOf(t[k]) / (arr.length - 1) : 0.5;
+    });
+    const needs = Object.entries(posPct).filter(([, v]) => v < 0.35).map(([k]) => k);
+    const surpluses = Object.entries(posPct).filter(([, v]) => v > 0.65).map(([k]) => k);
+    return { posPct, needs, surpluses };
   },
 
   /* ---------- Flaws ----------
