@@ -13,10 +13,10 @@
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[1500px] mx-auto px-6 py-10">
+<main class="max-w-[1500px] mx-auto px-6 py-10 fade-in">
   <div class="flex items-center justify-between mb-8">
     <div>
-      <h1 class="display text-2xl gold-text">League Overview</h1>
+      <h1 class="display text-[28px] gold-text">League Overview</h1>
       <div id="status" class="mt-2 flex items-center gap-3 text-amber-200/70 text-sm">
         <div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>
       </div>
@@ -28,7 +28,7 @@
     <div class="overflow-x-auto scrollbar">
       <table class="w-full text-[13px]">
         <thead class="bg-black/40 border-b border-amber-500/10 sticky top-0">
-          <tr class="text-[10px] uppercase tracking-wider text-amber-200/45">
+          <tr class="text-[11px] uppercase tracking-wider text-amber-200/45">
             <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="teamName">Team</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="total">Total Value</th>
             <th class="text-left px-3 py-3.5 font-medium min-w-[170px]">Position Split</th>
@@ -50,15 +50,15 @@
   </div>
 
   <div class="mt-8 card rounded-vault p-6">
-    <h2 class="display text-lg gold-text mb-4">Legend</h2>
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-[12px] text-amber-200/70">
-      <div><strong class="text-amber-200">Total Value:</strong> Sum of player values</div>
-      <div><strong class="text-amber-200">Position Split:</strong> Share of value by QB/RB/WR/TE</div>
-      <div><strong class="text-amber-200">Picks:</strong> 2027-29 R1-4 live from Sleeper</div>
-      <div><strong class="text-amber-200">Opt PPG:</strong> Best lineup, league scoring</div>
-      <div><strong class="text-amber-200">Production:</strong> vs avg (100)</div>
-      <div><strong class="text-amber-200">Longevity:</strong> 60% Val +20% Age +20% Picks</div>
-      <div><strong class="text-amber-200">Archetype:</strong> Build type</div>
+    <h2 class="display text-[20px] gold-text mb-4">Legend</h2>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]">
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Total Value</span><span class="text-amber-100/50"> — Sum of player values</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Position Split</span><span class="text-amber-100/50"> — Share of value by QB/RB/WR/TE</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Picks</span><span class="text-amber-100/50"> — 2027-29 R1-4 live from Sleeper</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Opt PPG</span><span class="text-amber-100/50"> — Best lineup, league scoring</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Production</span><span class="text-amber-100/50"> — vs league avg (100)</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Longevity</span><span class="text-amber-100/50"> — 60% Val + 20% Age + 20% Picks</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-amber-200 font-medium">Archetype</span><span class="text-amber-100/50"> — Build type</span></div>
     </div>
   </div>
 

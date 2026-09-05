@@ -12,7 +12,7 @@
   <div class="vault-bg"></div>
 
   <main class="min-h-screen flex items-center justify-center px-4 py-12">
-    <div class="w-full max-w-xl">
+    <div class="w-full max-w-xl fade-in">
       <div class="text-center mb-8">
         <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-amber-300 to-yellow-600 p-[1.5px] shadow-[0_0_30px_rgba(250,204,21,0.3)]">
           <div class="size-full rounded-2xl bg-black grid place-items-center"><span class="display text-xl gold-text">V</span></div>
@@ -21,12 +21,12 @@
         <p class="mt-1 text-sm uppercase tracking-widest text-amber-400/90">Sleeper x KeepTradeCut</p>
       </div>
 
-      <div class="card rounded-[24px] p-7 sm:p-9">
+      <div class="card rounded-vault-sm p-7 sm:p-9">
         <!-- Username -->
         <div id="step-username">
           <label class="block text-sm font-medium text-zinc-300 mb-2">Sleeper Username</label>
           <div class="flex gap-2">
-            <input id="username" type="text" placeholder="goldenscrub" class="flex-1 h-12 px-4 rounded-xl bg-black/50 border border-amber-500/20 focus:border-amber-500/60 outline-none" />
+            <input id="username" type="text" placeholder="goldenscrub" class="flex-1 h-12 px-4 rounded-xl bg-black/50 border border-amber-500/20 focus:border-amber-500/60 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] outline-none transition-shadow" />
             <button id="loadBtn" class="btn-gold-solid h-12 px-5">Load Leagues</button>
           </div>
           <p id="errorMsg" class="hidden mt-3 text-sm text-red-400"></p>
@@ -50,7 +50,7 @@
         <!-- Actions -->
         <div id="step-actions" class="hidden mt-8">
           <div class="grid gap-3">
-            <a id="btnOverview" href="#" class="group flex items-center justify-between p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 transition">
+            <a id="btnOverview" href="#" class="group flex items-center justify-between p-4 rounded-2xl border border-amber-500/15 bg-gradient-to-r from-amber-500/[0.07] to-transparent hover:border-amber-500/40 hover:from-amber-500/[0.11] transition-all hover:-translate-y-0.5">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -60,11 +60,11 @@
                   <div class="text-xs text-amber-200/40">Roster health & standings</div>
                 </div>
               </div>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-amber-500/30 group-hover:text-amber-400"><path d="M9 18l6-6-6-6"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-amber-500/30 transition-transform group-hover:text-amber-400 group-hover:translate-x-0.5"><path d="M9 18l6-6-6-6"/></svg>
             </a>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <a id="btnRankings" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 transition">
+              <a id="btnRankings" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 hover:bg-black/60 transition-all hover:-translate-y-0.5">
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
                 </div>
@@ -72,7 +72,7 @@
                 <div class="text-xs text-amber-200/40 mt-1">Dynasty & redraft values</div>
               </a>
 
-              <a id="btnTrade" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 transition">
+              <a id="btnTrade" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/10 bg-black/40 hover:border-amber-500/40 hover:bg-black/60 transition-all hover:-translate-y-0.5">
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4M17 8v12M3 12h4M17 12h4"/></svg>
                 </div>
@@ -80,7 +80,7 @@
                 <div class="text-xs text-amber-200/40 mt-1">Fair value & win-now moves</div>
               </a>
 
-              <a id="btnAnalyzer" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/30 bg-black/40 hover:border-amber-500/60 transition ring-1 ring-amber-500/20">
+              <a id="btnAnalyzer" href="#" class="group flex flex-col p-4 rounded-2xl border border-amber-500/30 bg-black/40 hover:border-amber-500/60 hover:bg-black/60 transition-all hover:-translate-y-0.5 ring-1 ring-amber-500/20">
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                 </div>

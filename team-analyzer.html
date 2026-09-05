@@ -13,31 +13,31 @@
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[1400px] mx-auto px-6 py-8">
+<main class="max-w-[1400px] mx-auto px-6 py-8 fade-in">
   <div class="mb-6">
-    <h1 class="display text-2xl gold-text">Team Analyzer</h1>
+    <h1 class="display text-[28px] gold-text">Team Analyzer</h1>
     <p class="text-[11px] uppercase tracking-widest text-amber-200/50 mt-1">12 Archetypes • Real Values</p>
   </div>
 
-  <div class="card rounded-[24px] p-5 mb-6">
+  <div class="card rounded-vault-sm p-5 mb-6">
     <div class="flex flex-col md:flex-row gap-3 md:items-end">
       <div class="flex-1">
-        <label class="text-xs text-amber-200/60">Sleeper League ID</label>
+        <label class="text-[12px] text-amber-200/60">Sleeper League ID</label>
         <div class="mt-1.5 flex gap-2">
-          <input id="leagueId" class="w-full bg-black/60 border border-amber-500/20 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-amber-400" placeholder="1313454100225990656"/>
-          <button id="loadBtn" class="btn-gold-solid px-4 py-2.5 text-sm">Load</button>
+          <input id="leagueId" class="w-full bg-black/60 border border-amber-500/20 rounded-xl px-3.5 py-2.5 text-[14px] outline-none focus:border-amber-400 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow" placeholder="1313454100225990656"/>
+          <button id="loadBtn" class="btn-gold-solid px-4 py-2.5 text-[14px]">Load</button>
         </div>
       </div>
-      <select id="teamSelect" class="bg-black/60 border border-amber-500/20 rounded-xl px-3 py-2.5 text-sm min-w-[220px] hidden"></select>
+      <select id="teamSelect" class="bg-black/60 border border-amber-500/20 rounded-xl px-3 py-2.5 text-[14px] min-w-[220px] hidden"></select>
     </div>
-    <div id="status" class="mt-3 text-xs text-amber-300/70 hidden"></div>
+    <div id="status" class="mt-3 text-[12px] text-amber-300/70 hidden"></div>
   </div>
 
   <section id="singleCard" class="mb-10"></section>
 
   <section>
-    <h2 class="display text-lg gold-text mb-3">League Summary</h2>
-    <div class="card rounded-[24px] overflow-hidden">
+    <h2 class="display text-[24px] gold-text mb-3">League Summary</h2>
+    <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-[13px]">
           <thead class="bg-black/60 border-b border-amber-500/10 sticky top-0">
@@ -128,16 +128,16 @@ function renderSingle(t) {
     { l: 'Picks Value', v: Math.round(t.picksValue), c: 'from-sky-500 to-cyan-500' },
   ];
   $('#singleCard').innerHTML = `
-  <div class="card rounded-[28px] p-6">
+  <div class="card rounded-vault p-6 fade-in">
     <div class="flex items-start justify-between gap-4">
       <div>
-        <h2 class="display text-2xl gold-text">${Vault.escapeHtml(t.teamName)}</h2>
-        <p class="text-xs text-amber-200/60">${Vault.escapeHtml(t.username)} • Rank #${t.rank} • Peak: ${win.peakYear}</p>
+        <h2 class="display text-[24px] gold-text">${Vault.escapeHtml(t.teamName)}</h2>
+        <p class="text-[12px] text-amber-200/60">${Vault.escapeHtml(t.username)} • Rank #${t.rank} • Peak: ${win.peakYear}</p>
       </div>
-      <span class="px-3 py-1.5 rounded-full text-xs border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
+      <span class="px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
     </div>
     <div class="grid md:grid-cols-4 gap-4 mt-6">
-      ${bars.map(b => `<div class="bg-black/40 rounded-2xl p-4 border border-amber-500/10"><div class="text-[11px] uppercase tracking-widest text-amber-200/50">${b.l}</div><div class="text-2xl font-semibold mt-1">${b.v}</div></div>`).join('')}
+      ${bars.map(b => `<div class="stat-tile"><div class="stat-label">${b.l}</div><div class="stat-value">${b.v}</div></div>`).join('')}
     </div>
 
     <div class="grid lg:grid-cols-3 gap-4 mt-6">
@@ -147,15 +147,15 @@ function renderSingle(t) {
       </div>
       <div class="bg-black/40 rounded-2xl p-4 border border-emerald-500/20">
         <div class="text-[11px] uppercase tracking-widest text-emerald-300/70 mb-2">Best Trade Partners</div>
-        <div class="space-y-2">${partners.map(p => `<div class="flex justify-between items-center"><div><div class="text-[13px]">${Vault.escapeHtml(p.teamName)}</div><div class="text-[10px] text-zinc-500">${p.arch}</div></div><div class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">${p.fit}/10 fit</div></div>`).join('')}</div>
+        <div class="space-y-2">${partners.map(p => `<div class="flex justify-between items-center"><div><div class="text-[13px]">${Vault.escapeHtml(p.teamName)}</div><div class="text-[11px] text-zinc-500">${p.arch}</div></div><div class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">${p.fit}/10 fit</div></div>`).join('')}</div>
       </div>
       <div class="bg-black/40 rounded-2xl p-4 border border-amber-500/20">
         <div class="text-[11px] uppercase tracking-widest text-amber-300/70 mb-2">Contention Window (5yr)</div>
         <div class="flex items-end gap-1.5 h-[70px]">${win.proj.map((v, i) => `<div class="flex-1 flex flex-col items-center"><div class="w-full bg-gradient-to-t from-amber-600/30 to-amber-400/90 rounded-t" style="height:${Math.max(8, v / win.peak * 100)}%" title="${win.startYear + i}: ${v.toLocaleString()} value, ${win.projPPG[i].toFixed(1)} PPG"></div></div>`).join('')}</div>
-        <div class="flex justify-between text-[10px] mt-1 text-zinc-500">${win.proj.map((v, i) => `<span>${win.startYear + i}</span>`).join('')}</div>
+        <div class="flex justify-between text-[11px] mt-1 text-zinc-500">${win.proj.map((v, i) => `<span>${win.startYear + i}</span>`).join('')}</div>
         <div class="mt-2 h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex">${win.proj.map((v, i) => `<div class="h-full ${win.inWindow[i] ? 'bg-amber-400' : 'bg-zinc-700'}" style="width:${100 / win.proj.length}%"></div>`).join('')}</div>
         <div class="text-center text-[11px] mt-1.5 text-amber-300">${win.inWindow.some(x => x) ? (win.windowEnd - win.windowStart + 1) + 'yr window' : 'No window'} • Peak ${Math.round(win.peak).toLocaleString()} in ${win.peakYear}</div>
-        <div class="mt-3 pt-2 border-t border-zinc-800 text-[10px] text-zinc-500 space-y-1">
+        <div class="mt-3 pt-2 border-t border-zinc-800 text-[11px] text-zinc-500 space-y-1">
           <div class="flex items-center gap-1.5"><span class="w-3 h-1.5 bg-amber-400 rounded"></span> In window (value ≥88% peak + PPG ≥ playoff line)</div>
           <div class="flex items-center gap-1.5"><span class="w-3 h-1.5 bg-zinc-700 rounded"></span> Outside window</div>
           <div>Playoff line: ${win.playoffLine.toFixed(1)} PPG (top ${win.playoffSpots})</div>

@@ -29,7 +29,7 @@
   </div>
 
   <!-- Setup checklist: pick both teams, then load rosters -->
-  <div id="setup" class="card rounded-2xl p-6 mb-6 max-w-lg">
+  <div id="setup" class="card rounded-vault-sm p-6 mb-6 max-w-lg fade-in">
     <h2 class="text-[13px] uppercase tracking-wider text-amber-200/50 mb-4">Set up a trade</h2>
     <div class="space-y-4">
       <div>
@@ -53,12 +53,12 @@
       <div class="flex items-center gap-6 flex-wrap">
         <div>
           <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Team A gives</div>
-          <div id="giveA" class="text-[15px] font-medium"></div>
+          <div id="giveA" class="text-[16px] font-medium"></div>
         </div>
         <div class="text-amber-500/30">⇄</div>
         <div>
           <div class="text-[11px] text-amber-200/40 uppercase tracking-wider mb-1">Team B gives</div>
-          <div id="giveB" class="text-[15px] font-medium"></div>
+          <div id="giveB" class="text-[16px] font-medium"></div>
         </div>
       </div>
       <div class="text-right">
@@ -80,7 +80,7 @@
     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
       <div>
         <div class="text-[11px] text-amber-200/40 uppercase tracking-wider">Finding trades for</div>
-        <div id="finderTarget" class="text-[15px] font-medium"></div>
+        <div id="finderTarget" class="text-[16px] font-medium"></div>
       </div>
       <div class="flex items-center gap-2">
         <span class="text-[11px] text-amber-200/40 mr-1">Want back:</span>
@@ -98,11 +98,11 @@
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-[13px] font-semibold text-black">A</div>
-          <select id="teamA" class="bg-transparent text-[15px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
+          <select id="teamA" class="bg-transparent text-[16px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
         </div>
         <div class="text-right">
           <div class="text-[12px] text-amber-200/40 mono" id="totalA"></div>
-          <span id="archA" class="text-[10px] px-2 py-0.5 rounded-full border inline-block mt-1"></span>
+          <span id="archA" class="text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1"></span>
         </div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
@@ -115,11 +115,11 @@
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-[13px] font-semibold text-black">B</div>
-          <select id="teamB" class="bg-transparent text-[15px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
+          <select id="teamB" class="bg-transparent text-[16px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
         </div>
         <div class="text-right">
           <div class="text-[12px] text-amber-200/40 mono" id="totalB"></div>
-          <span id="archB" class="text-[10px] px-2 py-0.5 rounded-full border inline-block mt-1"></span>
+          <span id="archB" class="text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1"></span>
         </div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
@@ -130,7 +130,7 @@
 
   <!-- Analysis (expands once a trade is proposed) -->
   <div id="analysis" class="hidden mt-6">
-    <h2 class="display text-lg gold-text mb-3">Trade Analysis</h2>
+    <h2 class="display text-[24px] gold-text mb-3">Trade Analysis</h2>
     <div id="tradeArchetype" class="card rounded-2xl p-4 mb-4"></div>
     <div class="grid lg:grid-cols-2 gap-5">
       <div id="analysisA"></div>
@@ -223,8 +223,8 @@ function assetRow(side, a, isSelected, extra) {
           <div class="text-[13px] mono font-medium ${isSelected ? 'text-white' : 'text-amber-200/60'}">${Math.round(a.value).toLocaleString()}</div>
         </div>
         <div class="opacity-0 group-hover/item:opacity-100 transition-opacity flex gap-1.5 shrink-0">
-          <button onclick="event.stopPropagation(); matchTarget('${side}','${a.key}')" title="Build a package from the other side to match this" class="text-[10px] px-2 py-1 rounded-lg border border-amber-500/20 text-amber-300/70 hover:text-amber-200 hover:border-amber-500/40">Match</button>
-          <button onclick="event.stopPropagation(); openFinder('${side}','${a.key}')" title="Shop this against every team in the league" class="text-[10px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
+          <button onclick="event.stopPropagation(); matchTarget('${side}','${a.key}')" title="Build a package from the other side to match this" class="text-[11px] px-2 py-1 rounded-lg border border-amber-500/20 text-amber-300/70 hover:text-amber-200 hover:border-amber-500/40">Match</button>
+          <button onclick="event.stopPropagation(); openFinder('${side}','${a.key}')" title="Shop this against every team in the league" class="text-[11px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
         </div>
         <div class="w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-amber-400 border-amber-400' : 'border-amber-500/20 group-hover/item:border-amber-500/40'}">
           ${isSelected ? '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 6l2 2 4-4" stroke="black" stroke-width="2" stroke-linecap="round"/></svg>' : ''}
@@ -252,7 +252,7 @@ function render(side) {
   document.getElementById(`total${side}`).textContent = `${team.assets.length} assets • ${Math.round(team.total).toLocaleString()}`;
   const archEl = document.getElementById(`arch${side}`);
   archEl.textContent = team.arch;
-  archEl.className = `text-[10px] px-2 py-0.5 rounded-full border inline-block mt-1 ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
+  archEl.className = `text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1 ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
 
   container.innerHTML = team.assets.map(a => assetRow(side, a, selected.has(a.key))).join('');
   updateTrade();
@@ -409,7 +409,7 @@ function renderFinder() {
   resultsEl.innerHTML = results.map(r => `
     <div class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 flex-wrap">
       <div class="min-w-0">
-        <div class="text-[13px] font-medium">${Vault.escapeHtml(r.partner.teamName)} <span class="text-[10px] text-amber-200/40">(${r.partner.arch})</span></div>
+        <div class="text-[13px] font-medium">${Vault.escapeHtml(r.partner.teamName)} <span class="text-[11px] text-amber-200/40">(${r.partner.arch})</span></div>
         <div class="text-[12px] text-amber-100/70 mt-0.5">${r.combo.combo.map(a => Vault.escapeHtml(a.name)).join(' + ')} <span class="mono text-amber-200/40">${Math.round(r.combo.sum).toLocaleString()}</span></div>
         <div class="text-[11px] text-sky-300/70 mt-1">${r.rationale.join(' · ')}</div>
       </div>
@@ -635,7 +635,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
     const win = Vault.contentionWindow(aft, pool);
     const head = headline(dValueAdj, avgSideAdj, res.fit);
     document.getElementById(`analysis${side}`).innerHTML = `
-      <div class="card rounded-[24px] p-5">
+      <div class="card rounded-vault-sm p-5">
         <div class="flex items-center justify-between mb-3">
           <div>
             <div class="text-[11px] text-amber-200/40 uppercase tracking-wider">Team ${side} · ${Vault.escapeHtml(bef.teamName)}</div>
@@ -643,7 +643,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
           </div>
           <div class="text-right">
             <div class="text-[13px] font-mono ${dValueAdj >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtSigned(dValueAdj)}</div>
-            <div class="text-[10px] text-amber-200/40">value Δ (adj)</div>
+            <div class="text-[11px] text-amber-200/40">value Δ (adj)</div>
           </div>
         </div>
         <div class="flex items-center gap-2 mb-4">
@@ -654,9 +654,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
           ${res.notes.map(n => `<div class="flex gap-2 text-[12px] ${n.isArchetype ? 'pt-2 border-t border-white/5 mt-2' : ''}"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
         </div>
         <div class="grid grid-cols-3 gap-2 text-center pt-3 border-t border-white/5">
-          <div><div class="text-[15px] font-mono">${aft.age.toFixed(1)}</div><div class="text-[10px] text-amber-200/40">Age</div></div>
-          <div><div class="text-[15px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[10px] text-amber-200/40">Opt PPG</div></div>
-          <div><div class="text-[15px] font-mono">${win.windowStart}-${win.windowEnd}</div><div class="text-[10px] text-amber-200/40">Window</div></div>
+          <div><div class="text-[16px] font-mono">${aft.age.toFixed(1)}</div><div class="text-[11px] text-amber-200/40">Age</div></div>
+          <div><div class="text-[16px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[11px] text-amber-200/40">Opt PPG</div></div>
+          <div><div class="text-[16px] font-mono">${win.windowStart}-${win.windowEnd}</div><div class="text-[11px] text-amber-200/40">Window</div></div>
         </div>
       </div>`;
   });
