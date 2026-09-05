@@ -624,6 +624,56 @@ const Vault = {
     return { posFit, notes };
   },
 
+  /* A team's timeline — contending (score now), rebuilding (stockpile for later), or
+     flexible (neither extreme) — read off where it stands vs the league on value and
+     current production. Cutoffs sit away from percentile-step boundaries (see the
+     archetype() comment below) rather than on a round number like 50/50. Shared by
+     the Trade Calculator (a proposed trade) and Trade Grades (a completed one), since
+     both need the same read on "what is this team actually trying to do". */
+  teamMode(t) {
+    if (t.ppgP >= 60) return 'contend';
+    if (t.valP <= 40 && t.ppgP <= 40) return 'rebuild';
+    return 'flexible';
+  },
+  MODE_LABEL: { contend: 'Contending', rebuild: 'Rebuilding', flexible: 'Flexible timeline' },
+
+  /* Whether the SPECIFIC assets moving fit a team's timeline — on-plan for a rebuild
+     is younger + more picks; on-plan for a contender is picks spent to get younger or
+     no worse. This is the subset of trade.html's analyzeSide() that's computable from
+     just the moved assets, with no "before/after roster" reconstruction: age direction
+     and pick-capital direction, not the optimal-lineup PPG shift (which needs a full
+     roster simulation Trade Grades can't do for a trade that already happened). */
+  timelineFitNotes(team, incoming, outgoing) {
+    const mode = Vault.teamMode(team);
+    const weightedAge = list => {
+      const p = list.filter(a => a.type === 'player' && a.age > 0 && a.value > 0);
+      const sum = p.reduce((s, a) => s + a.value, 0);
+      return sum ? p.reduce((s, a) => s + a.value * a.age, 0) / sum : null;
+    };
+    const ageIn = weightedAge(incoming), ageOut = weightedAge(outgoing);
+    const dAge = (ageIn != null && ageOut != null) ? ageIn - ageOut : 0;
+    const picksValue = list => list.filter(a => a.type === 'pick').reduce((s, a) => s + a.value, 0);
+    const dPicks = picksValue(incoming) - picksValue(outgoing);
+
+    const notes = [];
+    let fit = 0;
+    if (mode === 'rebuild') {
+      if (dAge > 0.4) { notes.push({ tone: 'bad', text: `Gets ${dAge.toFixed(1)} yrs older while rebuilding — wrong direction for the timeline.` }); fit -= 2; }
+      else if (dAge < -0.4) { notes.push({ tone: 'good', text: `Gets ${Math.abs(dAge).toFixed(1)} yrs younger — on-plan for a rebuild.` }); fit += 1; }
+      if (dPicks < -1500) { notes.push({ tone: 'bad', text: `Trades away ${Math.round(Math.abs(dPicks)).toLocaleString()} in draft capital — contradicts a rebuild.` }); fit -= 2; }
+      else if (dPicks > 1500) { notes.push({ tone: 'good', text: `Adds ${Math.round(dPicks).toLocaleString()} in draft capital — on-plan for a rebuild.` }); fit += 2; }
+    } else if (mode === 'contend') {
+      if (dAge > 1.5) notes.push({ tone: 'neutral', text: `Adds ${dAge.toFixed(1)} yrs of age — tolerable for a win-now roster, but watch the cliff.` });
+      else if (dAge < -0.4) { notes.push({ tone: 'good', text: `Gets younger without giving up contention.` }); fit += 1; }
+      if (dPicks < -1500) { notes.push({ tone: 'good', text: `Spends ${Math.round(Math.abs(dPicks)).toLocaleString()} in future picks to win now — the right move for a contender if those picks weren't needed.` }); fit += 1; }
+      else if (dPicks > 1500) notes.push({ tone: 'neutral', text: `Banks ${Math.round(dPicks).toLocaleString()} in picks — fine, but a contender should usually prioritize immediate roster strength.` });
+    } else {
+      if (Math.abs(dPicks) > 1500) notes.push({ tone: 'neutral', text: `${dPicks > 0 ? 'Adds' : 'Spends'} ${Math.round(Math.abs(dPicks)).toLocaleString()} in draft capital.` });
+      if (Math.abs(dAge) > 0.5) notes.push({ tone: 'neutral', text: `${dAge > 0 ? 'Gets older' : 'Gets younger'} by ${Math.abs(dAge).toFixed(1)} yrs.` });
+    }
+    return { mode, dAge, dPicks, fit, notes };
+  },
+
   /* ---------- Flaws ----------
      Deliberately broad: this used to require a near-catastrophic gap (e.g. a
      position at <55% of league average) before flagging anything, which meant

@@ -19,10 +19,11 @@
     <p id="status" class="text-[13px] text-zinc-500 mt-1">Loading league…</p>
   </div>
   <p class="text-[12px] text-zinc-500 max-w-[720px] mb-6 leading-relaxed">
-    Every completed trade this season, graded with the same value fairness and
-    positional-need reasoning as the Trade Calculator — value uses today's KeepTradeCut
-    prices and roster fit reflects each team's <span class="text-zinc-400">current</span> roster,
-    not the roster on the day the trade happened.
+    Every completed trade this season, graded with the same value fairness,
+    positional-need, and rebuild/contend timeline reasoning as the Trade Calculator —
+    value uses today's KeepTradeCut prices, and both roster fit and timeline reflect
+    each team's <span class="text-zinc-400">current</span> roster and standing, not
+    where things stood on the day the trade happened.
   </p>
 
   <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
@@ -56,23 +57,25 @@ function fairColor(pctDiff) {
   return pctDiff < 6 ? 'text-emerald-400/70' : pctDiff < 15 ? 'text-amber-400/70' : 'text-zinc-500';
 }
 
-// Mirrors trade.html's overallVerdict, but built on positional fit alone — a
-// completed trade has no "before roster" to reconstruct, so there's no timeline/
-// window-shift signal here, only value fairness (gated first, same as the
-// calculator) and each side's current-roster positional fit.
-function historyVerdict(pctDiff, dValueAdjA, posFitA, posFitB) {
+// Mirrors trade.html's overallVerdict — value fairness is gated first (same
+// Fair/Borderline/Lopsided thresholds), then each side's combined fit (positional
+// need/surplus + rebuild/contend timeline fit for the specific assets that moved)
+// decides the sub-label. No optimal-lineup PPG shift or window-shift signal here —
+// those need a full before/after roster simulation, which isn't reconstructable for
+// a trade that already happened.
+function historyVerdict(pctDiff, dValueAdjA, fitA, fitB) {
   const good = s => s >= 2, bad = s => s <= -2;
   if (pctDiff >= 15) {
     const favored = dValueAdjA >= 0 ? 'A' : 'B';
     const behind = favored === 'A' ? 'B' : 'A';
     return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text: `Team ${favored} came out well ahead on value; Team ${behind} got comparatively little back.` };
   }
-  if (good(posFitA) && good(posFitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text: 'Value was close, and it addressed a real roster need for both teams.' };
-  if (bad(posFitA) && bad(posFitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text: 'Value was close, but neither side’s roster fit improved much — value for value with no real need addressed.' };
-  if (good(posFitA) && bad(posFitB)) return { tone: 'neutral', label: 'Won for Team A', text: 'Value was close, but Team A addressed a real need while Team B didn’t get much fit benefit.' };
-  if (good(posFitB) && bad(posFitA)) return { tone: 'neutral', label: 'Won for Team B', text: 'Value was close, but Team B addressed a real need while Team A didn’t get much fit benefit.' };
-  if (good(posFitA) || good(posFitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text: 'Value was close; one team addressed a real need, the other wasn’t hurt but didn’t gain much fit either.' };
-  return { tone: 'neutral', label: 'Fair Trade', text: 'Value was close for both sides, without a standout positional need on either end.' };
+  if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text: 'Value was close, and it fit both teams\' roster needs and timelines.' };
+  if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text: 'Value was close, but neither side\'s need or timeline fit improved much — value for value without addressing either team\'s plan.' };
+  if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: 'Won for Team A', text: 'Value was close, but Team A came out ahead on need/timeline fit while Team B didn\'t get much benefit there.' };
+  if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: 'Won for Team B', text: 'Value was close, but Team B came out ahead on need/timeline fit while Team A didn\'t get much benefit there.' };
+  if (good(fitA) || good(fitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text: 'Value was close; one team\'s need or timeline benefited, the other wasn\'t hurt but didn\'t gain much either.' };
+  return { tone: 'neutral', label: 'Fair Trade', text: 'Value was close for both sides, without a standout need or timeline fit on either end.' };
 }
 
 function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey) {
@@ -108,11 +111,15 @@ function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams) {
 
   const fitA = Vault.positionalFitNotes(teamA, teams, toA, toB);
   const fitB = Vault.positionalFitNotes(teamB, teams, toB, toA);
+  const timelineA = Vault.timelineFitNotes(teamA, toA, toB);
+  const timelineB = Vault.timelineFitNotes(teamB, toB, toA);
+  const combinedFitA = fitA.posFit + timelineA.fit;
+  const combinedFitB = fitB.posFit + timelineB.fit;
 
-  const verdict = historyVerdict(pctDiff, dValueAdjA, fitA.posFit, fitB.posFit);
+  const verdict = historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB);
   const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, verdict, anyMissingValue, created: tx.created };
+  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, verdict, anyMissingValue, created: tx.created };
 }
 
 function assetChips(list) {
@@ -123,7 +130,12 @@ function assetChips(list) {
 function renderCard(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const bucket = fairBucket(g.pctDiff);
-  const notes = [...g.fitA.notes.map(n => ({ ...n, who: g.teamA.teamName })), ...g.fitB.notes.map(n => ({ ...n, who: g.teamB.teamName }))];
+  const notes = [
+    ...g.timelineA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
+    ...g.fitA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
+    ...g.timelineB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
+    ...g.fitB.notes.map(n => ({ ...n, who: g.teamB.teamName }))
+  ];
   return `
     <div class="card rounded-vault-sm p-5">
       <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
@@ -135,11 +147,11 @@ function renderCard(g) {
       </div>
       <div class="grid md:grid-cols-2 gap-4 mb-4">
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamA.teamName)} received</div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toA)}</div>
         </div>
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamB.teamName)} received</div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toB)}</div>
         </div>
       </div>

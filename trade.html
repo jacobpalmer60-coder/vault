@@ -482,7 +482,7 @@ function anchoredCombo(pool, targetValueRaw, posFilter) {
 // positional-surplus idea as Team Analyzer's trade-partner suggestions.
 function partnerRationale(partner, givingAssets) {
   const notes = [];
-  const mode = teamMode(partner);
+  const mode = Vault.teamMode(partner);
   const posGiven = [...new Set(givingAssets.filter(a => a.type === 'player').map(a => a.pos))];
   posGiven.forEach(pos => {
     const key = pos.toLowerCase();
@@ -780,15 +780,10 @@ function updateTrade() {
   renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
 }
 
-function teamMode(t) {
-  if (t.ppgP >= 60) return 'contend';
-  if (t.valP <= 40 && t.ppgP <= 40) return 'rebuild';
-  return 'flexible';
-}
-const MODE_LABEL = { contend: 'Contending', rebuild: 'Rebuilding', flexible: 'Flexible timeline' };
+// teamMode/MODE_LABEL now live in Vault (vault-core.js) — shared with Trade Grades.
 
 function analyzeSide(before, after) {
-  const mode = teamMode(before);
+  const mode = Vault.teamMode(before);
   const dAge = after.age - before.age;
   const dPicks = after.picksValue - before.picksValue;
   const dOpt = after.opt - before.opt;
@@ -989,7 +984,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
         <div class="flex items-center justify-between gap-2 mb-3">
           <div class="min-w-0">
             <div class="text-[11px] text-zinc-500 uppercase tracking-wider truncate">Team ${side} · ${Vault.escapeHtml(bef.teamName)}</div>
-            <div class="text-[11px] mt-0.5 ${TONE.neutral}">${MODE_LABEL[res.mode]}</div>
+            <div class="text-[11px] mt-0.5 ${TONE.neutral}">${Vault.MODE_LABEL[res.mode]}</div>
           </div>
           <div class="text-right shrink-0">
             <div class="text-[13px] font-mono ${dValueAdj >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtSigned(dValueAdj)}</div>
