@@ -29,18 +29,20 @@
   </div>
 
   <!-- Setup checklist: pick both teams, then load rosters -->
-  <div id="setup" class="card rounded-vault-sm p-6 mb-6 max-w-lg fade-in">
-    <h2 class="text-[13px] uppercase tracking-wider text-amber-200/50 mb-4">Set up a trade</h2>
-    <div class="space-y-4">
-      <div>
-        <label class="text-[11px] text-amber-200/40 uppercase tracking-wider block mb-1.5">1 · Team A</label>
-        <select id="teamASetup" class="w-full bg-black/40 border border-amber-500/15 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-amber-500/50"></select>
+  <div id="setup" class="min-h-[60vh] flex items-center justify-center">
+    <div class="card rounded-vault-sm p-9 w-full max-w-xl fade-in">
+      <h2 class="text-[20px] display gold-text mb-6 text-center">Set up a trade</h2>
+      <div class="space-y-5">
+        <div>
+          <label class="text-[11px] text-amber-200/40 uppercase tracking-wider block mb-2">1 · Team A</label>
+          <select id="teamASetup" class="w-full h-12 bg-black/40 border border-amber-500/15 rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
+        </div>
+        <div>
+          <label class="text-[11px] text-amber-200/40 uppercase tracking-wider block mb-2">2 · Team B</label>
+          <select id="teamBSetup" class="w-full h-12 bg-black/40 border border-amber-500/15 rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
+        </div>
+        <button id="loadRostersBtn" class="w-full btn-gold-solid h-12 text-[15px] mt-2">3 · Load Rosters</button>
       </div>
-      <div>
-        <label class="text-[11px] text-amber-200/40 uppercase tracking-wider block mb-1.5">2 · Team B</label>
-        <select id="teamBSetup" class="w-full bg-black/40 border border-amber-500/15 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-amber-500/50"></select>
-      </div>
-      <button id="loadRostersBtn" class="w-full btn-gold-solid py-3 text-[14px]">3 · Load Rosters</button>
     </div>
   </div>
 
