@@ -53,10 +53,10 @@ let fairFilter = 'All';
 let sortKey = 'recent';
 
 function fairBucket(pctDiff) {
-  return pctDiff < 6 ? 'Fair' : pctDiff < 15 ? 'Borderline' : 'Lopsided';
+  return pctDiff < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided';
 }
 function fairColor(pctDiff) {
-  return pctDiff < 6 ? 'text-emerald-400/70' : pctDiff < 15 ? 'text-amber-400/70' : 'text-zinc-500';
+  return pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500';
 }
 
 // Mirrors trade.html's overallVerdict — value fairness is gated first (same
@@ -67,7 +67,7 @@ function fairColor(pctDiff) {
 // a trade that already happened.
 function historyVerdict(pctDiff, dValueAdjA, fitA, fitB) {
   const good = s => s >= 2, bad = s => s <= -2;
-  if (pctDiff >= 15) {
+  if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
     const favored = dValueAdjA >= 0 ? 'A' : 'B';
     const behind = favored === 'A' ? 'B' : 'A';
     return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text: `Team ${favored} came out well ahead on value; Team ${behind} got comparatively little back.` };

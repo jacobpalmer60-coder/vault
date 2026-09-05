@@ -44,7 +44,21 @@ const VAULT_CONFIG = {
     WR: { young: 24, veteran: 27 },
     TE: { young: 24, veteran: 28 }
   },
-  ARCH_AGE_BAND_DEFAULT: { young: 24, veteran: 28 }
+  ARCH_AGE_BAND_DEFAULT: { young: 24, veteran: 28 },
+  // Fair/Borderline/Lopsided cutoffs for VBA-adjusted value-diff %, shared by the
+  // Trade Calculator and Trade Grades. Originally 6/15 (picked by feel); recalibrated
+  // against ~19,300 real completed trades pulled from KeepTradeCut's trade database
+  // (resolved via this same VBA curve) after finding the OLD cutoffs called 62% of
+  // real, mutually-agreed trades "Lopsided" — the median real trade sits at ~22% off,
+  // so 15% wasn't a lopsided outlier, it was normal. 10/35 splits that same real
+  // population into a much more even ~27%/42%/31% Fair/Borderline/Lopsided read.
+  // The VBA curve itself (VBA_EXPONENT) was grid-searched against the same data and
+  // left unchanged — 1.7 was already within a rounding error of the empirical
+  // minimum for both mean gap and Lopsided rate. VBA_REFERENCE turned out to have
+  // NO effect on this % at all (it's a pure scale constant that cancels out of any
+  // ratio), so it stays as-is too, chosen only to keep displayed numbers legible.
+  FAIR_PCT: 10,
+  LOPSIDED_PCT: 35
 };
 
 /* ---------- League ID handling (shared across every page) ---------- */

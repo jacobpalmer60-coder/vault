@@ -66,7 +66,7 @@
       </div>
       <div class="flex items-center gap-4">
         <div class="text-right">
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value. Under 6% off is considered fair, 6-15% is borderline, and above 15% is lopsided.">Difference <span class="text-zinc-600">(value-adj)</span></div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value. Under 10% off is considered fair, 10-35% is borderline, and above 35% is lopsided — calibrated against ~19,300 real trades from KeepTradeCut's trade database.">Difference <span class="text-zinc-600">(value-adj)</span></div>
           <div id="diff" class="text-[22px] font-semibold mono"></div>
           <div id="diffLabel" class="text-[11px] mt-0.5"></div>
         </div>
@@ -597,7 +597,7 @@ function renderAcquireFinder() {
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <div class="text-right">
-          <div class="text-[12px] mono ${combo.pctOff < 6 ? 'text-emerald-400' : combo.pctOff < 15 ? 'text-amber-400' : 'text-zinc-400'}">${combo.pctOff.toFixed(0)}% off</div>
+          <div class="text-[12px] mono ${combo.pctOff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : combo.pctOff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400'}">${combo.pctOff.toFixed(0)}% off</div>
         </div>
         <button onclick="proposeAcquire()" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
       </div>
@@ -666,7 +666,7 @@ function renderFinder() {
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <div class="text-right">
-          <div class="text-[12px] mono ${r.pctOff < 6 ? 'text-emerald-400' : r.pctOff < 15 ? 'text-amber-400' : 'text-zinc-400'}">${r.pctOff.toFixed(0)}% off</div>
+          <div class="text-[12px] mono ${r.pctOff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : r.pctOff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400'}">${r.pctOff.toFixed(0)}% off</div>
         </div>
         <button onclick="proposeFromFinder('${r.partner.rosterId}')" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
       </div>
@@ -753,16 +753,16 @@ function updateTrade() {
   const pctDiff = diffAdj / avgSideAdj * 100;
   const diffEl = document.getElementById('diff');
   diffEl.textContent = Math.round(diffAdj).toLocaleString();
-  diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiff < 6 ? 'text-emerald-400' : pctDiff < 15 ? 'text-amber-400' : 'text-zinc-400');
-  // Fairness label spells out the same <6%/<15% thresholds the color already
+  diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400');
+  // Fairness label spells out the same Fair/Lopsided thresholds the color already
   // encodes, since a raw dollar diff alone doesn't tell you what counts as fair.
   const diffLabelEl = document.getElementById('diffLabel');
-  diffLabelEl.textContent = (pctDiff < 6 ? 'Fair' : pctDiff < 15 ? 'Borderline' : 'Lopsided') + ` · ${pctDiff.toFixed(0)}% off`;
-  diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiff < 6 ? 'text-emerald-400/70' : pctDiff < 15 ? 'text-amber-400/70' : 'text-zinc-500');
+  diffLabelEl.textContent = (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${pctDiff.toFixed(0)}% off`;
+  diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500');
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
-  if (pctDiff > 8 && (aAssets.length || bAssets.length)) {
+  if (pctDiff > VAULT_CONFIG.FAIR_PCT && (aAssets.length || bAssets.length)) {
     const behindSide = aValAdj < bValAdj ? 'A' : 'B';
     const behindTeam = teamOf(behindSide);
     const behindSel = behindSide === 'A' ? selectedA : selectedB;
@@ -819,13 +819,13 @@ function analyzeSide(before, after) {
 
 function headline(dValue, avgSide, fit) {
   const pct = avgSide ? dValue / avgSide * 100 : 0;
-  const fair = Math.abs(pct) < 6;
+  const fair = Math.abs(pct) < VAULT_CONFIG.FAIR_PCT;
   if (pct <= -40) return { tone: 'bad', text: `Well below value (${pct.toFixed(0)}%)${fit >= 2 ? ' — good timeline fit, but not enough to cover a discount this big' : ''}` };
   if (fair && fit >= 2) return { tone: 'good', text: 'Fair value, strong fit — good trade' };
   if (fair && fit <= -2) return { tone: 'bad', text: 'Fair by value, bad fit for your timeline' };
   if (fair) return { tone: 'neutral', text: 'Fair value, neutral fit' };
-  if (pct >= 6 && fit >= 0) return { tone: 'good', text: `Ahead on value (+${pct.toFixed(0)}%) and fits your timeline` };
-  if (pct >= 6) return { tone: 'neutral', text: `Ahead on value (+${pct.toFixed(0)}%), but questionable fit` };
+  if (pct >= VAULT_CONFIG.FAIR_PCT && fit >= 0) return { tone: 'good', text: `Ahead on value (+${pct.toFixed(0)}%) and fits your timeline` };
+  if (pct >= VAULT_CONFIG.FAIR_PCT) return { tone: 'neutral', text: `Ahead on value (+${pct.toFixed(0)}%), but questionable fit` };
   if (fit >= 2) return { tone: 'neutral', text: `Behind on value (${pct.toFixed(0)}%), but strong timeline fit` };
   return { tone: 'bad', text: `Behind on value (${pct.toFixed(0)}%) and a poor fit` };
 }
@@ -855,7 +855,7 @@ function windowShiftNote(befWin, aftWin) {
 function overallVerdict(resA, resB, pctDiff, dValueAdjA) {
   const good = s => s >= 3, bad = s => s <= -2;
 
-  if (pctDiff >= 15) {
+  if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
     const favored = dValueAdjA >= 0 ? 'A' : 'B';
     const behind = favored === 'A' ? 'B' : 'A';
     const behindRes = favored === 'A' ? resB : resA;
