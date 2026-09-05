@@ -79,12 +79,19 @@ function historyVerdict(pctDiff, dValueAdjA, fitA, fitB, teamAName, teamBName, a
     const favored = dValueAdjA >= 0 ? 'A' : 'B';
     return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
   }
-  if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
+
+  // Fit can score well for both sides while the dollar value still sits in the
+  // Borderline band shown next to this label — don't claim an unqualified
+  // "Great"/"Fair" trade when the price tag next to it says otherwise.
+  const pricey = pctDiff >= VAULT_CONFIG.FAIR_PCT;
+  if (good(fitA) && good(fitB)) return pricey
+    ? { tone: 'neutral', label: 'Good Fit for Both, But Value Tilted', text }
+    : { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
   if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };
   if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: 'Won for Team A', text };
   if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: 'Won for Team B', text };
   if (good(fitA) || good(fitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
-  return { tone: 'neutral', label: 'Fair Trade', text };
+  return { tone: 'neutral', label: pricey ? 'Workable Trade, Value Tilted' : 'Fair Trade', text };
 }
 
 function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap) {
