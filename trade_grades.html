@@ -147,11 +147,11 @@ function renderCard(g) {
       </div>
       <div class="grid md:grid-cols-2 gap-4 mb-4">
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team A · ${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toA)}</div>
         </div>
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team B · ${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toB)}</div>
         </div>
       </div>
