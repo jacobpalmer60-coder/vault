@@ -74,10 +74,15 @@
   <!-- Trade Finder: shop one side's asset(s) against the whole league, not just the loaded opponent -->
   <div id="finder" class="hidden mb-4 p-4 rounded-2xl card">
     <div id="finderPickerRow" class="hidden flex items-center gap-3 flex-wrap mb-3 pb-3 border-b border-white/5">
-      <span class="text-[11px] text-amber-200/40 uppercase tracking-wider">Shop from</span>
+      <span class="text-[11px] text-amber-200/40 uppercase tracking-wider">I am</span>
       <div id="finderSideChips" class="flex gap-1.5"></div>
-      <select id="finderAssetSelect" class="bg-black/40 border border-amber-500/15 rounded-lg px-2.5 py-1.5 text-[13px] outline-none flex-1 min-w-[200px]"></select>
-      <button onclick="searchFromPicker()" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Search</button>
+      <div class="relative flex-1 min-w-[220px]">
+        <input id="finderAssetSearch" type="text" autocomplete="off" placeholder="Search any player or pick, any team..."
+          oninput="searchFinderAssets(this.value)" onfocus="searchFinderAssets(this.value)"
+          onblur="setTimeout(() => document.getElementById('finderAssetResults').classList.add('hidden'), 150)"
+          class="w-full bg-black/40 border border-amber-500/15 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-500/40" />
+        <div id="finderAssetResults" class="hidden absolute z-20 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-amber-500/20 bg-black scrollbar"></div>
+      </div>
     </div>
     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
       <div>
@@ -85,7 +90,7 @@
         <div id="finderTarget" class="text-[16px] font-medium"></div>
       </div>
       <div class="flex items-center gap-2">
-        <span class="text-[11px] text-amber-200/40 mr-1">Want back:</span>
+        <span id="finderWantBackLabel" class="text-[11px] text-amber-200/40 mr-1">Want back:</span>
         <div id="finderPosChips" class="flex gap-1.5"></div>
         <button onclick="closeFinder()" class="ml-2 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-amber-200/50 hover:text-amber-200 hover:border-white/20">Close</button>
       </div>
@@ -345,13 +350,17 @@ function partnerRationale(partner, givingAssets) {
 let finderState = null;
 
 // Entry point for the header "Find a Trade" button — no row hovered yet, so let the
-// user pick which team and asset to shop, then hand off to the same search below.
+// user pick which of their two loaded teams they are, then search ANY player or
+// pick from ANY team in the league. Picking your own asset shops it to the league
+// (same as the per-row "Find" button); picking someone else's asset switches to
+// acquire mode — a package from your team to go get them.
 function openFinderPicker() {
   if (!teams.length) return;
   finderState = { side: 'A', key: null, position: 'ANY' };
   document.getElementById('finder').classList.remove('hidden');
   document.getElementById('finderPickerRow').classList.remove('hidden');
-  document.getElementById('finderTarget').textContent = 'Pick an asset below to search';
+  document.getElementById('finderTarget').textContent = 'Search a player or pick below';
+  document.getElementById('finderWantBackLabel').classList.add('hidden');
   document.getElementById('finderPosChips').innerHTML = '';
   document.getElementById('finderResults').innerHTML = '';
   renderFinderAssetOptions();
@@ -360,20 +369,107 @@ function renderFinderAssetOptions() {
   document.getElementById('finderSideChips').innerHTML = ['A', 'B'].map(s =>
     `<button onclick="finderState.side='${s}'; renderFinderAssetOptions()" class="text-[11px] px-2.5 py-1 rounded-lg border ${finderState.side === s ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-amber-200/50 hover:text-amber-200'}">${Vault.escapeHtml(teamOf(s).teamName)}</button>`
   ).join('');
-  const team = teamOf(finderState.side);
-  document.getElementById('finderAssetSelect').innerHTML = team.assets.map(a =>
-    `<option value="${a.key}">${Vault.escapeHtml(a.name)} — ${Math.round(a.value).toLocaleString()}</option>`
-  ).join('');
+  document.getElementById('finderAssetSearch').value = '';
+  document.getElementById('finderAssetResults').classList.add('hidden');
 }
-function searchFromPicker() {
-  const key = document.getElementById('finderAssetSelect').value;
-  openFinder(finderState.side, key);
+
+// Flattened, league-wide asset pool (every team's players + picks) for the search box.
+function allLeagueAssets() {
+  return teams.flatMap(t => t.assets.map(a => ({ ...a, rosterId: t.rosterId, ownerName: t.teamName })));
+}
+
+function searchFinderAssets(q) {
+  const box = document.getElementById('finderAssetResults');
+  const query = q.trim().toLowerCase();
+  if (!query) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  const mine = teamOf(finderState.side).rosterId;
+  const results = allLeagueAssets()
+    .filter(a => a.name.toLowerCase().includes(query))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+  box.innerHTML = results.length
+    ? results.map(a => `
+      <div onmousedown="pickFinderAsset('${a.key}', ${a.rosterId})" class="px-3 py-2 flex items-center justify-between gap-3 cursor-pointer hover:bg-amber-500/10 text-[12px]">
+        <span class="truncate">${Vault.escapeHtml(a.name)} <span class="text-amber-200/40">${a.rosterId === mine ? '(yours)' : '— ' + Vault.escapeHtml(a.ownerName)}</span></span>
+        <span class="mono text-amber-200/50 shrink-0">${Math.round(a.value).toLocaleString()}</span>
+      </div>`).join('')
+    : `<div class="px-3 py-2 text-[12px] text-amber-200/40">No match</div>`;
+  box.classList.remove('hidden');
+}
+
+function pickFinderAsset(key, rosterId) {
+  document.getElementById('finderAssetSearch').value = '';
+  document.getElementById('finderAssetResults').classList.add('hidden');
+  const mySide = finderState.side;
+  if (rosterId === teamOf(mySide).rosterId) openFinder(mySide, key);
+  else openAcquireFinder(mySide, key, rosterId);
 }
 
 function openFinder(side, key) {
   finderState = { side, key, position: 'ANY' };
   renderFinder();
 }
+
+// Reverse of the shop-out finder: the picked asset belongs to someone else, so
+// instead of asking who wants it, build the package it'd take from MY team to go
+// get it, and stage it against that asset's real owner rather than the other
+// currently-loaded side.
+function openAcquireFinder(side, key, targetRosterId) {
+  finderState = { side, key, position: 'ANY', mode: 'acquire', targetRosterId };
+  renderAcquireFinder();
+}
+
+function renderAcquireFinder() {
+  const { side, key, targetRosterId } = finderState;
+  const myTeam = teamOf(side);
+  const targetTeam = teams.find(t => t.rosterId === targetRosterId);
+  const asset = targetTeam && targetTeam.assets.find(a => a.key === key);
+  if (!asset) { closeFinder(); return; }
+
+  document.getElementById('finderPickerRow').classList.add('hidden');
+  document.getElementById('finderWantBackLabel').classList.add('hidden');
+  document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-amber-200/40">${Math.round(asset.value).toLocaleString()}</span> <span class="text-amber-200/40">on ${Vault.escapeHtml(targetTeam.teamName)}</span>`;
+  document.getElementById('finderPosChips').innerHTML = '';
+
+  const combo = bestCombo(myTeam.assets, asset.value);
+  const resultsEl = document.getElementById('finderResults');
+  if (!combo) {
+    resultsEl.innerHTML = `<div class="text-[12px] text-amber-200/40 py-2">Not enough value on ${Vault.escapeHtml(myTeam.teamName)}'s roster to realistically match this.</div>`;
+    return;
+  }
+  resultsEl.innerHTML = `
+    <div class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 flex-wrap">
+      <div class="min-w-0">
+        <div class="text-[13px] font-medium">Package from ${Vault.escapeHtml(myTeam.teamName)}</div>
+        <div class="text-[12px] text-amber-100/70 mt-0.5">${combo.combo.map(a => Vault.escapeHtml(a.name)).join(' + ')} <span class="mono text-amber-200/40">${Math.round(combo.sum).toLocaleString()}</span></div>
+        <div class="text-[11px] text-sky-300/70 mt-1">${partnerRationale(targetTeam, combo.combo).join(' · ')}</div>
+      </div>
+      <div class="flex items-center gap-3 shrink-0">
+        <div class="text-right">
+          <div class="text-[12px] mono ${combo.pctOff < 6 ? 'text-emerald-400' : combo.pctOff < 15 ? 'text-amber-400' : 'text-amber-200/50'}">${combo.pctOff.toFixed(0)}% off</div>
+        </div>
+        <button onclick="proposeAcquire()" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
+      </div>
+    </div>`;
+}
+
+function proposeAcquire() {
+  const { side, key, targetRosterId } = finderState;
+  const other = otherSide(side);
+  document.getElementById(`team${other}`).value = targetRosterId;
+  selectedA.clear(); selectedB.clear();
+  (other === 'A' ? selectedA : selectedB).add(key);
+
+  const myTeam = teamOf(side);
+  const targetTeam = teamOf(other);
+  const asset = targetTeam.assets.find(a => a.key === key);
+  const combo = bestCombo(myTeam.assets, asset.value);
+  if (combo) combo.combo.forEach(a => (side === 'A' ? selectedA : selectedB).add(a.key));
+
+  closeFinder();
+  render('A'); render('B');
+}
+
 function closeFinder() {
   finderState = null;
   document.getElementById('finder').classList.add('hidden');
@@ -390,6 +486,7 @@ function renderFinder() {
   const box = document.getElementById('finder');
   box.classList.remove('hidden');
   document.getElementById('finderPickerRow').classList.add('hidden');
+  document.getElementById('finderWantBackLabel').classList.remove('hidden');
   document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-amber-200/40">${Math.round(asset.value).toLocaleString()}</span> <span class="text-amber-200/40">from ${Vault.escapeHtml(team.teamName)}</span>`;
 
   const positions = ['ANY', 'QB', 'RB', 'WR', 'TE', 'PICK'];
