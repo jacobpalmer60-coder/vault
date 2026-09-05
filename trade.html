@@ -998,9 +998,15 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
           <span class="size-2 rounded-full shrink-0 mt-1.5 ${TONE_DOT[head.tone]}"></span>
           <p class="text-[13px] ${TONE[head.tone]} leading-relaxed"><span class="font-medium">${head.text}.</span> <span class="font-normal">${Vault.buildSynopsis('', res.notes)}</span></p>
         </div>
-        <div class="space-y-2 mb-4">
-          ${res.notes.map(n => `<div class="flex gap-2 text-[12px] ${n.isArchetype ? 'pt-2 border-t border-white/5 mt-2' : ''}"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
-        </div>
+        ${res.notes.length ? `<details class="group mb-4">
+          <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
+            <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            <span>Full breakdown (${res.notes.length})</span>
+          </summary>
+          <div class="space-y-2 mt-3">
+            ${res.notes.map(n => `<div class="flex gap-2 text-[12px] ${n.isArchetype ? 'pt-2 border-t border-white/5 mt-2' : ''}"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
+          </div>
+        </details>` : ''}
         <div class="grid grid-cols-3 gap-1 text-center pt-3 border-t border-white/5">
           <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="text-[11px] text-zinc-500">Age</div></div>
           <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[11px] text-zinc-500">Opt PPG</div></div>
