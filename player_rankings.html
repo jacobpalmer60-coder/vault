@@ -236,7 +236,7 @@
         <td class="px-4 py-3 text-zinc-500 mono text-xs">${i + 1}</td>
         <td class="px-4 py-3 font-medium text-zinc-100">${Vault.escapeHtml(r.player)}</td>
         <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${posColor(r.pos)}">${r.pos || '—'}</span></td>
-        <td class="px-4 py-3 text-zinc-400 mono text-xs">${r.team || '—'}</td>
+        <td class="px-4 py-3 text-zinc-400 mono text-xs">${Vault.escapeHtml(r.team) || '—'}</td>
         <td class="px-4 py-3 text-right mono text-xs text-zinc-400">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
         <td class="px-4 py-3 text-right mono font-medium text-zinc-100">${fmtInt(r.value)}</td>
         <td class="px-4 py-3 text-right mono text-zinc-400">${fmtFloat(r.ppg, 2)}</td>
@@ -306,7 +306,7 @@
           <span>${isSF ? 'Superflex' : '1QB'}</span>
         </div>
       `;
-      log(`Sleeper league loaded: ${league.name} (${users.length} users, ${isSF ? 'Superflex' : '1QB'})`);
+      log(`Sleeper league loaded: ${Vault.escapeHtml(league.name)} (${users.length} users, ${isSF ? 'Superflex' : '1QB'})`);
     } catch (e) {
       console.error(e);
       leagueInfo.textContent = 'Failed to load league';

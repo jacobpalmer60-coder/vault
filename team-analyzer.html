@@ -154,7 +154,7 @@ function renderSingle(t) {
           <div>
             <div class="flex justify-between items-center">
               <div><div class="text-[13px]">${Vault.escapeHtml(p.teamName)}</div><div class="text-[11px] text-zinc-500">${p.arch}</div></div>
-              <div class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0">${p.fit}/10 fit</div>
+              <div class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0">${Math.min(10, p.fit)}/10 fit</div>
             </div>
             <div class="mt-1.5 space-y-0.5">${p.reasons.map(r => `<div class="flex gap-1.5 text-[11px] text-zinc-400"><span class="text-emerald-500/60">•</span><span>${r}</span></div>`).join('')}</div>
           </div>`).join('')}</div>
