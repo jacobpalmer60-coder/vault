@@ -31,10 +31,20 @@ const VAULT_CONFIG = {
   // since they can't play a draft pick this season. See Vault.archetypeFitNotes.
   ARCH_FIT_MULTIPLIER: 1.15,
   ARCH_MISFIT_MULTIPLIER: 0.85,
-  // A player at or under this age counts as "young" (a rebuild target) rather than
-  // "proven" (a contend target) — separate from the RB/WR age-cliff thresholds in
-  // fatalFlaws(), which are about decline risk, not this rebuild/contend framing.
-  YOUTH_AGE_THRESHOLD: 23
+  // "Young" vs. "proven veteran" is position-specific — a 25-year-old WR is in his
+  // prime, not a rebuild-only asset the way a 25-year-old RB is closer to the cliff.
+  // `veteran` reuses the exact decline-onset ages contentionWindow() already applies
+  // (RB>26, WR>27, QB>30, TE>28) — a player who's started declining is unambiguously
+  // no longer a development asset. `young` sits a few years earlier, at roughly the
+  // end of a rookie contract. Ages in between are prime years: good for either
+  // timeline, so archetypeFitNotes doesn't penalize or reward them either way.
+  ARCH_AGE_BANDS: {
+    QB: { young: 26, veteran: 30 },
+    RB: { young: 23, veteran: 26 },
+    WR: { young: 24, veteran: 27 },
+    TE: { young: 24, veteran: 28 }
+  },
+  ARCH_AGE_BAND_DEFAULT: { young: 24, veteran: 28 }
 };
 
 /* ---------- League ID handling (shared across every page) ---------- */
@@ -686,14 +696,29 @@ const Vault = {
     return { mode, dAge, dPicks, fit, notes };
   },
 
+  /* Position-aware young/prime/veteran read on a single PLAYER — 'young' (a rebuild
+     target), 'veteran' (a contend target), or null for prime-years players, who are
+     good for either timeline and so get no archetype adjustment. Unknown/missing age
+     also returns null rather than guessing. Picks aren't handled here — the caller
+     classifies them as 'young' directly, since age doesn't apply. */
+  assetTimelineClass(a) {
+    if (!(a.age > 0)) return null;
+    const band = VAULT_CONFIG.ARCH_AGE_BANDS[a.pos] || VAULT_CONFIG.ARCH_AGE_BAND_DEFAULT;
+    if (a.age <= band.young) return 'young';
+    if (a.age >= band.veteran) return 'veteran';
+    return null;
+  },
+
   /* Does the specific asset TYPE moving fit the team's own timeline (rebuild/contend/
      flexible, from teamMode) — a rebuilder should see a pick or a young player as
      worth MORE than sticker price (exactly what they're stockpiling for) and a proven
      veteran as worth LESS, on paper value fairness aside; a contender gets the
-     opposite read. This is deliberately about asset TYPE (pick vs. age), not the
+     opposite read. This is deliberately about asset TYPE (pick/age-band), not the
      team's current production level — a young stud is still a great get for a
      contender on raw value/production grounds; this only asks whether the TYPE of
-     asset matches the plan. Flexible teams get no adjustment either way. Scales with
+     asset matches the plan. Flexible teams, and any PLAYER in their position's prime
+     years (assetTimelineClass returns null), get no adjustment either way — a 25-
+     year-old WR isn't a rebuild-only asset the way a 25-year-old RB is. Scales with
      the asset's own value (via the same raw-display/adjusted-scoring split as
      positionalFitNotes) rather than a flat bonus regardless of size. */
   archetypeFitNotes(team, incoming, outgoing) {
@@ -702,14 +727,16 @@ const Vault = {
     if (mode === 'flexible') return { archFit: 0, notes };
     let dollarSwing = 0;
 
-    const isRebuildAsset = a => a.type === 'pick' || (a.age > 0 && a.age <= VAULT_CONFIG.YOUTH_AGE_THRESHOLD);
-    const kindOf = a => a.type === 'pick' ? 'a future pick' : (a.age <= VAULT_CONFIG.YOUTH_AGE_THRESHOLD ? `a ${a.age}-year-old` : 'a proven veteran');
+    const classOf = a => a.type === 'pick' ? 'young' : Vault.assetTimelineClass(a);
+    const kindOf = (a, cls) => a.type === 'pick' ? 'a future pick' : (cls === 'young' ? `a ${a.age}-year-old` : 'a proven veteran');
     const planWord = mode === 'rebuild' ? 'rebuild' : 'win-now push';
 
     const scan = (list, isIncoming) => {
       list.forEach(a => {
         if (!(a.value > 0)) return;
-        const fitsMode = mode === 'rebuild' ? isRebuildAsset(a) : !isRebuildAsset(a);
+        const cls = classOf(a);
+        if (cls == null) return; // prime-years player or unknown age — no archetype read either way
+        const fitsMode = mode === 'rebuild' ? cls === 'young' : cls === 'veteran';
         const mult = fitsMode ? VAULT_CONFIG.ARCH_FIT_MULTIPLIER : VAULT_CONFIG.ARCH_MISFIT_MULTIPLIER;
         const rawDisplay = Math.round(a.value).toLocaleString();
         const weightedDisplay = Math.round(a.value * mult).toLocaleString();
@@ -719,13 +746,13 @@ const Vault = {
         if (isIncoming) {
           dollarSwing += delta;
           notes.push(fitsMode
-            ? { tone: 'good', text: `${a.name} is ${kindOf(a)} — exactly what a ${planWord} wants, worth closer to ${weightedDisplay} than its ${rawDisplay} sticker price.` }
-            : { tone: 'bad', text: `${a.name} is ${kindOf(a)} — doesn't fit a ${planWord}, really worth closer to ${weightedDisplay} here.` });
+            ? { tone: 'good', text: `${a.name} is ${kindOf(a, cls)} — exactly what a ${planWord} wants, worth closer to ${weightedDisplay} than its ${rawDisplay} sticker price.` }
+            : { tone: 'bad', text: `${a.name} is ${kindOf(a, cls)} — doesn't fit a ${planWord}, really worth closer to ${weightedDisplay} here.` });
         } else {
           dollarSwing -= delta;
           notes.push(!fitsMode
-            ? { tone: 'good', text: `Deals away ${a.name} (${kindOf(a)}) — didn't fit the ${planWord} anyway, worth closer to ${weightedDisplay} to give up.` }
-            : { tone: 'bad', text: `Gives up ${a.name}, ${kindOf(a)} that fit the ${planWord} — costs more than the ${rawDisplay} sticker price suggests.` });
+            ? { tone: 'good', text: `Deals away ${a.name} (${kindOf(a, cls)}) — didn't fit the ${planWord} anyway, worth closer to ${weightedDisplay} to give up.` }
+            : { tone: 'bad', text: `Gives up ${a.name}, ${kindOf(a, cls)} that fit the ${planWord} — costs more than the ${rawDisplay} sticker price suggests.` });
         }
       });
     };
