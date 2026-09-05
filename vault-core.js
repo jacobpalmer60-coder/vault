@@ -22,7 +22,19 @@ const VAULT_CONFIG = {
   // a surplus position is worth less either way. Applied per-asset so the swing
   // scales with the asset's own value, not a flat bonus regardless of size.
   POS_NEED_MULTIPLIER: 1.15,
-  POS_SURPLUS_MULTIPLIER: 0.85
+  POS_SURPLUS_MULTIPLIER: 0.85,
+  // Same idea, along a different axis: does the asset TYPE fit the team's timeline
+  // (see Vault.teamMode)? A rebuilder should read a pick or a young player as worth
+  // more than sticker price — that's exactly what they're stockpiling for — and a
+  // proven veteran as worth less, regardless of value fairness on paper. A contender
+  // gets the opposite: proven production is worth more, picks/youth worth less,
+  // since they can't play a draft pick this season. See Vault.archetypeFitNotes.
+  ARCH_FIT_MULTIPLIER: 1.15,
+  ARCH_MISFIT_MULTIPLIER: 0.85,
+  // A player at or under this age counts as "young" (a rebuild target) rather than
+  // "proven" (a contend target) — separate from the RB/WR age-cliff thresholds in
+  // fatalFlaws(), which are about decline risk, not this rebuild/contend framing.
+  YOUTH_AGE_THRESHOLD: 23
 };
 
 /* ---------- League ID handling (shared across every page) ---------- */
@@ -672,6 +684,56 @@ const Vault = {
       if (Math.abs(dAge) > 0.5) notes.push({ tone: 'neutral', text: `${dAge > 0 ? 'Gets older' : 'Gets younger'} by ${Math.abs(dAge).toFixed(1)} yrs.` });
     }
     return { mode, dAge, dPicks, fit, notes };
+  },
+
+  /* Does the specific asset TYPE moving fit the team's own timeline (rebuild/contend/
+     flexible, from teamMode) — a rebuilder should see a pick or a young player as
+     worth MORE than sticker price (exactly what they're stockpiling for) and a proven
+     veteran as worth LESS, on paper value fairness aside; a contender gets the
+     opposite read. This is deliberately about asset TYPE (pick vs. age), not the
+     team's current production level — a young stud is still a great get for a
+     contender on raw value/production grounds; this only asks whether the TYPE of
+     asset matches the plan. Flexible teams get no adjustment either way. Scales with
+     the asset's own value (via the same raw-display/adjusted-scoring split as
+     positionalFitNotes) rather than a flat bonus regardless of size. */
+  archetypeFitNotes(team, incoming, outgoing) {
+    const mode = Vault.teamMode(team);
+    const notes = [];
+    if (mode === 'flexible') return { archFit: 0, notes };
+    let dollarSwing = 0;
+
+    const isRebuildAsset = a => a.type === 'pick' || (a.age > 0 && a.age <= VAULT_CONFIG.YOUTH_AGE_THRESHOLD);
+    const kindOf = a => a.type === 'pick' ? 'a future pick' : (a.age <= VAULT_CONFIG.YOUTH_AGE_THRESHOLD ? `a ${a.age}-year-old` : 'a proven veteran');
+    const planWord = mode === 'rebuild' ? 'rebuild' : 'win-now push';
+
+    const scan = (list, isIncoming) => {
+      list.forEach(a => {
+        if (!(a.value > 0)) return;
+        const fitsMode = mode === 'rebuild' ? isRebuildAsset(a) : !isRebuildAsset(a);
+        const mult = fitsMode ? VAULT_CONFIG.ARCH_FIT_MULTIPLIER : VAULT_CONFIG.ARCH_MISFIT_MULTIPLIER;
+        const rawDisplay = Math.round(a.value).toLocaleString();
+        const weightedDisplay = Math.round(a.value * mult).toLocaleString();
+        const delta = Vault.adjustedValue(a.value) * mult - Vault.adjustedValue(a.value);
+        if (Math.abs(delta) < 1) return;
+
+        if (isIncoming) {
+          dollarSwing += delta;
+          notes.push(fitsMode
+            ? { tone: 'good', text: `${a.name} is ${kindOf(a)} — exactly what a ${planWord} wants, worth closer to ${weightedDisplay} than its ${rawDisplay} sticker price.` }
+            : { tone: 'bad', text: `${a.name} is ${kindOf(a)} — doesn't fit a ${planWord}, really worth closer to ${weightedDisplay} here.` });
+        } else {
+          dollarSwing -= delta;
+          notes.push(!fitsMode
+            ? { tone: 'good', text: `Deals away ${a.name} (${kindOf(a)}) — didn't fit the ${planWord} anyway, worth closer to ${weightedDisplay} to give up.` }
+            : { tone: 'bad', text: `Gives up ${a.name}, ${kindOf(a)} that fit the ${planWord} — costs more than the ${rawDisplay} sticker price suggests.` });
+        }
+      });
+    };
+    scan(incoming, true);
+    scan(outgoing, false);
+
+    const archFit = team.total ? Math.max(-3, Math.min(3, dollarSwing / team.total * 120)) : 0;
+    return { archFit, notes };
   },
 
   /* ---------- Flaws ----------

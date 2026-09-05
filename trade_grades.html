@@ -19,11 +19,13 @@
     <p id="status" class="text-[13px] text-zinc-500 mt-1">Loading league…</p>
   </div>
   <p class="text-[12px] text-zinc-500 max-w-[720px] mb-6 leading-relaxed">
-    Every completed trade this season, graded with the same value fairness,
-    positional-need, and rebuild/contend timeline reasoning as the Trade Calculator —
-    value uses today's KeepTradeCut prices, and both roster fit and timeline reflect
-    each team's <span class="text-zinc-400">current</span> roster and standing, not
-    where things stood on the day the trade happened.
+    Every completed trade this season, graded with the same reasoning as the Trade
+    Calculator — value fairness, positional need, and whether the specific assets
+    (picks and youth vs. proven veterans) actually fit each team's rebuild/contend
+    plan, not just whether the dollar amounts line up. Value uses today's KeepTradeCut
+    prices, and roster fit/timeline reflect each team's
+    <span class="text-zinc-400">current</span> roster and standing, not where things
+    stood on the day the trade happened.
   </p>
 
   <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
@@ -113,13 +115,15 @@ function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams) {
   const fitB = Vault.positionalFitNotes(teamB, teams, toB, toA);
   const timelineA = Vault.timelineFitNotes(teamA, toA, toB);
   const timelineB = Vault.timelineFitNotes(teamB, toB, toA);
-  const combinedFitA = fitA.posFit + timelineA.fit;
-  const combinedFitB = fitB.posFit + timelineB.fit;
+  const archA = Vault.archetypeFitNotes(teamA, toA, toB);
+  const archB = Vault.archetypeFitNotes(teamB, toB, toA);
+  const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit;
+  const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit;
 
   const verdict = historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB);
   const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, verdict, anyMissingValue, created: tx.created };
+  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, verdict, anyMissingValue, created: tx.created };
 }
 
 function assetChips(list) {
@@ -131,8 +135,10 @@ function renderCard(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const bucket = fairBucket(g.pctDiff);
   const notes = [
+    ...g.archA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.timelineA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.fitA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
+    ...g.archB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
     ...g.timelineB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
     ...g.fitB.notes.map(n => ({ ...n, who: g.teamB.teamName }))
   ];

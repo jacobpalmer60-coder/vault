@@ -940,12 +940,15 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     const posResult = Vault.positionalFitNotes(bef, teams, incoming, outgoing);
     res.fit += posResult.posFit;
 
+    const archResult = Vault.archetypeFitNotes(bef, incoming, outgoing);
+    res.fit += archResult.archFit;
+
     const befWin = Vault.contentionWindow(bef, teams);
     const win = Vault.contentionWindow(aft, pool);
     const shift = windowShiftNote(befWin, win);
     res.fit += shift.fit;
 
-    res.notes = [...posResult.notes, ...(shift.note ? [shift.note] : []), ...res.notes];
+    res.notes = [...archResult.notes, ...posResult.notes, ...(shift.note ? [shift.note] : []), ...res.notes];
     heads[side] = headline(dValueAdj, avgSideAdj, res.fit);
     wins[side] = win;
   });
