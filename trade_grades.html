@@ -64,22 +64,27 @@ function fairColor(pctDiff) {
 // Mirrors trade.html's overallVerdict — value fairness is gated first (same
 // Fair/Borderline/Lopsided thresholds), then each side's combined fit (positional
 // need/surplus + rebuild/contend timeline fit for the specific assets that moved)
-// decides the sub-label. No optimal-lineup PPG shift or window-shift signal here —
-// those need a full before/after roster simulation, which isn't reconstructable for
-// a trade that already happened.
-function historyVerdict(pctDiff, dValueAdjA, fitA, fitB) {
+// decides the sub-label. `text` comes from Vault.tradeHighlight — a concrete
+// "Team A gave up X, but added RB depth, while Team B got younger" recap — rather
+// than one of a handful of canned phrases per branch. No optimal-lineup PPG shift or
+// window-shift signal here — those need a full before/after roster simulation,
+// which isn't reconstructable for a trade that already happened.
+function historyVerdict(pctDiff, dValueAdjA, fitA, fitB, teamAName, teamBName, avgSideAdj, posResultA, posResultB, timelineA, timelineB) {
   const good = s => s >= 2, bad = s => s <= -2;
+  const themeA = Vault.sideTheme(posResultA, timelineA.dAge, timelineA.dPicks, timelineA.mode);
+  const themeB = Vault.sideTheme(posResultB, timelineB.dAge, timelineB.dPicks, timelineB.mode);
+  const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
+
   if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
     const favored = dValueAdjA >= 0 ? 'A' : 'B';
-    const behind = favored === 'A' ? 'B' : 'A';
-    return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text: `Team ${favored} came out well ahead on value; Team ${behind} got comparatively little back.` };
+    return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
   }
-  if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text: 'Value was close, and it fit both teams\' roster needs and timelines.' };
-  if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text: 'Value was close, but neither side\'s need or timeline fit improved much — value for value without addressing either team\'s plan.' };
-  if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: 'Won for Team A', text: 'Value was close, but Team A came out ahead on need/timeline fit while Team B didn\'t get much benefit there.' };
-  if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: 'Won for Team B', text: 'Value was close, but Team B came out ahead on need/timeline fit while Team A didn\'t get much benefit there.' };
-  if (good(fitA) || good(fitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text: 'Value was close; one team\'s need or timeline benefited, the other wasn\'t hurt but didn\'t gain much either.' };
-  return { tone: 'neutral', label: 'Fair Trade', text: 'Value was close for both sides, without a standout need or timeline fit on either end.' };
+  if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
+  if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };
+  if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: 'Won for Team A', text };
+  if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: 'Won for Team B', text };
+  if (good(fitA) || good(fitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
+  return { tone: 'neutral', label: 'Fair Trade', text };
 }
 
 function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap) {
@@ -122,7 +127,7 @@ function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgM
   const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit;
   const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit;
 
-  const verdict = historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB);
+  const verdict = historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
   const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
   return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };

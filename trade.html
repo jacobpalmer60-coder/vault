@@ -852,30 +852,29 @@ function windowShiftNote(befWin, aftWin) {
 // (previously fit alone drove the verdict, so a 29%-off trade could still read as
 // "Fair, But Unremarkable" if timeline/positional fit happened to cancel out).
 // Fit only decides the sub-label once value itself is close enough to call fair.
-function overallVerdict(resA, resB, pctDiff, dValueAdjA) {
+// `text` is built from Vault.tradeHighlight — a concrete "Team A gave up X, but
+// added RB depth, while Team B got younger" recap — rather than a canned phrase per
+// branch, so every trade's supporting line names its own specific storyline instead
+// of one of a handful of generic templates. `label`/`tone` still come from the
+// good/bad fit-score branches below, since that categorical read is still useful.
+function overallVerdict(resA, resB, pctDiff, dValueAdjA, teamAName, teamBName, avgSideAdj, posResultA, posResultB) {
   const good = s => s >= 3, bad = s => s <= -2;
+  const themeA = Vault.sideTheme(posResultA, resA.dAge, resA.dPicks, resA.mode);
+  const themeB = Vault.sideTheme(posResultB, resB.dAge, resB.dPicks, resB.mode);
+  const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
 
   if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
     const favored = dValueAdjA >= 0 ? 'A' : 'B';
-    const behind = favored === 'A' ? 'B' : 'A';
-    const behindRes = favored === 'A' ? resB : resA;
-    const softened = behindRes.fit >= 3;
-    return {
-      tone: 'bad',
-      label: `Lopsided — Favors Team ${favored}`,
-      text: softened
-        ? `Team ${favored} is well ahead on raw value, but Team ${behind} is buying real timeline and roster fit with that gap — worth it if that's what Team ${behind} actually needs.`
-        : `Team ${favored} is well ahead on value with little to show for Team ${behind} beyond the raw numbers.`
-    };
+    return { tone: 'bad', label: `Lopsided — Favors Team ${favored}`, text };
   }
 
   const scoreA = resA.fit, scoreB = resB.fit;
-  if (good(scoreA) && good(scoreB)) return { tone: 'good', label: 'Now That’s a Good Trade', text: 'Value is close, and both sides come out ahead on timeline and roster fit — a genuine win-win.' };
-  if (bad(scoreA) && bad(scoreB)) return { tone: 'bad', label: 'Bad Trade for Both Sides', text: 'Value is close, but neither team actually improves its timeline or roster fit here.' };
-  if (good(scoreA) && bad(scoreB)) return { tone: 'neutral', label: 'Solid for Team A', text: 'Value is close, but Team A comes out ahead on timeline and roster fit while Team B doesn’t.' };
-  if (good(scoreB) && bad(scoreA)) return { tone: 'neutral', label: 'Solid for Team B', text: 'Value is close, but Team B comes out ahead on timeline and roster fit while Team A doesn’t.' };
-  if (good(scoreA) || good(scoreB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text: 'Value is close, and one team clearly benefits on fit while the other isn’t hurt, just doesn’t gain as much.' };
-  return { tone: 'neutral', label: 'Fair, But Unremarkable', text: 'Value is close and neither side’s timeline or roster fit changes much — not a bad trade, just not a standout one either.' };
+  if (good(scoreA) && good(scoreB)) return { tone: 'good', label: 'Now That’s a Good Trade', text };
+  if (bad(scoreA) && bad(scoreB)) return { tone: 'bad', label: 'Bad Trade for Both Sides', text };
+  if (good(scoreA) && bad(scoreB)) return { tone: 'neutral', label: 'Solid for Team A', text };
+  if (good(scoreB) && bad(scoreA)) return { tone: 'neutral', label: 'Solid for Team B', text };
+  if (good(scoreA) || good(scoreB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
+  return { tone: 'neutral', label: 'Fair, But Unremarkable', text };
 }
 
 // Labels the trade itself — not either team's fit, but what kind of transaction this is.
@@ -933,12 +932,13 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const resB = analyzeSide(before.B, after.B);
   const trade = classifyTrade(resA, resB, aAssets, bAssets);
 
-  const heads = {}, wins = {};
+  const heads = {}, wins = {}, posResults = {};
   [['A', before.A, after.A, resA, dValueAdjA, bAssets, aAssets], ['B', before.B, after.B, resB, dValueAdjB, aAssets, bAssets]].forEach(([side, bef, aft, res, dValueAdj, incoming, outgoing]) => {
     // Positional need/surplus fit for the specific assets moving this direction —
     // judged against the team's roster BEFORE the trade, not the shifting post-trade pool.
     const posResult = Vault.positionalFitNotes(bef, teams, incoming, outgoing);
     res.fit += posResult.posFit;
+    posResults[side] = posResult;
 
     const archResult = Vault.archetypeFitNotes(bef, incoming, outgoing);
     res.fit += archResult.archFit;
@@ -954,7 +954,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   });
 
   const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
-  const verdict = overallVerdict(resA, resB, pctDiff, dValueAdjA);
+  const verdict = overallVerdict(resA, resB, pctDiff, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
 
   return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, verdict };
 }

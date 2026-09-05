@@ -647,16 +647,21 @@ const Vault = {
         if (Math.abs(delta) < 1) return;
         const rawDisplay = Math.round(rawSum).toLocaleString();
         const weightedDisplay = Math.round(weightedRaw).toLocaleString();
+        const article = POS === 'RB' ? 'an' : 'a'; // "an RB" (ar-bee) vs "a QB/WR/TE"
+        // `phrase` + `absDelta` are a short, tone-neutral verb phrase and this
+        // theme's dollar weight — used by Vault.sideTheme to pick the single
+        // biggest positional storyline for a one-sentence trade recap, without
+        // having to parse the full `text` sentence back apart.
         if (isIncoming) {
           dollarSwing += delta;
           notes.push(delta > 0
-            ? { tone: 'good', text: `Adds ${rawDisplay} at ${POS}, a genuine roster need — worth closer to ${weightedDisplay} to this team than sticker price.` }
-            : { tone: 'bad', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — really worth closer to ${weightedDisplay} here.` });
+            ? { tone: 'good', text: `Adds ${rawDisplay} at ${POS}, a genuine roster need — worth closer to ${weightedDisplay} to this team than sticker price.`, pos: POS, absDelta: Math.abs(delta), phrase: `addressed ${article} ${POS} need` }
+            : { tone: 'bad', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — really worth closer to ${weightedDisplay} here.`, pos: POS, absDelta: Math.abs(delta), phrase: `added ${POS} depth` });
         } else {
           dollarSwing -= delta;
           notes.push(delta < 0
-            ? { tone: 'good', text: `Deals from ${POS} surplus — worth closer to ${weightedDisplay} to this team than its ${rawDisplay} sticker price.` }
-            : { tone: 'bad', text: `Gives up ${POS} value at a position this team is already thin — costs more than the ${rawDisplay} sticker price suggests.` });
+            ? { tone: 'good', text: `Deals from ${POS} surplus — worth closer to ${weightedDisplay} to this team than its ${rawDisplay} sticker price.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth` }
+            : { tone: 'bad', text: `Gives up ${POS} value at a position this team is already thin — costs more than the ${rawDisplay} sticker price suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value` });
         }
       });
     };
@@ -822,6 +827,53 @@ const Vault = {
 
     const archFit = team.total ? Math.max(-3, Math.min(3, dollarSwing / team.total * 120)) : 0;
     return { archFit, notes };
+  },
+
+  /* Picks the single biggest storyline for one side of a trade — the positional
+     theme with the largest dollar weight if there is one, otherwise an age or
+     pick-capital direction. Wording is tone-neutral ("added RB depth" rather than
+     "piled onto a surplus") but the returned `tone` still travels with it, since
+     tradeHighlight needs to know whether this theme agrees or clashes with that
+     side's value outcome to pick "and" vs. "but" — the colored bullets below carry
+     the full judgment either way. Returns null if nothing here is notable enough to
+     name (small moves, or a flexible-timeline team with no signal either way). */
+  sideTheme(posResult, dAge, dPicks, mode) {
+    if (posResult && posResult.notes.length) {
+      const top = [...posResult.notes].sort((a, b) => (b.absDelta || 0) - (a.absDelta || 0))[0];
+      if (top && top.phrase) return { phrase: top.phrase, tone: top.tone };
+    }
+    if (dAge <= -0.4) return { phrase: 'got younger', tone: 'good' };
+    if (dAge >= 0.4) return { phrase: 'got older', tone: 'bad' };
+    if (dPicks >= 1500) return { phrase: 'added draft capital', tone: mode === 'rebuild' ? 'good' : 'neutral' };
+    if (dPicks <= -1500) return mode === 'contend' ? { phrase: 'spent picks to win now', tone: 'good' } : { phrase: 'gave up draft capital', tone: 'bad' };
+    return null;
+  },
+
+  /* One-sentence trade recap in the "Team A lost X value, but added RB depth, while
+     Team B got younger" style — leads with the value swing (or "landed close to
+     even" under the Fair cutoff), then each side's single biggest theme from
+     sideTheme, if it has one. The connector before Team A's theme is "but" only when
+     its tone actually contrasts with whether Team A gained or gave up value (e.g.
+     gave up value BUT addressed a need); two results pointing the same way ("gave up
+     value AND gave up a need") get "and" instead, so the sentence doesn't force a
+     contrast that isn't there. Shared by the Trade Calculator's overall verdict and
+     Trade Grades' per-trade verdict so both tell the story the same way. */
+  tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB) {
+    const pct = avgSideAdj ? Math.abs(dValueAdjA) / avgSideAdj * 100 : 0;
+    const amt = Math.round(Math.abs(dValueAdjA)).toLocaleString();
+    const close = pct < VAULT_CONFIG.FAIR_PCT;
+    const aGained = dValueAdjA >= 0;
+    const lead = close
+      ? `${teamAName} and ${teamBName} landed close to even in value`
+      : `${teamAName} ${aGained ? 'gained' : 'gave up'} about ${amt} in value`;
+
+    const extras = [];
+    if (themeA) {
+      const contrasts = !close && ((aGained && themeA.tone === 'bad') || (!aGained && themeA.tone === 'good'));
+      extras.push(`${contrasts ? 'but' : 'and'} ${themeA.phrase}`);
+    }
+    if (themeB) extras.push(`while ${teamBName} ${themeB.phrase}`);
+    return extras.length ? `${lead}, ${extras.join(', ')}.` : `${lead}.`;
   },
 
   /* ---------- Flaws ----------
