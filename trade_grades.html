@@ -223,8 +223,8 @@ function renderCard(g) {
           <div class="text-[13px]">${assetChips(g.toB)}</div>
         </div>
       </div>
-      <div class="flex items-center justify-between gap-3 flex-wrap pt-3 border-t border-white/5">
-        <p class="text-[12.5px] text-zinc-400 max-w-[560px] leading-relaxed">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-600">(some asset values unavailable)</span>' : ''}</p>
+      <div class="flex items-center justify-between gap-3 pt-3 border-t border-white/5">
+        <p class="flex-1 min-w-0 truncate text-[15px] font-bold text-zinc-200">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-600 font-normal">(some asset values unavailable)</span>' : ''}</p>
         <div class="text-[11px] ${fairColor(g.pctDiff)} shrink-0" title="Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — calibrated against ~19,300 real trades from KeepTradeCut's trade database.">${bucket} · ${g.pctDiff.toFixed(0)}% off</div>
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
