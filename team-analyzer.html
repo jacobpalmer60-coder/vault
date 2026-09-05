@@ -116,6 +116,7 @@ function renderSingle(t) {
     wr: all.reduce((s, x) => s + x.wr, 0) / all.length,
     te: all.reduce((s, x) => s + x.te, 0) / all.length,
     picks: all.reduce((s, x) => s + x.picksValue, 0) / all.length,
+    age: all.reduce((s, x) => s + x.age, 0) / all.length,
   };
   const flaws = Vault.fatalFlaws(t, leagueAvg);
   const partners = getTradePartners(t, all);
@@ -141,9 +142,9 @@ function renderSingle(t) {
     </div>
 
     <div class="grid lg:grid-cols-3 gap-4 mt-6">
-      <div class="bg-black/40 rounded-2xl p-4 border border-red-500/20">
-        <div class="text-[11px] uppercase tracking-widest text-red-300/70 mb-2">Fatal Flaws</div>
-        <div class="space-y-1.5 text-[12px]">${flaws.length ? flaws.map(f => `<div class="flex gap-2"><span class="text-red-400">•</span><span>${f}</span></div>`).join('') : '<div class="text-zinc-500">No critical flaws</div>'}</div>
+      <div class="bg-black/40 rounded-2xl p-4 border border-orange-500/20">
+        <div class="text-[11px] uppercase tracking-widest text-orange-300/70 mb-2">Flaws</div>
+        <div class="space-y-1.5 text-[12px]">${flaws.length ? flaws.map(f => `<div class="flex gap-2"><span class="text-orange-400">•</span><span>${f}</span></div>`).join('') : '<div class="text-zinc-500">Nothing notable</div>'}</div>
       </div>
       <div class="bg-black/40 rounded-2xl p-4 border border-emerald-500/20">
         <div class="text-[11px] uppercase tracking-widest text-emerald-300/70 mb-2">Best Trade Partners</div>

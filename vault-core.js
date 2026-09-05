@@ -483,19 +483,39 @@ const Vault = {
     return { proj, projPPG, peakYear: year, peak, startYear, inWindow, windowStart: startIdx >= 0 ? startYear + startIdx : startYear, windowEnd: endIdx >= 0 ? startYear + endIdx : startYear, years, playoffLine, playoffSpots };
   },
 
-  /* ---------- Fatal flaws ---------- */
+  /* ---------- Flaws ----------
+     Deliberately broad: this used to require a near-catastrophic gap (e.g. a
+     position at <55% of league average) before flagging anything, which meant
+     most teams — teams that are just below-average somewhere, not disastrous —
+     showed "no critical flaws" and the section read as mostly empty. These
+     thresholds surface ordinary, worth-knowing weaknesses instead of only
+     extremes. */
   fatalFlaws(t, leagueAvg) {
     const flaws = [];
     const rbOld = t.plist.filter(p => p.pos === 'RB' && p.age >= 27).reduce((s, p) => s + p.value, 0);
     const rbTotal = t.rb || 1;
-    if (rbOld / rbTotal > 0.6) flaws.push(`RB Age Cliff: ${Math.round(rbOld / rbTotal * 100)}% of RB value is 27+`);
+    if (rbOld / rbTotal > 0.4) flaws.push(`RB Age Cliff: ${Math.round(rbOld / rbTotal * 100)}% of RB value is 27+`);
+    const wrOld = t.plist.filter(p => p.pos === 'WR' && p.age >= 29).reduce((s, p) => s + p.value, 0);
+    const wrTotal = t.wr || 1;
+    if (wrOld / wrTotal > 0.4) flaws.push(`WR Age Cliff: ${Math.round(wrOld / wrTotal * 100)}% of WR value is 29+`);
     const pos = { QB: t.qb, RB: t.rb, WR: t.wr, TE: t.te };
     Object.entries(pos).forEach(([k, v]) => {
-      if (v < leagueAvg[k] * 0.55) flaws.push(`${k} Bankruptcy: ${Math.round(v).toLocaleString()} vs league avg ${Math.round(leagueAvg[k]).toLocaleString()}`);
+      // leagueAvg is keyed lowercase (qb/rb/wr/te) — this used to look up
+      // leagueAvg[k] with the uppercase label key and silently always miss.
+      const avg = leagueAvg[k.toLowerCase()];
+      if (avg && v < avg * 0.85) flaws.push(`${k} Weakness: ${Math.round(v).toLocaleString()} vs league avg ${Math.round(avg).toLocaleString()}`);
     });
-    if (t.picksValue < leagueAvg.picks * 0.5) flaws.push(`Pick Poor: ${Math.round(t.picksValue).toLocaleString()} pick value (bottom 30%)`);
+    if (t.picksValue < leagueAvg.picks * 0.85) flaws.push(`Pick Poor: ${Math.round(t.picksValue).toLocaleString()} pick value vs league avg ${Math.round(leagueAvg.picks).toLocaleString()}`);
+    // Depth check is relative to the team's own roster, not a fixed headcount —
+    // a fixed threshold like "16" never fires in deep superflex formats where
+    // every team rosters 30+ valued players.
+    const rosterSize = t.plist.filter(p => p.value > 0).length;
     const starters = t.plist.filter(p => p.value > 1000).length;
-    if (starters < 14) flaws.push(`Thin Depth: Only ${starters} players >1k value`);
+    if (rosterSize && starters / rosterSize < 0.7) flaws.push(`Thin Depth: only ${starters} of ${rosterSize} rostered players clear 1k value`);
+    if (leagueAvg.age && t.age > leagueAvg.age + 1) flaws.push(`Aging Core: ${t.age.toFixed(1)} avg age vs league ${leagueAvg.age.toFixed(1)}`);
+    const topAssets = [...t.plist].filter(p => p.value > 0).sort((a, b) => b.value - a.value).slice(0, 3);
+    const top3Share = t.total ? topAssets.reduce((s, p) => s + p.value, 0) / t.total : 0;
+    if (top3Share > 0.4) flaws.push(`Top-Heavy: top 3 players are ${Math.round(top3Share * 100)}% of total value`);
     return flaws.slice(0, 3);
   }
 };
