@@ -560,6 +560,43 @@ function comboSearchAdj(pool, targetAdj) {
    returns the combo whose VBA-adjusted sum is closest to the target's adjusted
    value. `sum` is the raw KTC total (for display); `pctOff` is how far off in
    adjusted-space terms, the same basis the trade bar and headline use. */
+// Same enumeration as comboSearchAdj, but keeps every combo considered instead of
+// only the single best, then returns up to N of them — skipping any combo that's
+// mostly the same assets as one already picked (>50% overlap), so the results are
+// genuinely different packages rather than "same core plus a different throw-in".
+// Used by the acquire Finder so it can offer a few real options instead of picking
+// one for you.
+function comboSearchTopN(pool, targetAdj, n) {
+  const all = [];
+  const consider = combo => all.push({ combo, diff: Math.abs(combo.reduce((s, a) => s + Vault.adjustedValue(a.value), 0) - targetAdj) });
+  pool.forEach(a => consider([a]));
+  for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) consider([pool[i], pool[j]]);
+  if (pool.length <= 40) for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) for (let k = j + 1; k < pool.length; k++) consider([pool[i], pool[j], pool[k]]);
+  all.sort((a, b) => a.diff - b.diff || a.combo.length - b.combo.length);
+
+  const picked = [];
+  for (const r of all) {
+    const keys = new Set(r.combo.map(a => a.key));
+    const tooSimilar = picked.some(p => {
+      const pKeys = new Set(p.combo.map(a => a.key));
+      const shared = [...keys].filter(k => pKeys.has(k)).length;
+      return shared / Math.max(keys.size, pKeys.size) > 0.5;
+    });
+    if (tooSimilar) continue;
+    picked.push(r);
+    if (picked.length >= n) break;
+  }
+  return picked;
+}
+
+function bestCombos(pool, targetValueRaw, n) {
+  const targetAdj = Vault.adjustedValue(targetValueRaw);
+  return comboSearchTopN(pool, targetAdj, n).map(r => {
+    const sum = r.combo.reduce((s, a) => s + a.value, 0);
+    return { combo: r.combo, sum, diff: r.diff, pctOff: targetAdj ? r.diff / targetAdj * 100 : 0 };
+  });
+}
+
 function bestCombo(pool, targetValueRaw) {
   const targetAdj = Vault.adjustedValue(targetValueRaw);
   const best = comboSearchAdj(pool, targetAdj);
@@ -609,6 +646,7 @@ function partnerRationale(partner, givingAssets) {
 }
 
 let finderState = null;
+let acquireCombos = []; // currently displayed acquire-mode packages; proposeAcquire(i) indexes into this
 
 // Entry point for the header "Find a Trade" button — no row hovered yet, so let the
 // user pick which of their two loaded teams they are, then search ANY player or
@@ -699,13 +737,16 @@ function renderAcquireFinder() {
   document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-zinc-500">${Math.round(asset.value).toLocaleString()}</span> <span class="text-zinc-500">on ${Vault.escapeHtml(targetTeam.teamName)}</span>`;
   document.getElementById('finderPosChips').innerHTML = '';
 
-  const combo = bestCombo(myTeam.assets, asset.value);
+  // Up to 5 genuinely different packages, most fair to least — same "several real
+  // options, not just one auto-pick" pattern as Suggested Trades and the shop-mode
+  // Finder (which already shows up to 5 partners here).
+  acquireCombos = bestCombos(myTeam.assets, asset.value, 5);
   const resultsEl = document.getElementById('finderResults');
-  if (!combo) {
+  if (!acquireCombos.length) {
     resultsEl.innerHTML = `<div class="text-[12px] text-zinc-500 py-2">Not enough value on ${Vault.escapeHtml(myTeam.teamName)}'s roster to realistically match this.</div>`;
     return;
   }
-  resultsEl.innerHTML = `
+  resultsEl.innerHTML = acquireCombos.map((combo, i) => `
     <div class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 flex-wrap">
       <div class="min-w-0">
         <div class="text-[13px] font-medium">Package from ${Vault.escapeHtml(myTeam.teamName)}</div>
@@ -716,22 +757,19 @@ function renderAcquireFinder() {
         <div class="text-right">
           <div class="text-[12px] mono ${combo.pctOff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : combo.pctOff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400'}">${combo.pctOff.toFixed(0)}% off</div>
         </div>
-        <button onclick="proposeAcquire()" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
+        <button onclick="proposeAcquire(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
       </div>
-    </div>`;
+    </div>`).join('');
 }
 
-function proposeAcquire() {
+function proposeAcquire(i) {
   const { side, key, targetRosterId } = finderState;
   const other = otherSide(side);
   document.getElementById(`team${other}`).value = targetRosterId;
   selectedA.clear(); selectedB.clear();
   (other === 'A' ? selectedA : selectedB).add(key);
 
-  const myTeam = teamOf(side);
-  const targetTeam = teamOf(other);
-  const asset = targetTeam.assets.find(a => a.key === key);
-  const combo = bestCombo(myTeam.assets, asset.value);
+  const combo = acquireCombos[i];
   if (combo) combo.combo.forEach(a => (side === 'A' ? selectedA : selectedB).add(a.key));
 
   closeFinder();
