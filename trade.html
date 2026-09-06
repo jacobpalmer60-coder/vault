@@ -74,11 +74,19 @@
           <div id="diff" class="text-[22px] font-semibold mono"></div>
           <div id="diffLabel" class="text-[11px] mt-0.5"></div>
         </div>
+        <button onclick="findBalancedTrades()" title="Look for a similar trade between these same two teams where BOTH sides read as a good outcome, not just fair value" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">⚖️ Balance for Both Sides</button>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
     <div id="gapClose" class="hidden mt-3 pt-3 border-t border-white/5"></div>
   </div>
+
+  <!-- Balance for Both Sides: searches for alternative give/get combos between the
+       SAME two loaded teams (not the whole league) that read as a good outcome for
+       both sides, not just fair by value — value fairness and fit-quality aren't
+       the same axis, and a trade can be dead-even on price while still being a
+       clearly better fit for one side than the other. -->
+  <div id="balancePanel" class="hidden mb-4 p-4 rounded-2xl card"></div>
 
   <!-- Trade Finder: shop one side's asset(s) against the whole league, not just the loaded opponent -->
   <div id="finder" class="hidden mb-4 p-4 rounded-2xl card">
@@ -530,6 +538,100 @@ function useSuggestion(i) {
   c.giveA.forEach(a => selectedA.add(a.key));
   c.giveB.forEach(a => selectedB.add(a.key));
   document.getElementById('suggestPanel').classList.add('hidden');
+  render('A'); render('B');
+}
+
+let balanceState = [];
+
+// Searches for alternative give/get combos between the SAME two loaded teams that
+// read as a good outcome for BOTH sides (headline()'s tone, not just fair value) —
+// fit factors in timeline/need/production on top of price, so a dead-even trade can
+// still clearly favor one side's fit over the other's, same case that prompted this.
+// Falls back to whichever option gets closest (highest worst-side fit) if no combo
+// between these two rosters actually reads as good for both.
+function findBalancedTrades() {
+  const box = document.getElementById('balancePanel');
+  box.classList.remove('hidden');
+  box.innerHTML = `<div class="text-[12px] text-zinc-400 py-2">Looking for a version of this trade that works for both sides…</div>`;
+  setTimeout(runBalanceSearch, 30);
+}
+
+function runBalanceSearch() {
+  const teamA = teamOf('A'), teamB = teamOf('B');
+  const candidates = [];
+  const consider = (giveA, giveB) => {
+    const aValAdj = giveA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const bValAdj = giveB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    candidates.push({ giveA, giveB, result: computeTradeAnalysis(teamA, teamB, giveA, giveB, aValAdj, bValAdj) });
+  };
+
+  // Same shape as Suggested Trades' search (anchor one side, find matching packages
+  // from the other) but scoped to just these two rosters, and several candidates per
+  // anchor rather than one, since the fairest package for an anchor isn't necessarily
+  // the best-FIT one.
+  tradeableAssets(teamA).forEach(mine => bestCombos(teamB.assets, mine.value, 3).forEach(c => consider([mine], c.combo)));
+  tradeableAssets(teamB).forEach(theirs => bestCombos(teamA.assets, theirs.value, 3).forEach(c => consider(c.combo, [theirs])));
+
+  const seen = new Set();
+  const deduped = candidates.filter(c => {
+    const key = [...c.giveA.map(a => a.key)].sort().join(',') + '|' + [...c.giveB.map(a => a.key)].sort().join(',');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const rank = c => {
+    const bothGood = c.result.heads.A.tone === 'good' && c.result.heads.B.tone === 'good' ? 1 : 0;
+    return { bothGood, worstFit: Math.min(c.result.resA.fit, c.result.resB.fit), pctDiff: c.result.pctDiff };
+  };
+  deduped.sort((x, y) => {
+    const rx = rank(x), ry = rank(y);
+    if (rx.bothGood !== ry.bothGood) return ry.bothGood - rx.bothGood;
+    if (rx.worstFit !== ry.worstFit) return ry.worstFit - rx.worstFit;
+    return rx.pctDiff - ry.pctDiff;
+  });
+
+  balanceState = deduped.slice(0, 5);
+  renderBalanceOptions(teamA, teamB);
+}
+
+function renderBalanceOptions(teamA, teamB) {
+  const box = document.getElementById('balancePanel');
+  if (!balanceState.length) {
+    box.innerHTML = `<div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">Balance for Both Sides</div><div class="text-[12px] text-zinc-500 py-2">Couldn't find a meaningfully different version of this trade between these two teams.</div>`;
+    return;
+  }
+  const anyBothGood = balanceState.some(c => c.result.heads.A.tone === 'good' && c.result.heads.B.tone === 'good');
+  box.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-[11px] text-zinc-500 uppercase tracking-wider">${anyBothGood ? 'Balanced alternatives — good for both sides' : 'Closest to good for both — no exact win-win found between these two teams'}</div>
+      <button onclick="document.getElementById('balancePanel').classList.add('hidden')" class="text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
+    </div>
+    <div class="space-y-2 max-h-[480px] overflow-y-auto pr-1 scrollbar">
+      ${balanceState.map((c, i) => {
+        const tA = c.result.heads.A.tone, tB = c.result.heads.B.tone;
+        return `
+        <div class="p-3 rounded-xl bg-black/30">
+          <div class="flex items-center justify-between gap-4 flex-wrap mb-1.5">
+            <div class="text-[13px] font-medium">You send <span class="text-zinc-200">${c.giveA.map(a => Vault.escapeHtml(a.name)).join(', ')}</span> for <span class="text-zinc-200">${c.giveB.map(a => Vault.escapeHtml(a.name)).join(', ')}</span></div>
+            <button onclick="useBalanced(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid shrink-0">Use This Trade</button>
+          </div>
+          <div class="flex items-center gap-4 flex-wrap text-[12px]">
+            <span class="flex items-center gap-1.5"><span class="size-2 rounded-full ${TONE_DOT[tA]}"></span><span class="${TONE[tA]}">${Vault.escapeHtml(teamA.teamName)}: ${c.result.heads.A.text}</span></span>
+            <span class="flex items-center gap-1.5"><span class="size-2 rounded-full ${TONE_DOT[tB]}"></span><span class="${TONE[tB]}">${Vault.escapeHtml(teamB.teamName)}: ${c.result.heads.B.text}</span></span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function useBalanced(i) {
+  const c = balanceState[i];
+  if (!c) return;
+  selectedA.clear(); selectedB.clear();
+  c.giveA.forEach(a => selectedA.add(a.key));
+  c.giveB.forEach(a => selectedB.add(a.key));
+  document.getElementById('balancePanel').classList.add('hidden');
   render('A'); render('B');
 }
 
