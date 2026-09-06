@@ -539,16 +539,33 @@ function swap(side, outKey, inKey) {
   render(side);
 }
 
+// More assets in a pool means more possible combinations, which almost always lets
+// a 3-piece combo shave a *little* more off the diff than the best 2-piece one —
+// even when that 2-piece is already well within "Fair" territory. Minimizing raw
+// diff alone means combo search keeps reaching for a bigger package to chase a
+// fraction of a percent, when a real trade wouldn't bother. This scores a combo by
+// its %-off PLUS a flat penalty per extra asset beyond the first, so a bigger
+// package only wins when it's a genuine fairness improvement, not a rounding one —
+// e.g. a real case from this app: best 1-piece was 16.6% off, best 2-piece dropped
+// to 0.7% (a real improvement, worth the 2nd asset), best 3-piece only reached
+// 0.01% (not worth a 3rd asset for 0.66 more points of fairness).
+const COMBO_SIZE_PENALTY_PCT = 3;
+function comboScore(diff, len, targetAdj) {
+  const pct = targetAdj ? diff / targetAdj * 100 : 0;
+  return pct + (len - 1) * COMBO_SIZE_PENALTY_PCT;
+}
+
 /* Package builder core: pool of assets, target already in VBA-adjusted-value space.
    All combo search happens here so gap-closer, Match, and the Finder agree with the
    same fairness math the analysis panel uses — a suggested combo should still look
    fair once VBA is applied to it, not just fair by raw KTC sum. */
 function comboSearchAdj(pool, targetAdj) {
-  let best = null;
+  let best = null, bestScore = Infinity;
   const consider = combo => {
     const sumAdj = combo.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
     const diff = Math.abs(sumAdj - targetAdj);
-    if (!best || diff < best.diff || (diff === best.diff && combo.length < best.combo.length)) best = { combo, diff };
+    const score = comboScore(diff, combo.length, targetAdj);
+    if (score < bestScore) { bestScore = score; best = { combo, diff }; }
   };
   pool.forEach(a => consider([a]));
   for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) consider([pool[i], pool[j]]);
@@ -568,11 +585,14 @@ function comboSearchAdj(pool, targetAdj) {
 // one for you.
 function comboSearchTopN(pool, targetAdj, n) {
   const all = [];
-  const consider = combo => all.push({ combo, diff: Math.abs(combo.reduce((s, a) => s + Vault.adjustedValue(a.value), 0) - targetAdj) });
+  const consider = combo => {
+    const diff = Math.abs(combo.reduce((s, a) => s + Vault.adjustedValue(a.value), 0) - targetAdj);
+    all.push({ combo, diff, score: comboScore(diff, combo.length, targetAdj) });
+  };
   pool.forEach(a => consider([a]));
   for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) consider([pool[i], pool[j]]);
   if (pool.length <= 40) for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) for (let k = j + 1; k < pool.length; k++) consider([pool[i], pool[j], pool[k]]);
-  all.sort((a, b) => a.diff - b.diff || a.combo.length - b.combo.length);
+  all.sort((a, b) => a.score - b.score);
 
   const picked = [];
   for (const r of all) {
