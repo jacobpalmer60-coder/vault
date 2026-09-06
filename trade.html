@@ -279,13 +279,17 @@ function otherSide(side) { return side === 'A' ? 'B' : 'A'; }
 
 function assetRow(side, a, isSelected, extra) {
   const sub = a.type === 'pick' ? `<span class="text-[11px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="text-[11px] text-zinc-500">${a.pos}</span><span class="text-[11px] text-zinc-600">${a.team || ''}</span>`;
-  // Team A's row is the user's own asset — "Find" there shops it against the whole
-  // league (who else might want it). A Team B row is a player the user doesn't own,
-  // so shopping THEIR player to the league isn't something the user can act on —
-  // Find there needs to switch to acquire mode: what package from the user's own
-  // Team A roster would it take to go get this specific player from Team B.
+  // Team A's row is the user's own asset: "Match" auto-builds a package from Team B
+  // to hit its value, "Find" shops it against every team in the league. A Team B row
+  // is a player the user doesn't own, so both need different jobs there — "Find"
+  // becomes acquire mode (what package from Team A it'd take to go get THIS specific
+  // player), and "Match" becomes a league-wide value browser (who else, on ANY team,
+  // is priced like this) rather than silently building the same kind of package Find
+  // already builds, which just made the two buttons redundant on a Team B row.
+  const matchAction = side === 'A' ? `matchTarget('A','${a.key}')` : `openSimilarAcrossLeague('B','${a.key}')`;
+  const matchTitle = side === 'A' ? 'Build a package from the other side to match this' : 'Show players of similar value throughout the league';
   const findAction = side === 'A' ? `openFinder('A','${a.key}')` : `openAcquireFinder('A','${a.key}',${teamOf('B').rosterId})`;
-  const findTitle = side === 'A' ? 'Shop this against every team in the league' : 'Build a package from your roster to go get this';
+  const findTitle = side === 'A' ? 'Shop this against every team in the league' : 'Put together a package from your roster to go get this';
   return `
     <div class="group/item ${extra || ''}">
       <div onclick="toggle('${side}','${a.key}')" class="flex items-center gap-3 px-3 py-1.5 mx-1 my-0.5 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
@@ -299,7 +303,7 @@ function assetRow(side, a, isSelected, extra) {
           <div class="text-[13px] mono font-medium ${isSelected ? 'text-white' : 'text-zinc-400'}">${Math.round(a.value).toLocaleString()}</div>
         </div>
         <div class="hidden group-hover/item:flex gap-1.5 shrink-0">
-          <button onclick="event.stopPropagation(); matchTarget('${side}','${a.key}')" title="Build a package from the other side to match this" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
+          <button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
           <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
         </div>
         <div class="w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-amber-400 border-amber-400' : 'border-white/10 group-hover/item:border-amber-500/40'}">
@@ -731,6 +735,63 @@ function closeFinder() {
   finderState = null;
   document.getElementById('finder').classList.add('hidden');
   document.getElementById('finderPickerRow').classList.add('hidden');
+}
+
+// League-wide value browser for a Team B row's "Match" — distinct from Find (which
+// builds a specific package to acquire this exact player). Answers "who else, on
+// any team, is priced like this" rather than "how do I get THIS one", useful when
+// the specific player isn't gettable but the price point is what you're after.
+function openSimilarAcrossLeague(side, key) {
+  finderState = { side, key, mode: 'similar' };
+  renderSimilarAcrossLeague();
+}
+
+function renderSimilarAcrossLeague() {
+  const { side, key } = finderState;
+  const team = teamOf(side);
+  const asset = team.assets.find(a => a.key === key);
+  if (!asset) { closeFinder(); return; }
+
+  document.getElementById('finder').classList.remove('hidden');
+  document.getElementById('finderPickerRow').classList.add('hidden');
+  document.getElementById('finderWantBackLabel').classList.add('hidden');
+  document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-zinc-500">${Math.round(asset.value).toLocaleString()}</span> <span class="text-zinc-500">— similar value around the league</span>`;
+  document.getElementById('finderPosChips').innerHTML = '';
+
+  const pool = teams.filter(t => t.rosterId !== team.rosterId)
+    .flatMap(t => t.assets.map(a => ({ ...a, teamName: t.teamName, rosterId: t.rosterId })));
+  const results = pool.filter(a => a.value > 0 && a.key !== key)
+    .sort((a, b) => Math.abs(a.value - asset.value) - Math.abs(b.value - asset.value))
+    .slice(0, 8);
+
+  const resultsEl = document.getElementById('finderResults');
+  if (!results.length) {
+    resultsEl.innerHTML = `<div class="text-[12px] text-zinc-500 py-2">No comparable assets found elsewhere in the league.</div>`;
+    return;
+  }
+  resultsEl.innerHTML = results.map(a => {
+    const diff = a.value - asset.value;
+    return `
+    <div onclick="pickSimilarAsset('${a.key}',${a.rosterId})" class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 hover:bg-black/50 cursor-pointer flex-wrap">
+      <div class="min-w-0">
+        <div class="text-[13px] font-medium">${Vault.escapeHtml(a.name)} ${a.type === 'pick' ? '' : `<span class="text-[11px] text-zinc-500">${a.pos}</span>`}</div>
+        <div class="text-[11px] text-zinc-500 mt-0.5">${Vault.escapeHtml(a.teamName)}</div>
+      </div>
+      <div class="text-right shrink-0">
+        <div class="text-[13px] mono">${Math.round(a.value).toLocaleString()}</div>
+        <div class="text-[11px] mono ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${diff >= 0 ? '+' : ''}${Math.round(diff).toLocaleString()}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Picking a result switches Team B to that player's real team and drops straight
+// into acquire mode for them — browsing similar value is a step toward a specific
+// target, not a dead end.
+function pickSimilarAsset(key, rosterId) {
+  document.getElementById('teamB').value = rosterId;
+  document.getElementById('teamB').dispatchEvent(new Event('change'));
+  openAcquireFinder('A', key, rosterId);
 }
 
 function renderFinder() {
