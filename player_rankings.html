@@ -32,10 +32,8 @@
   </header>
 
   <!-- Stats Bar -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+  <div class="grid grid-cols-2 gap-3 mb-6">
     <div class="stat-tile"><div class="stat-label">Players</div><div id="statPlayers" class="stat-value mono">—</div></div>
-    <div class="stat-tile"><div class="stat-label">Avg Value</div><div id="statAvgVal" class="stat-value mono">—</div></div>
-    <div class="stat-tile"><div class="stat-label">Avg PPG</div><div id="statAvgPPG" class="stat-value mono">—</div></div>
     <div class="stat-tile"><div class="stat-label">Format</div><div id="statFormat" class="stat-value mono">—</div></div>
   </div>
 
@@ -126,8 +124,6 @@
   const tbody = $('#tbody');
   const logEl = $('#log');
   const statPlayers = $('#statPlayers');
-  const statAvgVal = $('#statAvgVal');
-  const statAvgPPG = $('#statAvgPPG');
   const statFormat = $('#statFormat');
   const leagueInfo = $('#leagueInfo');
 
@@ -325,11 +321,6 @@
       });
 
       statPlayers.textContent = allRows.length.toLocaleString();
-      const avgVal = allRows.reduce((s, r) => s + (r.value || 0), 0) / allRows.length;
-      statAvgVal.textContent = fmtInt(avgVal);
-      const ppgVals = allRows.filter(r => r.ppg != null).map(r => r.ppg);
-      const avgPPG = ppgVals.length ? ppgVals.reduce((a, b) => a + b, 0) / ppgVals.length : 0;
-      statAvgPPG.textContent = fmtFloat(avgPPG, 2);
 
       applyFiltersAndRender();
     } catch (e) {
