@@ -1006,10 +1006,31 @@ const Vault = {
      involved yet, just whether two rosters are shaped to make a deal work. */
   tradePartnerSuggestions(t, all, limit = 2) {
     const { needs, surpluses } = Vault.positionalProfile(t, all);
+    const myMode = Vault.teamMode(t);
     return all.filter(o => o.rosterId !== t.rosterId).map(o => {
       const { needs: theirNeeds, surpluses: theirSurplus } = Vault.positionalProfile(o, all);
       let score = 0;
       const reasons = [];
+
+      // Timeline compatibility, checked first so it's the headline reason when it
+      // applies: a contender wants proven production now and a rebuilder wants
+      // picks/youth for later — that mismatch is exactly what makes a trade
+      // mutually appealing, real-world "buyer meets seller" logic, not just
+      // positional need. Two contenders both want to keep what they have (neither
+      // is looking to sell into a rival's win-now window), and two rebuilders both
+      // want the same things (picks, youth) with little to offer each other —
+      // same-timeline pairs are real trade partners far less often in practice.
+      const theirMode = Vault.teamMode(o);
+      if ((myMode === 'contend' && theirMode === 'rebuild') || (myMode === 'rebuild' && theirMode === 'contend')) {
+        score += 3;
+        reasons.push(myMode === 'contend'
+          ? `You want production now, they want picks and youth — classic complementary timelines`
+          : `They want production now, you want picks and youth — classic complementary timelines`);
+      } else if (myMode !== 'flexible' && myMode === theirMode) {
+        score -= 3;
+        reasons.push(`Both ${myMode === 'contend' ? 'contending' : 'rebuilding'} — less natural trade partners, same timeline and same needs`);
+      }
+
       needs.forEach(n => {
         if (theirSurplus.includes(n)) { score += 3; reasons.push(`They're deep at ${n.toUpperCase()} — your biggest need`); }
       });
