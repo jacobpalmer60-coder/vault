@@ -16,8 +16,12 @@
   ];
 
   function currentPage() {
-    const file = location.pathname.split('/').pop() || 'index.html';
-    return TABS.find(t => t.href === file)?.key || (file === 'index.html' ? 'home' : '');
+    // Normalize both sides to extension-less basenames before comparing — some
+    // static hosts (the local "serve" dev server included) redirect ".html" URLs
+    // to a clean-URL form, so location.pathname doesn't reliably end in ".html".
+    const file = (location.pathname.split('/').pop() || 'index.html').replace(/\.html$/, '');
+    const found = TABS.find(t => t.href.replace(/\.html$/, '') === file);
+    return found?.key || (file === 'index' || file === '' ? 'home' : '');
   }
 
   function render() {

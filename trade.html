@@ -410,8 +410,19 @@ function runSuggestTradeSearch() {
     });
   });
 
+  // The two search directions (send-an-anchor vs. acquire-an-anchor) can converge
+  // on the exact same give/get pair from different starting points — dedupe by the
+  // actual assets moved before ranking, or the same trade can show up twice.
+  const seen = new Set();
+  const deduped = candidates.filter(c => {
+    const key = c.partner.rosterId + '|' + [...c.giveA.map(a => a.key)].sort().join(',') + '|' + [...c.giveB.map(a => a.key)].sort().join(',');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   const toneRank = { good: 2, neutral: 1, bad: 0 };
-  candidates.sort((x, y) => {
+  deduped.sort((x, y) => {
     const t = toneRank[y.result.verdict.tone] - toneRank[x.result.verdict.tone];
     if (t) return t;
     const fit = (y.result.resA.fit + y.result.resB.fit) - (x.result.resA.fit + x.result.resB.fit);
@@ -419,7 +430,7 @@ function runSuggestTradeSearch() {
     return x.result.pctDiff - y.result.pctDiff;
   });
 
-  renderSuggestions(candidates.slice(0, 3));
+  renderSuggestions(deduped.slice(0, 3));
 }
 
 function renderSuggestions(candidates) {
