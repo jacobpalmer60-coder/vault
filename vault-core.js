@@ -734,14 +734,24 @@ const Vault = {
      is NOT surplus — 2 of those 3 are real starters and the 3rd is bye-week/injury
      insurance at the league's most valuable position. So a HIGH value percentile
      only counts as surplus if the team also ROSTERS more value-bearing players at
-     that position than its own starting slots + a 1-player depth buffer need
-     (t.posCount / t.startable, from buildLeagueTeams — see comment there). A LOW
-     value percentile is always a need regardless of count — but rostering fewer
-     value-bearing players than there are starting slots to fill is ALSO always a
-     need, even if the ones rostered are individually great (e.g. one elite QB in a
-     Superflex league that needs two). Falls back to value-only (old behavior) if
-     posCount/startable aren't present, so any caller passing a bare team object
-     still works. */
+     that position than its own starting slots + a 1-player depth buffer
+     (t.posCount / t.startable, from buildLeagueTeams — see comment there).
+
+     The mirror image matters just as much: a team can rank LOW on value at a
+     position while already rostering plenty of bodies there — e.g. a pile of
+     replacement-level RBs whose combined value is weak even though there's no
+     shortage of roster spots filled. That's a quality problem, not a scarcity one,
+     and shouldn't get flagged as a "need" — doing so would make needAdjustedValue
+     treat trading away one of those redundant cheap RBs as "giving up something
+     needed" (inflating its cost) purely because the position's dollar total is
+     low, the same mistake the surplus fix above corrects in the other direction.
+     So low value only counts as a need if the team ISN'T already stacked (more
+     bodies than starting slots + buffer) at that position — being genuinely thin
+     on ROSTER COUNT (fewer bodies than starting slots require) is always a need
+     regardless of value, since that's a real hole regardless of how good the few
+     rostered players are. Falls back to value-only (old behavior) if posCount/
+     startable aren't present, so any caller passing a bare team object still
+     works. */
   positionalProfile(t, all) {
     const posPct = {};
     ['qb', 'rb', 'wr', 'te'].forEach(k => {
@@ -750,11 +760,13 @@ const Vault = {
     });
     const DEPTH_BUFFER = 1;
     const hasRosterInfo = t.posCount && t.startable;
+    const isStacked = k => hasRosterInfo && t.posCount[k] > t.startable[k] + DEPTH_BUFFER;
+    const isThin = k => hasRosterInfo && t.posCount[k] < t.startable[k];
     const needs = Object.entries(posPct)
-      .filter(([k, v]) => v < 0.35 || (hasRosterInfo && t.posCount[k] < t.startable[k]))
+      .filter(([k, v]) => isThin(k) || (v < 0.35 && !isStacked(k)))
       .map(([k]) => k);
     const surpluses = Object.entries(posPct)
-      .filter(([k, v]) => v > 0.65 && (!hasRosterInfo || t.posCount[k] > t.startable[k] + DEPTH_BUFFER))
+      .filter(([k, v]) => v > 0.65 && (!hasRosterInfo || isStacked(k)))
       .map(([k]) => k);
     return { posPct, needs, surpluses };
   },
