@@ -458,6 +458,19 @@ const Vault = {
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
 
+    // How many starters this league can ACTUALLY field at each position, counting
+    // every flex type that's eligible for it (a Superflex slot counts for QB; FLEX/
+    // WRRB_FLEX/SUPER_FLEX count for RB; etc). Used by positionalProfile so "surplus"
+    // reflects real roster depth vs. this league's own format — a 3rd QB is full
+    // Superflex depth (2 startable + 1 bye-week/insurance buffer), not surplus, even
+    // though 3 rostered QBs would be real excess in a 1QB league with no Superflex.
+    const startable = {
+      qb: slots.filter(s => s === 'QB').length + slots.filter(s => s === 'SUPER_FLEX').length,
+      rb: slots.filter(s => ['RB', 'FLEX', 'SUPER_FLEX', 'WRRB_FLEX'].includes(s)).length,
+      wr: slots.filter(s => ['WR', 'FLEX', 'SUPER_FLEX', 'WRRB_FLEX', 'REC_FLEX'].includes(s)).length,
+      te: slots.filter(s => ['TE', 'FLEX', 'SUPER_FLEX', 'REC_FLEX'].includes(s)).length
+    };
+
     const YEARS = pickYears, ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
     const pickOwner = new Map();
     YEARS.forEach(y => ROUNDS.forEach(r => rosters.forEach(ro => pickOwner.set(`${y}-${r}-${ro.roster_id}`, ro.roster_id))));
@@ -485,6 +498,18 @@ const Vault = {
       const rb = plist.filter(p => p.pos === 'RB').reduce((s, p) => s + p.value, 0);
       const wr = plist.filter(p => p.pos === 'WR').reduce((s, p) => s + p.value, 0);
       const te = plist.filter(p => p.pos === 'TE').reduce((s, p) => s + p.value, 0);
+      // Count of ROSTERED players at each position with real trade value (mirrors
+      // tradeableAssets' "meaningful asset" floor) — used alongside `startable` so
+      // positionalProfile can tell "3 good QBs in a Superflex league" (full depth)
+      // apart from "3 good QBs in a 1QB league" (real surplus), not just go by
+      // dollar value percentile.
+      const posFloor = Math.max(300, total * 0.02);
+      const posCount = {
+        qb: plist.filter(p => p.pos === 'QB' && p.value >= posFloor).length,
+        rb: plist.filter(p => p.pos === 'RB' && p.value >= posFloor).length,
+        wr: plist.filter(p => p.pos === 'WR' && p.value >= posFloor).length,
+        te: plist.filter(p => p.pos === 'TE' && p.value >= posFloor).length
+      };
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
@@ -494,7 +519,7 @@ const Vault = {
       const mean = shares.reduce((a, b) => a + b) / 4;
       const std = Math.sqrt(shares.reduce((s, x) => s + (x - mean) ** 2, 0) / 4);
       const bal = 100 - std * 200;
-      return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, bal, picks: own.get(r.roster_id) || [] };
+      return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, bal, posCount, startable, picks: own.get(r.roster_id) || [] };
     });
 
     // Draft order rank (1 = worst team, picks first; n = best team, picks last),
@@ -598,6 +623,17 @@ const Vault = {
       const rb = plist.filter(p => p.pos === 'RB').reduce((s, p) => s + p.value, 0);
       const wr = plist.filter(p => p.pos === 'WR').reduce((s, p) => s + p.value, 0);
       const te = plist.filter(p => p.pos === 'TE').reduce((s, p) => s + p.value, 0);
+      // Mirrors buildLeagueTeams' posCount — recomputed post-trade so positionalProfile
+      // (used by the fit check below) sees the roster AFTER the deal, not before it.
+      // `startable` is league-wide and unaffected by a trade, so it carries over via
+      // the `...team` spread below without needing to be recomputed here.
+      const posFloor = Math.max(300, total * 0.02);
+      const posCount = {
+        qb: plist.filter(p => p.pos === 'QB' && p.value >= posFloor).length,
+        rb: plist.filter(p => p.pos === 'RB' && p.value >= posFloor).length,
+        wr: plist.filter(p => p.pos === 'WR' && p.value >= posFloor).length,
+        te: plist.filter(p => p.pos === 'TE' && p.value >= posFloor).length
+      };
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
@@ -610,7 +646,7 @@ const Vault = {
       const removedKeys = new Set(removedPicks.map(pickKey));
       const picks = [...team.picks.filter(p => !removedKeys.has(pickKey(p))), ...addedPicks];
       const picksValue = picks.reduce((s, p) => s + (p.value || 0), 0);
-      return { ...team, plist, total, qb, rb, wr, te, age, opt, bal, picks, picksValue };
+      return { ...team, plist, total, qb, rb, wr, te, age, opt, bal, posCount, picks, picksValue };
     }
 
     const newA = rebuild(A, giveAPlayers, giveBPlayers, giveAPicks, giveBPicks);
@@ -691,15 +727,35 @@ const Vault = {
      flag genuine needs (<35th pct) and surpluses (>65th pct). Shared by Team
      Analyzer's trade-partner finder and the Trade Calculator's per-trade fit check
      (an incoming asset at a surplus position shouldn't read as a win just because
-     the value matches). */
+     the value matches).
+
+     Value percentile alone can't tell a real surplus from full starting depth: a
+     Superflex team with 3 good QBs is worth a lot of $ at QB (easily >65th pct) but
+     is NOT surplus — 2 of those 3 are real starters and the 3rd is bye-week/injury
+     insurance at the league's most valuable position. So a HIGH value percentile
+     only counts as surplus if the team also ROSTERS more value-bearing players at
+     that position than its own starting slots + a 1-player depth buffer need
+     (t.posCount / t.startable, from buildLeagueTeams — see comment there). A LOW
+     value percentile is always a need regardless of count — but rostering fewer
+     value-bearing players than there are starting slots to fill is ALSO always a
+     need, even if the ones rostered are individually great (e.g. one elite QB in a
+     Superflex league that needs two). Falls back to value-only (old behavior) if
+     posCount/startable aren't present, so any caller passing a bare team object
+     still works. */
   positionalProfile(t, all) {
     const posPct = {};
     ['qb', 'rb', 'wr', 'te'].forEach(k => {
       const arr = all.map(x => x[k]).sort((a, b) => a - b);
       posPct[k] = arr.length > 1 ? arr.indexOf(t[k]) / (arr.length - 1) : 0.5;
     });
-    const needs = Object.entries(posPct).filter(([, v]) => v < 0.35).map(([k]) => k);
-    const surpluses = Object.entries(posPct).filter(([, v]) => v > 0.65).map(([k]) => k);
+    const DEPTH_BUFFER = 1;
+    const hasRosterInfo = t.posCount && t.startable;
+    const needs = Object.entries(posPct)
+      .filter(([k, v]) => v < 0.35 || (hasRosterInfo && t.posCount[k] < t.startable[k]))
+      .map(([k]) => k);
+    const surpluses = Object.entries(posPct)
+      .filter(([k, v]) => v > 0.65 && (!hasRosterInfo || t.posCount[k] > t.startable[k] + DEPTH_BUFFER))
+      .map(([k]) => k);
     return { posPct, needs, surpluses };
   },
 
