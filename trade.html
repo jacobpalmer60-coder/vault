@@ -635,6 +635,42 @@ function useBalanced(i) {
   render('A'); render('B');
 }
 
+// Per-side version of Balance for Both Sides: the OTHER side's selection is held
+// completely fixed (it's what you're already comfortable with), and only MY side's
+// give gets replaced — searching my own roster for whichever package, closest in
+// adjusted value to what the other side is already offering, reads as the best fit
+// for me specifically. Uses comboSearchTopN directly (in adjusted-value space)
+// rather than bestCombos, since the target here is a SUM of the other side's
+// current assets, not one raw KTC value bestCombos could re-derive VBA from.
+function balanceSide(mySide) {
+  const other = otherSide(mySide);
+  const myTeam = teamOf(mySide), otherTeam = teamOf(other);
+  const otherSel = other === 'A' ? selectedA : selectedB;
+  const otherAssets = [...otherSel].map(k => otherTeam.assets.find(a => a.key === k)).filter(Boolean);
+  if (!otherAssets.length) return;
+
+  const targetAdj = otherAssets.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+  const candidates = comboSearchTopN(myTeam.assets, targetAdj, 10);
+  if (!candidates.length) return;
+
+  let best = null, bestFit = -Infinity;
+  candidates.forEach(cand => {
+    const giveA = mySide === 'A' ? cand.combo : otherAssets;
+    const giveB = mySide === 'A' ? otherAssets : cand.combo;
+    const aValAdj = giveA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const bValAdj = giveB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const result = computeTradeAnalysis(teamOf('A'), teamOf('B'), giveA, giveB, aValAdj, bValAdj);
+    const myFit = mySide === 'A' ? result.resA.fit : result.resB.fit;
+    if (myFit > bestFit) { bestFit = myFit; best = cand.combo; }
+  });
+  if (!best) return;
+
+  const mySel = mySide === 'A' ? selectedA : selectedB;
+  mySel.clear();
+  best.forEach(a => mySel.add(a.key));
+  render('A'); render('B');
+}
+
 function swap(side, outKey, inKey) {
   const set = side === 'A' ? selectedA : selectedB;
   set.delete(outKey); set.add(inKey);
@@ -1338,10 +1374,11 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
             <div class="text-[11px] text-zinc-500">value Δ (adj)</div>
           </div>
         </div>
-        <div class="flex items-start gap-2 mb-4">
+        <div class="flex items-start gap-2 ${head.tone === 'good' ? 'mb-4' : 'mb-2'}">
           <span class="size-2 rounded-full shrink-0 mt-1.5 ${TONE_DOT[head.tone]}"></span>
           <p class="text-[13px] ${TONE[head.tone]} leading-relaxed"><span class="font-medium">${head.text}.</span> <span class="font-normal">${Vault.buildSynopsis('', res.notes)}</span></p>
         </div>
+        ${head.tone !== 'good' ? `<button onclick="balanceSide('${side}')" title="Keep Team ${side === 'A' ? 'B' : 'A'}'s side exactly as selected, and look for a different ${Vault.escapeHtml(bef.teamName)} package that reads as a better fit" class="mb-4 text-[11px] px-2.5 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">⚖️ Balance This Side</button>` : ''}
         ${res.notes.length ? `<details class="group mb-4">
           <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
             <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
