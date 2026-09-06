@@ -339,6 +339,7 @@ const Vault = {
      even for one absent from the current league. */
   ARCHETYPE_INFO: {
     'Elite Contender': { cls: 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40', desc: 'Top-tier trade value AND top-tier scoring, with a still-young core — built to win now and keep winning for a while.' },
+    'Contender': { cls: 'from-amber-600/15 to-yellow-600/15 text-amber-300/90 border-amber-700/30', desc: 'Strong trade value and strong scoring, young — a real contender, just not standing at the very top of the league like an Elite Contender.' },
     'Aging Contender': { cls: 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40', desc: 'Elite value and production today, but the core is getting old — the championship window is open now, not for long.' },
     'Win-Now Fringe': { cls: 'from-amber-600/20 to-yellow-700/20 text-amber-300 border-amber-700/40', desc: 'Strong trade value but only middling weekly scoring — the pieces are valuable on paper, the lineup isn’t translating that into points yet.' },
     'Volatile': { cls: 'from-rose-600/20 to-red-600/20 text-rose-200 border-rose-600/40', desc: 'High trade value that isn’t showing up on the scoreboard — hurt or underperforming stars, or a lineup that can’t unlock what the roster is worth.' },
@@ -369,9 +370,17 @@ const Vault = {
     const pTier = ppgP > 60 ? 'H' : ppgP < 40 ? 'L' : 'M';
 
     if (vTier === 'H' && pTier === 'H') {
-      return age > 27.5
-        ? ['Aging Contender', 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40']
-        : ['Elite Contender', 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40'];
+      // H is anything past the 60th percentile, which lumps a team sitting right at
+      // 60/60 in with one at 100/100 — very different calibers of "contender". Elite
+      // Contender is reserved for teams clearing 80 on BOTH axes (comfortably past
+      // the top tercile, not just barely in it, and clear of a percentile step for
+      // the common league sizes this runs at — same reasoning as the 60/40 split
+      // above); anything else in the H/H cell is a real contender, just not the
+      // team standing alone at the top.
+      if (age > 27.5) return ['Aging Contender', 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40'];
+      return valP > 80 && ppgP > 80
+        ? ['Elite Contender', 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40']
+        : ['Contender', 'from-amber-600/15 to-yellow-600/15 text-amber-300/90 border-amber-700/30'];
     }
     if (vTier === 'H' && pTier === 'M') return ['Win-Now Fringe', 'from-amber-600/20 to-yellow-700/20 text-amber-300 border-amber-700/40'];
     if (vTier === 'H' && pTier === 'L') return ['Volatile', 'from-rose-600/20 to-red-600/20 text-rose-200 border-rose-600/40'];
