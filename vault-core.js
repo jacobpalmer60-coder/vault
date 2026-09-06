@@ -510,6 +510,24 @@ const Vault = {
         wr: plist.filter(p => p.pos === 'WR' && p.value >= posFloor).length,
         te: plist.filter(p => p.pos === 'TE' && p.value >= posFloor).length
       };
+      // Real production at each position — top-N by PPG where N is that position's
+      // own startable-slot count, NOT a naive sum across every rostered player.
+      // Summing would reward hoarding committee-back-caliber depth (five 8-PPG RBs
+      // summing to more than two 18-PPG bell cows) over actually having good
+      // starters, which is backwards — this mirrors the "best lineup fills slots"
+      // logic in optimalLineupDetail rather than inventing a different notion of
+      // positional strength. Dynasty value (qb/rb/wr/te above) can be high on a
+      // position that isn't actually producing (hurt, buried, aging) or middling
+      // value can be outproducing it — positionalProfile blends both signals
+      // instead of trusting price alone.
+      const topPpg = (pos, n) => plist.filter(p => p.pos === pos).map(p => p.ppg)
+        .sort((a, b) => b - a).slice(0, n).reduce((s, v) => s + v, 0);
+      const posPpg = {
+        qb: topPpg('QB', startable.qb),
+        rb: topPpg('RB', startable.rb),
+        wr: topPpg('WR', startable.wr),
+        te: topPpg('TE', startable.te)
+      };
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
@@ -519,7 +537,7 @@ const Vault = {
       const mean = shares.reduce((a, b) => a + b) / 4;
       const std = Math.sqrt(shares.reduce((s, x) => s + (x - mean) ** 2, 0) / 4);
       const bal = 100 - std * 200;
-      return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, bal, posCount, startable, picks: own.get(r.roster_id) || [] };
+      return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, bal, posCount, posPpg, startable, picks: own.get(r.roster_id) || [] };
     });
 
     // Draft order rank (1 = worst team, picks first; n = best team, picks last),
@@ -623,16 +641,25 @@ const Vault = {
       const rb = plist.filter(p => p.pos === 'RB').reduce((s, p) => s + p.value, 0);
       const wr = plist.filter(p => p.pos === 'WR').reduce((s, p) => s + p.value, 0);
       const te = plist.filter(p => p.pos === 'TE').reduce((s, p) => s + p.value, 0);
-      // Mirrors buildLeagueTeams' posCount — recomputed post-trade so positionalProfile
-      // (used by the fit check below) sees the roster AFTER the deal, not before it.
-      // `startable` is league-wide and unaffected by a trade, so it carries over via
-      // the `...team` spread below without needing to be recomputed here.
+      // Mirrors buildLeagueTeams' posCount/posPpg — recomputed post-trade so
+      // positionalProfile (used by the fit check below) sees the roster AFTER the
+      // deal, not before it. `startable` is league-wide and unaffected by a trade,
+      // so it carries over via the `...team` spread below without needing to be
+      // recomputed here — but topPpg needs it, so read it off the pre-trade team.
       const posFloor = Math.max(300, total * 0.02);
       const posCount = {
         qb: plist.filter(p => p.pos === 'QB' && p.value >= posFloor).length,
         rb: plist.filter(p => p.pos === 'RB' && p.value >= posFloor).length,
         wr: plist.filter(p => p.pos === 'WR' && p.value >= posFloor).length,
         te: plist.filter(p => p.pos === 'TE' && p.value >= posFloor).length
+      };
+      const topPpg = (pos, n) => plist.filter(p => p.pos === pos).map(p => p.ppg)
+        .sort((a, b) => b - a).slice(0, n).reduce((s, v) => s + v, 0);
+      const posPpg = {
+        qb: topPpg('QB', team.startable.qb),
+        rb: topPpg('RB', team.startable.rb),
+        wr: topPpg('WR', team.startable.wr),
+        te: topPpg('TE', team.startable.te)
       };
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
@@ -646,7 +673,7 @@ const Vault = {
       const removedKeys = new Set(removedPicks.map(pickKey));
       const picks = [...team.picks.filter(p => !removedKeys.has(pickKey(p))), ...addedPicks];
       const picksValue = picks.reduce((s, p) => s + (p.value || 0), 0);
-      return { ...team, plist, total, qb, rb, wr, te, age, opt, bal, posCount, picks, picksValue };
+      return { ...team, plist, total, qb, rb, wr, te, age, opt, bal, posCount, posPpg, picks, picksValue };
     }
 
     const newA = rebuild(A, giveAPlayers, giveBPlayers, giveAPicks, giveBPicks);
@@ -749,14 +776,33 @@ const Vault = {
      bodies than starting slots + buffer) at that position — being genuinely thin
      on ROSTER COUNT (fewer bodies than starting slots require) is always a need
      regardless of value, since that's a real hole regardless of how good the few
-     rostered players are. Falls back to value-only (old behavior) if posCount/
-     startable aren't present, so any caller passing a bare team object still
-     works. */
+     rostered players are.
+
+     Dollar value and production aren't the same axis, and price alone can be
+     wrong about which one is missing: an aging veteran is *literally* the case
+     where value is low (age discount) but he can still start and produce short
+     term, so a team built around one shouldn't read as needing that position —
+     while a position priced high on name value that's actually hurt or buried
+     isn't the strength its dollar total suggests. So posPct blends value
+     percentile with a real-production percentile (t.posPpg — top-N by PPG where N
+     is that position's own startable-slot count, not a naive sum; see
+     buildLeagueTeams) whenever posPpg is available, same 50/50 weighting the
+     Archetype system already uses for valP/ppgP at the team level. Falls back to
+     value-only (old behavior) if posCount/posPpg/startable aren't present, so any
+     caller passing a bare team object still works. */
   positionalProfile(t, all) {
     const posPct = {};
+    const hasPpg = !!t.posPpg;
     ['qb', 'rb', 'wr', 'te'].forEach(k => {
       const arr = all.map(x => x[k]).sort((a, b) => a - b);
-      posPct[k] = arr.length > 1 ? arr.indexOf(t[k]) / (arr.length - 1) : 0.5;
+      const valuePct = arr.length > 1 ? arr.indexOf(t[k]) / (arr.length - 1) : 0.5;
+      if (hasPpg) {
+        const ppgArr = all.map(x => x.posPpg?.[k] ?? 0).sort((a, b) => a - b);
+        const ppgPct = ppgArr.length > 1 ? ppgArr.indexOf(t.posPpg[k]) / (ppgArr.length - 1) : 0.5;
+        posPct[k] = (valuePct + ppgPct) / 2;
+      } else {
+        posPct[k] = valuePct;
+      }
     });
     const DEPTH_BUFFER = 1;
     const hasRosterInfo = t.posCount && t.startable;
