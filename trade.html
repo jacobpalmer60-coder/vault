@@ -302,7 +302,7 @@ function assetRow(side, a, isSelected, extra) {
         <div class="text-right">
           <div class="text-[13px] mono font-medium ${isSelected ? 'text-white' : 'text-zinc-400'}">${Math.round(a.value).toLocaleString()}</div>
         </div>
-        <div class="hidden group-hover/item:flex gap-1.5 shrink-0">
+        <div class="flex gap-1.5 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
           <button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
           <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
         </div>
@@ -687,6 +687,13 @@ function renderAcquireFinder() {
   const asset = targetTeam && targetTeam.assets.find(a => a.key === key);
   if (!asset) { closeFinder(); return; }
 
+  // Was missing here (renderFinder and renderSimilarAcrossLeague both do this) —
+  // harmless when the modal was already open from another path (e.g. the header
+  // "Find a Trade" picker, which unhides it itself), but calling openAcquireFinder
+  // directly from a Team B row's "Find" button — the normal path now — started
+  // from #finder hidden, so the results rendered into a still-hidden panel and
+  // clicking Find appeared to silently do nothing.
+  document.getElementById('finder').classList.remove('hidden');
   document.getElementById('finderPickerRow').classList.add('hidden');
   document.getElementById('finderWantBackLabel').classList.add('hidden');
   document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-zinc-500">${Math.round(asset.value).toLocaleString()}</span> <span class="text-zinc-500">on ${Vault.escapeHtml(targetTeam.teamName)}</span>`;
