@@ -34,7 +34,7 @@
   <!-- Stats Bar -->
   <div class="grid grid-cols-2 gap-3 mb-6">
     <div class="stat-tile"><div class="stat-label">Players</div><div id="statPlayers" class="stat-value mono">—</div></div>
-    <div class="stat-tile"><div class="stat-label">Format</div><div id="statFormat" class="stat-value mono">—</div></div>
+    <div class="stat-tile"><div class="stat-label">Format</div><div id="statFormat" class="stat-value mono">—</div><div id="statFormatDetail" class="text-[11px] text-zinc-500 mt-1"></div></div>
   </div>
 
   <!-- Controls -->
@@ -125,6 +125,7 @@
   const logEl = $('#log');
   const statPlayers = $('#statPlayers');
   const statFormat = $('#statFormat');
+  const statFormatDetail = $('#statFormatDetail');
   const leagueInfo = $('#leagueInfo');
 
   let allRows = [];
@@ -135,6 +136,7 @@
   let searchQuery = '';
   let isSF = true; // default assumption until league loads
   let scoringSettings = null;
+  let rosterPositions = [];
 
   function log(msg, type = 'info') {
     const time = new Date().toLocaleTimeString();
@@ -148,6 +150,28 @@
   const fmtInt = Vault.fmtInt;
   const fmtFloat = Vault.fmtFloat;
   const posColor = pos => `pos-badge-${['QB','RB','WR','TE'].includes(pos) ? pos : 'default'}`;
+
+  // Mirrors trade_database.html's tepCode/tepLabel — same tiers, same source field.
+  function tePremiumLabel(bonus) {
+    if (!bonus || bonus <= 0) return null;
+    if (bonus <= 0.5) return 'TE+';
+    if (bonus <= 1) return 'TE++';
+    return 'TE+++';
+  }
+
+  // Compact "1QB/2RB/3WR/1TE/2FLEX/1SFLEX" read on the league's actual starting
+  // lineup, in a fixed skill-position-first order rather than roster_positions'
+  // raw (arbitrary) order.
+  function startersLabel(positions) {
+    const counts = new Map();
+    (positions || []).forEach(s => {
+      if (['BN', 'IR', 'TAXI'].includes(s)) return;
+      counts.set(s, (counts.get(s) || 0) + 1);
+    });
+    const order = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'WRRB_FLEX', 'REC_FLEX', 'SUPER_FLEX', 'K', 'DEF'];
+    const labels = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T', SUPER_FLEX: 'SFLEX', K: 'K', DEF: 'DEF' };
+    return order.filter(s => counts.has(s)).map(s => `${counts.get(s)}${labels[s]}`).join('/');
+  }
 
   // Builds { norm -> [{date, value, ppg}, ...] } across every daily snapshot. Only
   // covers players rostered in the tracked league (see snapshot-value-history.js) —
@@ -265,6 +289,8 @@
   async function loadData() {
     try {
       statFormat.textContent = isSF ? 'Superflex' : '1QB';
+      const tep = tePremiumLabel(scoringSettings?.bonus_rec_te);
+      statFormatDetail.textContent = [tep, startersLabel(rosterPositions)].filter(Boolean).join(' • ');
       log('Fetching KTC values…');
       const [ktcData, projData, valueHistory, sleeperPlayers, playerHistory] = await Promise.all([
         Vault.fetchKtcValues(),
@@ -447,6 +473,7 @@
       const users = await fetch(`https://api.sleeper.app/v1/league/${id}/users`).then(r => r.json());
       isSF = (league.roster_positions || []).includes('SUPER_FLEX');
       scoringSettings = league.scoring_settings || {};
+      rosterPositions = league.roster_positions || [];
       leagueInfo.innerHTML = `
         <div class="font-medium text-zinc-300">${Vault.escapeHtml(league.name)}</div>
         <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
