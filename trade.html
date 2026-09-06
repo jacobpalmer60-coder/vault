@@ -279,6 +279,13 @@ function otherSide(side) { return side === 'A' ? 'B' : 'A'; }
 
 function assetRow(side, a, isSelected, extra) {
   const sub = a.type === 'pick' ? `<span class="text-[11px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="text-[11px] text-zinc-500">${a.pos}</span><span class="text-[11px] text-zinc-600">${a.team || ''}</span>`;
+  // Team A's row is the user's own asset — "Find" there shops it against the whole
+  // league (who else might want it). A Team B row is a player the user doesn't own,
+  // so shopping THEIR player to the league isn't something the user can act on —
+  // Find there needs to switch to acquire mode: what package from the user's own
+  // Team A roster would it take to go get this specific player from Team B.
+  const findAction = side === 'A' ? `openFinder('A','${a.key}')` : `openAcquireFinder('A','${a.key}',${teamOf('B').rosterId})`;
+  const findTitle = side === 'A' ? 'Shop this against every team in the league' : 'Build a package from your roster to go get this';
   return `
     <div class="group/item ${extra || ''}">
       <div onclick="toggle('${side}','${a.key}')" class="flex items-center gap-3 px-3 py-1.5 mx-1 my-0.5 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
@@ -293,7 +300,7 @@ function assetRow(side, a, isSelected, extra) {
         </div>
         <div class="hidden group-hover/item:flex gap-1.5 shrink-0">
           <button onclick="event.stopPropagation(); matchTarget('${side}','${a.key}')" title="Build a package from the other side to match this" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
-          <button onclick="event.stopPropagation(); openFinder('${side}','${a.key}')" title="Shop this against every team in the league" class="text-[11px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
+          <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
         </div>
         <div class="w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-amber-400 border-amber-400' : 'border-white/10 group-hover/item:border-amber-500/40'}">
           ${isSelected ? '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 6l2 2 4-4" stroke="black" stroke-width="2" stroke-linecap="round"/></svg>' : ''}
