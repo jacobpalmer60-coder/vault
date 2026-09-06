@@ -21,10 +21,11 @@ jobs:
       - run: node scripts/fetch-ktc.js
       - run: node scripts/fetch-projections.js
       - run: node scripts/fetch-ktc-trades.js
+      - run: node scripts/snapshot-value-history.js
 
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ktc-values.json data/projections.json data/ktc-trades.json
-          git diff --cached --quiet || git commit -m "Update KTC values, projections, and trade database"
+          git add data/ktc-values.json data/projections.json data/ktc-trades.json data/team-value-history.json data/player-value-history.json
+          git diff --cached --quiet || git commit -m "Update KTC values, projections, trade database, and value history"
           git push

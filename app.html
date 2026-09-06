@@ -50,6 +50,15 @@
   </div>
 
   <div class="mt-8 card rounded-vault p-6">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="display text-[20px] gold-text">Value Over Time</h2>
+      <span id="valueHistoryMeta" class="text-[11px] text-zinc-500"></span>
+    </div>
+    <p class="text-[12px] text-zinc-500 mb-4">Each team's total dynasty value, snapshotted daily.</p>
+    <div id="valueHistoryChart"></div>
+  </div>
+
+  <div class="mt-8 card rounded-vault p-6">
     <h2 class="display text-[20px] gold-text mb-4">Legend</h2>
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]">
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Total Value</span><span class="text-zinc-400"> — Sum of player values</span></div>
@@ -107,6 +116,73 @@ function posSplitBar(t) {
   return `<div class="h-[7px] w-full max-w-[160px] rounded-full overflow-hidden flex bg-white/[0.06]">${segs}</div><div class="mt-1 flex gap-2 text-[10px] font-mono whitespace-nowrap">${labels}</div>`;
 }
 
+// One color per team line, cycled if there are more teams than colors.
+const CHART_COLORS = ['#f5c542', '#5ec7f5', '#f56e6e', '#7ee787', '#c792ea', '#ff9d5c', '#67e8f9', '#f0abfc', '#a3e635', '#fb7185'];
+
+function renderValueHistory(history, currentTeams) {
+  const mount = document.getElementById('valueHistoryChart');
+  const meta = document.getElementById('valueHistoryMeta');
+  const snaps = history.snapshots || [];
+  if (snaps.length < 2) {
+    meta.textContent = snaps.length === 1 ? '1 snapshot so far' : 'No snapshots yet';
+    mount.innerHTML = `<div class="text-[13px] text-zinc-500 py-10 text-center">Value history is building — check back after a few daily snapshots to see trends.</div>`;
+    return;
+  }
+  meta.textContent = `${snaps.length} daily snapshots • ${snaps[0].date} → ${snaps[snaps.length - 1].date}`;
+
+  // Union of rosterIds across every snapshot (not just the latest) so a line stays
+  // continuous even if a team was renamed mid-history — matched by rosterId, not name.
+  const rosterIds = [...new Set(snaps.flatMap(s => s.teams.map(t => t.rosterId)))];
+  const nameFor = id => (currentTeams.find(t => t.rosterId === id) || {}).teamName
+    || (snaps[snaps.length - 1].teams.find(t => t.rosterId === id) || {}).teamName || `Team ${id}`;
+
+  const series = rosterIds.map((id, i) => ({
+    id, name: nameFor(id), color: CHART_COLORS[i % CHART_COLORS.length],
+    points: snaps.map(s => { const t = s.teams.find(x => x.rosterId === id); return t ? t.total : null; })
+  }));
+
+  const allVals = series.flatMap(s => s.points.filter(v => v != null));
+  const minV = Math.min(...allVals), maxV = Math.max(...allVals);
+  const pad = (maxV - minV) * 0.08 || maxV * 0.1 || 1000;
+  const yMin = Math.max(0, minV - pad), yMax = maxV + pad;
+
+  const W = 900, H = 300, ML = 56, MR = 16, MT = 12, MB = 28;
+  const plotW = W - ML - MR, plotH = H - MT - MB;
+  const x = i => ML + (snaps.length > 1 ? i / (snaps.length - 1) * plotW : 0);
+  const y = v => MT + plotH - (v - yMin) / (yMax - yMin) * plotH;
+
+  const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => {
+    const v = yMin + (yMax - yMin) * f, yy = y(v);
+    return `<line x1="${ML}" y1="${yy}" x2="${W - MR}" y2="${yy}" stroke="currentColor" class="text-white/5"/>
+      <text x="${ML - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-500">${Math.round(v).toLocaleString()}</text>`;
+  }).join('');
+
+  const dateTicks = [0, snaps.length - 1].map(i =>
+    `<text x="${x(i)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : 'end'}" font-size="10" fill="currentColor" class="text-zinc-500">${snaps[i].date}</text>`
+  ).join('');
+
+  const lines = series.map(s => {
+    const pts = s.points.map((v, i) => v == null ? null : `${x(i)},${y(v)}`).filter(Boolean).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>`;
+  }).join('');
+
+  mount.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto">${gridLines}${lines}${dateTicks}</svg>
+    <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+      ${series.map(s => {
+        const vals = s.points.filter(v => v != null);
+        const first = vals[0], last = vals[vals.length - 1];
+        const delta = (first != null && last != null) ? last - first : null;
+        return `<div class="flex items-center gap-1.5 text-[11px]">
+          <span class="size-2 rounded-full shrink-0" style="background:${s.color}"></span>
+          <span class="text-zinc-300">${Vault.escapeHtml(s.name)}</span>
+          <span class="text-zinc-500 mono">${last != null ? Math.round(last).toLocaleString() : '—'}</span>
+          ${delta != null ? `<span class="mono ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${delta >= 0 ? '+' : ''}${Math.round(delta).toLocaleString()}</span>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
 async function load() {
   const status = document.getElementById('status');
   status.innerHTML = `<div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>`;
@@ -115,6 +191,7 @@ async function load() {
     teams = built;
     render();
     status.innerHTML = `<div class="size-2 rounded-full bg-emerald-400"></div><span>Live • ${teams.length} teams</span>`;
+    Vault.fetchTeamValueHistory().then(h => renderValueHistory(h, teams)).catch(() => {});
   } catch (e) {
     console.error(e);
     status.innerHTML = `<div class="size-2 rounded-full bg-rose-400"></div><span>${Vault.escapeHtml(e.message)}</span>`;

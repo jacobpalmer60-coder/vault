@@ -168,6 +168,28 @@ const Vault = {
     return map;
   },
 
+  /* ---------- Value history ----------
+     data/team-value-history.json and data/player-value-history.json are written
+     daily by scripts/snapshot-value-history.js (same Action as the KTC refresh).
+     Both files exist from the start (seeded empty) so these never 404 — pages just
+     render a "not enough history yet" state until snapshots accumulate. Player
+     history only covers players actually rostered in the tracked league, keyed by
+     normalized name (KTC has no Sleeper IDs), not the full KTC universe. */
+  async fetchTeamValueHistory() {
+    try {
+      const res = await fetch('data/team-value-history.json');
+      if (!res.ok) return { leagueId: null, snapshots: [] };
+      return res.json();
+    } catch { return { leagueId: null, snapshots: [] }; }
+  },
+  async fetchPlayerValueHistory() {
+    try {
+      const res = await fetch('data/player-value-history.json');
+      if (!res.ok) return { leagueId: null, snapshots: [] };
+      return res.json();
+    } catch { return { leagueId: null, snapshots: [] }; }
+  },
+
   /* KTC's pick grid rolls forward each spring after that year's rookie draft, so its
      available seasons can lag a league's configured PICK_YEARS by a year. Map each
      configured year to whichever KTC season is closest rather than hardcoding either. */

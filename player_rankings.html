@@ -74,12 +74,13 @@
             <th class="px-4 py-3 font-medium sortable" data-key="team">Team <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="age">Age <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="value">Value <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="trendDelta" title="Value change since the earliest daily snapshot — tracked for players rostered in your league only">Trend <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg">PPG <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="vpRatio">Value/PPG <span class="sort-ind"></span></th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.06]">
-          <tr><td colspan="8" class="px-4 py-16 text-center text-zinc-500">Loading data…</td></tr>
+          <tr><td colspan="9" class="px-4 py-16 text-center text-zinc-500">Loading data…</td></tr>
         </tbody>
       </table>
     </div>
@@ -108,6 +109,13 @@
   <footer class="mt-10 text-center text-xs text-zinc-600">
     Built for dynasty managers. Data © KeepTradeCut & Sleeper API.
   </footer>
+</div>
+
+<div id="playerModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="glass max-w-lg w-full p-6 relative max-h-[85vh] overflow-y-auto">
+    <button onclick="closePlayerModal()" class="absolute top-4 right-4 text-zinc-400 hover:text-white text-lg leading-none">✕</button>
+    <div id="playerModalBody"></div>
+  </div>
 </div>
 
 <script src="vault-core.js"></script>
@@ -145,29 +153,136 @@
   const fmtFloat = Vault.fmtFloat;
   const posColor = pos => `pos-badge-${['QB','RB','WR','TE'].includes(pos) ? pos : 'default'}`;
 
+  // Builds { norm -> [{date, value}, ...] } across every daily snapshot. Only covers
+  // players rostered in the tracked league (see snapshot-value-history.js) — most
+  // rows in this page's full KTC universe simply won't have a trend yet.
+  function buildTrendMap(history) {
+    const map = new Map();
+    (history.snapshots || []).forEach(snap => {
+      Object.entries(snap.players || {}).forEach(([norm, value]) => {
+        if (!map.has(norm)) map.set(norm, []);
+        map.get(norm).push({ date: snap.date, value });
+      });
+    });
+    return map;
+  }
+
+  function sparkline(points, width = 56, height = 20) {
+    if (points.length < 2) return '';
+    const min = Math.min(...points), max = Math.max(...points);
+    const range = max - min || 1;
+    const stepX = width / (points.length - 1);
+    const pts = points.map((v, i) => `${(i * stepX).toFixed(1)},${(height - (v - min) / range * height).toFixed(1)}`).join(' ');
+    const up = points[points.length - 1] >= points[0];
+    return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="inline-block align-middle"><polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  }
+
+  function playerChart(series) {
+    const W = 460, H = 160, ML = 48, MR = 12, MT = 10, MB = 22;
+    const plotW = W - ML - MR, plotH = H - MT - MB;
+    const vals = series.map(p => p.value);
+    const minV = Math.min(...vals), maxV = Math.max(...vals);
+    const pad = (maxV - minV) * 0.1 || maxV * 0.1 || 100;
+    const yMin = Math.max(0, minV - pad), yMax = maxV + pad;
+    const x = i => ML + (series.length > 1 ? i / (series.length - 1) * plotW : 0);
+    const y = v => MT + plotH - (v - yMin) / (yMax - yMin) * plotH;
+    const pts = series.map((p, i) => `${x(i)},${y(p.value)}`).join(' ');
+    const gridLines = [0, 0.5, 1].map(f => {
+      const v = yMin + (yMax - yMin) * f, yy = y(v);
+      return `<line x1="${ML}" y1="${yy}" x2="${W - MR}" y2="${yy}" stroke="currentColor" class="text-white/5"/>
+        <text x="${ML - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="currentColor" class="text-zinc-500">${Math.round(v).toLocaleString()}</text>`;
+    }).join('');
+    const dateTicks = [0, series.length - 1].map(i =>
+      `<text x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : 'end'}" font-size="9" fill="currentColor" class="text-zinc-500">${series[i].date}</text>`
+    ).join('');
+    const up = vals[vals.length - 1] >= vals[0];
+    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dateTicks}</svg>`;
+  }
+
+  function renderPlayerCard(r) {
+    const chart = r.trendSeries.length >= 2
+      ? playerChart(r.trendSeries)
+      : `<div class="text-[12.5px] text-zinc-500 py-8 text-center">Value history is building for this player — check back after a few daily snapshots. Only tracked for players rostered in your league.</div>`;
+    return `
+      <div class="flex items-start justify-between gap-3 mb-4 pr-6">
+        <div>
+          <div class="text-[20px] font-bold text-zinc-100">${Vault.escapeHtml(r.player)}</div>
+          <div class="text-[12px] text-zinc-400 mt-1">${Vault.escapeHtml(r.team) || '—'} • Age ${r.age != null ? fmtFloat(r.age, 1) : '—'}${r.yearsExp != null ? ' • ' + (r.yearsExp === 0 ? 'Rookie' : `${r.yearsExp} yr${r.yearsExp === 1 ? '' : 's'} in NFL`) : ''}</div>
+        </div>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 ${posColor(r.pos)}">${r.pos || '—'}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center py-3 border-y border-white/10 mb-4">
+        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">Value</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">${r.posRank ? '#' + r.posRank + ' of ' + r.posCount : '—'}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">${r.pos || 'Pos'} Rank</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">${fmtFloat(r.ppg, 2)}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">PPG</div></div>
+      </div>
+      <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">Value Over Time</div>
+      ${chart}
+    `;
+  }
+
+  function openPlayerModal(norm) {
+    const r = allRows.find(x => x.norm === norm);
+    if (!r) return;
+    document.getElementById('playerModalBody').innerHTML = renderPlayerCard(r);
+    document.getElementById('playerModal').classList.remove('hidden');
+  }
+  function closePlayerModal() { document.getElementById('playerModal').classList.add('hidden'); }
+  window.closePlayerModal = closePlayerModal;
+  document.getElementById('playerModal').addEventListener('click', e => { if (e.target.id === 'playerModal') closePlayerModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePlayerModal(); });
+
   async function loadData() {
     try {
       statFormat.textContent = isSF ? 'Superflex' : '1QB';
       log('Fetching KTC values…');
-      const [ktcData, projData] = await Promise.all([
+      const [ktcData, projData, valueHistory, sleeperPlayers] = await Promise.all([
         Vault.fetchKtcValues(),
-        Vault.fetchProjections()
+        Vault.fetchProjections(),
+        Vault.fetchPlayerValueHistory(),
+        fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json())
       ]);
       log(`KTC values: ${ktcData.count.toLocaleString()} players (updated ${new Date(ktcData.updated).toLocaleDateString()})`);
 
       const ppgMap = Vault.buildProjectedPpgMapByName(projData, scoringSettings);
       log(`Projected PPG map built: ${ppgMap.size.toLocaleString()} players (league scoring)`);
 
+      const trendMap = buildTrendMap(valueHistory);
+      log(`Value history: ${valueHistory.snapshots.length} daily snapshot${valueHistory.snapshots.length === 1 ? '' : 's'} for rostered players`);
+
+      // NFL experience isn't in KTC's data — matched from Sleeper's player database
+      // by normalized name, same join key as everything else on this page.
+      const expByName = new Map();
+      Object.values(sleeperPlayers || {}).forEach(sp => {
+        if (!sp || sp.years_exp == null) return;
+        const nm = `${sp.first_name || ''} ${sp.last_name || ''}`.trim();
+        const key = Vault.normalizeName(nm);
+        if (key) expByName.set(key, sp.years_exp);
+      });
+
       const rows = ktcData.players.map(p => {
         const norm = Vault.normalizeName(p.name);
         const value = isSF ? p.sf_tep : p.oneQB_tep;
         const ppg = ppgMap.get(norm) ?? null;
         const vpRatio = (Number.isFinite(value) && Number.isFinite(ppg) && ppg > 0) ? value / ppg : null;
-        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio };
+        const trendSeries = trendMap.get(norm) || [];
+        const trendValues = trendSeries.map(pt => pt.value);
+        const trendDelta = trendValues.length >= 2 ? trendValues[trendValues.length - 1] - trendValues[0] : null;
+        const yearsExp = expByName.get(norm) ?? null;
+        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio, trendSeries, trendValues, trendDelta, yearsExp };
       });
 
       allRows = rows.filter(r => r.value != null);
       log(`Merged rows: ${allRows.length.toLocaleString()}`);
+
+      // Position rank — computed once here rather than per-render, since it only
+      // depends on the full player pool, not the current filter/search/sort state.
+      const byPos = new Map();
+      allRows.forEach(r => { if (!byPos.has(r.pos)) byPos.set(r.pos, []); byPos.get(r.pos).push(r); });
+      byPos.forEach(list => {
+        list.sort((a, b) => b.value - a.value);
+        list.forEach((r, i) => { r.posRank = i + 1; r.posCount = list.length; });
+      });
 
       statPlayers.textContent = allRows.length.toLocaleString();
       const avgVal = allRows.reduce((s, r) => s + (r.value || 0), 0) / allRows.length;
@@ -180,7 +295,7 @@
     } catch (e) {
       console.error(e);
       log(e.message, 'error');
-      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
     }
   }
 
@@ -225,13 +340,15 @@
 
   function renderTable() {
     if (filteredRows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-zinc-500">No players match filters</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-16 text-center text-zinc-500">No players match filters</td></tr>`;
       return;
     }
     const frag = document.createDocumentFragment();
     filteredRows.forEach((r, i) => {
       const tr = document.createElement('tr');
-      tr.className = 'hover:bg-amber-500/5 transition';
+      tr.className = 'hover:bg-amber-500/5 transition cursor-pointer';
+      tr.title = 'View player card';
+      tr.addEventListener('click', () => openPlayerModal(r.norm));
       tr.innerHTML = `
         <td class="px-4 py-3 text-zinc-500 mono text-xs">${i + 1}</td>
         <td class="px-4 py-3 font-medium text-zinc-100">${Vault.escapeHtml(r.player)}</td>
@@ -239,6 +356,11 @@
         <td class="px-4 py-3 text-zinc-400 mono text-xs">${Vault.escapeHtml(r.team) || '—'}</td>
         <td class="px-4 py-3 text-right mono text-xs text-zinc-400">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
         <td class="px-4 py-3 text-right mono font-medium text-zinc-100">${fmtInt(r.value)}</td>
+        <td class="px-4 py-3 text-right">
+          ${r.trendDelta != null
+            ? `<div class="flex items-center justify-end gap-2">${sparkline(r.trendValues)}<span class="mono text-xs ${r.trendDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.trendDelta >= 0 ? '+' : ''}${fmtInt(r.trendDelta)}</span></div>`
+            : '<span class="text-zinc-600 text-xs">—</span>'}
+        </td>
         <td class="px-4 py-3 text-right mono text-zinc-400">${fmtFloat(r.ppg, 2)}</td>
         <td class="px-4 py-3 text-right mono">
           <span class="${r.vpRatio != null && r.vpRatio < 300 ? 'text-emerald-400' : r.vpRatio != null && r.vpRatio > 600 ? 'text-amber-400' : 'text-zinc-300'}">
