@@ -16,6 +16,13 @@ const VAULT_CONFIG = {
   // asset that shouldn't be on anyone's roster or price into their team value.
   PICK_YEARS_WINDOW: 4,
   PICK_ROUNDS: [1, 2, 3, 4],
+  // Sleeper's season-long projections endpoint (data/projections.json) reports the
+  // same gp:18 for every single skill-position player with zero variation — it's a
+  // placeholder equal to the number of WEEKS in the season, not a real per-player
+  // games-played projection. The real ceiling is 17: each team plays 17 games across
+  // an 18-week schedule (one bye week apiece), so no player can appear in more than
+  // 17. Dividing by Sleeper's 18 understated every projected PPG by ~5.6%.
+  REGULAR_SEASON_GAMES: 17,
   // Value Based Adjustment: boosts assets above VBA_REFERENCE, discounts those
   // below it, so a single elite piece outweighs several mid-tier pieces summing
   // to the same raw value. Fitted against a real KeepTradeCut trade-calculator
@@ -289,8 +296,11 @@ const Vault = {
   buildProjectedPpgMapById(projData, scoringSettings) {
     const map = new Map();
     Object.entries(projData.players || {}).forEach(([pid, p]) => {
-      const gp = p.stats.gp || 0;
-      if (gp) map.set(pid, Vault.scoreStats(p.stats, scoringSettings) / gp);
+      // p.stats.gp itself is unusable as the PPG divisor (see REGULAR_SEASON_GAMES) —
+      // only used here as an eligibility check for "does Sleeper project this player
+      // to play at all this season".
+      if (!p.stats.gp) return;
+      map.set(pid, Vault.scoreStats(p.stats, scoringSettings) / VAULT_CONFIG.REGULAR_SEASON_GAMES);
     });
     return map;
   },
@@ -298,9 +308,9 @@ const Vault = {
   buildProjectedPpgMapByName(projData, scoringSettings) {
     const map = new Map();
     Object.values(projData.players || {}).forEach(p => {
-      const gp = p.stats.gp || 0;
       const key = Vault.normalizeName(p.name);
-      if (gp && key) map.set(key, Vault.scoreStats(p.stats, scoringSettings) / gp);
+      if (!p.stats.gp || !key) return;
+      map.set(key, Vault.scoreStats(p.stats, scoringSettings) / VAULT_CONFIG.REGULAR_SEASON_GAMES);
     });
     return map;
   },
