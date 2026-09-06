@@ -930,5 +930,217 @@ const Vault = {
     const top3Share = t.total ? topAssets.reduce((s, p) => s + p.value, 0) / t.total : 0;
     if (top3Share > 0.4) flaws.push(`Top-Heavy: top 3 players are ${Math.round(top3Share * 100)}% of total value`);
     return flaws.slice(0, 3);
+  },
+
+  /* ---------- Trade partner suggestions ----------
+     Promoted from Team Analyzer so the Trade Calculator can surface the same "who
+     should I actually call" read while a trade is being built, not just after the
+     fact. Scores every other team by need/surplus complementarity (both directions),
+     timeline gap (age), and pick-capital imbalance — no trade-specific assets
+     involved yet, just whether two rosters are shaped to make a deal work. */
+  tradePartnerSuggestions(t, all, limit = 2) {
+    const { needs, surpluses } = Vault.positionalProfile(t, all);
+    return all.filter(o => o.rosterId !== t.rosterId).map(o => {
+      const { needs: theirNeeds, surpluses: theirSurplus } = Vault.positionalProfile(o, all);
+      let score = 0;
+      const reasons = [];
+      needs.forEach(n => {
+        if (theirSurplus.includes(n)) { score += 3; reasons.push(`They're deep at ${n.toUpperCase()} — your biggest need`); }
+      });
+      surpluses.forEach(s => {
+        if (theirNeeds.includes(s)) { score += 2; reasons.push(`You're deep at ${s.toUpperCase()} — something they're missing`); }
+      });
+      if (Math.abs(t.age - o.age) > 2.5) {
+        score += 1;
+        reasons.push(t.age > o.age ? `They're ${(t.age - o.age).toFixed(1)} yrs younger — different timelines can make a deal work` : `You're ${(o.age - t.age).toFixed(1)} yrs younger — different timelines can make a deal work`);
+      }
+      if (t.picksValue < 5000 && o.picksValue > 8000) { score += 2; reasons.push(`They're pick-rich (${Math.round(o.picksValue).toLocaleString()}) while you're pick-poor`); }
+      if (t.picksValue > 8000 && o.picksValue < 5000) { score += 2; reasons.push(`You're pick-rich while they're pick-poor (${Math.round(o.picksValue).toLocaleString()})`); }
+      if (!reasons.length) reasons.push('Roughly matched value and timeline — no glaring need overlap');
+      return { ...o, fit: score, reasons };
+    }).sort((a, b) => b.fit - a.fit).slice(0, limit);
+  },
+
+  /* ---------- Trade grading pipeline ----------
+     Promoted from Trade Grades so a second page (the Manager page) can run the exact
+     same real-trade grading without re-implementing or drifting from it. */
+  resolveTradeAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap) {
+    const assets = [];
+    Object.entries(tx.adds || {}).forEach(([pid, toRoster]) => {
+      if (toRoster !== sideRosterId) return;
+      const p = playersDb[pid] || {};
+      const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`;
+      assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, ppg: ppgMap.get(pid) || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
+    });
+    (tx.draft_picks || []).forEach(pk => {
+      if (pk.owner_id !== sideRosterId) return;
+      const info = pickValueByKey.get(`${pk.season}-${pk.round}-${pk.roster_id}`);
+      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}`, pos: 'PICK', age: 0, value: info ? info.value : 0 });
+    });
+    return assets;
+  },
+
+  // Value fairness is gated first (Fair/Borderline/Lopsided), then each side's
+  // combined fit (positional need/surplus + rebuild/contend timeline + archetype +
+  // optimal-lineup swing) decides the sub-label. Below the Lopsided cutoff a real
+  // dollar tilt is the norm for an actual trade, not a finding worth naming — the
+  // badge shown alongside this label already communicates the price gap.
+  historyVerdict(pctDiff, dValueAdjA, fitA, fitB, teamAName, teamBName, avgSideAdj, posResultA, posResultB, timelineA, timelineB) {
+    const good = s => s >= 2, bad = s => s <= -2;
+    const themeA = Vault.sideTheme(posResultA, timelineA.dAge, timelineA.dPicks, timelineA.mode);
+    const themeB = Vault.sideTheme(posResultB, timelineB.dAge, timelineB.dPicks, timelineB.mode);
+    const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
+
+    if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
+      const favored = dValueAdjA >= 0 ? 'A' : 'B';
+      return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
+    }
+    if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
+    if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };
+    if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: 'Won for Team A', text };
+    if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: 'Won for Team B', text };
+    if (good(fitA) || good(fitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
+    return { tone: 'neutral', label: 'Fair Trade', text };
+  },
+
+  gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots) {
+    const [rA, rB] = tx.roster_ids;
+    const teamA = teamById.get(rA), teamB = teamById.get(rB);
+    if (!teamA || !teamB) return null;
+
+    const toA = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap); // what A received (B gave)
+    const toB = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap); // what B received (A gave)
+    if (!toA.length && !toB.length) return null;
+
+    const aGaveAdj = toB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const bGaveAdj = toA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const avgAdj = (aGaveAdj + bGaveAdj) / 2 || 1;
+    const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
+    const dValueAdjA = bGaveAdj - aGaveAdj; // positive = A came out ahead on value
+
+    const fitA = Vault.positionalFitNotes(teamA, teams, toA, toB);
+    const fitB = Vault.positionalFitNotes(teamB, teams, toB, toA);
+    const timelineA = Vault.timelineFitNotes(teamA, toA, toB);
+    const timelineB = Vault.timelineFitNotes(teamB, toB, toA);
+    const archA = Vault.archetypeFitNotes(teamA, toA, toB);
+    const archB = Vault.archetypeFitNotes(teamB, toB, toA);
+
+    // Reconstruct each team's optimal-lineup PPG the day before this trade by running
+    // Vault.simulateTrade in reverse: passing what each side actually RECEIVED as the
+    // "give" list undoes the trade against their CURRENT roster.
+    const sim = Vault.simulateTrade(teams, slots, rA, rB, toA, toB);
+    const dOptA = sim.before.A.opt - sim.after.A.opt;
+    const dOptB = sim.before.B.opt - sim.after.B.opt;
+    const optNoteA = Vault.optShiftNote(timelineA.mode, dOptA);
+    const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
+
+    const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0);
+    const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0);
+
+    const verdict = Vault.historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
+    const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
+
+    return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, dOptA, dOptB, optNoteA, optNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
+  },
+
+  /* Full fetch-build-grade pipeline for a league's real trade history — shared by
+     Trade Grades and the Manager page so both read the exact same graded trades
+     instead of running two copies of this fetch that could drift apart. */
+  async fetchAndGradeAllTrades(leagueId) {
+    const { league, isSF, teams, slots } = await Vault.buildLeagueTeams(leagueId);
+    const [playersDb, ktcData, projData, ...weeks] = await Promise.all([
+      fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
+      Vault.fetchKtcValues(),
+      Vault.fetchProjections(),
+      ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
+    ]);
+    const valMap = Vault.buildKtcValueMap(ktcData, isSF);
+    const ppgMap = Vault.buildProjectedPpgMapById(projData, league.scoring_settings);
+
+    const pickValueByKey = new Map();
+    teams.forEach(t => t.picks.forEach(p => pickValueByKey.set(`${p.season}-${p.round}-${p.original}`, p)));
+    const teamById = new Map(teams.map(t => [t.rosterId, t]));
+
+    const seen = new Set();
+    const trades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2 && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
+
+    const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots)).filter(Boolean);
+    return { league, isSF, teams, slots, allGraded };
+  },
+
+  /* ---------- Manager tendencies ----------
+     Aggregates every graded trade into a per-manager record — not just net value,
+     but HOW they trade: volume, whether their trades fit their own timeline, pick
+     direction, age direction, and their lopsided-trade record. Shared basis for
+     Trade Grades' league summary and the Manager page's fuller profile.
+     `teams` (optional, the full league from buildLeagueTeams) seeds every manager
+     with a zero-trade record first — without it, a manager who's made zero trades
+     silently disappears instead of showing up as "hasn't traded". */
+  buildManagerStats(allGraded, teams) {
+    const byTeam = new Map();
+    const ensure = team => {
+      if (!byTeam.has(team.rosterId)) byTeam.set(team.rosterId, {
+        teamName: team.teamName, rosterId: team.rosterId,
+        trades: 0, won: 0, lost: 0, netValue: 0, fitSum: 0,
+        netPicks: 0, ageDeltaSum: 0,
+        fair: 0, borderline: 0, lopsided: 0, lopsidedFor: 0, lopsidedAgainst: 0,
+        best: null, worst: null
+      });
+      return byTeam.get(team.rosterId);
+    };
+    (teams || []).forEach(ensure);
+    allGraded.forEach(g => {
+      [
+        { team: g.teamA, dVal: g.dValueAdjA, fit: g.combinedFitA, timeline: g.timelineA, opp: g.teamB.teamName },
+        { team: g.teamB, dVal: -g.dValueAdjA, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName }
+      ].forEach(({ team, dVal, fit, timeline, opp }) => {
+        const s = ensure(team);
+        s.trades++; s.netValue += dVal; s.fitSum += fit;
+        s.netPicks += timeline.dPicks; s.ageDeltaSum += timeline.dAge;
+        if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
+        const bucket = g.pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'lopsided' : g.pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'borderline' : 'fair';
+        s[bucket]++;
+        if (bucket === 'lopsided') { if (dVal > 0) s.lopsidedFor++; else s.lopsidedAgainst++; }
+        const rec = { opp, dVal, pctDiff: g.pctDiff, created: g.tx.created };
+        if (!s.best || dVal > s.best.dVal) s.best = rec;
+        if (!s.worst || dVal < s.worst.dVal) s.worst = rec;
+      });
+    });
+    return [...byTeam.values()].map(s => ({
+      ...s,
+      avgFit: s.trades ? s.fitSum / s.trades : 0,
+      avgAgeDelta: s.trades ? s.ageDeltaSum / s.trades : 0
+    })).sort((a, b) => b.netValue - a.netValue);
+  },
+
+  // Turns one manager's aggregated stats into plain-English tendency notes — the
+  // narrative layer a raw stat line can't carry on its own.
+  managerTendencyNotes(s, leagueAvgTrades) {
+    if (s.trades === 0) return [{ tone: 'neutral', text: "Hasn't made a trade this season." }];
+    const notes = [];
+    if (leagueAvgTrades > 0) {
+      if (s.trades >= leagueAvgTrades * 1.5) notes.push({ tone: 'neutral', text: `Active trader — ${s.trades} trades vs. a league average of ${leagueAvgTrades.toFixed(1)}.` });
+      else if (s.trades <= leagueAvgTrades * 0.5) notes.push({ tone: 'neutral', text: `Rarely trades — just ${s.trades} vs. a league average of ${leagueAvgTrades.toFixed(1)}.` });
+    }
+    if (s.trades >= 3) {
+      const winRate = s.won / s.trades;
+      if (winRate >= 0.65) notes.push({ tone: 'good', text: `Wins on value more often than not (${s.won}-${s.lost} record).` });
+      else if (s.lost > s.won && s.lost / s.trades >= 0.6) notes.push({ tone: 'bad', text: `Comes out behind on value more often than not (${s.won}-${s.lost} record).` });
+    }
+    if (s.avgFit >= 1.5) notes.push({ tone: 'good', text: `Trades tend to fit the team's own timeline and needs, not just the sticker price.` });
+    else if (s.avgFit <= -1.5) notes.push({ tone: 'bad', text: `Trades often work against the team's own timeline or needs, even when the dollars are close.` });
+    if (s.trades >= 3) {
+      const perTrade = s.netPicks / s.trades;
+      if (perTrade > 800) notes.push({ tone: 'neutral', text: `Net accumulates draft capital — averages +${Math.round(perTrade).toLocaleString()} in picks per trade.` });
+      else if (perTrade < -800) notes.push({ tone: 'neutral', text: `Net spends draft capital — averages ${Math.round(perTrade).toLocaleString()} in picks per trade.` });
+      if (s.avgAgeDelta <= -0.5) notes.push({ tone: 'neutral', text: `Consistently gets younger through trades (avg ${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
+      else if (s.avgAgeDelta >= 0.5) notes.push({ tone: 'neutral', text: `Consistently gets older through trades (avg +${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
+    }
+    if (s.lopsided >= 2) {
+      if (s.lopsidedFor > s.lopsidedAgainst) notes.push({ tone: 'good', text: `Has come out ahead in most of their own lopsided trades (${s.lopsidedFor} of ${s.lopsided}).` });
+      else if (s.lopsidedAgainst > s.lopsidedFor) notes.push({ tone: 'bad', text: `Has been on the losing end of most of their own lopsided trades (${s.lopsidedAgainst} of ${s.lopsided}).` });
+    }
+    if (!notes.length) notes.push({ tone: 'neutral', text: 'Not enough trade history yet for a clear read.' });
+    return notes;
   }
 };

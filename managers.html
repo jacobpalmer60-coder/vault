@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Managers — The Vault</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[1200px] mx-auto p-6 lg:p-8">
+  <div class="mb-2">
+    <h1 class="display text-[28px] font-semibold gold-text">Managers</h1>
+    <p id="status" class="text-[13px] text-zinc-500 mt-1">Loading league…</p>
+  </div>
+  <p class="text-[12px] text-zinc-500 max-w-[720px] mb-6 leading-relaxed">
+    How every manager actually trades, built entirely from Trade Grades' output —
+    not a separate model. Volume, whether their trades win on value, whether those
+    trades fit their own timeline and needs, which way they move draft capital and
+    age, and their record in the trades that ended up lopsided.
+  </p>
+
+  <div id="grid" class="grid md:grid-cols-2 gap-5"></div>
+  <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+</div>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
+const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
+function fmtSigned(n, decimals = 0) { return (n >= 0 ? '+' : '') + n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
+function fmtDate(ts) { return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
+
+function bestWorstLine(rec, label, tone) {
+  if (!rec) return '';
+  return `<div class="flex items-center justify-between text-[12px] py-1.5">
+    <span class="text-zinc-500">${label} <span class="text-zinc-600">· vs ${Vault.escapeHtml(rec.opp)} · ${fmtDate(rec.created)}</span></span>
+    <span class="mono font-medium ${TONE[tone]}">${fmtSigned(rec.dVal)}</span>
+  </div>`;
+}
+
+function renderCard(s, rank) {
+  const notes = Vault.managerTendencyNotes(s, window._avgTrades || 0);
+  return `
+    <div class="card rounded-vault-sm p-5">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider">Rank #${rank}</div>
+          <h3 class="text-[18px] font-semibold text-zinc-100">${Vault.escapeHtml(s.teamName)}</h3>
+        </div>
+        <div class="text-right">
+          <div class="text-[17px] mono font-semibold ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</div>
+          <div class="text-[11px] text-zinc-500">net value, all trades</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-4 gap-1 text-center py-3 border-y border-white/5 mb-4">
+        <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[11px] text-zinc-500">Trades</div></div>
+        <div><div class="text-[14px] mono">${s.won}-${s.lost}</div><div class="text-[11px] text-zinc-500">W-L</div></div>
+        <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.avgFit, 1)}</div><div class="text-[11px] text-zinc-500">Avg Fit</div></div>
+        <div><div class="text-[14px] mono">${s.fair}/${s.borderline}/${s.lopsided}</div><div class="text-[11px] text-zinc-500" title="Fair / Borderline / Lopsided">F/B/L</div></div>
+      </div>
+
+      <div class="space-y-2 mb-4">
+        ${notes.map(n => `<div class="flex gap-2 text-[12.5px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
+      </div>
+
+      ${(s.best || s.worst) ? `<div class="pt-3 border-t border-white/5">
+        ${bestWorstLine(s.best, 'Best move', 'good')}
+        ${bestWorstLine(s.worst, 'Worst move', 'bad')}
+      </div>` : ''}
+    </div>`;
+}
+
+function render(stats) {
+  window._avgTrades = stats.length ? stats.reduce((s, x) => s + x.trades, 0) / stats.length : 0;
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+  if (!stats.length) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    empty.textContent = 'No completed trades found for this league yet.';
+    return;
+  }
+  empty.classList.add('hidden');
+  grid.innerHTML = stats.map((s, i) => renderCard(s, i + 1)).join('');
+}
+
+async function init() {
+  const status = document.getElementById('status');
+  try {
+    const leagueId = Vault.getLeagueId();
+    status.textContent = 'Loading player database and trade history…';
+    const { league, isSF, teams, allGraded } = await Vault.fetchAndGradeAllTrades(leagueId);
+    const stats = Vault.buildManagerStats(allGraded, teams);
+
+    status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
+    status.className = 'text-[13px] text-emerald-400/80 mt-1';
+    render(stats);
+  } catch (e) {
+    console.error(e);
+    status.textContent = e.message || 'Failed to load';
+    status.className = 'text-[13px] text-rose-400 mt-1';
+  }
+}
+init();
+</script>
+</body>
+</html>

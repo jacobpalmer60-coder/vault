@@ -63,30 +63,9 @@
 <script>
 const $ = s => document.querySelector(s);
 
-function getTradePartners(t, all) {
-  const { needs, surpluses } = Vault.positionalProfile(t, all);
-
-  return all.filter(o => o.rosterId !== t.rosterId).map(o => {
-    const { needs: theirNeeds, surpluses: theirSurplus } = Vault.positionalProfile(o, all);
-
-    let score = 0;
-    const reasons = [];
-    needs.forEach(n => {
-      if (theirSurplus.includes(n)) { score += 3; reasons.push(`They're deep at ${n.toUpperCase()} — your biggest need`); }
-    });
-    surpluses.forEach(s => {
-      if (theirNeeds.includes(s)) { score += 2; reasons.push(`You're deep at ${s.toUpperCase()} — something they're missing`); }
-    });
-    if (Math.abs(t.age - o.age) > 2.5) {
-      score += 1;
-      reasons.push(t.age > o.age ? `They're ${(t.age - o.age).toFixed(1)} yrs younger — different timelines can make a deal work` : `You're ${(o.age - t.age).toFixed(1)} yrs younger — different timelines can make a deal work`);
-    }
-    if (t.picksValue < 5000 && o.picksValue > 8000) { score += 2; reasons.push(`They're pick-rich (${Math.round(o.picksValue).toLocaleString()}) while you're pick-poor`); }
-    if (t.picksValue > 8000 && o.picksValue < 5000) { score += 2; reasons.push(`You're pick-rich while they're pick-poor (${Math.round(o.picksValue).toLocaleString()})`); }
-    if (!reasons.length) reasons.push('Roughly matched value and timeline — no glaring need overlap');
-    return { ...o, fit: score, reasons };
-  }).sort((a, b) => b.fit - a.fit).slice(0, 2);
-}
+// Promoted to Vault.tradePartnerSuggestions so the Trade Calculator can surface the
+// same suggestions while a trade is actually being built.
+function getTradePartners(t, all) { return Vault.tradePartnerSuggestions(t, all, 2); }
 
 async function loadLeague(id) {
   $('#status').classList.remove('hidden'); $('#status').textContent = 'Loading league…';

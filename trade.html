@@ -38,6 +38,10 @@
           <label class="text-[11px] text-zinc-500 uppercase tracking-wider block mb-2">1 · Team A</label>
           <select id="teamASetup" class="w-full h-12 bg-black/40 border border-white/8 rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
         </div>
+        <div id="partnerSuggest" class="hidden">
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">Suggested Partners for <span id="partnerForTeam" class="text-amber-300/80 normal-case"></span></div>
+          <div id="partnerList" class="space-y-1.5"></div>
+        </div>
         <div>
           <label class="text-[11px] text-zinc-500 uppercase tracking-wider block mb-2">2 · Team B</label>
           <select id="teamBSetup" class="w-full h-12 bg-black/40 border border-white/8 rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
@@ -192,6 +196,32 @@ function assetsFor(team) {
   return [...players, ...picks].sort((a, b) => b.value - a.value);
 }
 
+// Surfaces the same need/surplus/timeline/pick-capital fit read Team Analyzer uses
+// to suggest trade partners, but here — while a trade is actually being built —
+// rather than stranded on a separate page.
+function renderPartnerSuggestions() {
+  const setupA = document.getElementById('teamASetup'), setupB = document.getElementById('teamBSetup');
+  const box = document.getElementById('partnerSuggest');
+  const t = teams.find(x => String(x.rosterId) === setupA.value);
+  if (!t) { box.classList.add('hidden'); return; }
+
+  const partners = Vault.tradePartnerSuggestions(t, teams, 3);
+  document.getElementById('partnerForTeam').textContent = t.teamName;
+  document.getElementById('partnerList').innerHTML = partners.map(p => `
+    <button onclick="useSuggestedPartner(${p.rosterId})" class="w-full text-left px-3 py-2 rounded-lg border border-white/8 hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[13px] font-medium text-zinc-200">${Vault.escapeHtml(p.teamName)}</span>
+        <span class="text-[10px] text-zinc-500 uppercase tracking-wider">Use →</span>
+      </div>
+      <div class="text-[11px] text-zinc-500 mt-0.5">${Vault.escapeHtml(p.reasons[0])}</div>
+    </button>`).join('');
+  box.classList.remove('hidden');
+}
+
+function useSuggestedPartner(rosterId) {
+  document.getElementById('teamBSetup').value = rosterId;
+}
+
 async function init() {
   try {
     const built = await Vault.buildLeagueTeams(Vault.getLeagueId());
@@ -209,6 +239,9 @@ async function init() {
 
     selA.onchange = () => { selectedA.clear(); filterA = 'ALL'; renderPosFilter('A'); render('A'); };
     selB.onchange = () => { selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B'); };
+
+    setupA.onchange = () => renderPartnerSuggestions();
+    renderPartnerSuggestions();
 
     document.getElementById('status').textContent = `${teams.length} teams • ${league.name} • ${built.isSF ? 'Superflex' : '1QB'}`;
     document.getElementById('status').className = 'text-[13px] text-emerald-400/80 mt-1';

@@ -11,7 +11,8 @@
     { key: 'rankings', label: 'Player Rankings', href: 'player_rankings.html' },
     { key: 'trade', label: 'Trade Calculator', href: 'trade.html' },
     { key: 'grades', label: 'Trade Grades', href: 'trade_grades.html' },
-    { key: 'database', label: 'Trade Database', href: 'trade_database.html' }
+    { key: 'database', label: 'Trade Database', href: 'trade_database.html' },
+    { key: 'managers', label: 'Managers', href: 'managers.html' }
   ];
 
   function currentPage() {

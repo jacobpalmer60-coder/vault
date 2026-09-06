@@ -67,118 +67,25 @@ function synopsisColor(pctDiff) {
   return pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'text-rose-400' : pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'text-amber-400' : 'text-emerald-400';
 }
 
-// Mirrors trade.html's overallVerdict — value fairness is gated first (same
-// Fair/Borderline/Lopsided thresholds), then each side's combined fit (positional
-// need/surplus + rebuild/contend timeline fit for the specific assets that moved)
-// decides the sub-label. `text` comes from Vault.tradeHighlight — a concrete
-// "Team A gave up X, but added RB depth, while Team B got younger" recap — rather
-// than one of a handful of canned phrases per branch. No optimal-lineup PPG shift or
-// window-shift signal here — those need a full before/after roster simulation,
-// which isn't reconstructable for a trade that already happened.
-function historyVerdict(pctDiff, dValueAdjA, fitA, fitB, teamAName, teamBName, avgSideAdj, posResultA, posResultB, timelineA, timelineB) {
-  const good = s => s >= 2, bad = s => s <= -2;
-  const themeA = Vault.sideTheme(posResultA, timelineA.dAge, timelineA.dPicks, timelineA.mode);
-  const themeB = Vault.sideTheme(posResultB, timelineB.dAge, timelineB.dPicks, timelineB.mode);
-  const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
-
-  if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
-    const favored = dValueAdjA >= 0 ? 'A' : 'B';
-    return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
-  }
-
-  // Below the Lopsided cutoff, a real dollar tilt is the norm for an actual trade
-  // (median real trade runs ~22% off) — not a finding worth naming in the label.
-  // The Fair/Borderline/Lopsided badge next to this already communicates the price
-  // gap; this label speaks to fit only.
-  if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
-  if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };
-  if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: 'Won for Team A', text };
-  if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: 'Won for Team B', text };
-  if (good(fitA) || good(fitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
-  return { tone: 'neutral', label: 'Fair Trade', text };
-}
-
-function resolveAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap) {
-  const assets = [];
-  Object.entries(tx.adds || {}).forEach(([pid, toRoster]) => {
-    if (toRoster !== sideRosterId) return;
-    const p = playersDb[pid] || {};
-    const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`;
-    assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, ppg: ppgMap.get(pid) || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
-  });
-  (tx.draft_picks || []).forEach(pk => {
-    if (pk.owner_id !== sideRosterId) return;
-    const info = pickValueByKey.get(`${pk.season}-${pk.round}-${pk.roster_id}`);
-    assets.push({ type: 'pick', name: `${pk.season} R${pk.round}`, pos: 'PICK', age: 0, value: info ? info.value : 0 });
-  });
-  return assets;
-}
-
-function gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots) {
-  const [rA, rB] = tx.roster_ids;
-  const teamA = teamById.get(rA), teamB = teamById.get(rB);
-  if (!teamA || !teamB) return null;
-
-  const toA = resolveAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap); // what A received (B gave)
-  const toB = resolveAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap); // what B received (A gave)
-  if (!toA.length && !toB.length) return null;
-
-  const aGaveAdj = toB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
-  const bGaveAdj = toA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
-  const avgAdj = (aGaveAdj + bGaveAdj) / 2 || 1;
-  const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
-  const dValueAdjA = bGaveAdj - aGaveAdj; // positive = A came out ahead on value
-
-  const fitA = Vault.positionalFitNotes(teamA, teams, toA, toB);
-  const fitB = Vault.positionalFitNotes(teamB, teams, toB, toA);
-  const timelineA = Vault.timelineFitNotes(teamA, toA, toB);
-  const timelineB = Vault.timelineFitNotes(teamB, toB, toA);
-  const archA = Vault.archetypeFitNotes(teamA, toA, toB);
-  const archB = Vault.archetypeFitNotes(teamB, toB, toA);
-
-  // Reconstruct each team's optimal-lineup PPG the day before this trade by running
-  // Vault.simulateTrade in reverse: passing what each side actually RECEIVED as the
-  // "give" list undoes the trade against their CURRENT roster. `before` comes back as
-  // today's (post-trade) state, `after` as the reconstructed pre-trade state — so the
-  // real swing this trade caused is before.opt - after.opt, same sign convention as
-  // trade.html's live after-before.
-  const sim = Vault.simulateTrade(teams, slots, rA, rB, toA, toB);
-  const dOptA = sim.before.A.opt - sim.after.A.opt;
-  const dOptB = sim.before.B.opt - sim.after.B.opt;
-  const optNoteA = Vault.optShiftNote(timelineA.mode, dOptA);
-  const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
-
-  const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0);
-  const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0);
-
-  const verdict = historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
-  const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
-
-  return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, dOptA, dOptB, optNoteA, optNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
-}
+// resolveAssets/gradeTrade/historyVerdict now live in vault-core.js as
+// Vault.resolveTradeAssets/Vault.gradeTrade/Vault.historyVerdict — shared with the
+// Manager page so both grade the exact same real trades the exact same way.
 
 // League-wide "how are we doing" rollup — one row per team across every graded
-// trade, sorted by net value so it reads as a leaderboard. netValue and fit are
-// both signed from that team's side of each trade they were part of.
-function renderTeamSummary(graded) {
+// trade, sorted by net value so it reads as a leaderboard. Built on
+// Vault.buildManagerStats, the same aggregation the Manager page uses.
+function renderTeamSummary(graded, teams) {
   const box = document.getElementById('teamSummary');
   if (!graded.length) { box.classList.add('hidden'); return; }
 
-  const byTeam = new Map();
-  graded.forEach(g => {
-    [[g.teamA, g.dValueAdjA, g.combinedFitA], [g.teamB, -g.dValueAdjA, g.combinedFitB]].forEach(([team, dVal, fit]) => {
-      if (!byTeam.has(team.teamName)) byTeam.set(team.teamName, { trades: 0, netValue: 0, fitSum: 0, won: 0, lost: 0 });
-      const s = byTeam.get(team.teamName);
-      s.trades++; s.netValue += dVal; s.fitSum += fit;
-      if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
-    });
-  });
-
-  const rows = [...byTeam.entries()].sort((a, b) => b[1].netValue - a[1].netValue);
+  const rows = Vault.buildManagerStats(graded, teams);
 
   box.classList.remove('hidden');
   box.innerHTML = `
-    <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">League Trade Summary</div>
+    <div class="flex items-center justify-between gap-3 mb-2">
+      <div class="text-[11px] text-zinc-500 uppercase tracking-wider">League Trade Summary</div>
+      <a href="${Vault.linkTo('managers.html')}" class="text-[11px] text-amber-400/80 hover:text-amber-300">Full Manager Report →</a>
+    </div>
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-[13px]">
@@ -192,9 +99,9 @@ function renderTeamSummary(graded) {
             </tr>
           </thead>
           <tbody class="divide-y divide-white/5">
-            ${rows.map(([name, s]) => `
+            ${rows.map(s => `
               <tr>
-                <td class="px-4 py-2.5 font-medium">${Vault.escapeHtml(name)}</td>
+                <td class="px-4 py-2.5 font-medium">${Vault.escapeHtml(s.teamName)}</td>
                 <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.trades}</td>
                 <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.won}-${s.lost}</td>
                 <td class="px-3 py-2.5 text-right mono font-medium ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</td>
@@ -305,32 +212,13 @@ async function init() {
   const status = document.getElementById('status');
   try {
     const leagueId = Vault.getLeagueId();
-    const { league, isSF, teams, slots } = await Vault.buildLeagueTeams(leagueId);
-
     status.textContent = 'Loading player database and trade history…';
-    const [playersDb, ktcData, projData, ...weeks] = await Promise.all([
-      fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
-      Vault.fetchKtcValues(),
-      Vault.fetchProjections(),
-      ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
-    ]);
-    const valMap = Vault.buildKtcValueMap(ktcData, isSF);
-    // Needed so archetypeFitNotes can tell a young-but-already-elite producer (e.g.
-    // Jahmyr Gibbs) from an unproven youngster of the same age — see isProvenProducer.
-    const ppgMap = Vault.buildProjectedPpgMapById(projData, league.scoring_settings);
-
-    const pickValueByKey = new Map();
-    teams.forEach(t => t.picks.forEach(p => pickValueByKey.set(`${p.season}-${p.round}-${p.original}`, p)));
-    const teamById = new Map(teams.map(t => [t.rosterId, t]));
-
-    const seen = new Set();
-    const trades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2 && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
-
-    allGraded = trades.map(tx => gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots)).filter(Boolean);
+    const { league, isSF, teams, allGraded: graded } = await Vault.fetchAndGradeAllTrades(leagueId);
+    allGraded = graded;
 
     status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-emerald-400/80 mt-1';
-    renderTeamSummary(allGraded);
+    renderTeamSummary(allGraded, teams);
     renderFilters();
     renderList();
   } catch (e) {
