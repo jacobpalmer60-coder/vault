@@ -204,6 +204,36 @@
     const noHistory = `<div class="text-[12px] text-zinc-500 py-6 text-center">Building — only tracked for players rostered in your league.</div>`;
     const valueChart = r.trendSeries.length >= 2 ? playerChart(r.trendSeries, 'value', 0) : noHistory;
     const ppgChart = r.trendSeries.length >= 2 ? playerChart(r.trendSeries, 'ppg', 1) : noHistory;
+
+    let seasonRows = '';
+    if (r.seasonHistory) {
+      const seasons = Object.keys(r.seasonHistory).sort((a, b) => b - a);
+      seasonRows = seasons.map(yr => {
+        const s = r.seasonHistory[yr];
+        return `<tr>
+          <td class="py-1.5 text-zinc-400">${yr}</td>
+          <td class="py-1.5 text-right mono text-zinc-200">${fmtFloat(s.points, 1)}</td>
+          <td class="py-1.5 text-right mono text-zinc-400">${fmtFloat(s.ppg, 1)}</td>
+          <td class="py-1.5 text-right mono text-zinc-400">${s.gp}</td>
+          <td class="py-1.5 text-right mono text-zinc-300">#${s.posRank}</td>
+          <td class="py-1.5 text-right mono text-zinc-500">#${s.overallRank}</td>
+        </tr>`;
+      }).join('');
+    }
+    const historySection = seasonRows ? `
+      <div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-4 mb-2">Season History <span class="text-zinc-600 normal-case">— scored to your league's settings</span></div>
+      <table class="w-full text-[12px]">
+        <thead><tr class="text-[10px] text-zinc-500 uppercase tracking-wider">
+          <th class="text-left font-medium pb-1">Season</th>
+          <th class="text-right font-medium pb-1">Points</th>
+          <th class="text-right font-medium pb-1">PPG</th>
+          <th class="text-right font-medium pb-1">GP</th>
+          <th class="text-right font-medium pb-1">${r.pos || 'Pos'} Rank</th>
+          <th class="text-right font-medium pb-1">Overall</th>
+        </tr></thead>
+        <tbody class="divide-y divide-white/5">${seasonRows}</tbody>
+      </table>` : '';
+
     return `
       <div class="flex items-start justify-between gap-3 mb-4 pr-6">
         <div>
@@ -221,6 +251,7 @@
       ${valueChart}
       <div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-4 mb-2">PPG Over Time</div>
       ${ppgChart}
+      ${historySection}
     `;
   }
 
@@ -239,11 +270,12 @@
     try {
       statFormat.textContent = isSF ? 'Superflex' : '1QB';
       log('Fetching KTC values…');
-      const [ktcData, projData, valueHistory, sleeperPlayers] = await Promise.all([
+      const [ktcData, projData, valueHistory, sleeperPlayers, playerHistory] = await Promise.all([
         Vault.fetchKtcValues(),
         Vault.fetchProjections(),
         Vault.fetchPlayerValueHistory(),
-        fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json())
+        fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
+        Vault.fetchPlayerHistory()
       ]);
       log(`KTC values: ${ktcData.count.toLocaleString()} players (updated ${new Date(ktcData.updated).toLocaleDateString()})`);
 
@@ -256,11 +288,14 @@
       // NFL experience isn't in KTC's data — matched from Sleeper's player database
       // by normalized name, same join key as everything else on this page.
       const expByName = new Map();
-      Object.values(sleeperPlayers || {}).forEach(sp => {
-        if (!sp || sp.years_exp == null) return;
+      const pidByName = new Map();
+      Object.entries(sleeperPlayers || {}).forEach(([pid, sp]) => {
+        if (!sp) return;
         const nm = `${sp.first_name || ''} ${sp.last_name || ''}`.trim();
         const key = Vault.normalizeName(nm);
-        if (key) expByName.set(key, sp.years_exp);
+        if (!key) return;
+        if (sp.years_exp != null) expByName.set(key, sp.years_exp);
+        pidByName.set(key, pid);
       });
 
       const rows = ktcData.players.map(p => {
@@ -272,7 +307,9 @@
         const trendValues = trendSeries.map(pt => pt.value);
         const trendDelta = trendValues.length >= 2 ? trendValues[trendValues.length - 1] - trendValues[0] : null;
         const yearsExp = expByName.get(norm) ?? null;
-        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio, trendSeries, trendValues, trendDelta, yearsExp };
+        const pid = pidByName.get(norm);
+        const seasonHistory = pid ? playerHistory.players?.[pid]?.seasons || null : null;
+        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio, trendSeries, trendValues, trendDelta, yearsExp, seasonHistory };
       });
 
       allRows = rows.filter(r => r.value != null);

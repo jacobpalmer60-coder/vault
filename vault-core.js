@@ -215,6 +215,18 @@ const Vault = {
     } catch { return { leagueId: null, snapshots: [] }; }
   },
 
+  /* data/player-history.json is a one-time pull (scripts/fetch-player-history.js,
+     run manually — not part of the daily Action) of real END-OF-SEASON stats for
+     every player rostered in the tracked league, scored to this league's actual
+     settings, going back a few completed NFL seasons. Keyed by Sleeper player_id. */
+  async fetchPlayerHistory() {
+    try {
+      const res = await fetch('data/player-history.json');
+      if (!res.ok) return { seasons: [], players: {} };
+      return res.json();
+    } catch { return { seasons: [], players: {} }; }
+  },
+
   /* KTC's pick grid rolls forward each spring after that year's rookie draft, so its
      available seasons can lag a league's actual future pick years by a year. Map
      each of the league's years to whichever KTC season is closest rather than
