@@ -137,12 +137,12 @@ function renderValueHistory(history, currentTeams) {
   const mount = document.getElementById('valueHistoryChart');
   const meta = document.getElementById('valueHistoryMeta');
   const snaps = history.snapshots || [];
-  if (snaps.length < 2) {
-    meta.textContent = snaps.length === 1 ? '1 snapshot so far' : 'No snapshots yet';
+  if (!snaps.length) {
+    meta.textContent = 'No snapshots yet';
     mount.innerHTML = `<div class="text-[13px] text-zinc-500 py-10 text-center">Value history is building — check back after a few daily snapshots to see trends.</div>`;
     return;
   }
-  meta.textContent = `${snaps.length} daily snapshots • ${snaps[0].date} → ${snaps[snaps.length - 1].date}`;
+  meta.textContent = snaps.length === 1 ? `Day 1 • ${snaps[0].date}` : `${snaps.length} daily snapshots • ${snaps[0].date} → ${snaps[snaps.length - 1].date}`;
 
   const { field, decimals } = VALUE_METRICS[valueHistoryMetric];
   const fmt = v => v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -174,13 +174,17 @@ function renderValueHistory(history, currentTeams) {
       <text x="${ML - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-500">${fmt(v)}</text>`;
   }).join('');
 
-  const dateTicks = [0, snaps.length - 1].map(i =>
-    `<text x="${x(i)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : 'end'}" font-size="10" fill="currentColor" class="text-zinc-500">${snaps[i].date}</text>`
+  const dateTicks = (snaps.length === 1 ? [0] : [0, snaps.length - 1]).map(i =>
+    `<text x="${x(i)}" y="${H - 8}" text-anchor="${snaps.length === 1 ? 'middle' : i === 0 ? 'start' : 'end'}" font-size="10" fill="currentColor" class="text-zinc-500">${snaps[i].date}</text>`
   ).join('');
 
+  // A single day-1 snapshot draws as a lone dot per team rather than a line (nothing
+  // to connect yet) — still visible, still confirms tracking has actually started,
+  // instead of an empty "building" placeholder until a second snapshot lands.
   const lines = series.map(s => {
     const pts = s.points.map((v, i) => v == null ? null : `${x(i)},${y(v)}`).filter(Boolean).join(' ');
-    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>`;
+    const dots = s.points.map((v, i) => v == null ? '' : `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}"/>`).join('');
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>${dots}`;
   }).join('');
 
   mount.innerHTML = `
@@ -189,7 +193,7 @@ function renderValueHistory(history, currentTeams) {
       ${series.map(s => {
         const vals = s.points.filter(v => v != null);
         const first = vals[0], last = vals[vals.length - 1];
-        const delta = (first != null && last != null) ? last - first : null;
+        const delta = (snaps.length >= 2 && first != null && last != null) ? last - first : null;
         return `<div class="flex items-center gap-1.5 text-[11px]">
           <span class="size-2 rounded-full shrink-0" style="background:${s.color}"></span>
           <span class="text-zinc-300">${Vault.escapeHtml(s.name)}</span>

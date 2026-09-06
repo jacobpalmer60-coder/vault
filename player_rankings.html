@@ -208,22 +208,25 @@
     const y = v => MT + plotH - (v - yMin) / (yMax - yMin) * plotH;
     const fmt = v => v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     const pts = series.map((p, i) => `${x(i)},${y(p[field])}`).join(' ');
+    // A lone day-1 point still needs to be visible even though there's no line to
+    // draw yet — a dot per point confirms tracking has actually started.
+    const dots = series.map((p, i) => `<circle cx="${x(i)}" cy="${y(p[field])}" r="2.5" fill="${vals[vals.length - 1] >= vals[0] ? '#34d399' : '#f87171'}"/>`).join('');
     const gridLines = [0, 0.5, 1].map(f => {
       const v = yMin + (yMax - yMin) * f, yy = y(v);
       return `<line x1="${ML}" y1="${yy}" x2="${W - MR}" y2="${yy}" stroke="currentColor" class="text-white/5"/>
         <text x="${ML - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="currentColor" class="text-zinc-500">${fmt(v)}</text>`;
     }).join('');
-    const dateTicks = [0, series.length - 1].map(i =>
-      `<text x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : 'end'}" font-size="9" fill="currentColor" class="text-zinc-500">${series[i].date}</text>`
+    const dateTicks = (series.length === 1 ? [0] : [0, series.length - 1]).map(i =>
+      `<text x="${x(i)}" y="${H - 6}" text-anchor="${series.length === 1 ? 'middle' : i === 0 ? 'start' : 'end'}" font-size="9" fill="currentColor" class="text-zinc-500">${series[i].date}</text>`
     ).join('');
     const up = vals[vals.length - 1] >= vals[0];
-    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dateTicks}</svg>`;
+    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${dateTicks}</svg>`;
   }
 
   function renderPlayerCard(r) {
     const noHistory = `<div class="text-[12px] text-zinc-500 py-6 text-center">Building — only tracked for players rostered in your league.</div>`;
-    const valueChart = r.trendSeries.length >= 2 ? playerChart(r.trendSeries, 'value', 0) : noHistory;
-    const ppgChart = r.trendSeries.length >= 2 ? playerChart(r.trendSeries, 'ppg', 1) : noHistory;
+    const valueChart = r.trendSeries.length >= 1 ? playerChart(r.trendSeries, 'value', 0) : noHistory;
+    const ppgChart = r.trendSeries.length >= 1 ? playerChart(r.trendSeries, 'ppg', 1) : noHistory;
 
     let seasonRows = '';
     if (r.seasonHistory) {
