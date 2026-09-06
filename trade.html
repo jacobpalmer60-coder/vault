@@ -434,21 +434,18 @@ function runSuggestTradeSearch() {
     return true;
   });
 
-  const toneRank = { good: 2, neutral: 1, bad: 0 };
-  deduped.sort((x, y) => {
-    const t = toneRank[y.result.verdict.tone] - toneRank[x.result.verdict.tone];
-    if (t) return t;
-    const fit = (y.result.resA.fit + y.result.resB.fit) - (x.result.resA.fit + x.result.resB.fit);
-    if (fit) return fit;
-    return x.result.pctDiff - y.result.pctDiff;
-  });
+  // Ranked purely by fairness (VBA-adjusted value-diff %) — most fair first. Every
+  // candidate here already cleared the "not bad" bar in consider() above, so this
+  // ordering is specifically "which of these genuinely-viable trades is closest to
+  // even", not a blend with fit/archetype scoring (that's still visible per-card
+  // via the verdict label, just not what determines the order).
+  deduped.sort((x, y) => x.result.pctDiff - y.result.pctDiff);
 
   // Cap per-partner, not just overall — otherwise the pool fills up with
   // near-duplicate variations against whichever single team fits best, crowding out
   // genuinely different opportunities with the rest of the league. Not capped to a
-  // small overall number here — that happens in renderSuggestions, only for the
-  // default ALL view, so filtering by position can still surface a good trade that
-  // didn't make that top-8 cut.
+  // small overall number here — that happens in renderSuggestions, so filtering by
+  // position can still surface a good trade that didn't make the default top-5.
   const MAX_PER_PARTNER = 2;
   const partnerCounts = new Map();
   const pool = [];
@@ -500,9 +497,12 @@ function renderSuggestions() {
     return;
   }
 
-  const DEFAULT_SHOWN = 8;
-  let candidates = allSuggestions.filter(c => suggestionMatchesPos(c, suggestPosFilter));
-  if (suggestPosFilter === 'ALL') candidates = candidates.slice(0, DEFAULT_SHOWN);
+  // allSuggestions is already sorted most-fair-to-least (see runSuggestTradeSearch),
+  // so slicing to 5 here — for ANY filter, not just ALL — keeps that same "most fair
+  // first" ordering while capping the list to a reviewable size. The filter buttons
+  // below still show the true total per position, even when only 5 are displayed.
+  const MAX_DISPLAYED = 5;
+  const candidates = allSuggestions.filter(c => suggestionMatchesPos(c, suggestPosFilter)).slice(0, MAX_DISPLAYED);
   suggestState = candidates; // useSuggestion(i) indexes into whatever's currently displayed
 
   const filterBar = POS_FILTERS.map(p => {
