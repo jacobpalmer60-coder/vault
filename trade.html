@@ -1086,8 +1086,13 @@ function windowShiftNote(befWin, aftWin) {
 // branch, so every trade's supporting line names its own specific storyline instead
 // of one of a handful of generic templates. `label`/`tone` still come from the
 // good/bad fit-score branches below, since that categorical read is still useful.
-function overallVerdict(resA, resB, pctDiff, dValueAdjA, teamAName, teamBName, avgSideAdj, posResultA, posResultB) {
-  const good = s => s >= 3, bad = s => s <= -2;
+// Classifies fit from the SAME tone already shown on each side's own card (heads.A/
+// B.tone, from headline() above) rather than re-deriving good/bad from resA.fit/
+// resB.fit with different cutoffs — that used to let a side headline() had already
+// called "a poor fit" (red) slip through here as merely not-good-not-bad, landing
+// the whole trade in "Solid for One Side, Fine for the Other" even though one side
+// was being told, in red, not to make it.
+function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName, teamBName, avgSideAdj, posResultA, posResultB) {
   const themeA = Vault.sideTheme(posResultA, resA.dAge, resA.dPicks, resA.mode);
   const themeB = Vault.sideTheme(posResultB, resB.dAge, resB.dPicks, resB.mode);
   const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
@@ -1101,12 +1106,16 @@ function overallVerdict(resA, resB, pctDiff, dValueAdjA, teamAName, teamBName, a
   // (median real trade runs ~22% off) — not a finding worth naming in the label.
   // The Fair/Borderline/Lopsided badge next to this already communicates the price
   // gap; this label speaks to fit only.
-  const scoreA = resA.fit, scoreB = resB.fit;
-  if (good(scoreA) && good(scoreB)) return { tone: 'good', label: 'Now That’s a Good Trade', text };
-  if (bad(scoreA) && bad(scoreB)) return { tone: 'bad', label: 'Bad Trade for Both Sides', text };
-  if (good(scoreA) && bad(scoreB)) return { tone: 'neutral', label: 'Solid for Team A', text };
-  if (good(scoreB) && bad(scoreA)) return { tone: 'neutral', label: 'Solid for Team B', text };
-  if (good(scoreA) || good(scoreB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
+  if (toneA === 'good' && toneB === 'good') return { tone: 'good', label: 'Now That’s a Good Trade', text };
+  if (toneA === 'bad' && toneB === 'bad') return { tone: 'bad', label: 'Bad Trade for Both Sides', text };
+  if (toneA === 'good' && toneB === 'bad') return { tone: 'neutral', label: 'Solid for Team A', text };
+  if (toneB === 'good' && toneA === 'bad') return { tone: 'neutral', label: 'Solid for Team B', text };
+  // One side reads as a genuinely poor fit and the OTHER isn't good either (just
+  // neutral) — distinct from the "fine for the other" case below, and from a full
+  // "bad for both": naming which side it's bad for instead of burying it.
+  if (toneA === 'bad') return { tone: 'bad', label: `Bad Fit for ${teamAName}`, text };
+  if (toneB === 'bad') return { tone: 'bad', label: `Bad Fit for ${teamBName}`, text };
+  if (toneA === 'good' || toneB === 'good') return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
   return { tone: 'neutral', label: 'Fair, But Unremarkable', text };
 }
 
@@ -1187,7 +1196,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   });
 
   const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
-  const verdict = overallVerdict(resA, resB, pctDiff, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
+  const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiff, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
 
   return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, verdict };
 }
