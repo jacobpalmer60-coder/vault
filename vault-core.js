@@ -553,32 +553,6 @@ const Vault = {
       t.archScore = t.valP + t.ppgP;
     });
 
-    /* ---------- Competitive tier (deliberately separate from Archetype) ----------
-       Archetype describes BUILD STYLE (value vs. production, roster shape) —
-       two teams can share an archetype while one stands alone at the top of the
-       league and the other sits in a bunched pack. Tier captures THAT: it breaks
-       the Opt PPG ranking (who's actually producing right now, not who holds the
-       most dynasty value) wherever the gap to the next team is unusually large
-       relative to a "typical" gap in THIS league — median gap × TIER_GAP_MULTIPLIER
-       — rather than a fixed team count or percentage, so it adapts to however
-       bunched or spread out a given league happens to be, instead of forcing
-       every league into the same shape of tiers. t.tier is a team-level standing
-       tier — unrelated to p.tier on draft picks (early/mid/late). */
-    const TIER_GAP_MULTIPLIER = 2.5;
-    const byOpt = [...built].sort((a, b) => b.opt - a.opt);
-    const gaps = byOpt.slice(0, -1).map((t, i) => t.opt - byOpt[i + 1].opt);
-    const sortedGaps = [...gaps].sort((a, b) => a - b);
-    const medianGap = sortedGaps.length ? sortedGaps[Math.floor(sortedGaps.length / 2)] : 0;
-    const gapThreshold = medianGap * TIER_GAP_MULTIPLIER;
-    let tierNum = 1;
-    byOpt.forEach((t, i) => {
-      if (i > 0 && gaps[i - 1] > gapThreshold) tierNum++;
-      t.tier = tierNum;
-    });
-    const tierCounts = new Map();
-    byOpt.forEach(t => tierCounts.set(t.tier, (tierCounts.get(t.tier) || 0) + 1));
-    built.forEach(t => { t.tierSize = tierCounts.get(t.tier); t.tierCount = tierNum; });
-
     // Column ranks (used by the League Overview table)
     ['total', 'qb', 'rb', 'wr', 'te', 'picksValue', 'opt', 'longevity'].forEach(k => {
       [...built].sort((a, b) => b[k] - a[k]).forEach((t, i) => t[k + 'Rank'] = i + 1);
