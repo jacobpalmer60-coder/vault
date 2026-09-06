@@ -73,6 +73,18 @@ function getTradePartners(t, all) { return Vault.tradePartnerSuggestions(t, all,
 const SLOT_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T', SUPER_FLEX: 'SFLX', K: 'K', DEF: 'DEF' };
 const SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'WRRB_FLEX', 'REC_FLEX', 'SUPER_FLEX', 'K', 'DEF'];
 
+// Mirrors app.html's Tier badge — deliberately separate from the Archetype pill.
+// Archetype is build style; Tier is standing (see vault-core.js for the gap math).
+function tierBadge(t) {
+  const flavor = t.tierSize === 1
+    ? (t.tier === 1 ? 'clear top' : t.tier === t.tierCount ? 'clear bottom' : 'alone in this tier')
+    : null;
+  const tone = t.tier === 1 ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/[0.06]'
+    : t.tier === t.tierCount ? 'border-rose-500/30 text-rose-300 bg-rose-500/[0.06]'
+    : 'border-white/10 text-zinc-400 bg-white/[0.03]';
+  return `<span title="Competitive tier by Opt PPG (production, not dynasty value) — a gap meaningfully bigger than this league's typical gap starts a new tier." class="px-3 py-1.5 rounded-full text-[12px] border ${tone}">TIER ${t.tier}${flavor ? ` <span class="opacity-60">· ${flavor}</span>` : ''}</span>`;
+}
+
 function bestLineupPanel(t) {
   const rows = [...t.lineup].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot));
   const lines = rows.map(s => `<div class="flex justify-between text-[12px]">
@@ -132,7 +144,10 @@ function renderSingle(t) {
         <h2 class="display text-[24px] gold-text">${Vault.escapeHtml(t.teamName)}</h2>
         <p class="text-[12px] text-zinc-400">${Vault.escapeHtml(t.username)} • Rank #${t.rank} • Peak: ${win.peakYear}</p>
       </div>
-      <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
+      <div class="flex flex-col items-end gap-1.5 shrink-0">
+        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
+        ${tierBadge(t)}
+      </div>
     </div>
     <div class="grid md:grid-cols-4 gap-4 mt-6">
       ${bars.map(b => `<div class="stat-tile"><div class="stat-label">${b.l}</div><div class="stat-value">${b.v}</div></div>`).join('')}

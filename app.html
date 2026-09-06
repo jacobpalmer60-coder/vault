@@ -40,7 +40,7 @@
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="age">Age</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="opt">Opt PPG</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="longevity">Longevity</th>
-            <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="archScore">Archetype</th>
+            <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="archScore">Archetype / Tier</th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.04]"></tbody>
@@ -69,6 +69,7 @@
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Opt PPG</span><span class="text-zinc-400"> — Best lineup, league scoring</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Longevity</span><span class="text-zinc-400"> — 30% Val + 35% Age + 35% Picks — built to last, not just good today</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from trade value vs. current scoring (see guide below)</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Tier</span><span class="text-zinc-400"> — Competitive standing by Opt PPG, not build type. A new tier starts wherever the gap to the next team is unusually large for this league.</span></div>
     </div>
   </div>
 
@@ -114,6 +115,18 @@ const POS_TEXT = { QB: 'text-fuchsia-300/80', RB: 'text-emerald-300/80', WR: 'te
 // purely cosmetic; the actual greedy fill in Vault.optimalLineupDetail already ran.
 const SLOT_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T', SUPER_FLEX: 'SFLX', K: 'K', DEF: 'DEF' };
 const SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'WRRB_FLEX', 'REC_FLEX', 'SUPER_FLEX', 'K', 'DEF'];
+
+// Deliberately separate from the Archetype pill — Archetype is build style,
+// Tier is standing (see the comment on tier computation in vault-core.js).
+function tierBadge(t) {
+  const flavor = t.tierSize === 1
+    ? (t.tier === 1 ? 'Alone at the top' : t.tier === t.tierCount ? 'Alone at the bottom' : 'Alone in this tier')
+    : `${t.tierSize} teams in this tier`;
+  const tone = t.tier === 1 ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/[0.06]'
+    : t.tier === t.tierCount ? 'border-rose-500/30 text-rose-300 bg-rose-500/[0.06]'
+    : 'border-white/10 text-zinc-400 bg-white/[0.03]';
+  return `<span title="Competitive tier by Opt PPG (production, not dynasty value) — a gap meaningfully bigger than this league's typical gap starts a new tier. ${flavor}." class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border ${tone}">TIER ${t.tier}${t.tierSize === 1 ? `<span class="opacity-60">· ${t.tier === 1 ? 'clear top' : 'clear bottom'}</span>` : ''}</span>`;
+}
 
 function bestLineupPanel(t) {
   const rows = [...t.lineup].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot));
@@ -311,7 +324,12 @@ function render() {
         <div class="font-mono text-[13px] text-zinc-200">${Math.round(t.longevity)}</div>
         ${microBar(t.longevity, maxLongevity)}
       </td>
-      <td class="px-6 py-3.5"><span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span></td>
+      <td class="px-6 py-3.5">
+        <div class="flex flex-col items-start gap-1">
+          <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
+          ${tierBadge(t)}
+        </div>
+      </td>
     </tr>
     ${exp ? `<tr><td colspan="12" class="px-6 pb-6 bg-black/40"><div class="grid lg:grid-cols-6 gap-6 pt-4">${bestLineupPanel(t)}${['QB', 'RB', 'WR', 'TE'].map(pos => { const ps = t.plist.filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8); return `<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${pos}</div><div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-300 truncate mr-2">${Vault.escapeHtml(p.name) || '—'}</span><span class="font-mono text-zinc-500">${Math.round(p.value).toLocaleString()}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div>`; }).join('')}<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${t.picks.length ? Math.min(...t.picks.map(p => p.season)) + '-' + String(Math.max(...t.picks.map(p => p.season))).slice(-2) : ''} Picks</div><div class="space-y-1.5 max-h-[180px] overflow-auto pr-2 scrollbar">${t.picks.sort((a, b) => a.season - b.season || a.round - b.round).map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-400">${p.season} R${p.round} <span class="text-zinc-600">(orig ${p.original})</span></span><span class="font-mono ${p.tier === 'early' ? 'text-emerald-400' : p.tier === 'mid' ? 'text-amber-300' : 'text-rose-400'}">${p.tier}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div></div></td></tr>` : ''}`;
   }).join('');
