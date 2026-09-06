@@ -970,7 +970,7 @@ const Vault = {
       if (toRoster !== sideRosterId) return;
       const p = playersDb[pid] || {};
       const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`;
-      assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, ppg: ppgMap.get(pid) || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
+      assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, team: p.team || '', ppg: ppgMap.get(pid) || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
     });
     (tx.draft_picks || []).forEach(pk => {
       if (pk.owner_id !== sideRosterId) return;
@@ -1084,26 +1084,55 @@ const Vault = {
         trades: 0, won: 0, lost: 0, netValue: 0, fitSum: 0,
         netPicks: 0, ageDeltaSum: 0,
         fair: 0, borderline: 0, lopsided: 0, lopsidedFor: 0, lopsidedAgainst: 0,
-        best: null, worst: null
+        best: null, worst: null,
+        posNet: { QB: 0, RB: 0, WR: 0, TE: 0 },
+        youthIn: 0, youthOut: 0, veteranIn: 0, veteranOut: 0,
+        nflTeamCounts: new Map(),
+        picksInCount: 0, picksOutCount: 0,
+        optUpCount: 0, optDownCount: 0
       });
       return byTeam.get(team.rosterId);
     };
     (teams || []).forEach(ensure);
     allGraded.forEach(g => {
       [
-        { team: g.teamA, dVal: g.dValueAdjA, fit: g.combinedFitA, timeline: g.timelineA, opp: g.teamB.teamName },
-        { team: g.teamB, dVal: -g.dValueAdjA, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName }
-      ].forEach(({ team, dVal, fit, timeline, opp }) => {
+        { team: g.teamA, dVal: g.dValueAdjA, fit: g.combinedFitA, timeline: g.timelineA, opp: g.teamB.teamName, received: g.toA, given: g.toB, dOpt: g.dOptA },
+        { team: g.teamB, dVal: -g.dValueAdjA, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName, received: g.toB, given: g.toA, dOpt: g.dOptB }
+      ].forEach(({ team, dVal, fit, timeline, opp, received, given, dOpt }) => {
         const s = ensure(team);
         s.trades++; s.netValue += dVal; s.fitSum += fit;
         s.netPicks += timeline.dPicks; s.ageDeltaSum += timeline.dAge;
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
+        if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
+        if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
         const bucket = g.pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'lopsided' : g.pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'borderline' : 'fair';
         s[bucket]++;
         if (bucket === 'lopsided') { if (dVal > 0) s.lopsidedFor++; else s.lopsidedAgainst++; }
         const rec = { opp, dVal, pctDiff: g.pctDiff, created: g.tx.created };
         if (!s.best || dVal > s.best.dVal) s.best = rec;
         if (!s.worst || dVal < s.worst.dVal) s.worst = rec;
+
+        // Which positions this manager nets toward/away from, across every trade.
+        ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
+          const inVal = received.filter(a => a.pos === pos).reduce((sum, a) => sum + a.value, 0);
+          const outVal = given.filter(a => a.pos === pos).reduce((sum, a) => sum + a.value, 0);
+          s.posNet[pos] += inVal - outVal;
+        });
+        // Youth-vs-veteran tilt, using the same position-aware age bands archetype
+        // fit already relies on — not just a flat average age delta.
+        received.forEach(a => {
+          const cls = Vault.assetTimelineClass(a);
+          if (cls === 'young') s.youthIn += a.value; else if (cls === 'veteran') s.veteranIn += a.value;
+        });
+        given.forEach(a => {
+          const cls = Vault.assetTimelineClass(a);
+          if (cls === 'young') s.youthOut += a.value; else if (cls === 'veteran') s.veteranOut += a.value;
+        });
+        // NFL-team clustering on players actually acquired — surfaces a real
+        // "keeps buying into the same real-life offense" pattern if one exists.
+        received.filter(a => a.type === 'player' && a.team).forEach(a => {
+          s.nflTeamCounts.set(a.team, (s.nflTeamCounts.get(a.team) || 0) + 1);
+        });
       });
     });
     return [...byTeam.values()].map(s => ({
@@ -1130,11 +1159,37 @@ const Vault = {
     if (s.avgFit >= 1.5) notes.push({ tone: 'good', text: `Trades tend to fit the team's own timeline and needs, not just the sticker price.` });
     else if (s.avgFit <= -1.5) notes.push({ tone: 'bad', text: `Trades often work against the team's own timeline or needs, even when the dollars are close.` });
     if (s.trades >= 3) {
-      const perTrade = s.netPicks / s.trades;
-      if (perTrade > 800) notes.push({ tone: 'neutral', text: `Net accumulates draft capital — averages +${Math.round(perTrade).toLocaleString()} in picks per trade.` });
-      else if (perTrade < -800) notes.push({ tone: 'neutral', text: `Net spends draft capital — averages ${Math.round(perTrade).toLocaleString()} in picks per trade.` });
+      // Trade-type frequency, not just net dollar direction — "how often", not
+      // "how much". A manager can average a small net pick gain while still
+      // clearly being a picks-first trader in most of their individual deals.
+      if (s.picksInCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades for draft picks — ${s.picksInCount} of ${s.trades} deals net picks.` });
+      else if (s.picksOutCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades picks away — ${s.picksOutCount} of ${s.trades} deals spend picks.` });
       if (s.avgAgeDelta <= -0.5) notes.push({ tone: 'neutral', text: `Consistently gets younger through trades (avg ${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
       else if (s.avgAgeDelta >= 0.5) notes.push({ tone: 'neutral', text: `Consistently gets older through trades (avg +${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
+      // Does this manager only make moves that actually help their starting lineup?
+      if (s.optUpCount >= Math.ceil(s.trades * 0.75)) notes.push({ tone: 'good', text: `Almost exclusively makes trades that raise the starting lineup's PPG (${s.optUpCount} of ${s.trades}).` });
+      else if (s.optDownCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'bad', text: `Often trades away from lineup strength — ${s.optDownCount} of ${s.trades} deals lowered Opt PPG.` });
+    }
+    if (s.trades >= 2) {
+      // Which single position this manager's trades lean toward or away from —
+      // only surfaced when it's a real pattern, not incidental noise.
+      const posEntries = Object.entries(s.posNet).filter(([, v]) => Math.abs(v) >= 1500);
+      if (posEntries.length) {
+        const [pos, net] = posEntries.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0];
+        notes.push({ tone: 'neutral', text: net > 0
+          ? `Net accumulates ${pos} value across trades (+${Math.round(net).toLocaleString()}).`
+          : `Net trades away ${pos} value across trades (${Math.round(net).toLocaleString()}).` });
+      }
+      // Youth-vs-veteran tilt, using the same position-aware age bands the
+      // archetype fit check relies on rather than a flat average age.
+      const youthNet = s.youthIn - s.youthOut, veteranNet = s.veteranIn - s.veteranOut;
+      if (youthNet >= 1500 && youthNet > veteranNet) notes.push({ tone: 'neutral', text: `Buys youth — nets +${Math.round(youthNet).toLocaleString()} in young assets across trades.` });
+      else if (veteranNet >= 1500 && veteranNet > youthNet) notes.push({ tone: 'neutral', text: `Buys proven veterans — nets +${Math.round(veteranNet).toLocaleString()} in veteran-aged assets across trades.` });
+      // A real cluster of acquired players from the same NFL team, if one exists.
+      if (s.nflTeamCounts.size) {
+        const [team, count] = [...s.nflTeamCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (count >= 3) notes.push({ tone: 'neutral', text: `Has acquired ${count} players from ${team} across trades — a real cluster.` });
+      }
     }
     if (s.lopsided >= 2) {
       if (s.lopsidedFor > s.lopsidedAgainst) notes.push({ tone: 'good', text: `Has come out ahead in most of their own lopsided trades (${s.lopsidedFor} of ${s.lopsided}).` });
