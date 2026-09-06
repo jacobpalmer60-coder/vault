@@ -389,13 +389,16 @@ const Vault = {
       : ['Stripped Rebuilder', 'from-stone-700/30 to-stone-800/30 text-stone-300 border-stone-700/40'];
   },
 
-  /* Best-lineup PPG for a player pool given a league's starting slots. Shared by
-     buildLeagueTeams and simulateTrade (which needs to re-run it on a hypothetical
-     post-trade roster). */
-  optimalLineup(plist, slots) {
+  /* Best-lineup PPG for a player pool given a league's starting slots, plus which
+     player actually fills each slot. Shared by buildLeagueTeams (which also wants
+     the starters list, to show "the best lineup" on League Overview), simulateTrade
+     (which only needs the total, re-run on a hypothetical post-trade roster), and
+     anywhere else that only cares about the number. */
+  optimalLineupDetail(plist, slots) {
     const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
     const used = new Set();
-    let tot = 0;
+    const starters = [];
+    let total = 0;
     for (const slot of slots) {
       let allowed = [slot];
       if (slot === 'FLEX') allowed = ['RB', 'WR', 'TE'];
@@ -403,9 +406,20 @@ const Vault = {
       if (slot === 'WRRB_FLEX') allowed = ['RB', 'WR'];
       if (slot === 'REC_FLEX') allowed = ['WR', 'TE'];
       const i = pool.findIndex(p => !used.has(p.id) && allowed.includes(p.pos));
-      if (i >= 0) { tot += pool[i].ppg; used.add(pool[i].id); }
+      if (i >= 0) {
+        const p = pool[i];
+        total += p.ppg;
+        used.add(p.id);
+        starters.push({ slot, id: p.id, name: p.name, pos: p.pos, ppg: p.ppg });
+      } else {
+        starters.push({ slot, id: null, name: null, pos: null, ppg: 0 });
+      }
     }
-    return tot;
+    return { total, starters };
+  },
+
+  optimalLineup(plist, slots) {
+    return Vault.optimalLineupDetail(plist, slots).total;
   },
 
   /* ---------- Full league team-building pipeline ----------
@@ -424,7 +438,6 @@ const Vault = {
 
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
-    const optimal = plist => Vault.optimalLineup(plist, slots);
 
     const YEARS = pickYears, ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
     const pickOwner = new Map();
@@ -456,13 +469,13 @@ const Vault = {
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
-      const opt = optimal(plist);
+      const { total: opt, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
       const sumPos = qb + rb + wr + te || 1;
       const shares = [qb, rb, wr, te].map(v => v / sumPos);
       const mean = shares.reduce((a, b) => a + b) / 4;
       const std = Math.sqrt(shares.reduce((s, x) => s + (x - mean) ** 2, 0) / 4);
       const bal = 100 - std * 200;
-      return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, plist, bal, picks: own.get(r.roster_id) || [] };
+      return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, bal, picks: own.get(r.roster_id) || [] };
     });
 
     // Draft order rank (1 = worst team, picks first; n = best team, picks last),
