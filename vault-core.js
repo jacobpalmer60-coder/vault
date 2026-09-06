@@ -482,20 +482,25 @@ const Vault = {
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
     });
 
-    /* ---------- Production & Longevity (z-scores, not percentiles) ----------
+    /* ---------- Longevity (a z-score blend, not a percentile) ----------
        Percentile rank only knows order, not how big a gap actually is — two teams a
-       fraction of a point apart in Opt PPG could land on opposite ends of a rank step
-       and look dramatically far apart, while a genuinely huge gap elsewhere gets the
-       same one-step treatment. A z-score (distance from the league mean, in units of
-       the league's own standard deviation) keeps near-ties near each other and lets
-       real gaps read as real gaps. SPREAD sets how many display points one standard
-       deviation is worth; 100 = league average either way. */
-    const SPREAD = 20;
-    const { mean: meanOpt, std: stdOpt } = Vault.meanStd(built.map(t => t.opt));
-    built.forEach(t => t.production = Math.max(0, 100 + (stdOpt ? (t.opt - meanOpt) / stdOpt * SPREAD : 0)));
+       fraction of a point apart could land on opposite ends of a rank step and look
+       dramatically far apart, while a genuinely huge gap elsewhere gets the same
+       one-step treatment. A z-score (distance from the league mean, in units of the
+       league's own standard deviation) keeps near-ties near each other and lets real
+       gaps read as real gaps. SPREAD sets how many display points one standard
+       deviation is worth; 100 = league average either way.
 
-    // Longevity: 60% roster value + 20% age (younger is better) + 20% pick capital,
-    // each z-scored against the league before blending.
+       Weighted toward age and picks (35/35) rather than current value (30) —
+       "Longevity" means how well-positioned a roster is to stay competitive, which
+       a value-heavy blend actively worked against: a young, pick-rich rebuilder is
+       exactly the team built to last, but a 60%-value weighting scored them low
+       just for not being good YET, while a stacked win-now roster with zero picks
+       scored high purely on today's value. Value still counts — a genuinely weak
+       young/pick-rich roster shouldn't top the list just for being young — but it's
+       no longer the dominant signal in a metric that's supposed to be about the
+       future, not the present (that's what the Value/Opt PPG columns already show). */
+    const SPREAD = 20;
     const { mean: meanTotal, std: stdTotal } = Vault.meanStd(built.map(t => t.total));
     const { mean: meanAge, std: stdAge } = Vault.meanStd(built.map(t => t.age));
     const { mean: meanPicks, std: stdPicks } = Vault.meanStd(built.map(t => t.picksValue));
@@ -503,7 +508,7 @@ const Vault = {
       const valZ = stdTotal ? (t.total - meanTotal) / stdTotal : 0;
       const ageZ = stdAge ? -(t.age - meanAge) / stdAge : 0;
       const pickZ = stdPicks ? (t.picksValue - meanPicks) / stdPicks : 0;
-      t.longevity = Math.max(0, 100 + (valZ * 0.6 + ageZ * 0.2 + pickZ * 0.2) * SPREAD);
+      t.longevity = Math.max(0, 100 + (valZ * 0.3 + ageZ * 0.35 + pickZ * 0.35) * SPREAD);
     });
 
     // Archetype (+ a continuous best-to-worst score for sorting by it)
@@ -514,7 +519,7 @@ const Vault = {
     });
 
     // Column ranks (used by the League Overview table)
-    ['total', 'qb', 'rb', 'wr', 'te', 'picksValue', 'opt', 'production', 'longevity'].forEach(k => {
+    ['total', 'qb', 'rb', 'wr', 'te', 'picksValue', 'opt', 'longevity'].forEach(k => {
       [...built].sort((a, b) => b[k] - a[k]).forEach((t, i) => t[k + 'Rank'] = i + 1);
     });
     [...built].sort((a, b) => a.age - b.age).forEach((t, i) => t.ageRank = i + 1);
