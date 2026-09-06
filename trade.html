@@ -367,6 +367,8 @@ function tradeableAssets(team) {
 }
 
 let suggestState = [];
+let allSuggestions = [];
+let suggestPosFilter = 'ALL';
 
 // Searches every other team for a trade that reads as genuinely fair for Team A —
 // no manual asset-picking required. For each partner, tries sending each of Team A's
@@ -430,51 +432,83 @@ function runSuggestTradeSearch() {
     return x.result.pctDiff - y.result.pctDiff;
   });
 
-  // Cap per-partner, not just overall — otherwise the top slots can fill up with
+  // Cap per-partner, not just overall — otherwise the pool fills up with
   // near-duplicate variations against whichever single team fits best, crowding out
-  // genuinely different opportunities with the rest of the league.
-  const MAX_SUGGESTIONS = 8;
+  // genuinely different opportunities with the rest of the league. Not capped to a
+  // small overall number here — that happens in renderSuggestions, only for the
+  // default ALL view, so filtering by position can still surface a good trade that
+  // didn't make that top-8 cut.
   const MAX_PER_PARTNER = 2;
   const partnerCounts = new Map();
-  const picked = [];
+  const pool = [];
   for (const c of deduped) {
     const n = partnerCounts.get(c.partner.rosterId) || 0;
     if (n >= MAX_PER_PARTNER) continue;
-    picked.push(c);
+    pool.push(c);
     partnerCounts.set(c.partner.rosterId, n + 1);
-    if (picked.length >= MAX_SUGGESTIONS) break;
   }
 
-  renderSuggestions(picked);
+  allSuggestions = pool;
+  suggestPosFilter = 'ALL';
+  renderSuggestions();
 }
 
-function renderSuggestions(candidates) {
-  suggestState = candidates;
+// A candidate "involves" a position if either side of the trade includes an asset
+// there — lets "show me RB trades" surface deals where you'd give OR get an RB,
+// same semantics as the roster position filters above (POS_FILTERS).
+function suggestionMatchesPos(c, pos) {
+  if (pos === 'ALL') return true;
+  return [...c.giveA, ...c.giveB].some(a => pos === 'PICK' ? a.type === 'pick' : a.pos === pos);
+}
+
+function setSuggestPosFilter(pos) {
+  suggestPosFilter = pos;
+  renderSuggestions();
+}
+
+function suggestionCard(c, i) {
+  return `
+    <div class="p-3 rounded-xl bg-black/30">
+      <div class="flex items-center justify-between gap-4 flex-wrap mb-1.5">
+        <div class="text-[13px] font-medium">vs. ${Vault.escapeHtml(c.partner.teamName)}</div>
+        <button onclick="useSuggestion(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid shrink-0">Use This Trade</button>
+      </div>
+      <div class="text-[12px] text-zinc-300 mb-1.5">You send <span class="text-zinc-200">${c.giveA.map(a => Vault.escapeHtml(a.name)).join(', ')}</span> for <span class="text-zinc-200">${c.giveB.map(a => Vault.escapeHtml(a.name)).join(', ')}</span></div>
+      <div class="flex items-center gap-2">
+        <span class="size-2 rounded-full ${TONE_DOT[c.result.verdict.tone]}"></span>
+        <span class="text-[12px] font-medium ${TONE[c.result.verdict.tone]}">${c.result.verdict.label}</span>
+      </div>
+    </div>`;
+}
+
+function renderSuggestions() {
   const box = document.getElementById('suggestPanel');
   const myTeam = teamOf('A');
-  if (!candidates.length) {
+  if (!allSuggestions.length) {
     box.innerHTML = `<div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">Suggested Trades</div><div class="text-[12px] text-zinc-500 py-2">No trade across the league reads as genuinely fair for ${Vault.escapeHtml(myTeam.teamName)} right now — try building one manually below, or check back after rosters change.</div>`;
     return;
   }
+
+  const DEFAULT_SHOWN = 8;
+  let candidates = allSuggestions.filter(c => suggestionMatchesPos(c, suggestPosFilter));
+  if (suggestPosFilter === 'ALL') candidates = candidates.slice(0, DEFAULT_SHOWN);
+  suggestState = candidates; // useSuggestion(i) indexes into whatever's currently displayed
+
+  const filterBar = POS_FILTERS.map(p => {
+    const count = allSuggestions.filter(c => suggestionMatchesPos(c, p)).length;
+    const active = suggestPosFilter === p;
+    return `<button onclick="setSuggestPosFilter('${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${active ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p} <span class="opacity-60">${count}</span></button>`;
+  }).join('');
+
   box.innerHTML = `
     <div class="flex items-center justify-between mb-3">
       <div class="text-[11px] text-zinc-500 uppercase tracking-wider">Suggested Trades for ${Vault.escapeHtml(myTeam.teamName)}</div>
       <button onclick="document.getElementById('suggestPanel').classList.add('hidden')" class="text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
     </div>
-    <div class="space-y-2 max-h-[480px] overflow-y-auto pr-1 scrollbar">
-      ${candidates.map((c, i) => `
-        <div class="p-3 rounded-xl bg-black/30">
-          <div class="flex items-center justify-between gap-4 flex-wrap mb-1.5">
-            <div class="text-[13px] font-medium">vs. ${Vault.escapeHtml(c.partner.teamName)}</div>
-            <button onclick="useSuggestion(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid shrink-0">Use This Trade</button>
-          </div>
-          <div class="text-[12px] text-zinc-300 mb-1.5">You send <span class="text-zinc-200">${c.giveA.map(a => Vault.escapeHtml(a.name)).join(', ')}</span> for <span class="text-zinc-200">${c.giveB.map(a => Vault.escapeHtml(a.name)).join(', ')}</span></div>
-          <div class="flex items-center gap-2">
-            <span class="size-2 rounded-full ${TONE_DOT[c.result.verdict.tone]}"></span>
-            <span class="text-[12px] font-medium ${TONE[c.result.verdict.tone]}">${c.result.verdict.label}</span>
-          </div>
-        </div>`).join('')}
-    </div>`;
+    <div class="flex gap-1.5 flex-wrap mb-3">${filterBar}</div>
+    ${candidates.length
+      ? `<div class="space-y-2 max-h-[480px] overflow-y-auto pr-1 scrollbar">${candidates.map((c, i) => suggestionCard(c, i)).join('')}</div>`
+      : `<div class="text-[12px] text-zinc-500 py-2">No suggested ${suggestPosFilter} trades right now — try another position or build one manually below.</div>`}`;
 }
 
 function useSuggestion(i) {
