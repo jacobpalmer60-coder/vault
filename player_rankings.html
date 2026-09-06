@@ -287,7 +287,13 @@
       <div class="flex items-start justify-between gap-3 mb-4 pr-6 -mx-6 -mt-6 px-6 pt-6 pb-4 rounded-t-[19px]"
            style="background:${tm ? `linear-gradient(135deg, ${tm.primary}30, transparent 75%)` : 'none'}; border-bottom:1px solid ${tm ? tm.primary + '40' : 'transparent'};">
         <div class="flex items-center gap-3 min-w-0">
-          ${tm ? `<img src="${tm.logo}" alt="${Vault.escapeHtml(tm.code)}" class="size-11 object-contain shrink-0" onerror="this.remove()"/>` : ''}
+          <div class="relative shrink-0">
+            <img src="${r.pid ? `https://sleepercdn.com/content/nfl/players/${r.pid}.jpg` : 'https://sleepercdn.com/images/v2/icons/player_default.webp'}"
+                 alt="${Vault.escapeHtml(r.player)}" class="size-14 rounded-full object-cover bg-white/5 border-2"
+                 style="border-color:${tm ? tm.primary : 'rgba(255,255,255,.1)'}"
+                 onerror="this.onerror=null; this.src='https://sleepercdn.com/images/v2/icons/player_default.webp';"/>
+            ${tm ? `<img src="${tm.logo}" alt="${Vault.escapeHtml(tm.code)}" class="absolute -bottom-1 -right-1 size-6 rounded-full bg-black object-contain ring-2 ring-black" onerror="this.remove()"/>` : ''}
+          </div>
           <div class="min-w-0">
             <div class="text-[20px] font-bold text-zinc-100 truncate">${Vault.escapeHtml(r.player)}</div>
             <div class="text-[12px] text-zinc-400 mt-1">${Vault.escapeHtml(r.team) || '—'} • Age ${r.age != null ? fmtFloat(r.age, 1) : '—'}${r.yearsExp != null ? ' • ' + (r.yearsExp === 0 ? 'Rookie' : `${r.yearsExp} yr${r.yearsExp === 1 ? '' : 's'} in NFL`) : ''}</div>
@@ -364,7 +370,7 @@
         const yearsExp = expByName.get(norm) ?? null;
         const pid = pidByName.get(norm);
         const seasonHistory = pid ? playerHistory.players?.[pid]?.seasons || null : null;
-        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio, trendSeries, trendValues, trendDelta, yearsExp, seasonHistory };
+        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio, trendSeries, trendValues, trendDelta, yearsExp, seasonHistory, pid };
       });
 
       allRows = rows.filter(r => r.value != null);
