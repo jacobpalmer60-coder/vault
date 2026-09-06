@@ -1,7 +1,8 @@
 // One-time (not daily-snapshotted) pull of real season-final stats for every player
-// currently rostered in the tracked league, going back a few completed NFL seasons.
-// Re-run manually whenever you want to refresh it (e.g. once a year, after a season
-// wraps) — this is NOT part of the daily update-data.yml Action.
+// currently rostered in the tracked league, going back to EACH player's actual
+// rookie season — not a fixed lookback window, so a long-tenured veteran (e.g. Josh
+// Allen, drafted 2018) gets their full career, not just the last few years. Re-run
+// manually whenever you want to refresh it — this is NOT part of update-data.yml.
 //
 // Sleeper's /v1/stats/nfl/regular/{season} endpoint returns real END-OF-SEASON stat
 // totals for every player in one call (no need to sum 18 weekly calls). Points and
@@ -16,7 +17,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LEAGUE_ID = '1313454100225990656'; // The Vault's tracked league.
 const OUT_PATH = path.join(__dirname, '..', 'data', 'player-history.json');
 const SKILL_POSITIONS = ['QB', 'RB', 'WR', 'TE'];
-const SEASONS_BACK = 3;
+// Pure sanity backstop against a corrupt metadata value (a bad rookie_year or an
+// absurd years_exp) — not a real limit. The gp>0 filter already drops any season a
+// player didn't actually play, so a genuine long-tenured veteran (a 2005 rookie
+// like Aaron Rodgers is realistically still rosterable in a dynasty league) gets
+// their full real career; this floor only stops a data glitch from triggering a
+// multi-decade fetch loop.
+const EARLIEST_SEASON_FLOOR = 2000;
+
+// Sleeper's player metadata carries an explicit rookie_year for most players; fall
+// back to (current season - years_exp) when it's missing, and to a generous 15-year
+// guess only if both are unavailable.
+function rookieSeason(p, currentSeason) {
+  const meta = p?.metadata?.rookie_year ? +p.metadata.rookie_year : null;
+  if (meta) return meta;
+  if (p?.years_exp != null) return currentSeason - p.years_exp;
+  return currentSeason - 15;
+}
 
 function scoreStats(stats, scoringSettings) {
   let total = 0;
@@ -43,8 +60,13 @@ async function main() {
   const rosteredIds = new Set(rosters.flatMap(r => (r.players || []).map(String)));
   console.log(`${rosteredIds.size} rostered players to track.`);
 
+  const currentSeason = +league.season;
   const lastSeason = lastCompletedSeason();
-  const seasons = Array.from({ length: SEASONS_BACK }, (_, i) => lastSeason - i).sort();
+  const rookieYears = [...rosteredIds].map(pid => rookieSeason(players[pid], currentSeason));
+  const earliestSeason = Math.max(EARLIEST_SEASON_FLOOR, Math.min(...rookieYears));
+  const seasons = [];
+  for (let y = earliestSeason; y <= lastSeason; y++) seasons.push(y);
+  console.log(`Pulling ${seasons.length} season(s) — ${earliestSeason} through ${lastSeason} — covering every rostered player's actual rookie year.`);
 
   const out = { leagueId: LEAGUE_ID, generatedAt: new Date().toISOString(), seasons, players: {} };
 
