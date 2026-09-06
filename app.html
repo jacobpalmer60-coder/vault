@@ -49,11 +49,14 @@
   </div>
 
   <div class="mt-8 card rounded-vault p-6">
-    <div class="flex items-center justify-between mb-1">
+    <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
       <h2 class="display text-[20px] gold-text">Value Over Time</h2>
-      <span id="valueHistoryMeta" class="text-[11px] text-zinc-500"></span>
+      <div class="flex items-center gap-3">
+        <div id="valueHistoryToggle" class="flex gap-1.5"></div>
+        <span id="valueHistoryMeta" class="text-[11px] text-zinc-500"></span>
+      </div>
     </div>
-    <p class="text-[12px] text-zinc-500 mb-4">Each team's total dynasty value, snapshotted daily.</p>
+    <p id="valueHistoryDesc" class="text-[12px] text-zinc-500 mb-4">Each team's total dynasty value, snapshotted daily.</p>
     <div id="valueHistoryChart"></div>
   </div>
 
@@ -116,8 +119,21 @@ function posSplitBar(t) {
 
 // One color per team line, cycled if there are more teams than colors.
 const CHART_COLORS = ['#f5c542', '#5ec7f5', '#f56e6e', '#7ee787', '#c792ea', '#ff9d5c', '#67e8f9', '#f0abfc', '#a3e635', '#fb7185'];
+const VALUE_METRICS = {
+  total: { label: 'Value', field: 'total', decimals: 0, desc: "Each team's total dynasty value, snapshotted daily." },
+  optPpg: { label: 'Opt PPG', field: 'optPpg', decimals: 1, desc: "Each team's best-lineup projected PPG (league scoring), snapshotted daily." }
+};
+let valueHistoryMetric = 'total';
+let lastValueHistory = null, lastValueHistoryTeams = null;
 
 function renderValueHistory(history, currentTeams) {
+  lastValueHistory = history; lastValueHistoryTeams = currentTeams;
+  const toggle = document.getElementById('valueHistoryToggle');
+  toggle.innerHTML = Object.entries(VALUE_METRICS).map(([key, m]) =>
+    `<button onclick="setValueHistoryMetric('${key}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${valueHistoryMetric === key ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${m.label}</button>`
+  ).join('');
+  document.getElementById('valueHistoryDesc').textContent = VALUE_METRICS[valueHistoryMetric].desc;
+
   const mount = document.getElementById('valueHistoryChart');
   const meta = document.getElementById('valueHistoryMeta');
   const snaps = history.snapshots || [];
@@ -128,6 +144,9 @@ function renderValueHistory(history, currentTeams) {
   }
   meta.textContent = `${snaps.length} daily snapshots • ${snaps[0].date} → ${snaps[snaps.length - 1].date}`;
 
+  const { field, decimals } = VALUE_METRICS[valueHistoryMetric];
+  const fmt = v => v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+
   // Union of rosterIds across every snapshot (not just the latest) so a line stays
   // continuous even if a team was renamed mid-history — matched by rosterId, not name.
   const rosterIds = [...new Set(snaps.flatMap(s => s.teams.map(t => t.rosterId)))];
@@ -136,7 +155,7 @@ function renderValueHistory(history, currentTeams) {
 
   const series = rosterIds.map((id, i) => ({
     id, name: nameFor(id), color: CHART_COLORS[i % CHART_COLORS.length],
-    points: snaps.map(s => { const t = s.teams.find(x => x.rosterId === id); return t ? t.total : null; })
+    points: snaps.map(s => { const t = s.teams.find(x => x.rosterId === id); return t && t[field] != null ? t[field] : null; })
   }));
 
   const allVals = series.flatMap(s => s.points.filter(v => v != null));
@@ -152,7 +171,7 @@ function renderValueHistory(history, currentTeams) {
   const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => {
     const v = yMin + (yMax - yMin) * f, yy = y(v);
     return `<line x1="${ML}" y1="${yy}" x2="${W - MR}" y2="${yy}" stroke="currentColor" class="text-white/5"/>
-      <text x="${ML - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-500">${Math.round(v).toLocaleString()}</text>`;
+      <text x="${ML - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-500">${fmt(v)}</text>`;
   }).join('');
 
   const dateTicks = [0, snaps.length - 1].map(i =>
@@ -174,11 +193,16 @@ function renderValueHistory(history, currentTeams) {
         return `<div class="flex items-center gap-1.5 text-[11px]">
           <span class="size-2 rounded-full shrink-0" style="background:${s.color}"></span>
           <span class="text-zinc-300">${Vault.escapeHtml(s.name)}</span>
-          <span class="text-zinc-500 mono">${last != null ? Math.round(last).toLocaleString() : '—'}</span>
-          ${delta != null ? `<span class="mono ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${delta >= 0 ? '+' : ''}${Math.round(delta).toLocaleString()}</span>` : ''}
+          <span class="text-zinc-500 mono">${last != null ? fmt(last) : '—'}</span>
+          ${delta != null ? `<span class="mono ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${delta >= 0 ? '+' : ''}${fmt(delta)}</span>` : ''}
         </div>`;
       }).join('')}
     </div>`;
+}
+
+function setValueHistoryMetric(key) {
+  valueHistoryMetric = key;
+  if (lastValueHistory) renderValueHistory(lastValueHistory, lastValueHistoryTeams);
 }
 
 async function load() {

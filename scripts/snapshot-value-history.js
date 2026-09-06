@@ -1,7 +1,7 @@
-// Daily snapshot of team totals and rostered-player values for the tracked league,
-// so League Overview and Player Rankings can chart value over time. Runs as part of
-// the same daily Action as the other data refreshes — one snapshot per calendar day
-// (a manual re-run same day is a no-op, not a duplicate entry).
+// Daily snapshot of team totals/Opt PPG and rostered-player value/PPG for the
+// tracked league, so League Overview and Player Rankings can chart trends over
+// time. Runs as part of the same daily Action as the other data refreshes — one
+// snapshot per calendar day (a manual re-run same day is a no-op, not a duplicate).
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +31,32 @@ function normalizeName(s) {
     .replace(/\s+/g, ' ');
 }
 
+// Mirrors Vault.scoreStats — dot-products raw projected stat counts against this
+// league's actual scoring_settings, so PPG matches how points are really scored here.
+function scoreStats(stats, scoringSettings) {
+  let total = 0;
+  for (const [k, w] of Object.entries(scoringSettings || {})) total += (stats[k] || 0) * w;
+  return total;
+}
+
+// Mirrors Vault.optimalLineup — best-PPG lineup a roster can field given the
+// league's actual starting slots (FLEX/SUPER_FLEX/etc. eligibility included).
+function optimalLineup(plist, slots) {
+  const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
+  const used = new Set();
+  let tot = 0;
+  for (const slot of slots) {
+    let allowed = [slot];
+    if (slot === 'FLEX') allowed = ['RB', 'WR', 'TE'];
+    if (slot === 'SUPER_FLEX') allowed = ['QB', 'RB', 'WR', 'TE'];
+    if (slot === 'WRRB_FLEX') allowed = ['RB', 'WR'];
+    if (slot === 'REC_FLEX') allowed = ['WR', 'TE'];
+    const i = pool.findIndex(p => !used.has(p.id) && allowed.includes(p.pos));
+    if (i >= 0) { tot += pool[i].ppg; used.add(pool[i].id); }
+  }
+  return tot;
+}
+
 async function readJson(p, fallback) {
   try { return JSON.parse(await fs.readFile(p, 'utf8')); }
   catch { return fallback; }
@@ -39,15 +65,17 @@ async function readJson(p, fallback) {
 async function main() {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [league, users, rosters, players, ktcData] = await Promise.all([
+  const [league, users, rosters, players, ktcData, projData] = await Promise.all([
     fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}`).then(r => r.json()),
     fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/users`).then(r => r.json()),
     fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/rosters`).then(r => r.json()),
     fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
-    readJson(path.join(DATA_DIR, 'ktc-values.json'), null)
+    readJson(path.join(DATA_DIR, 'ktc-values.json'), null),
+    readJson(path.join(DATA_DIR, 'projections.json'), null)
   ]);
   if (!league || league.error) throw new Error('League not found.');
   if (!ktcData) throw new Error('data/ktc-values.json missing — run fetch-ktc.js first.');
+  if (!projData) throw new Error('data/projections.json missing — run fetch-projections.js first.');
 
   const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
   const valueByName = new Map();
@@ -56,22 +84,34 @@ async function main() {
     if (key) valueByName.set(key, isSF ? p.sf_tep : p.oneQB_tep);
   });
 
+  // Projections are keyed by Sleeper player_id (no name-matching needed, unlike KTC).
+  const ppgByPid = new Map();
+  Object.entries(projData.players || {}).forEach(([pid, p]) => {
+    const gp = p.stats?.gp || 0;
+    if (gp) ppgByPid.set(pid, scoreStats(p.stats, league.scoring_settings) / gp);
+  });
+
+  const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
   const userMap = new Map(users.map(u => [u.user_id, u]));
-  const playerValues = {};
+  const playerSnaps = {};
   const teams = rosters.map(r => {
     const u = userMap.get(r.owner_id) || {};
     const teamName = u.metadata?.team_name || u.display_name || 'Team';
     let total = 0;
+    const plist = [];
     (r.players || []).forEach(pid => {
       const p = players[String(pid)];
       if (!p) return;
       const name = `${p.first_name || ''} ${p.last_name || ''}`.trim();
       const key = normalizeName(name);
       const value = valueByName.get(key) || 0;
+      const ppg = ppgByPid.get(String(pid)) || 0;
       total += value;
-      if (value > 0) playerValues[key] = value;
+      plist.push({ id: String(pid), pos: p.position || '', ppg });
+      if (value > 0 || ppg > 0) playerSnaps[key] = { value, ppg: +ppg.toFixed(2) };
     });
-    return { rosterId: r.roster_id, teamName, total: Math.round(total) };
+    const optPpg = optimalLineup(plist, slots);
+    return { rosterId: r.roster_id, teamName, total: Math.round(total), optPpg: +optPpg.toFixed(1) };
   });
 
   const teamHistory = await readJson(TEAM_HISTORY_PATH, { leagueId: LEAGUE_ID, snapshots: [] });
@@ -88,12 +128,12 @@ async function main() {
   if (teamHistory.snapshots.length > MAX_TEAM_SNAPSHOTS) teamHistory.snapshots = teamHistory.snapshots.slice(-MAX_TEAM_SNAPSHOTS);
 
   playerHistory.leagueId = LEAGUE_ID;
-  playerHistory.snapshots.push({ date: today, players: playerValues });
+  playerHistory.snapshots.push({ date: today, players: playerSnaps });
   if (playerHistory.snapshots.length > MAX_PLAYER_SNAPSHOTS) playerHistory.snapshots = playerHistory.snapshots.slice(-MAX_PLAYER_SNAPSHOTS);
 
   await fs.writeFile(TEAM_HISTORY_PATH, JSON.stringify(teamHistory));
   await fs.writeFile(PLAYER_HISTORY_PATH, JSON.stringify(playerHistory));
-  console.log(`Snapshotted ${teams.length} teams and ${Object.keys(playerValues).length} rostered players for ${today}.`);
+  console.log(`Snapshotted ${teams.length} teams and ${Object.keys(playerSnaps).length} rostered players (value + PPG) for ${today}.`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
