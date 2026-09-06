@@ -178,6 +178,12 @@ const POS_FILTERS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'PICK'];
 
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
+// The verdict recap sentence colors by the same Fair/Borderline/Lopsided value tiers
+// as the diff badge above it — Lopsided reads red here since this line is the one
+// place on the page meant to read as an actual warning.
+function synopsisColor(pctDiff) {
+  return pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'text-rose-400' : pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'text-amber-400' : 'text-emerald-400';
+}
 const TIER_COLOR = { early: 'text-emerald-400', mid: 'text-amber-300', late: 'text-rose-400' };
 
 function assetsFor(team) {
@@ -972,7 +978,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   document.getElementById('analysisA').classList.remove('hidden');
   document.getElementById('analysisB').classList.remove('hidden');
 
-  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, verdict } =
+  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, verdict } =
     computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
 
   document.getElementById('tradeArchetype').innerHTML = `
@@ -1021,7 +1027,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
       <span class="size-2.5 rounded-full ${TONE_DOT[verdict.tone]}"></span>
       <div class="text-[19px] font-semibold ${TONE[verdict.tone]}">${verdict.label}</div>
     </div>
-    <div class="text-[15px] font-bold text-zinc-200 truncate">${verdict.text}</div>`;
+    <div class="text-[13px] font-bold ${synopsisColor(pctDiff)} truncate">${verdict.text}</div>`;
 }
 
 init();
