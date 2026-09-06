@@ -13,9 +13,13 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const LEAGUE_ID = '1313454100225990656';
 const TEAM_HISTORY_PATH = path.join(DATA_DIR, 'team-value-history.json');
 const PLAYER_HISTORY_PATH = path.join(DATA_DIR, 'player-value-history.json');
-// Bounds file growth — ~1.5yrs of team history, ~4 months of (much larger) player history.
-const MAX_TEAM_SNAPSHOTS = 550;
-const MAX_PLAYER_SNAPSHOTS = 120;
+// Bounds file growth. At measured real sizes (~774 bytes/snapshot for team, ~14KB/snapshot
+// for player, both keyed by rostered-player count), these give 10yrs of team history
+// (~2.8MB) and ~7yrs of player history (~36MB) before the oldest day starts rolling off —
+// comfortable margin past the 5yr target even if the roster grows, and well under GitHub's
+// 100MB hard per-file limit (50MB soft warning).
+const MAX_TEAM_SNAPSHOTS = 3650;
+const MAX_PLAYER_SNAPSHOTS = 2600;
 
 // Mirrors Vault.normalizeName in vault-core.js — must match exactly, since this is
 // how KTC's name-only data gets matched against Sleeper's player database both here
