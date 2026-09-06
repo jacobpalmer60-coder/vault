@@ -6,14 +6,15 @@ const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
   PROJECTIONS_URL: 'data/projections.json',
-  // Includes the CURRENT year, not just future ones — a rookie class isn't off the
-  // board just because its calendar year has started; leagues keep trading that
-  // year's picks right up until their own rookie draft happens, and KTC keeps
-  // pricing them the same way. Excluding the current year (this used to start at
-  // next year only) meant any pick for it silently priced at $0 everywhere — no
-  // error, just a real asset invisibly worth nothing, making real trades that
-  // included one look far more lopsided than they were.
-  PICK_YEARS: [2026, 2027, 2028, 2029],
+  // How many future draft years to track as tradeable assets. The actual starting
+  // year is computed at runtime by Vault.futurePickYears — NOT hardcoded here —
+  // because whether the CURRENT season's picks still count as "future" flips the
+  // moment that season's rookie draft happens. Before the draft, this season's
+  // picks are real, tradeable, KTC-priced assets (excluding them used to silently
+  // price them at $0 everywhere). After the draft, they've already turned into
+  // rostered players and showing them as still-available future picks is a phantom
+  // asset that shouldn't be on anyone's roster or price into their team value.
+  PICK_YEARS_WINDOW: 4,
   PICK_ROUNDS: [1, 2, 3, 4],
   // Value Based Adjustment: boosts assets above VBA_REFERENCE, discounts those
   // below it, so a single elite piece outweighs several mid-tier pieces summing
@@ -136,15 +137,39 @@ const Vault = {
 
   /* ---------- Sleeper API ---------- */
   async fetchSleeperCore(leagueId) {
-    const [league, users, rosters, players, traded] = await Promise.all([
+    const [league, users, rosters, players, traded, drafts] = await Promise.all([
       fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/players/nfl`).then(r => r.json()),
-      fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json())
+      fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`).then(r => r.json()).catch(() => [])
     ]);
     if (!league || league.error) throw new Error('League not found. Double-check the league ID.');
-    return { league, users, rosters, players, traded };
+    return { league, users, rosters, players, traded, drafts };
+  },
+
+  // A league can carry multiple draft records for the same season (an abandoned
+  // pre_draft placeholder alongside the real one, old startup drafts, etc.) — only
+  // a completed draft whose round count matches the league's actual rookie-draft
+  // length (PICK_ROUNDS) counts as "this season's rookie draft happened".
+  seasonDraftComplete(drafts, season) {
+    return (drafts || []).some(d =>
+      String(d.season) === String(season) && d.status === 'complete' &&
+      d.settings && d.settings.rounds === VAULT_CONFIG.PICK_ROUNDS.length
+    );
+  },
+
+  // The years that are still real, tradeable future picks. Anchored to the current
+  // season, not shifted forward once a draft completes — Sleeper's own pick
+  // tracking for this league only goes out to season + (WINDOW - 1) regardless of
+  // where the current season sits (confirmed: this league's picks only go through
+  // 2029, not a rolling 2030 once 2026 drops off). A completed season's draft just
+  // drops that one year from the fixed window instead of extending the far end.
+  futurePickYears(league, drafts) {
+    const season = +league.season;
+    const window = Array.from({ length: VAULT_CONFIG.PICK_YEARS_WINDOW }, (_, i) => season + i);
+    return window.filter(year => !Vault.seasonDraftComplete(drafts, year));
   },
 
   /* ---------- KeepTradeCut values ----------
@@ -191,9 +216,10 @@ const Vault = {
   },
 
   /* KTC's pick grid rolls forward each spring after that year's rookie draft, so its
-     available seasons can lag a league's configured PICK_YEARS by a year. Map each
-     configured year to whichever KTC season is closest rather than hardcoding either. */
-  buildKtcPickMap(ktcData, isSF) {
+     available seasons can lag a league's actual future pick years by a year. Map
+     each of the league's years to whichever KTC season is closest rather than
+     hardcoding either. `years` comes from Vault.futurePickYears. */
+  buildKtcPickMap(ktcData, isSF, years) {
     const raw = new Map();
     const seasons = new Set();
     (ktcData.picks || []).forEach(p => {
@@ -203,7 +229,7 @@ const Vault = {
     const availYears = [...seasons].sort((a, b) => a - b);
     const map = new Map();
     if (!availYears.length) return map;
-    VAULT_CONFIG.PICK_YEARS.forEach(year => {
+    years.forEach(year => {
       const nearest = availYears.reduce((best, y) => Math.abs(y - year) < Math.abs(best - year) ? y : best, availYears[0]);
       VAULT_CONFIG.PICK_ROUNDS.forEach(round => {
         ['early', 'mid', 'late'].forEach(tier => {
@@ -275,10 +301,10 @@ const Vault = {
     return { ktcData, projData };
   },
 
-  buildValueMaps({ ktcData, projData, isSF, scoringSettings }) {
+  buildValueMaps({ ktcData, projData, isSF, scoringSettings, pickYears }) {
     const valMap = Vault.buildKtcValueMap(ktcData, isSF);
     const ppgMap = Vault.buildProjectedPpgMapById(projData, scoringSettings);
-    const pickMap = Vault.buildKtcPickMap(ktcData, isSF);
+    const pickMap = Vault.buildKtcPickMap(ktcData, isSF, pickYears);
     return { valMap, ppgMap, pickMap };
   },
 
@@ -378,16 +404,17 @@ const Vault = {
      "mid" tier instead of ranking tiers by standings like app.html did.
      Fixing that drift was the main reason to centralize this. */
   async buildLeagueTeams(leagueId) {
-    const { league, users, rosters, players, traded } = await Vault.fetchSleeperCore(leagueId);
+    const { league, users, rosters, players, traded, drafts } = await Vault.fetchSleeperCore(leagueId);
     const { ktcData, projData } = await Vault.fetchValueSheets();
     const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
-    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, projData, isSF, scoringSettings: league.scoring_settings });
+    const pickYears = Vault.futurePickYears(league, drafts);
+    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, projData, isSF, scoringSettings: league.scoring_settings, pickYears });
 
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
     const optimal = plist => Vault.optimalLineup(plist, slots);
 
-    const { PICK_YEARS: YEARS, PICK_ROUNDS: ROUNDS } = VAULT_CONFIG;
+    const YEARS = pickYears, ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
     const pickOwner = new Map();
     YEARS.forEach(y => ROUNDS.forEach(r => rosters.forEach(ro => pickOwner.set(`${y}-${r}-${ro.roster_id}`, ro.roster_id))));
     traded.filter(p => YEARS.includes(+p.season)).forEach(p => {
