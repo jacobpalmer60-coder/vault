@@ -642,16 +642,17 @@ function useBalanced(i) {
 // for me specifically. Uses comboSearchTopN directly (in adjusted-value space)
 // rather than bestCombos, since the target here is a SUM of the other side's
 // current assets, not one raw KTC value bestCombos could re-derive VBA from.
-function balanceSide(mySide) {
+function balanceSide(mySide, btn) {
   const other = otherSide(mySide);
   const myTeam = teamOf(mySide), otherTeam = teamOf(other);
   const otherSel = other === 'A' ? selectedA : selectedB;
   const otherAssets = [...otherSel].map(k => otherTeam.assets.find(a => a.key === k)).filter(Boolean);
-  if (!otherAssets.length) return;
+  if (!otherAssets.length) return flashButtonMessage(btn, `Select something on Team ${other} first`);
 
+  const mySel = mySide === 'A' ? selectedA : selectedB;
   const targetAdj = otherAssets.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
   const candidates = comboSearchTopN(myTeam.assets, targetAdj, 10);
-  if (!candidates.length) return;
+  if (!candidates.length) return flashButtonMessage(btn, 'No alternative package found');
 
   let best = null, bestFit = -Infinity;
   candidates.forEach(cand => {
@@ -663,12 +664,30 @@ function balanceSide(mySide) {
     const myFit = mySide === 'A' ? result.resA.fit : result.resB.fit;
     if (myFit > bestFit) { bestFit = myFit; best = cand.combo; }
   });
-  if (!best) return;
+  if (!best) return flashButtonMessage(btn, 'No alternative package found');
 
-  const mySel = mySide === 'A' ? selectedA : selectedB;
+  // The search includes my own current selection in its pool, so the "best" option
+  // it finds can legitimately BE what's already selected — without this check that
+  // looks exactly like the button silently doing nothing.
+  const bestKeys = best.map(a => a.key).sort().join(',');
+  const currentKeys = [...mySel].sort().join(',');
+  if (bestKeys === currentKeys) return flashButtonMessage(btn, 'Already your best available option');
+
   mySel.clear();
   best.forEach(a => mySel.add(a.key));
   render('A'); render('B');
+}
+
+// Swaps a button's own label for a short message, then restores it — used for the
+// "nothing to do" outcomes above so the button never just silently does nothing.
+function flashButtonMessage(btn, msg) {
+  if (!btn) return;
+  if (btn.dataset.flashing) return; // already mid-flash, don't stack timers
+  const original = btn.innerHTML;
+  btn.dataset.flashing = '1';
+  btn.disabled = true;
+  btn.textContent = msg;
+  setTimeout(() => { btn.innerHTML = original; btn.disabled = false; delete btn.dataset.flashing; }, 1800);
 }
 
 function swap(side, outKey, inKey) {
@@ -1378,7 +1397,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
           <span class="size-2 rounded-full shrink-0 mt-1.5 ${TONE_DOT[head.tone]}"></span>
           <p class="text-[13px] ${TONE[head.tone]} leading-relaxed"><span class="font-medium">${head.text}.</span> <span class="font-normal">${Vault.buildSynopsis('', res.notes)}</span></p>
         </div>
-        ${head.tone !== 'good' ? `<button onclick="balanceSide('${side}')" title="Keep Team ${side === 'A' ? 'B' : 'A'}'s side exactly as selected, and look for a different ${Vault.escapeHtml(bef.teamName)} package that reads as a better fit" class="mb-4 text-[11px] px-2.5 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">⚖️ Balance This Side</button>` : ''}
+        ${head.tone !== 'good' ? `<button onclick="balanceSide('${side}', this)" title="Keep Team ${side === 'A' ? 'B' : 'A'}'s side exactly as selected, and look for a different ${Vault.escapeHtml(bef.teamName)} package that reads as a better fit" class="mb-4 text-[11px] px-2.5 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">⚖️ Balance This Side</button>` : ''}
         ${res.notes.length ? `<details class="group mb-4">
           <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
             <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
