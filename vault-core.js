@@ -1281,21 +1281,58 @@ const Vault = {
      instead of running two copies of this fetch that could drift apart. */
   async fetchAndGradeAllTrades(leagueId) {
     const { league, isSF, teams, slots } = await Vault.buildLeagueTeams(leagueId);
-    const [playersDb, ktcData, projData, ...weeks] = await Promise.all([
+    const [playersDb, ktcData, projData, rosters, traded, ...weeks] = await Promise.all([
       fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
       Vault.fetchKtcValues(),
       Vault.fetchProjections(),
+      fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json()),
       ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
     ]);
     const valMap = Vault.buildKtcValueMap(ktcData, isSF);
     const ppgMap = Vault.buildProjectedPpgMapById(projData, league.scoring_settings);
 
-    const pickValueByKey = new Map();
-    teams.forEach(t => t.picks.forEach(p => pickValueByKey.set(`${p.season}-${p.round}-${p.original}`, p)));
     const teamById = new Map(teams.map(t => [t.rosterId, t]));
 
     const seen = new Set();
     const trades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2 && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
+
+    // teams[].picks only covers the LIVE future-tradeable window (Vault.futurePickYears)
+    // — a completed draft correctly drops that year from it entirely, since it's no
+    // longer a real asset you could trade today. But a real historical trade can
+    // reference a year that was future AT THE TIME and has since drafted (e.g. a
+    // 2026 pick traded before the 2026 rookie draft) — pricing that off teams[].picks
+    // silently returns 0 once the year rolls off, which read as "missing value" on
+    // otherwise-real completed trades. Build a separate pick index scoped to
+    // whatever years actually show up in the real trade log instead, using the same
+    // ownership-tracking + tier + value methodology buildLeagueTeams uses for the
+    // live window, just not limited to it.
+    const referencedYears = [...new Set(trades.flatMap(tx => (tx.draft_picks || []).map(pk => +pk.season)))];
+    const pickValueByKey = new Map();
+    if (referencedYears.length) {
+      const pickMap = Vault.buildKtcPickMap(ktcData, isSF, referencedYears);
+      const ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
+      const pickOwner = new Map();
+      referencedYears.forEach(y => ROUNDS.forEach(r => rosters.forEach(ro => pickOwner.set(`${y}-${r}-${ro.roster_id}`, ro.roster_id))));
+      traded.filter(p => referencedYears.includes(+p.season)).forEach(p => {
+        const to = Number(p.owner_id);
+        if (to && to !== p.roster_id) pickOwner.set(`${p.season}-${p.round}-${p.roster_id}`, to);
+      });
+
+      // Draft slot (and so tier/value) depends on standings-based draft order — this
+      // app doesn't reconstruct the real order as of each historical draft, it uses
+      // current Opt PPG rank as one consistent proxy for pricing any pick anywhere,
+      // same as the live window does.
+      const n = teams.length;
+      const draftRank = new Map([...teams].sort((a, b) => b.opt - a.opt).map((t, k) => [t.rosterId, n - k]));
+      pickOwner.forEach((ownerRosterId, key) => {
+        const [season, round, originalRosterId] = key.split('-').map(Number);
+        const rank = draftRank.get(originalRosterId) || 1;
+        const overall = (round - 1) * n + rank;
+        const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
+        pickValueByKey.set(key, { value: pickMap.get(`${season}-${ktcRound}-${tier}`) || 0, tier });
+      });
+    }
 
     const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots)).filter(Boolean);
     return { league, isSF, teams, slots, allGraded };
