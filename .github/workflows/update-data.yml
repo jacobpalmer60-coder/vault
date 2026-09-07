@@ -2,7 +2,14 @@ name: Update data
 
 on:
   schedule:
-    - cron: '0 9 * * *'  # daily, 9am UTC
+    # Midnight Mountain Time, US — cron is UTC-only and doesn't shift for DST, so two
+    # entries cover both offsets (MDT UTC-6 ~mid-Mar to early Nov, MST UTC-7 the rest
+    # of the year). Whichever one isn't "real" midnight that time of year still lands
+    # within the same UTC calendar day (Mountain is behind UTC, so no date wraparound)
+    # and snapshot-value-history.js's same-day dedup means the second run just
+    # overwrites the first with ~an hour-newer data instead of creating a duplicate.
+    - cron: '0 6 * * *'  # midnight MDT (UTC-6)
+    - cron: '0 7 * * *'  # midnight MST (UTC-7)
   workflow_dispatch: {}
 
 permissions:
