@@ -1151,7 +1151,7 @@ function windowShiftNote(befWin, aftWin) {
 // shift into one top-level grade — gated on the actual value gap FIRST, so this can
 // never contradict the Fair/Borderline/Lopsided label already shown on the trade bar
 // (previously fit alone drove the verdict, so a 29%-off trade could still read as
-// "Fair, But Unremarkable" if timeline/positional fit happened to cancel out).
+// "Fair, No Real Winner" if timeline/positional fit happened to cancel out).
 // Fit only decides the sub-label once value itself is close enough to call fair.
 // `text` is built from Vault.tradeHighlight — a concrete "Team A gave up X, but
 // added RB depth, while Team B got younger" recap — rather than a canned phrase per
@@ -1188,7 +1188,7 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
   if (toneA === 'bad') return { tone: 'bad', label: `Bad Fit for ${teamAName}`, text };
   if (toneB === 'bad') return { tone: 'bad', label: `Bad Fit for ${teamBName}`, text };
   if (toneA === 'good' || toneB === 'good') return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
-  return { tone: 'neutral', label: 'Fair, But Unremarkable', text };
+  return { tone: 'neutral', label: 'Fair, No Real Winner', text };
 }
 
 // Labels the trade itself — not either team's fit, but what kind of transaction this is.
