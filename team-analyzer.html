@@ -16,7 +16,7 @@
 <main class="max-w-[1400px] mx-auto px-6 py-8 fade-in">
   <div class="mb-6">
     <h1 class="display text-[28px] gold-text">Team Analyzer</h1>
-    <p class="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">7 Archetypes • Real Values</p>
+    <p class="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">9 Archetypes • Real Values</p>
   </div>
 
   <div class="card rounded-vault-sm p-5 mb-6">
@@ -134,7 +134,10 @@ function renderSingle(t) {
         <h2 class="display text-[24px] gold-text">${Vault.escapeHtml(t.teamName)}</h2>
         <p class="text-[12px] text-zinc-400">${Vault.escapeHtml(t.username)} • Rank #${t.rank} • Peak: ${win.peakYear}</p>
       </div>
-      <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
+      <div class="text-right">
+        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
+        <div class="text-[11px] text-zinc-500 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]} • ${t.windowYears}yr window</div>
+      </div>
     </div>
     <div class="grid md:grid-cols-5 gap-4 mt-6">
       ${bars.map(b => `<div class="stat-tile"><div class="stat-label">${b.l}</div><div class="stat-value">${b.v}</div></div>`).join('')}
