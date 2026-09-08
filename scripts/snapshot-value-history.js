@@ -63,6 +63,53 @@ function optimalLineup(plist, slots) {
   return tot;
 }
 
+const PICK_ROUNDS = [1, 2, 3, 4]; // mirrors VAULT_CONFIG.PICK_ROUNDS
+const PICK_YEARS_WINDOW = 4; // mirrors VAULT_CONFIG.PICK_YEARS_WINDOW
+
+// Mirrors Vault.seasonDraftComplete/Vault.futurePickYears — a pick's year stops
+// being a real tradeable asset once that season's rookie draft has happened.
+function futurePickYears(league, drafts) {
+  const season = +league.season;
+  const window = Array.from({ length: PICK_YEARS_WINDOW }, (_, i) => season + i);
+  return window.filter(year => !(drafts || []).some(d =>
+    String(d.season) === String(year) && d.status === 'complete' &&
+    d.settings && d.settings.rounds === PICK_ROUNDS.length
+  ));
+}
+
+// Mirrors Vault.buildKtcPickMap — maps this league's future pick years to KTC's
+// nearest priced draft class (KTC's grid can lag a year behind).
+function buildKtcPickMap(ktcData, isSF, years) {
+  const raw = new Map();
+  const seasons = new Set();
+  (ktcData.picks || []).forEach(p => {
+    raw.set(`${p.season}-${p.round}-${p.slot}`, isSF ? p.sf_tep : p.oneQB_tep);
+    seasons.add(p.season);
+  });
+  const availYears = [...seasons].sort((a, b) => a - b);
+  const map = new Map();
+  if (!availYears.length) return map;
+  years.forEach(year => {
+    const nearest = availYears.reduce((best, y) => Math.abs(y - year) < Math.abs(best - year) ? y : best, availYears[0]);
+    PICK_ROUNDS.forEach(round => {
+      ['early', 'mid', 'late'].forEach(tier => {
+        const val = raw.get(`${nearest}-${round}-${tier}`);
+        if (val != null) map.set(`${year}-${round}-${tier}`, val);
+      });
+    });
+  });
+  return map;
+}
+
+// Mirrors Vault.ktcPickSlot — converts an overall pick number into KTC's
+// round/tier pricing buckets (12-team-pace convention; see vault-core.js for why).
+function ktcPickSlot(overallPick) {
+  const round = Math.min(4, Math.max(1, Math.ceil(overallPick / 12)));
+  const pos = ((overallPick - 1) % 12) + 1;
+  const tier = pos <= 4 ? 'early' : pos <= 8 ? 'mid' : 'late';
+  return { round, tier };
+}
+
 async function readJson(p, fallback) {
   try { return JSON.parse(await fs.readFile(p, 'utf8')); }
   catch { return fallback; }
@@ -71,11 +118,13 @@ async function readJson(p, fallback) {
 async function main() {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [league, users, rosters, players, ktcData, projData] = await Promise.all([
+  const [league, users, rosters, players, traded, drafts, ktcData, projData] = await Promise.all([
     fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}`).then(r => r.json()),
     fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/users`).then(r => r.json()),
     fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/rosters`).then(r => r.json()),
     fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
+    fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/traded_picks`).then(r => r.json()),
+    fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/drafts`).then(r => r.json()).catch(() => []),
     readJson(path.join(DATA_DIR, 'ktc-values.json'), null),
     readJson(path.join(DATA_DIR, 'projections.json'), null)
   ]);
@@ -106,7 +155,7 @@ async function main() {
   const teams = rosters.map(r => {
     const u = userMap.get(r.owner_id) || {};
     const teamName = u.metadata?.team_name || u.display_name || 'Team';
-    let total = 0;
+    let playerValue = 0;
     const plist = [];
     (r.players || []).forEach(pid => {
       const p = players[String(pid)];
@@ -115,12 +164,48 @@ async function main() {
       const key = normalizeName(name);
       const value = valueByName.get(key) || 0;
       const ppg = ppgByPid.get(String(pid)) || 0;
-      total += value;
+      playerValue += value;
       plist.push({ id: String(pid), pos: p.position || '', ppg });
       if (value > 0 || ppg > 0) playerSnaps[key] = { value, ppg: +ppg.toFixed(2) };
     });
     const optPpg = optimalLineup(plist, slots);
-    return { rosterId: r.roster_id, teamName, total: Math.round(total), optPpg: +optPpg.toFixed(1) };
+    return { rosterId: r.roster_id, teamName, playerValue: Math.round(playerValue), optPpg: +optPpg.toFixed(1) };
+  });
+
+  // Mirrors buildLeagueTeams' pick-ownership/pricing block in vault-core.js — a
+  // team's real dynasty value includes the picks it holds, not just rostered
+  // players, so "total" here has to fold picksValue in the same way the live
+  // League Overview page already does (its separate "Total"/"Picks" columns).
+  const pickYears = futurePickYears(league, drafts);
+  const pickMap = buildKtcPickMap(ktcData, isSF, pickYears);
+  const pickOwner = new Map();
+  pickYears.forEach(y => PICK_ROUNDS.forEach(rnd => rosters.forEach(ro => pickOwner.set(`${y}-${rnd}-${ro.roster_id}`, ro.roster_id))));
+  (traded || []).filter(p => pickYears.includes(+p.season)).forEach(p => {
+    const to = Number(p.owner_id);
+    if (to && to !== p.roster_id) pickOwner.set(`${p.season}-${p.round}-${p.roster_id}`, to);
+  });
+  const own = new Map(rosters.map(r => [r.roster_id, []]));
+  pickOwner.forEach((owner, k) => {
+    const [season, round, original] = k.split('-').map(Number);
+    own.get(owner).push({ season, round, original });
+  });
+
+  // Draft order rank (1 = worst team, picks first; n = best team, picks last) —
+  // same "best optPpg picks last" convention buildLeagueTeams uses, so a pick's
+  // overall slot (and therefore its KTC tier) matches what the live pages show.
+  const sorted = [...teams].sort((a, b) => b.optPpg - a.optPpg);
+  const n = sorted.length;
+  const draftRank = new Map(sorted.map((t, k) => [t.rosterId, n - k]));
+  teams.forEach(t => {
+    const picks = own.get(t.rosterId) || [];
+    const picksValue = picks.reduce((sum, p) => {
+      const rank = draftRank.get(p.original) || 1;
+      const overall = (p.round - 1) * n + rank;
+      const { round: ktcRound, tier } = ktcPickSlot(overall);
+      return sum + (pickMap.get(`${p.season}-${ktcRound}-${tier}`) || 0);
+    }, 0);
+    t.picksValue = Math.round(picksValue);
+    t.total = t.playerValue + t.picksValue;
   });
 
   const teamHistory = await readJson(TEAM_HISTORY_PATH, { leagueId: LEAGUE_ID, snapshots: [] });
