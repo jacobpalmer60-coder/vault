@@ -134,6 +134,19 @@ const Vault = {
     const std = Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length);
     return { mean, std };
   },
+
+  // The real playoff cutoff, not the league average — in a league that sends most
+  // teams to the playoffs (e.g. 6 of 10), "average" and "playoff-caliber" are very
+  // different bars, since the average team by definition sits at the 50th percentile
+  // while the playoff line sits wherever playoffSpots/teams actually falls (60th
+  // percentile for 6-of-10). Shared by contentionWindow and buildLeagueTeams'
+  // archetype production axis, so "Contender" and "in playoff position" mean the
+  // same thing everywhere instead of two different bars with the same name.
+  playoffLine(teams) {
+    const playoffSpots = Math.max(4, Math.ceil(teams.length * 0.6));
+    const sortedPPG = [...teams].map(t => t.opt).sort((a, b) => b - a);
+    return { playoffSpots, playoffLine: sortedPPG[playoffSpots - 1] || sortedPPG[sortedPPG.length - 1] };
+  },
   fmtInt(n) { return Number.isFinite(n) ? Math.round(n).toLocaleString() : '—'; },
   fmtFloat(n, d = 2) { return Number.isFinite(n) ? n.toFixed(d) : '—'; },
   escapeHtml(s) {
@@ -578,16 +591,25 @@ const Vault = {
        ranking by player value alone meant a genuinely pick-rich team only ever
        looked "rich" through the Pick-Rich Rebuilder label's age/production guess,
        never through the value axis itself, while a team that happened to be young
-       and low-scoring got that label even holding no real pick capital. */
+       and low-scoring got that label even holding no real pick capital.
+
+       ppgZ is centered on the real PLAYOFF LINE (Vault.playoffLine), not the league
+       average — "Contender" should mean what it says: in real playoff position, not
+       just scoring better than the league's bottom half happens to drag the mean
+       down to. In a league that sends most teams to the playoffs (6 of 10 here),
+       those two bars can sit in very different places. valZ has no equivalent
+       external bar (there's no "playoff line" for dynasty trade value) so it stays
+       centered on the mean. */
     const vals = built.map(t => t.overall).sort((a, b) => a - b);
     const opts = built.map(t => t.opt).sort((a, b) => a - b);
     const { mean: meanOverall, std: stdOverall } = Vault.meanStd(built.map(t => t.overall));
-    const { mean: meanOpt, std: stdOpt } = Vault.meanStd(built.map(t => t.opt));
+    const { std: stdOpt } = Vault.meanStd(built.map(t => t.opt));
+    const { playoffLine } = Vault.playoffLine(built);
     built.forEach(t => {
       t.valP = vals.indexOf(t.overall) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
       t.valZ = stdOverall ? (t.overall - meanOverall) / stdOverall : 0;
-      t.ppgZ = stdOpt ? (t.opt - meanOpt) / stdOpt : 0;
+      t.ppgZ = stdOpt ? (t.opt - playoffLine) / stdOpt : 0;
     });
 
     /* ---------- Longevity (a z-score blend, not a percentile) ----------
@@ -705,18 +727,20 @@ const Vault = {
     const newB = rebuild(B, giveBPlayers, giveAPlayers, giveBPicks, giveAPicks);
 
     // Recompute valP/ppgP/valZ/ppgZ/archetype against the rest of the league,
-    // unchanged (both rank by `overall` — see buildLeagueTeams for why).
+    // unchanged (both rank by `overall`, ppgZ centers on the playoff line — see
+    // buildLeagueTeams for why).
     const others = allTeams.filter(t => t.rosterId !== teamAId && t.rosterId !== teamBId);
     const pool = [...others, newA, newB];
     const vals = pool.map(t => t.overall).sort((a, b) => a - b);
     const opts = pool.map(t => t.opt).sort((a, b) => a - b);
     const { mean: meanOverall, std: stdOverall } = Vault.meanStd(pool.map(t => t.overall));
-    const { mean: meanOpt, std: stdOpt } = Vault.meanStd(pool.map(t => t.opt));
+    const { std: stdOpt } = Vault.meanStd(pool.map(t => t.opt));
+    const { playoffLine } = Vault.playoffLine(pool);
     [newA, newB].forEach(t => {
       t.valP = vals.indexOf(t.overall) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
       t.valZ = stdOverall ? (t.overall - meanOverall) / stdOverall : 0;
-      t.ppgZ = stdOpt ? (t.opt - meanOpt) / stdOpt : 0;
+      t.ppgZ = stdOpt ? (t.opt - playoffLine) / stdOpt : 0;
       const [a, c] = Vault.archetype(t);
       t.arch = a; t.archCls = c;
       t.archScore = t.valP + t.ppgP;
@@ -757,9 +781,7 @@ const Vault = {
     const peak = Math.max(...proj);
     const year = startYear + proj.indexOf(peak);
 
-    const playoffSpots = Math.max(4, Math.ceil(all.length * 0.6));
-    const sortedPPG = [...all].map(x => x.opt).sort((a, b) => b - a);
-    const playoffLine = sortedPPG[playoffSpots - 1] || sortedPPG[sortedPPG.length - 1];
+    const { playoffSpots, playoffLine } = Vault.playoffLine(all);
 
     const projPPG = proj.map(v => t.opt * (v / (t.total || 1)));
     const valueThreshold = peak * 0.88;
