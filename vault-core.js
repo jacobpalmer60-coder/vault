@@ -23,6 +23,15 @@ const VAULT_CONFIG = {
   // for teams genuinely far above the pack on both axes, not just past the H cutoff.
   ARCHETYPE_TIER_Z: 0.4,
   ARCHETYPE_ELITE_Z: 1.0,
+  // Typical falloff age per position (the age production tends to start declining)
+  // and the per-year decay rate past it, once it does. Shared by Vault.positionAgeRisk
+  // (archetype's Aging Contender check) and contentionWindow's 5-year projection, so
+  // both use the same real-world curve instead of one flat team-wide age cutoff.
+  POSITION_DECAY: { RB: [26, 0.85], WR: [27, 0.92], QB: [30, 0.96], TE: [28, 0.93] },
+  // How far past (in PPG-weighted years) a lineup's starters need to sit past their
+  // own positions' falloff ages (see Vault.positionAgeRisk) before archetype calls
+  // an otherwise-elite team "Aging" rather than just "Contender".
+  AGING_RISK_THRESHOLD: 0.5,
   // Value Based Adjustment: boosts assets above VBA_REFERENCE, discounts those
   // below it, so a single elite piece outweighs several mid-tier pieces summing
   // to the same raw value. Fitted against a real KeepTradeCut trade-calculator
@@ -370,6 +379,30 @@ const Vault = {
     'Stripped Rebuilder': { cls: 'from-stone-700/30 to-stone-800/30 text-stone-300 border-stone-700/40', desc: 'Low value, low production, and an older core — the furthest from competing, with the least short- or long-term asset base.' }
   },
 
+  /* A team's raw average age blends every position into one number, which flattens
+     away exactly the detail that matters for "is this core about to decline" — a
+     team with an ancient WR1 who's still the best scorer and a young RB2 reads the
+     same, age-wise, as a team aged evenly across the board. This instead asks, for
+     each STARTER, how many years past (positive) or before (negative) their own
+     position's typical falloff age (Vault.POSITION_DECAY — the same curve
+     contentionWindow's projection uses) they are, weighted by how much they
+     actually matter to the lineup (their PPG) — so an aging bench piece barely
+     moves the number, but an aging player who's still your best scorer at the
+     position does. */
+  positionAgeRisk(t) {
+    const ageById = new Map(t.plist.map(p => [p.id, p.age]));
+    let weightedSum = 0, weightSum = 0;
+    (t.lineup || []).forEach(s => {
+      if (!s.id) return;
+      const cfg = VAULT_CONFIG.POSITION_DECAY[s.pos];
+      if (!cfg) return;
+      const age = ageById.get(s.id) || 0;
+      weightedSum += (age - cfg[0]) * s.ppg;
+      weightSum += s.ppg;
+    });
+    return weightSum ? weightedSum / weightSum : 0;
+  },
+
   /* ---------- Archetype classifier (shared by app.html + team-analyzer.html) ----------
      Tiers are gated on valZ/ppgZ (z-scores — see buildLeagueTeams), not the valP/ppgP
      percentile ranks. Percentile rank only knows order, not size: it FORCES an even
@@ -396,7 +429,15 @@ const Vault = {
       // is reserved for teams clearing ELITE_Z (a full standard deviation) on BOTH
       // axes, not just past the H cutoff; anything else in the H/H cell is a real
       // contender, just not the team standing alone at the top.
-      if (age > 27.5) return ['Aging Contender', 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40'];
+      //
+      // Aging gates on t.ageRisk (position-and-importance-weighted years past
+      // falloff — see Vault.positionAgeRisk), not raw team age: a flat age cutoff
+      // treats an old bench piece the same as an old, still-productive starter, and
+      // can't tell an ancient-but-declining WR1 apart from a young RB2 by lumping
+      // both into one blended number. AGING_RISK_THRESHOLD (0.5) means the lineup's
+      // production-weighted starters average at least half a year past their own
+      // position's typical decline point — not just at it.
+      if (t.ageRisk > VAULT_CONFIG.AGING_RISK_THRESHOLD) return ['Aging Contender', 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40'];
       return valZ > VAULT_CONFIG.ARCHETYPE_ELITE_Z && ppgZ > VAULT_CONFIG.ARCHETYPE_ELITE_Z
         ? ['Elite Contender', 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40']
         : ['Contender', 'from-amber-600/15 to-yellow-600/15 text-amber-300/90 border-amber-700/30'];
@@ -559,6 +600,8 @@ const Vault = {
       return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, bal, posCount, posPpg, startable, picks: own.get(r.roster_id) || [] };
     });
 
+    built.forEach(t => { t.ageRisk = Vault.positionAgeRisk(t); });
+
     // Draft order rank (1 = worst team, picks first; n = best team, picks last),
     // used to convert each pick into its overall pick number for ktcPickSlot.
     const sorted = [...built].sort((a, b) => b.opt - a.opt); // best team first
@@ -717,7 +760,7 @@ const Vault = {
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
-      const opt = Vault.optimalLineup(plist, slots);
+      const { total: opt, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
       const sumPos = qb + rb + wr + te || 1;
       const shares = [qb, rb, wr, te].map(v => v / sumPos);
       const mean = shares.reduce((a, b) => a + b) / 4;
@@ -726,7 +769,9 @@ const Vault = {
       const removedKeys = new Set(removedPicks.map(pickKey));
       const picks = [...team.picks.filter(p => !removedKeys.has(pickKey(p))), ...addedPicks];
       const picksValue = picks.reduce((s, p) => s + (p.value || 0), 0);
-      return { ...team, plist, total, qb, rb, wr, te, age, opt, bal, posCount, posPpg, picks, picksValue, overall: total + picksValue };
+      const rebuilt = { ...team, plist, total, qb, rb, wr, te, age, opt, lineup, bal, posCount, posPpg, picks, picksValue, overall: total + picksValue };
+      rebuilt.ageRisk = Vault.positionAgeRisk(rebuilt);
+      return rebuilt;
     }
 
     const newA = rebuild(A, giveAPlayers, giveBPlayers, giveAPicks, giveBPicks);
@@ -769,9 +814,8 @@ const Vault = {
     // "- Math.max(0, age - threshold)" term, a player already past the threshold
     // TODAY would get discounted even at y=0 (today), understating the projection's
     // own starting point below the real, undecayed current number.
-    const AGE_DECAY = { RB: [26, 0.85], WR: [27, 0.92], QB: [30, 0.96], TE: [28, 0.93] };
     function decayFactor(pos, currentAge, y) {
-      const cfg = AGE_DECAY[pos];
+      const cfg = VAULT_CONFIG.POSITION_DECAY[pos];
       if (!cfg) return 1;
       const [threshold, rate] = cfg;
       const decayYears = Math.max(0, currentAge + y - threshold) - Math.max(0, currentAge - threshold);
