@@ -672,11 +672,24 @@ const Vault = {
     [...built].sort((a, b) => b.contendScore - a.contendScore)
       .forEach((t, i) => { t.contendRank = i + 1; t.contendTier = Vault.rankBand(i + 1, nTeams); });
 
-    // Archetype (+ a continuous best-to-worst score for sorting by it)
+    // Archetype. archScore is a continuous Contending-strength number (valP + ppgP)
+    // — kept exactly as-is since Trade Calculator/Trade Grades diff it before/after a
+    // trade (dArchScore) to judge whether a deal helped or hurt, and that comparison
+    // only makes sense as a small, steady delta, not a number that can jump by
+    // millions the instant a trade nudges a team across an archetype boundary.
+    // archSort is a SEPARATE field, only for the League Overview table's Archetype
+    // column: archScore has no relationship to which archetype a team actually landed
+    // in (Longevity feeds the label too), so sorting by it didn't group same-label
+    // pills together at all — clicking the column looked broken. ARCHETYPE_INFO's own
+    // key order is already the guide's best-to-worst hierarchy, so that's the primary
+    // sort; t.overall just breaks ties within a shared label, scaled well below the
+    // per-archetype bucket size so it can never cross into the next archetype's range.
+    const archOrder = Object.keys(Vault.ARCHETYPE_INFO);
     built.forEach(t => {
       const [a, c] = Vault.archetype(t);
       t.arch = a; t.archCls = c;
       t.archScore = t.valP + t.ppgP;
+      t.archSort = (archOrder.length - archOrder.indexOf(a)) * 1e7 + t.overall;
     });
 
     // Column ranks (used by the League Overview table)
