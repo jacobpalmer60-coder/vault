@@ -629,12 +629,22 @@ const Vault = {
        used instead of valP/ppgP for the actual H/M/L tier gate in archetype() —
        see that function's comment for why percentile rank isn't safe for that.
 
-       Both rank by `overall` (players + picks), not just rostered-player value —
-       a team's real dynasty trade value includes what its picks are worth, and
-       ranking by player value alone meant a genuinely pick-rich team only ever
-       looked "rich" through the Pick-Rich Rebuilder label's age/production guess,
-       never through the value axis itself, while a team that happened to be young
-       and low-scoring got that label even holding no real pick capital.
+       Both rank by rostered-PLAYER value (t.total), not `overall` — archetype's
+       whole vocabulary (Contender/Rebuilder/etc.) is about competitive POSTURE,
+       which is a present-tense question, and picks are a future-tense asset.
+       Ranking the value axis by `overall` briefly seemed like the fix for a
+       genuinely pick-rich team not getting credit for its picks — but it cuts the
+       other way just as hard: a team that trades a future pick for a player good
+       enough to push them into a top-tier scoring team has made the single most
+       textbook CONTENDING move there is, and got penalized for it, landing as
+       "Stuck Middle" instead of "Contender" — because the pick it gave up (now
+       someone else's) still counts as a loss on this axis even though it was
+       converted into real, current strength. Picks matter enormously for a team's
+       real dynasty standing (that's exactly what `overall`, shown everywhere else
+       on the site, is for) — just not for "is this roster built to win right now,"
+       which is what this axis is actually answering. A genuinely pick-rich team
+       whose CURRENT value/production aren't otherwise standout still gets credit
+       for it through the Pick-Rich Rebuilder label (age + low value/production).
 
        ppgZ is centered on the real PLAYOFF LINE (Vault.playoffLine), not the league
        average — "Contender" should mean what it says: in real playoff position, not
@@ -643,15 +653,15 @@ const Vault = {
        those two bars can sit in very different places. valZ has no equivalent
        external bar (there's no "playoff line" for dynasty trade value) so it stays
        centered on the mean. */
-    const vals = built.map(t => t.overall).sort((a, b) => a - b);
+    const vals = built.map(t => t.total).sort((a, b) => a - b);
     const opts = built.map(t => t.opt).sort((a, b) => a - b);
-    const { mean: meanOverall, std: stdOverall } = Vault.meanStd(built.map(t => t.overall));
+    const { mean: meanTotalVal, std: stdTotalVal } = Vault.meanStd(built.map(t => t.total));
     const { std: stdOpt } = Vault.meanStd(built.map(t => t.opt));
     const { playoffLine } = Vault.playoffLine(built);
     built.forEach(t => {
-      t.valP = vals.indexOf(t.overall) / (vals.length - 1) * 100;
+      t.valP = vals.indexOf(t.total) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
-      t.valZ = stdOverall ? (t.overall - meanOverall) / stdOverall : 0;
+      t.valZ = stdTotalVal ? (t.total - meanTotalVal) / stdTotalVal : 0;
       t.ppgZ = stdOpt ? (t.opt - playoffLine) / stdOpt : 0;
     });
 
@@ -778,19 +788,19 @@ const Vault = {
     const newB = rebuild(B, giveBPlayers, giveAPlayers, giveBPicks, giveAPicks);
 
     // Recompute valP/ppgP/valZ/ppgZ/archetype against the rest of the league,
-    // unchanged (both rank by `overall`, ppgZ centers on the playoff line — see
-    // buildLeagueTeams for why).
+    // unchanged (both rank by player value t.total, ppgZ centers on the playoff
+    // line — see buildLeagueTeams for why the value axis isn't `overall`).
     const others = allTeams.filter(t => t.rosterId !== teamAId && t.rosterId !== teamBId);
     const pool = [...others, newA, newB];
-    const vals = pool.map(t => t.overall).sort((a, b) => a - b);
+    const vals = pool.map(t => t.total).sort((a, b) => a - b);
     const opts = pool.map(t => t.opt).sort((a, b) => a - b);
-    const { mean: meanOverall, std: stdOverall } = Vault.meanStd(pool.map(t => t.overall));
+    const { mean: meanTotalVal, std: stdTotalVal } = Vault.meanStd(pool.map(t => t.total));
     const { std: stdOpt } = Vault.meanStd(pool.map(t => t.opt));
     const { playoffLine } = Vault.playoffLine(pool);
     [newA, newB].forEach(t => {
-      t.valP = vals.indexOf(t.overall) / (vals.length - 1) * 100;
+      t.valP = vals.indexOf(t.total) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
-      t.valZ = stdOverall ? (t.overall - meanOverall) / stdOverall : 0;
+      t.valZ = stdTotalVal ? (t.total - meanTotalVal) / stdTotalVal : 0;
       t.ppgZ = stdOpt ? (t.opt - playoffLine) / stdOpt : 0;
       const [a, c] = Vault.archetype(t);
       t.arch = a; t.archCls = c;
