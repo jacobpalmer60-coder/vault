@@ -16,6 +16,13 @@ const VAULT_CONFIG = {
   // asset that shouldn't be on anyone's roster or price into their team value.
   PICK_YEARS_WINDOW: 4,
   PICK_ROUNDS: [1, 2, 3, 4],
+  // Archetype's H/M/L tiers (see Vault.archetype) gate on z-score, not percentile
+  // rank, so a near-tie between two teams can't land them in different tiers just
+  // because of rank order. 0.4 sits close to where a normal distribution's 60th/40th
+  // percentiles fall; ELITE_Z (a full standard deviation) reserves "Elite Contender"
+  // for teams genuinely far above the pack on both axes, not just past the H cutoff.
+  ARCHETYPE_TIER_Z: 0.4,
+  ARCHETYPE_ELITE_Z: 1.0,
   // Value Based Adjustment: boosts assets above VBA_REFERENCE, discounts those
   // below it, so a single elite piece outweighs several mid-tier pieces summing
   // to the same raw value. Fitted against a real KeepTradeCut trade-calculator
@@ -351,30 +358,33 @@ const Vault = {
   },
 
   /* ---------- Archetype classifier (shared by app.html + team-analyzer.html) ----------
-     Built around valP/ppgP terciles rather than absolute thresholds, since those are
-     true in-league percentiles and guaranteed to spread across teams. `bal` (positional
-     balance) only ranges ~69-90 in practice regardless of roster shape, so a static
-     "bal >= 70" gate used to catch nearly every team before more specific rules got a
-     chance — it's now just a tiebreaker within the genuine middle-of-both-axes cell.
-     Thresholds sit at 60/40 rather than the more "natural" 67/33 because percentiles
-     over a small league are discrete steps (e.g. 66.67 for a 10-team league) — a cutoff
-     placed almost exactly on a step, like 67, misclassifies whichever team lands there
-     by a hair. 60/40 sits cleanly between steps for the common league sizes (8-14). */
+     Tiers are gated on valZ/ppgZ (z-scores — see buildLeagueTeams), not the valP/ppgP
+     percentile ranks. Percentile rank only knows order, not size: it FORCES an even
+     spread across ranks regardless of how the league is actually shaped, so two teams
+     separated by a rounding error (e.g. 162.2 vs 162.4 Opt PPG) could still land on
+     opposite sides of a tier cutoff just because one happens to rank one spot higher.
+     A z-score reads the real gap in the context of the league's actual spread — two
+     near-ties stay in the same tier, and a genuine outlier still reads as one. `bal`
+     (positional balance) only ranges ~69-90 in practice regardless of roster shape, so
+     a static "bal >= 70" gate used to catch nearly every team before more specific
+     rules got a chance — it's now just a tiebreaker within the genuine middle-of-
+     both-axes cell. ARCHETYPE_TIER_Z (0.4) sits close to where a normal distribution's
+     60th/40th percentiles would fall, so a league that really is evenly spread still
+     tiers similarly to before — it just stops forcing that shape on a league that isn't. */
   archetype(t) {
-    const { valP, ppgP, age, bal } = t;
-    const vTier = valP > 60 ? 'H' : valP < 40 ? 'L' : 'M';
-    const pTier = ppgP > 60 ? 'H' : ppgP < 40 ? 'L' : 'M';
+    const { valZ, ppgZ, age, bal } = t;
+    const Z = VAULT_CONFIG.ARCHETYPE_TIER_Z;
+    const vTier = valZ > Z ? 'H' : valZ < -Z ? 'L' : 'M';
+    const pTier = ppgZ > Z ? 'H' : ppgZ < -Z ? 'L' : 'M';
 
     if (vTier === 'H' && pTier === 'H') {
-      // H is anything past the 60th percentile, which lumps a team sitting right at
-      // 60/60 in with one at 100/100 — very different calibers of "contender". Elite
-      // Contender is reserved for teams clearing 80 on BOTH axes (comfortably past
-      // the top tercile, not just barely in it, and clear of a percentile step for
-      // the common league sizes this runs at — same reasoning as the 60/40 split
-      // above); anything else in the H/H cell is a real contender, just not the
-      // team standing alone at the top.
+      // H is anything past the tier cutoff, which lumps a team barely clearing it in
+      // with one far past it — very different calibers of "contender". Elite Contender
+      // is reserved for teams clearing ELITE_Z (a full standard deviation) on BOTH
+      // axes, not just past the H cutoff; anything else in the H/H cell is a real
+      // contender, just not the team standing alone at the top.
       if (age > 27.5) return ['Aging Contender', 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40'];
-      return valP > 80 && ppgP > 80
+      return valZ > VAULT_CONFIG.ARCHETYPE_ELITE_Z && ppgZ > VAULT_CONFIG.ARCHETYPE_ELITE_Z
         ? ['Elite Contender', 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40']
         : ['Contender', 'from-amber-600/15 to-yellow-600/15 text-amber-300/90 border-amber-700/30'];
     }
@@ -555,12 +565,15 @@ const Vault = {
       t.overall = t.total + t.picksValue;
     });
 
-    /* ---------- Percentiles (used by archetype only) ----------
-       Archetype buckets teams into discrete tiers, where an even 0-100 spread by
-       construction is exactly what's wanted regardless of the underlying data's shape
-       — the same fix that replaced the old `bal >= 70` archetype gate.
+    /* ---------- Percentiles + z-scores (used by archetype) ----------
+       valP/ppgP are continuous 0-100 percentile ranks, kept for the Archetype
+       column's best-to-worst sort (archScore) and any other continuous display —
+       percentile rank works fine there since sorting doesn't care about tier
+       boundaries. valZ/ppgZ are z-scores of the same two underlying numbers,
+       used instead of valP/ppgP for the actual H/M/L tier gate in archetype() —
+       see that function's comment for why percentile rank isn't safe for that.
 
-       valP ranks by `overall` (players + picks), not just rostered-player value —
+       Both rank by `overall` (players + picks), not just rostered-player value —
        a team's real dynasty trade value includes what its picks are worth, and
        ranking by player value alone meant a genuinely pick-rich team only ever
        looked "rich" through the Pick-Rich Rebuilder label's age/production guess,
@@ -568,9 +581,13 @@ const Vault = {
        and low-scoring got that label even holding no real pick capital. */
     const vals = built.map(t => t.overall).sort((a, b) => a - b);
     const opts = built.map(t => t.opt).sort((a, b) => a - b);
+    const { mean: meanOverall, std: stdOverall } = Vault.meanStd(built.map(t => t.overall));
+    const { mean: meanOpt, std: stdOpt } = Vault.meanStd(built.map(t => t.opt));
     built.forEach(t => {
       t.valP = vals.indexOf(t.overall) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
+      t.valZ = stdOverall ? (t.overall - meanOverall) / stdOverall : 0;
+      t.ppgZ = stdOpt ? (t.opt - meanOpt) / stdOpt : 0;
     });
 
     /* ---------- Longevity (a z-score blend, not a percentile) ----------
@@ -596,10 +613,14 @@ const Vault = {
     const { mean: meanAge, std: stdAge } = Vault.meanStd(built.map(t => t.age));
     const { mean: meanPicks, std: stdPicks } = Vault.meanStd(built.map(t => t.picksValue));
     built.forEach(t => {
-      const valZ = stdTotal ? (t.total - meanTotal) / stdTotal : 0;
+      // Local player-value-only z-score, distinct from the team-level t.valZ
+      // (which ranks by `overall`) — picks already get their own dedicated
+      // pickZ term right below, so blending them into this one too would
+      // double-count them.
+      const playerValZ = stdTotal ? (t.total - meanTotal) / stdTotal : 0;
       const ageZ = stdAge ? -(t.age - meanAge) / stdAge : 0;
       const pickZ = stdPicks ? (t.picksValue - meanPicks) / stdPicks : 0;
-      t.longevity = Math.max(0, 100 + (valZ * 0.3 + ageZ * 0.35 + pickZ * 0.35) * SPREAD);
+      t.longevity = Math.max(0, 100 + (playerValZ * 0.3 + ageZ * 0.35 + pickZ * 0.35) * SPREAD);
     });
 
     // Archetype (+ a continuous best-to-worst score for sorting by it)
@@ -683,15 +704,19 @@ const Vault = {
     const newA = rebuild(A, giveAPlayers, giveBPlayers, giveAPicks, giveBPicks);
     const newB = rebuild(B, giveBPlayers, giveAPlayers, giveBPicks, giveAPicks);
 
-    // Recompute valP/ppgP/archetype against the rest of the league, unchanged
-    // (valP ranks by `overall` — see buildLeagueTeams for why).
+    // Recompute valP/ppgP/valZ/ppgZ/archetype against the rest of the league,
+    // unchanged (both rank by `overall` — see buildLeagueTeams for why).
     const others = allTeams.filter(t => t.rosterId !== teamAId && t.rosterId !== teamBId);
     const pool = [...others, newA, newB];
     const vals = pool.map(t => t.overall).sort((a, b) => a - b);
     const opts = pool.map(t => t.opt).sort((a, b) => a - b);
+    const { mean: meanOverall, std: stdOverall } = Vault.meanStd(pool.map(t => t.overall));
+    const { mean: meanOpt, std: stdOpt } = Vault.meanStd(pool.map(t => t.opt));
     [newA, newB].forEach(t => {
       t.valP = vals.indexOf(t.overall) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
+      t.valZ = stdOverall ? (t.overall - meanOverall) / stdOverall : 0;
+      t.ppgZ = stdOpt ? (t.opt - meanOpt) / stdOpt : 0;
       const [a, c] = Vault.archetype(t);
       t.arch = a; t.archCls = c;
       t.archScore = t.valP + t.ppgP;
@@ -891,13 +916,15 @@ const Vault = {
 
   /* A team's timeline — contending (score now), rebuilding (stockpile for later), or
      flexible (neither extreme) — read off where it stands vs the league on value and
-     current production. Cutoffs sit away from percentile-step boundaries (see the
-     archetype() comment below) rather than on a round number like 50/50. Shared by
-     the Trade Calculator (a proposed trade) and Trade Grades (a completed one), since
-     both need the same read on "what is this team actually trying to do". */
+     current production. Same z-score gate as archetype() (see that function's
+     comment for why percentile rank isn't safe here), so a team's mode never flips
+     off a rounding-error gap either. Shared by the Trade Calculator (a proposed
+     trade) and Trade Grades (a completed one), since both need the same read on
+     "what is this team actually trying to do". */
   teamMode(t) {
-    if (t.ppgP >= 60) return 'contend';
-    if (t.valP <= 40 && t.ppgP <= 40) return 'rebuild';
+    const Z = VAULT_CONFIG.ARCHETYPE_TIER_Z;
+    if (t.ppgZ >= Z) return 'contend';
+    if (t.valZ <= -Z && t.ppgZ <= -Z) return 'rebuild';
     return 'flexible';
   },
   MODE_LABEL: { contend: 'Contending', rebuild: 'Rebuilding', flexible: 'Flexible timeline' },
