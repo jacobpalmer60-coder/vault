@@ -11,8 +11,6 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 // The Vault's tracked league — this is a personal single-league tool, not
 // multi-tenant, so the league to snapshot is pinned rather than configurable here.
 const LEAGUE_ID = '1313454100225990656';
-// Mirrors Vault.REGULAR_SEASON_GAMES — see that constant's comment in vault-core.js.
-const REGULAR_SEASON_GAMES = 17;
 const TEAM_HISTORY_PATH = path.join(DATA_DIR, 'team-value-history.json');
 const PLAYER_HISTORY_PATH = path.join(DATA_DIR, 'player-value-history.json');
 // Bounds file growth. At measured real sizes (~774 bytes/snapshot for team, ~14KB/snapshot
@@ -140,13 +138,13 @@ async function main() {
   });
 
   // Projections are keyed by Sleeper player_id (no name-matching needed, unlike KTC).
+  // fetch-projections.js sums each player's real per-week projections, so p.stats.gp
+  // is their own real count of weeks with a projection — dividing by it directly
+  // (mirrors Vault.buildProjectedPpgMapById in vault-core.js) accounts for each
+  // player's own bye week without assuming everyone's falls in the same place.
   const ppgByPid = new Map();
   Object.entries(projData.players || {}).forEach(([pid, p]) => {
-    // p.stats.gp is unusable as the PPG divisor — Sleeper reports the same gp:18
-    // for every single skill-position player, which is the week-count of the season,
-    // not a real per-player games-played projection (real ceiling is 17, mirrors
-    // Vault.REGULAR_SEASON_GAMES). Only used here as an eligibility check.
-    if (p.stats?.gp) ppgByPid.set(pid, scoreStats(p.stats, league.scoring_settings) / REGULAR_SEASON_GAMES);
+    if (p.stats?.gp) ppgByPid.set(pid, scoreStats(p.stats, league.scoring_settings) / p.stats.gp);
   });
 
   const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
