@@ -552,6 +552,7 @@ const Vault = {
         sum += p.value;
       });
       t.picksValue = sum;
+      t.overall = t.total + t.picksValue;
     });
 
     /* ---------- Percentiles (used by archetype only) ----------
@@ -602,7 +603,7 @@ const Vault = {
     });
 
     // Column ranks (used by the League Overview table)
-    ['total', 'qb', 'rb', 'wr', 'te', 'picksValue', 'opt', 'longevity'].forEach(k => {
+    ['total', 'qb', 'rb', 'wr', 'te', 'picksValue', 'overall', 'opt', 'longevity'].forEach(k => {
       [...built].sort((a, b) => b[k] - a[k]).forEach((t, i) => t[k + 'Rank'] = i + 1);
     });
     [...built].sort((a, b) => a.age - b.age).forEach((t, i) => t.ageRank = i + 1);
