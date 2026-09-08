@@ -113,8 +113,16 @@ async function readJson(p, fallback) {
   catch { return fallback; }
 }
 
+// The league (and the humans reading this graph) live in US Mountain time, not UTC
+// — using the UTC calendar date meant anything run after ~6pm Mountain landed on
+// "tomorrow" even though it was still today locally. America/Denver auto-handles
+// the MDT/MST switch, so this stays correct year-round without tracking DST here.
+function mountainDateString(d = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
 async function main() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = mountainDateString();
 
   const [league, users, rosters, players, traded, drafts, ktcData, projData] = await Promise.all([
     fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}`).then(r => r.json()),
