@@ -16,22 +16,10 @@ const VAULT_CONFIG = {
   // asset that shouldn't be on anyone's roster or price into their team value.
   PICK_YEARS_WINDOW: 4,
   PICK_ROUNDS: [1, 2, 3, 4],
-  // Archetype's H/M/L tiers (see Vault.archetype) gate on z-score, not percentile
-  // rank, so a near-tie between two teams can't land them in different tiers just
-  // because of rank order. 0.4 sits close to where a normal distribution's 60th/40th
-  // percentiles fall; ELITE_Z (a full standard deviation) reserves "Elite Contender"
-  // for teams genuinely far above the pack on both axes, not just past the H cutoff.
-  ARCHETYPE_TIER_Z: 0.4,
-  ARCHETYPE_ELITE_Z: 1.0,
   // Typical falloff age per position (the age production tends to start declining)
-  // and the per-year decay rate past it, once it does. Shared by Vault.positionAgeRisk
-  // (archetype's Aging Contender check) and contentionWindow's 5-year projection, so
-  // both use the same real-world curve instead of one flat team-wide age cutoff.
+  // and the per-year decay rate past it, once it does — used by contentionWindow's
+  // 5-year projection so aging is modeled per-position, not by one flat team-wide cutoff.
   POSITION_DECAY: { RB: [26, 0.85], WR: [27, 0.92], QB: [30, 0.96], TE: [28, 0.93] },
-  // How far past (in PPG-weighted years) a lineup's starters need to sit past their
-  // own positions' falloff ages (see Vault.positionAgeRisk) before archetype calls
-  // an otherwise-elite team "Aging" rather than just "Contender".
-  AGING_RISK_THRESHOLD: 0.5,
   // Value Based Adjustment: boosts assets above VBA_REFERENCE, discounts those
   // below it, so a single elite piece outweighs several mid-tier pieces summing
   // to the same raw value. Fitted against a real KeepTradeCut trade-calculator
@@ -357,115 +345,74 @@ const Vault = {
 
   /* One-line meaning + badge color of each label `archetype()` can return, keyed by
      name — shown as tooltips wherever an archetype pill appears and as the glossary
-     on League Overview. Kept separate from `archetype()` itself (rather than folding
-     descriptions into its branches) so the classification logic stays about the two
-     axes it actually reads, not string/color content — `cls` is duplicated from
-     `archetype()`'s return value so the glossary can render every archetype's color
-     even for one absent from the current league. */
+     on League Overview. Two independent axes — CONTENDING (current value + production:
+     "how strong are you right now") and REBUILDING (age + picks: "how much future do
+     you have banked") — each banded Top 2 / Top Half / Bottom Half / Bottom 2 of the
+     league, collapsed to 7 names the way a 4x4 grid naturally collapses: one name for
+     the best-of-both corner, one for the worst-of-both corner, two names for the
+     lopsided off-diagonal corners (strong now/thin later, and the reverse), and shared
+     names for the near-diagonal and true-middle cells. See Vault.ARCHETYPE_GRID for
+     the exact cell-to-name mapping. */
   ARCHETYPE_INFO: {
-    'Elite Contender': { cls: 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40', desc: 'Top-tier trade value AND top-tier scoring, with a still-young core — built to win now and keep winning for a while.' },
-    'Contender': { cls: 'from-amber-600/15 to-yellow-600/15 text-amber-300/90 border-amber-700/30', desc: 'Strong trade value and strong scoring, young — a real contender, just not standing at the very top of the league like an Elite Contender.' },
-    'Aging Contender': { cls: 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40', desc: 'Elite value and production today, but the core is getting old — the championship window is open now, not for long.' },
-    'Win-Now Fringe': { cls: 'from-amber-600/20 to-yellow-700/20 text-amber-300 border-amber-700/40', desc: 'Strong trade value but only middling weekly scoring — the pieces are valuable on paper, the lineup isn’t translating that into points yet.' },
-    'Volatile': { cls: 'from-rose-600/20 to-red-600/20 text-rose-200 border-rose-600/40', desc: 'High trade value that isn’t showing up on the scoreboard — hurt or underperforming stars, or a lineup that can’t unlock what the roster is worth.' },
-    'Young Riser': { cls: 'from-emerald-600/20 to-teal-600/20 text-emerald-200 border-emerald-600/40', desc: 'Middling trade value but scoring like a contender, and young — production is ahead of where the market has this roster valued.' },
-    'Overachiever': { cls: 'from-lime-600/20 to-green-600/20 text-lime-200 border-lime-600/40', desc: 'Outscoring what the roster’s trade value would suggest — getting more out of these players than KTC gives them credit for.' },
-    'Balanced Core': { cls: 'from-zinc-600/20 to-neutral-600/20 text-zinc-200 border-zinc-600/40', desc: 'Average value and average production, spread evenly across positions — no glaring hole, but no standout strength either.' },
-    'Stuck Middle': { cls: 'from-zinc-700/20 to-zinc-800/20 text-zinc-300 border-zinc-700/40', desc: 'Average value and production, but lopsided across positions — one or two spots are carrying the team while others lag.' },
-    'Pick-Rich Rebuilder': { cls: 'from-sky-600/20 to-cyan-600/20 text-sky-200 border-sky-600/40', desc: 'Low on current scoring but young and/or holding real draft capital — positioned to get better, not worse, over the next few seasons.' },
-    'Treading Water': { cls: 'from-slate-600/20 to-slate-700/20 text-slate-200 border-slate-600/40', desc: 'Not scoring, not particularly valuable, and not young enough to just be building for later — the least clearly-positioned kind of roster.' },
-    'Scrappy Contender': { cls: 'from-teal-600/20 to-cyan-700/20 text-teal-200 border-teal-700/40', desc: 'Below-average trade value but scoring like a contender — punching above its weight, often on a few efficient or lucky performers.' },
-    'Retooling': { cls: 'from-indigo-600/20 to-blue-700/20 text-indigo-200 border-indigo-700/40', desc: 'Below-average value and middling production — neither clearly rebuilding nor competing; a roster in flux.' },
-    'Stripped Rebuilder': { cls: 'from-stone-700/30 to-stone-800/30 text-stone-300 border-stone-700/40', desc: 'Low value, low production, and an older core — the furthest from competing, with the least short- or long-term asset base.' }
+    'Powerhouse': { cls: 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40', desc: 'Top-tier value and production right now, AND real draft capital banked for later — nothing to give up, nothing missing.' },
+    'Contender': { cls: 'from-amber-600/15 to-yellow-600/15 text-amber-300/90 border-amber-700/30', desc: 'Strong now and reasonably positioned for later too — a real contender, just not the team holding everything at once.' },
+    'Win-Now': { cls: 'from-orange-500/20 to-red-600/20 text-orange-200 border-orange-600/40', desc: 'Built to win right now, having spent real future assets — picks and/or youth — to get there. That bill comes due eventually, but going all-in IS what contending means.' },
+    'Balanced': { cls: 'from-zinc-600/20 to-neutral-600/20 text-zinc-200 border-zinc-600/40', desc: 'Not clearly built for now or for later — could tip either direction depending on what happens next.' },
+    'Rebuilder': { cls: 'from-sky-600/20 to-cyan-600/20 text-sky-200 border-sky-600/40', desc: 'Not much going on today, but real draft capital and/or youth stockpiled for later — building on purpose, not by accident.' },
+    'Limbo': { cls: 'from-slate-600/20 to-slate-700/20 text-slate-200 border-slate-600/40', desc: 'Weak today and thin on future assets too, without being the very worst — a roster that needs an actual plan.' },
+    'Lightweight': { cls: 'from-stone-700/30 to-stone-800/30 text-stone-300 border-stone-700/40', desc: 'The least of both — no current strength, and no real future assets banked either.' }
   },
 
-  /* A team's raw average age blends every position into one number, which flattens
-     away exactly the detail that matters for "is this core about to decline" — a
-     team with an ancient WR1 who's still the best scorer and a young RB2 reads the
-     same, age-wise, as a team aged evenly across the board. This instead asks, for
-     each STARTER, how many years past (positive) or before (negative) their own
-     position's typical falloff age (Vault.POSITION_DECAY — the same curve
-     contentionWindow's projection uses) they are, weighted by how much they
-     actually matter to the lineup (their PPG) — so an aging bench piece barely
-     moves the number, but an aging player who's still your best scorer at the
-     position does. */
-  positionAgeRisk(t) {
-    const ageById = new Map(t.plist.map(p => [p.id, p.age]));
-    let weightedSum = 0, weightSum = 0;
-    (t.lineup || []).forEach(s => {
-      if (!s.id) return;
-      const cfg = VAULT_CONFIG.POSITION_DECAY[s.pos];
-      if (!cfg) return;
-      const age = ageById.get(s.id) || 0;
-      weightedSum += (age - cfg[0]) * s.ppg;
-      weightSum += s.ppg;
-    });
-    return weightSum ? weightedSum / weightSum : 0;
+  /* Which quarter of the league (by rank, 1 = best) a team sits in on one axis —
+     Top 2 / Top Half / Bottom Half / Bottom 2. Rank-based rather than z-score: these
+     labels are pure standings position ("you're one of the two best right now"),
+     which stays true even when the gap to the next team is a rounding error, unlike
+     the old percentile-forced H/M/L tiers which implied a meaningful gap a near-tie
+     couldn't always back up. cut scales with league size (20%, minimum 1) so this
+     isn't hardcoded to exactly 10 teams. */
+  rankBand(rank, n) {
+    const cut = Math.max(1, Math.round(n * 0.2));
+    if (rank <= cut) return 'top2';
+    if (rank <= Math.ceil(n / 2)) return 'topHalf';
+    if (rank > n - cut) return 'bottom2';
+    return 'bottomHalf';
+  },
+
+  /* Cell → archetype name for the 4x4 (contendBand x rebuildBand) grid. Symmetric by
+     construction: the best-of-both corner and worst-of-both corner each get their own
+     name, the two lopsided corners (strong now/thin later, and its mirror) each get
+     their own name, and the near-diagonal/true-middle cells share three more names —
+     16 cells, 7 names, same shape as any such grid collapses to. */
+  ARCHETYPE_GRID: {
+    'top2,top2': 'Powerhouse',
+    'top2,topHalf': 'Contender', 'topHalf,top2': 'Contender', 'topHalf,topHalf': 'Contender',
+    'top2,bottomHalf': 'Win-Now', 'top2,bottom2': 'Win-Now', 'topHalf,bottom2': 'Win-Now',
+    'topHalf,bottomHalf': 'Balanced', 'bottomHalf,topHalf': 'Balanced',
+    'bottomHalf,top2': 'Rebuilder', 'bottom2,top2': 'Rebuilder', 'bottom2,topHalf': 'Rebuilder',
+    'bottomHalf,bottomHalf': 'Limbo', 'bottomHalf,bottom2': 'Limbo', 'bottom2,bottomHalf': 'Limbo',
+    'bottom2,bottom2': 'Lightweight'
   },
 
   /* ---------- Archetype classifier (shared by app.html + team-analyzer.html) ----------
-     Tiers are gated on valZ/ppgZ (z-scores — see buildLeagueTeams), not the valP/ppgP
-     percentile ranks. Percentile rank only knows order, not size: it FORCES an even
-     spread across ranks regardless of how the league is actually shaped, so two teams
-     separated by a rounding error (e.g. 162.2 vs 162.4 Opt PPG) could still land on
-     opposite sides of a tier cutoff just because one happens to rank one spot higher.
-     A z-score reads the real gap in the context of the league's actual spread — two
-     near-ties stay in the same tier, and a genuine outlier still reads as one. `bal`
-     (positional balance) only ranges ~69-90 in practice regardless of roster shape, so
-     a static "bal >= 70" gate used to catch nearly every team before more specific
-     rules got a chance — it's now just a tiebreaker within the genuine middle-of-
-     both-axes cell. ARCHETYPE_TIER_Z (0.4) sits close to where a normal distribution's
-     60th/40th percentiles would fall, so a league that really is evenly spread still
-     tiers similarly to before — it just stops forcing that shape on a league that isn't. */
+     Two independent axes, each answering a question in a different tense, instead of
+     the old single value/production grid:
+       - CONTENDING (t.contendTier): current value + production combined — "how
+         strong are you right now." Built from valZ + ppgZ (see buildLeagueTeams),
+         ranked and banded via Vault.rankBand.
+       - REBUILDING (t.rebuildTier): age + picks combined — "how much future do you
+         have banked." Built from ageZ + pickZ (see buildLeagueTeams's Longevity
+         block, which computes the same two z-scores), ranked and banded the same way.
+     The old grid conflated "assets are valuable" with "built to win right now," which
+     had no way to credit a team for spending future assets to get there — trading a
+     pick for a player good enough to push a team into title contention IS what
+     contending means, not a mark against it. Splitting "now" and "later" into fully
+     separate axes (rather than blending picks into one value number) is what actually
+     fixes that, and additionally surfaces a team stockpiling for later on its own
+     terms instead of only inferring it from a young-and-not-good-yet roster. */
   archetype(t) {
-    const { valZ, ppgZ, age, bal } = t;
-    const Z = VAULT_CONFIG.ARCHETYPE_TIER_Z;
-    const vTier = valZ > Z ? 'H' : valZ < -Z ? 'L' : 'M';
-    const pTier = ppgZ > Z ? 'H' : ppgZ < -Z ? 'L' : 'M';
-
-    if (vTier === 'H' && pTier === 'H') {
-      // H is anything past the tier cutoff, which lumps a team barely clearing it in
-      // with one far past it — very different calibers of "contender". Elite Contender
-      // is reserved for teams clearing ELITE_Z (a full standard deviation) on BOTH
-      // axes, not just past the H cutoff; anything else in the H/H cell is a real
-      // contender, just not the team standing alone at the top.
-      //
-      // Aging gates on t.ageRisk (position-and-importance-weighted years past
-      // falloff — see Vault.positionAgeRisk), not raw team age: a flat age cutoff
-      // treats an old bench piece the same as an old, still-productive starter, and
-      // can't tell an ancient-but-declining WR1 apart from a young RB2 by lumping
-      // both into one blended number. AGING_RISK_THRESHOLD (0.5) means the lineup's
-      // production-weighted starters average at least half a year past their own
-      // position's typical decline point — not just at it.
-      if (t.ageRisk > VAULT_CONFIG.AGING_RISK_THRESHOLD) return ['Aging Contender', 'from-orange-500/20 to-amber-600/20 text-orange-200 border-orange-600/40'];
-      return valZ > VAULT_CONFIG.ARCHETYPE_ELITE_Z && ppgZ > VAULT_CONFIG.ARCHETYPE_ELITE_Z
-        ? ['Elite Contender', 'from-amber-500/20 to-yellow-500/20 text-amber-200 border-amber-600/40']
-        : ['Contender', 'from-amber-600/15 to-yellow-600/15 text-amber-300/90 border-amber-700/30'];
-    }
-    if (vTier === 'H' && pTier === 'M') return ['Win-Now Fringe', 'from-amber-600/20 to-yellow-700/20 text-amber-300 border-amber-700/40'];
-    if (vTier === 'H' && pTier === 'L') return ['Volatile', 'from-rose-600/20 to-red-600/20 text-rose-200 border-rose-600/40'];
-
-    if (vTier === 'M' && pTier === 'H') {
-      return age < 26
-        ? ['Young Riser', 'from-emerald-600/20 to-teal-600/20 text-emerald-200 border-emerald-600/40']
-        : ['Overachiever', 'from-lime-600/20 to-green-600/20 text-lime-200 border-lime-600/40'];
-    }
-    if (vTier === 'M' && pTier === 'M') {
-      return bal >= 78
-        ? ['Balanced Core', 'from-zinc-600/20 to-neutral-600/20 text-zinc-200 border-zinc-600/40']
-        : ['Stuck Middle', 'from-zinc-700/20 to-zinc-800/20 text-zinc-300 border-zinc-700/40'];
-    }
-    if (vTier === 'M' && pTier === 'L') {
-      return age < 26
-        ? ['Pick-Rich Rebuilder', 'from-sky-600/20 to-cyan-600/20 text-sky-200 border-sky-600/40']
-        : ['Treading Water', 'from-slate-600/20 to-slate-700/20 text-slate-200 border-slate-600/40'];
-    }
-
-    if (vTier === 'L' && pTier === 'H') return ['Scrappy Contender', 'from-teal-600/20 to-cyan-700/20 text-teal-200 border-teal-700/40'];
-    if (vTier === 'L' && pTier === 'M') return ['Retooling', 'from-indigo-600/20 to-blue-700/20 text-indigo-200 border-indigo-700/40'];
-    return age < 26
-      ? ['Pick-Rich Rebuilder', 'from-sky-600/20 to-cyan-600/20 text-sky-200 border-sky-600/40']
-      : ['Stripped Rebuilder', 'from-stone-700/30 to-stone-800/30 text-stone-300 border-stone-700/40'];
+    const key = `${t.contendTier},${t.rebuildTier}`;
+    const name = Vault.ARCHETYPE_GRID[key] || 'Balanced';
+    return [name, Vault.ARCHETYPE_INFO[name].cls];
   },
 
   /* Best-lineup PPG for a player pool given a league's starting slots, plus which
@@ -592,15 +539,8 @@ const Vault = {
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
       const { total: opt, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
-      const sumPos = qb + rb + wr + te || 1;
-      const shares = [qb, rb, wr, te].map(v => v / sumPos);
-      const mean = shares.reduce((a, b) => a + b) / 4;
-      const std = Math.sqrt(shares.reduce((s, x) => s + (x - mean) ** 2, 0) / 4);
-      const bal = 100 - std * 200;
-      return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, bal, posCount, posPpg, startable, picks: own.get(r.roster_id) || [] };
+      return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [] };
     });
-
-    built.forEach(t => { t.ageRisk = Vault.positionAgeRisk(t); });
 
     // Draft order rank (1 = worst team, picks first; n = best team, picks last),
     // used to convert each pick into its overall pick number for ktcPickSlot.
@@ -625,26 +565,21 @@ const Vault = {
        valP/ppgP are continuous 0-100 percentile ranks, kept for the Archetype
        column's best-to-worst sort (archScore) and any other continuous display —
        percentile rank works fine there since sorting doesn't care about tier
-       boundaries. valZ/ppgZ are z-scores of the same two underlying numbers,
-       used instead of valP/ppgP for the actual H/M/L tier gate in archetype() —
-       see that function's comment for why percentile rank isn't safe for that.
+       boundaries. valZ/ppgZ are z-scores of the same two underlying numbers, and
+       together form the CONTENDING axis (see the block below and Vault.archetype) —
+       "how strong is this team right now."
 
-       Both rank by rostered-PLAYER value (t.total), not `overall` — archetype's
-       whole vocabulary (Contender/Rebuilder/etc.) is about competitive POSTURE,
-       which is a present-tense question, and picks are a future-tense asset.
-       Ranking the value axis by `overall` briefly seemed like the fix for a
-       genuinely pick-rich team not getting credit for its picks — but it cuts the
-       other way just as hard: a team that trades a future pick for a player good
-       enough to push them into a top-tier scoring team has made the single most
-       textbook CONTENDING move there is, and got penalized for it, landing as
-       "Stuck Middle" instead of "Contender" — because the pick it gave up (now
-       someone else's) still counts as a loss on this axis even though it was
-       converted into real, current strength. Picks matter enormously for a team's
-       real dynasty standing (that's exactly what `overall`, shown everywhere else
-       on the site, is for) — just not for "is this roster built to win right now,"
-       which is what this axis is actually answering. A genuinely pick-rich team
-       whose CURRENT value/production aren't otherwise standout still gets credit
-       for it through the Pick-Rich Rebuilder label (age + low value/production).
+       valZ ranks by rostered-PLAYER value (t.total), not `overall` — a team's
+       picks are a future-tense asset, and archetype's CONTENDING axis is a
+       present-tense question. Ranking it by `overall` instead briefly seemed like
+       a fix for a genuinely pick-rich team not getting credit for its picks, but it
+       cut the other way just as hard: a team that trades a future pick for a
+       player good enough to push it into a top-tier scoring team has made the most
+       textbook contending move there is, and `overall` penalized it for exactly
+       that, since the pick it gave up (now someone else's) still counted as a loss
+       even though it was converted into real, current strength. Picks aren't
+       ignored — they're the main input to the separate REBUILDING axis below,
+       which is exactly where a team's future assets belong.
 
        ppgZ is centered on the real PLAYOFF LINE (Vault.playoffLine), not the league
        average — "Contender" should mean what it says: in real playoff position, not
@@ -688,15 +623,35 @@ const Vault = {
     const { mean: meanAge, std: stdAge } = Vault.meanStd(built.map(t => t.age));
     const { mean: meanPicks, std: stdPicks } = Vault.meanStd(built.map(t => t.picksValue));
     built.forEach(t => {
-      // Local player-value-only z-score, distinct from the team-level t.valZ
-      // (which ranks by `overall`) — picks already get their own dedicated
-      // pickZ term right below, so blending them into this one too would
-      // double-count them.
+      // playerValZ is a local, Longevity-only blend input — kept separate from
+      // t.valZ (the archetype value axis, same underlying t.total but its own
+      // z-score) so a change to one doesn't silently affect the other. t.ageZ and
+      // t.pickZ ARE stored on the team, since Vault.archetype's REBUILDING axis
+      // (below) reuses these exact two z-scores — a team's future-asset position
+      // shouldn't be computed twice with two chances to drift out of sync.
       const playerValZ = stdTotal ? (t.total - meanTotal) / stdTotal : 0;
-      const ageZ = stdAge ? -(t.age - meanAge) / stdAge : 0;
-      const pickZ = stdPicks ? (t.picksValue - meanPicks) / stdPicks : 0;
-      t.longevity = Math.max(0, 100 + (playerValZ * 0.3 + ageZ * 0.35 + pickZ * 0.35) * SPREAD);
+      t.ageZ = stdAge ? -(t.age - meanAge) / stdAge : 0;
+      t.pickZ = stdPicks ? (t.picksValue - meanPicks) / stdPicks : 0;
+      t.longevity = Math.max(0, 100 + (playerValZ * 0.3 + t.ageZ * 0.35 + t.pickZ * 0.35) * SPREAD);
     });
+
+    /* ---------- Archetype axes: CONTENDING and REBUILDING ----------
+       contendScore blends current value + production (valZ + ppgZ) — "how strong is
+       this team right now." rebuildScore blends age + picks (t.ageZ + t.pickZ, the
+       same two z-scores Longevity just computed) — "how much future does this team
+       have banked," entirely independent of how good it is today. Both are ranked
+       within the league and banded via Vault.rankBand (Top 2/Top Half/Bottom Half/
+       Bottom 2), then Vault.archetype looks up the (contendTier, rebuildTier) pair
+       in Vault.ARCHETYPE_GRID. */
+    built.forEach(t => {
+      t.contendScore = t.valZ + t.ppgZ;
+      t.rebuildScore = t.ageZ + t.pickZ;
+    });
+    const nTeams = built.length;
+    [...built].sort((a, b) => b.contendScore - a.contendScore)
+      .forEach((t, i) => { t.contendRank = i + 1; t.contendTier = Vault.rankBand(i + 1, nTeams); });
+    [...built].sort((a, b) => b.rebuildScore - a.rebuildScore)
+      .forEach((t, i) => { t.rebuildRank = i + 1; t.rebuildTier = Vault.rankBand(i + 1, nTeams); });
 
     // Archetype (+ a continuous best-to-worst score for sorting by it)
     built.forEach(t => {
@@ -771,25 +726,21 @@ const Vault = {
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
       const { total: opt, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
-      const sumPos = qb + rb + wr + te || 1;
-      const shares = [qb, rb, wr, te].map(v => v / sumPos);
-      const mean = shares.reduce((a, b) => a + b) / 4;
-      const std = Math.sqrt(shares.reduce((s, x) => s + (x - mean) ** 2, 0) / 4);
-      const bal = 100 - std * 200;
       const removedKeys = new Set(removedPicks.map(pickKey));
       const picks = [...team.picks.filter(p => !removedKeys.has(pickKey(p))), ...addedPicks];
       const picksValue = picks.reduce((s, p) => s + (p.value || 0), 0);
-      const rebuilt = { ...team, plist, total, qb, rb, wr, te, age, opt, lineup, bal, posCount, posPpg, picks, picksValue, overall: total + picksValue };
-      rebuilt.ageRisk = Vault.positionAgeRisk(rebuilt);
-      return rebuilt;
+      return { ...team, plist, total, qb, rb, wr, te, age, opt, lineup, posCount, posPpg, picks, picksValue, overall: total + picksValue };
     }
 
     const newA = rebuild(A, giveAPlayers, giveBPlayers, giveAPicks, giveBPicks);
     const newB = rebuild(B, giveBPlayers, giveAPlayers, giveBPicks, giveAPicks);
 
-    // Recompute valP/ppgP/valZ/ppgZ/archetype against the rest of the league,
-    // unchanged (both rank by player value t.total, ppgZ centers on the playoff
-    // line — see buildLeagueTeams for why the value axis isn't `overall`).
+    // Recompute valP/ppgP/valZ/ppgZ/contendTier/rebuildTier/archetype against the
+    // rest of the league, unchanged. `others` holds the ORIGINAL team objects from
+    // allTeams (not copies) — newA/newB need ranking against the full pool to place
+    // correctly, but writing results onto `others` here would corrupt live data
+    // those objects are shared with elsewhere in the app, so only newA/newB get
+    // mutated; the rank computations below just read the pool, never write to it.
     const others = allTeams.filter(t => t.rosterId !== teamAId && t.rosterId !== teamBId);
     const pool = [...others, newA, newB];
     const vals = pool.map(t => t.total).sort((a, b) => a - b);
@@ -797,11 +748,27 @@ const Vault = {
     const { mean: meanTotalVal, std: stdTotalVal } = Vault.meanStd(pool.map(t => t.total));
     const { std: stdOpt } = Vault.meanStd(pool.map(t => t.opt));
     const { playoffLine } = Vault.playoffLine(pool);
+    const { mean: meanAge, std: stdAge } = Vault.meanStd(pool.map(t => t.age));
+    const { mean: meanPicks, std: stdPicks } = Vault.meanStd(pool.map(t => t.picksValue));
+    const scored = pool.map(t => ({
+      t,
+      contendScore: (stdTotalVal ? (t.total - meanTotalVal) / stdTotalVal : 0) + (stdOpt ? (t.opt - playoffLine) / stdOpt : 0),
+      rebuildScore: (stdAge ? -(t.age - meanAge) / stdAge : 0) + (stdPicks ? (t.picksValue - meanPicks) / stdPicks : 0)
+    }));
+    const contendRankOf = new Map([...scored].sort((a, b) => b.contendScore - a.contendScore).map((s, i) => [s.t, i + 1]));
+    const rebuildRankOf = new Map([...scored].sort((a, b) => b.rebuildScore - a.rebuildScore).map((s, i) => [s.t, i + 1]));
+
     [newA, newB].forEach(t => {
       t.valP = vals.indexOf(t.total) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
       t.valZ = stdTotalVal ? (t.total - meanTotalVal) / stdTotalVal : 0;
       t.ppgZ = stdOpt ? (t.opt - playoffLine) / stdOpt : 0;
+      t.ageZ = stdAge ? -(t.age - meanAge) / stdAge : 0;
+      t.pickZ = stdPicks ? (t.picksValue - meanPicks) / stdPicks : 0;
+      t.contendScore = t.valZ + t.ppgZ;
+      t.rebuildScore = t.ageZ + t.pickZ;
+      t.contendTier = Vault.rankBand(contendRankOf.get(t), pool.length);
+      t.rebuildTier = Vault.rankBand(rebuildRankOf.get(t), pool.length);
       const [a, c] = Vault.archetype(t);
       t.arch = a; t.archCls = c;
       t.archScore = t.valP + t.ppgP;
@@ -1034,16 +1001,16 @@ const Vault = {
   },
 
   /* A team's timeline — contending (score now), rebuilding (stockpile for later), or
-     flexible (neither extreme) — read off where it stands vs the league on value and
-     current production. Same z-score gate as archetype() (see that function's
-     comment for why percentile rank isn't safe here), so a team's mode never flips
-     off a rounding-error gap either. Shared by the Trade Calculator (a proposed
-     trade) and Trade Grades (a completed one), since both need the same read on
-     "what is this team actually trying to do". */
+     flexible (neither extreme) — reuses the exact same contendTier/rebuildTier bands
+     archetype() reads (see buildLeagueTeams), so "what is this team trying to do" is
+     answered identically everywhere instead of by a second, separately-tuned check.
+     Contending wins ties deliberately: a team spending future assets to win now
+     (Win-Now on the archetype grid) is still trying to contend, not rebuild, even
+     though its rebuild band is weak. Shared by the Trade Calculator (a proposed
+     trade) and Trade Grades (a completed one). */
   teamMode(t) {
-    const Z = VAULT_CONFIG.ARCHETYPE_TIER_Z;
-    if (t.ppgZ >= Z) return 'contend';
-    if (t.valZ <= -Z && t.ppgZ <= -Z) return 'rebuild';
+    if (t.contendTier === 'top2' || t.contendTier === 'topHalf') return 'contend';
+    if (t.rebuildTier === 'top2' || t.rebuildTier === 'topHalf') return 'rebuild';
     return 'flexible';
   },
   MODE_LABEL: { contend: 'Contending', rebuild: 'Rebuilding', flexible: 'Flexible timeline' },
