@@ -228,7 +228,7 @@ async function init() {
     league = built.league; slots = built.slots;
     teams = built.teams.map(t => ({ ...t, assets: [] }));
     teams.forEach(t => t.assets = assetsFor(t));
-    teams.sort((a, b) => b.total - a.total);
+    teams.sort((a, b) => b.overall - a.overall);
 
     const opts = teams.map(t => `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)}</option>`).join('');
     const selA = document.getElementById('teamA'), selB = document.getElementById('teamB');
@@ -330,7 +330,7 @@ function render(side) {
   const selected = side === 'A' ? selectedA : selectedB;
   const filter = side === 'A' ? filterA : filterB;
   const container = document.getElementById(`players${side}`);
-  document.getElementById(`total${side}`).textContent = `${team.assets.length} assets • ${Math.round(team.total).toLocaleString()}`;
+  document.getElementById(`total${side}`).textContent = `${team.assets.length} assets • ${Math.round(team.overall).toLocaleString()}`;
   const archEl = document.getElementById(`arch${side}`);
   archEl.textContent = team.arch;
   archEl.title = Vault.ARCHETYPE_INFO[team.arch]?.desc || '';

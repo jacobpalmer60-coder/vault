@@ -558,11 +558,18 @@ const Vault = {
     /* ---------- Percentiles (used by archetype only) ----------
        Archetype buckets teams into discrete tiers, where an even 0-100 spread by
        construction is exactly what's wanted regardless of the underlying data's shape
-       — the same fix that replaced the old `bal >= 70` archetype gate. */
-    const vals = built.map(t => t.total).sort((a, b) => a - b);
+       — the same fix that replaced the old `bal >= 70` archetype gate.
+
+       valP ranks by `overall` (players + picks), not just rostered-player value —
+       a team's real dynasty trade value includes what its picks are worth, and
+       ranking by player value alone meant a genuinely pick-rich team only ever
+       looked "rich" through the Pick-Rich Rebuilder label's age/production guess,
+       never through the value axis itself, while a team that happened to be young
+       and low-scoring got that label even holding no real pick capital. */
+    const vals = built.map(t => t.overall).sort((a, b) => a - b);
     const opts = built.map(t => t.opt).sort((a, b) => a - b);
     built.forEach(t => {
-      t.valP = vals.indexOf(t.total) / (vals.length - 1) * 100;
+      t.valP = vals.indexOf(t.overall) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
     });
 
@@ -670,19 +677,20 @@ const Vault = {
       const removedKeys = new Set(removedPicks.map(pickKey));
       const picks = [...team.picks.filter(p => !removedKeys.has(pickKey(p))), ...addedPicks];
       const picksValue = picks.reduce((s, p) => s + (p.value || 0), 0);
-      return { ...team, plist, total, qb, rb, wr, te, age, opt, bal, posCount, posPpg, picks, picksValue };
+      return { ...team, plist, total, qb, rb, wr, te, age, opt, bal, posCount, posPpg, picks, picksValue, overall: total + picksValue };
     }
 
     const newA = rebuild(A, giveAPlayers, giveBPlayers, giveAPicks, giveBPicks);
     const newB = rebuild(B, giveBPlayers, giveAPlayers, giveBPicks, giveAPicks);
 
     // Recompute valP/ppgP/archetype against the rest of the league, unchanged
+    // (valP ranks by `overall` — see buildLeagueTeams for why).
     const others = allTeams.filter(t => t.rosterId !== teamAId && t.rosterId !== teamBId);
     const pool = [...others, newA, newB];
-    const vals = pool.map(t => t.total).sort((a, b) => a - b);
+    const vals = pool.map(t => t.overall).sort((a, b) => a - b);
     const opts = pool.map(t => t.opt).sort((a, b) => a - b);
     [newA, newB].forEach(t => {
-      t.valP = vals.indexOf(t.total) / (vals.length - 1) * 100;
+      t.valP = vals.indexOf(t.overall) / (vals.length - 1) * 100;
       t.ppgP = opts.indexOf(t.opt) / (opts.length - 1) * 100;
       const [a, c] = Vault.archetype(t);
       t.arch = a; t.archCls = c;
