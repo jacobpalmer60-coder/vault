@@ -658,7 +658,13 @@ const Vault = {
     });
     [...built].sort((a, b) => a.age - b.age).forEach((t, i) => t.ageRank = i + 1);
 
-    built.sort((a, b) => b.total - a.total);
+    // Ranked (and the table's default sort order) by `overall`, not player-only
+    // value — a team's real standing includes its picks, same as everywhere else
+    // on the site now. Ranking by player value alone let a team that had just
+    // traded away its picks still show up at the top of the table while its own
+    // archetype (which ranks by overall) called it merely average — two numbers
+    // on the same page disagreeing about how good the same team is.
+    built.sort((a, b) => b.overall - a.overall);
     built.forEach((t, i) => t.rank = i + 1);
 
     return { league, isSF, slots, teams: built };
@@ -757,33 +763,70 @@ const Vault = {
   contentionWindow(t, all) {
     const startYear = new Date().getFullYear();
     const years = 5;
+
+    // Decay is measured in years PAST the threshold age, relative to where the
+    // player already stood today — not the player's raw future age. Without that
+    // "- Math.max(0, age - threshold)" term, a player already past the threshold
+    // TODAY would get discounted even at y=0 (today), understating the projection's
+    // own starting point below the real, undecayed current number.
+    const AGE_DECAY = { RB: [26, 0.85], WR: [27, 0.92], QB: [30, 0.96], TE: [28, 0.93] };
+    function decayFactor(pos, currentAge, y) {
+      const cfg = AGE_DECAY[pos];
+      if (!cfg) return 1;
+      const [threshold, rate] = cfg;
+      const decayYears = Math.max(0, currentAge + y - threshold) - Math.max(0, currentAge - threshold);
+      return Math.pow(rate, decayYears);
+    }
+
+    // League-wide $-value-per-PPG-point rate, used below to translate a converting
+    // pick's dollar value into an estimated PPG contribution — built from every
+    // rostered player in the league with real value AND real production, so it
+    // reflects the market rate rather than one roster's own mix.
+    let sumValue = 0, sumPpg = 0;
+    all.forEach(team => team.plist.forEach(p => {
+      if (p.value > 0 && p.ppg > 0) { sumValue += p.value; sumPpg += p.ppg; }
+    }));
+    const dollarsPerPpg = sumPpg ? sumValue / sumPpg : 1;
+
+    // Age lookup for the current starters — t.lineup carries slot/pos/ppg but not
+    // age, so cross-reference back to t.plist by id.
+    const ageById = new Map(t.plist.map(p => [p.id, p.age]));
+
     const proj = [];
+    const projPPG = [];
     for (let y = 0; y < years; y++) {
       const projYear = startYear + y;
       let val = 0;
-      t.plist.forEach(p => {
-        let decay = 1;
-        const age = p.age + y;
-        if (p.pos === 'RB' && age > 26) decay = Math.pow(0.85, age - 26);
-        if (p.pos === 'WR' && age > 27) decay = Math.pow(0.92, age - 27);
-        if (p.pos === 'QB' && age > 30) decay = Math.pow(0.96, age - 30);
-        if (p.pos === 'TE' && age > 28) decay = Math.pow(0.93, age - 28);
-        val += p.value * decay;
-      });
-      // Draft picks convert into roster value once their draft year arrives.
-      // Previously picks were invisible to this projection entirely — existing
-      // players only ever decay, so a team's value could never exceed today's,
-      // which meant a rebuilder's future window (arriving once its picks turn
-      // into players) could never show up, no matter how pick-rich the team was.
+      t.plist.forEach(p => { val += p.value * decayFactor(p.pos, p.age, y); });
       (t.picks || []).forEach(p => { if (projYear >= p.season) val += p.value || 0; });
       proj.push(Math.round(val));
+
+      // PPG is projected off the current STARTING LINEUP (t.lineup) only, not the
+      // full ~30-man roster — summing every rostered player's ppg would triple-to-
+      // quadruple the real number, since a lineup only starts ~11 of them. A pick
+      // that's arrived by this year gets estimated via the league's $-per-PPG rate,
+      // then greedily swapped in for the current WEAKEST starter it beats — modeling
+      // a roster upgrade (replacing a bench-caliber starter), not stacking unlimited
+      // extra PPG onto a lineup that only has so many slots to fill. Without that
+      // cap, a team holding many picks could project a higher PPG than any real
+      // team in the league has ever scored, just from raw pick-value accumulation.
+      const starterPpgs = t.lineup.filter(s => s.id).map(s => s.ppg * decayFactor(s.pos, ageById.get(s.id) || 0, y));
+      const arrivedPickPpgs = (t.picks || [])
+        .filter(p => projYear >= p.season)
+        .map(p => (p.value || 0) / dollarsPerPpg)
+        .sort((a, b) => b - a);
+      arrivedPickPpgs.forEach(pickPpg => {
+        let weakestIdx = 0;
+        for (let i = 1; i < starterPpgs.length; i++) if (starterPpgs[i] < starterPpgs[weakestIdx]) weakestIdx = i;
+        if (starterPpgs.length && pickPpg > starterPpgs[weakestIdx]) starterPpgs[weakestIdx] = pickPpg;
+      });
+      projPPG.push(starterPpgs.reduce((s, v) => s + v, 0));
     }
     const peak = Math.max(...proj);
     const year = startYear + proj.indexOf(peak);
 
     const { playoffSpots, playoffLine } = Vault.playoffLine(all);
 
-    const projPPG = proj.map(v => t.opt * (v / (t.total || 1)));
     const valueThreshold = peak * 0.88;
     const inWindow = proj.map((v, i) => v >= valueThreshold && projPPG[i] >= playoffLine * 0.97);
 
