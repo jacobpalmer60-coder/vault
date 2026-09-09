@@ -28,6 +28,13 @@ const VAULT_CONFIG = {
   // than picked by feel — see Vault.adjustedValue.
   VBA_REFERENCE: 5500,
   VBA_EXPONENT: 1.7,
+  // KeepTradeCut's own consolidation-adjustment curve (Vault.consolidationAdjustment)
+  // normalizes against roughly the highest single value on their whole site plus a
+  // small buffer (their live code: top player's value + 100, which sits right at
+  // 10099 given KTC's scale tops out at 9999) — our KTC-sourced data shares that
+  // same 0-9999 scale, so the same constant applies without needing to look it up
+  // fresh from our own dataset every time.
+  CONSOLIDATION_GLOBAL_MAX: 10099,
   // How much a position's need/surplus status (see Vault.positionalProfile) scales
   // an asset's value to the team involved — a real need is worth more than sticker
   // price to the team receiving it (or costs more than sticker price to give up),
@@ -136,6 +143,130 @@ const Vault = {
     const ref = VAULT_CONFIG.VBA_REFERENCE;
     return ref * Math.pow(v / ref, k);
   },
+
+  /* ---------- Consolidation adjustment (v3 — ported from KeepTradeCut's live calculator) ----------
+     v2 above (adjustedValue) is a per-asset curve: every player gets a premium or
+     discount based on their OWN value alone, independent of what they're being
+     traded against. Comparing it against KeepTradeCut's real trade calculator
+     (extracted directly from their live client-side JS — this isn't a guess, it's
+     their actual formula) showed that's the wrong SHAPE entirely: KTC's own
+     "Value Adjustment" pays out ~0% on a clean 1-for-1 of two $10,000 players, and
+     ~0% on a 2-piece-for-2-piece trade too, but ~65-80% on a single elite piece
+     against 2-4 fragmented pieces of similar raw total — it's a genuine "one true
+     difference-maker beats several good-but-replaceable pieces" bonus, sized by
+     the PIECE-COUNT MISMATCH between the two sides of a specific trade, not by any
+     one asset's value in isolation. A pure per-asset curve structurally cannot
+     reproduce that (it inflates a $10,000 player by the same amount whether he's
+     traded 1-for-1 or 1-for-3), which is why this needs its own two-sided function
+     instead of being folded into adjustedValue.
+
+     Tested against KTC's live calculator across value tiers ($1,000-$9,500),
+     piece-count ratios (1v2 through 2v3), and lopsidedness (holding one side fixed
+     and sweeping the other's total from well-behind to well-ahead) — real examples:
+       - 1-for-1, any value: ~0% (no piece-count asymmetry to reward)
+       - 2-for-2, near-equal total: ~0-3%, suppressed to 0 (matched piece counts)
+       - 1-for-2, near-equal total: ~66%, stable across the whole value range tested
+       - 1-for-3: ~77%; 1-for-4: ~81% (bigger fragmentation gap = bigger bonus)
+       - 2-for-3, near-equal total: ~40% (same +1-piece gap as 1-for-2, but a
+         smaller bonus, since the consolidated side isn't down to one true
+         difference-maker anymore)
+       - Bonus peaks near a raw-value near-tie and decays hard as one side pulls
+         further ahead on raw dollars — by ~40% ahead it's within noise, and KTC
+         hides anything under ~3.3% of the combined total regardless.
+
+     processVConsolidation(v, r) is KTC's per-player curve (r = the single highest
+     asset value across BOTH sides of the trade, not just this side) — see
+     CONSOLIDATION_GLOBAL_MAX below for what grounds the 10099-equivalent constant.
+     Ported faithfully from their reachable code paths; one inner recovery branch in
+     their real source is unreachable due to what looks like their own bug (a stray
+     array where a team total was meant), and always resolves to "no adjustment" in
+     practice — reproduced here directly as `valid = false` rather than replicating
+     dead code. */
+  processVConsolidation(v, r) {
+    const g = VAULT_CONFIG.CONSOLIDATION_GLOBAL_MAX;
+    return (0.1 * Math.pow(v / g, 1.4) + 0.7 * Math.pow(v / (1.05 * r), 1.25) + 0.2) * v;
+  },
+
+  // Is |x - y| within tolerancePct of (x + y)? Shared "close enough" check the
+  // consolidation algorithm uses twice (once on raw totals, once on the per-player
+  // curve sums) before deciding which side's total even qualifies for a bonus.
+  checkEquality(x, y, tolerancePct) {
+    x = Math.max(0, x); y = Math.max(0, y);
+    const total = x + y;
+    if (!total) return true;
+    const pctOff = Math.min(100, Math.abs(x - y) / total * 100);
+    return Math.round(pctOff * 10) / 10 <= tolerancePct;
+  },
+
+  // Inverts processVConsolidation for a fixed r: finds X such that
+  // processVConsolidation(X, r) = target. Newton's method, same as KTC's own
+  // solveForX — the curve is monotonic increasing in the range this is ever called
+  // with, so a few iterations from a generous starting guess always converges.
+  solveConsolidation(target, r) {
+    const g = VAULT_CONFIG.CONSOLIDATION_GLOBAL_MAX;
+    const f = x => (0.1 * Math.pow(x / g, 1.4) + 0.7 * Math.pow(x / (1.05 * r), 1.25) + 0.2) * x - target;
+    const fp = x => 0.24 * Math.pow(x, 1.4) / Math.pow(g, 1.4) + 1.575 * Math.pow(x, 1.25) / (Math.pow(1.05, 1.25) * Math.pow(r, 1.25)) + 0.2;
+    let x = 5 * target;
+    for (let i = 0; i < 20; i++) {
+      const dx = f(x) / fp(x);
+      const next = x - dx;
+      if (Math.abs(next - x) < 1e-6) return next;
+      x = next;
+    }
+    return x;
+  },
+
+  /* Main entry point: two sides' raw asset values (VBA plays no part here — this
+     works in raw dollars, matching KTC's own calculator), returns how much to add
+     to each side's raw total, plus whether the bonus is meaningful enough to call
+     out (KTC's own ~3.3%-of-combined-total display floor). Only ever one of
+     adjust1/adjust2 is nonzero. Needs at least one side to have 2+ pieces (a clean
+     1-for-1 never qualifies, regardless of value) and both sides non-empty. */
+  consolidationAdjustment(values1, values2) {
+    const zero = { adjust1: 0, adjust2: 0, display: false };
+    if (!values1.length || !values2.length) return zero;
+    if (values1.length <= 1 && values2.length <= 1) return zero;
+    const total1 = values1.reduce((s, v) => s + v, 0);
+    const total2 = values2.reduce((s, v) => s + v, 0);
+    if (!total1 || !total2) return zero;
+
+    const r = Math.max(...values1, ...values2);
+    const pv = v => Vault.processVConsolidation(v, r);
+    const rawAdj1 = values1.reduce((s, v) => s + pv(v), 0);
+    const rawAdj2 = values2.reduce((s, v) => s + pv(v), 0);
+    const d = rawAdj1 / total1, u = rawAdj2 / total2;
+    const c = Math.abs(rawAdj1 - rawAdj2);
+    const fairRaw = Vault.checkEquality(total1, total2, 5);
+    const fairAdj = Vault.checkEquality(rawAdj1, rawAdj2, 5);
+
+    let adjust1 = 0, adjust2 = 0, valid = true;
+    const favor1 = () => {
+      const b = total2 + Vault.solveConsolidation(c, r) - total1;
+      if (b > 0) adjust1 = b; else { adjust2 = -b; valid = false; }
+    };
+    const favor2 = () => {
+      const b = total1 + Vault.solveConsolidation(c, r) - total2;
+      if (b > 0) adjust2 = b; else { adjust1 = -b; valid = false; }
+    };
+
+    if (fairRaw && fairAdj) {
+      if (rawAdj1 > rawAdj2) favor1();
+      else if (rawAdj2 > rawAdj1) favor2();
+    } else if (d > u) {
+      if (rawAdj1 > rawAdj2) favor1();
+      else valid = false; // KTC's own unreachable recovery branch — see comment above
+    } else {
+      if (rawAdj2 > rawAdj1) favor2();
+      else valid = false;
+    }
+
+    const finalAdj = adjust1 || adjust2 || 0;
+    if (!finalAdj) return zero;
+    let display = valid;
+    if (Math.abs(finalAdj / (total1 + total2)) < 0.033) display = false;
+    return { adjust1, adjust2, display };
+  },
+
   meanStd(arr) {
     const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
     const std = Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length);
@@ -1059,6 +1190,20 @@ const Vault = {
     return assets.reduce((s, a) => s + Vault.needAdjustedValue(Vault.adjustedValue(a.value), a.pos, profile), 0);
   },
 
+  /* What each side of a proposed trade is really worth once KTC's own consolidation
+     bonus (Vault.consolidationAdjustment) is applied — the raw-dollar basis for the
+     trade bar's $ number, the headline value comparison, and the recap text's
+     "gave up about $X" language, replacing a plain per-asset sum. Need-weighting
+     (Vault.needAdjustedTradeValue) stays a separate, additional lens layered on
+     top for the Fair/Borderline/Lopsided verdict itself — this function only fixes
+     the piece-count-blind raw comparison underneath it. */
+  tradeSideValues(assetsA, assetsB) {
+    const valsA = assetsA.map(a => a.value), valsB = assetsB.map(a => a.value);
+    const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
+    const { adjust1, adjust2, display } = Vault.consolidationAdjustment(valsA, valsB);
+    return { rawA, rawB, valueA: rawA + adjust1, valueB: rawB + adjust2, bonusA: adjust1, bonusB: adjust2, display };
+  },
+
   /* Flags moving assets whose dynasty value and this-season production disagree by
      more than VALUE_RISK_GAP percentile points at their own position (see
      buildLeagueTeams' valueRiskGap) — informational, not a correction to either
@@ -1521,8 +1666,9 @@ const Vault = {
     const toB = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap); // what B received (A gave)
     if (!toA.length && !toB.length) return null;
 
-    const aGaveAdj = toB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
-    const bGaveAdj = toA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    // Fairness uses KTC's own consolidation adjustment (see Vault.tradeSideValues) —
+    // toB is what A gave (B received it), toA is what B gave.
+    const { valueA: aGaveAdj, valueB: bGaveAdj } = Vault.tradeSideValues(toB, toA);
     const avgAdj = (aGaveAdj + bGaveAdj) / 2 || 1;
     const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
     const dValueAdjA = bGaveAdj - aGaveAdj; // positive = A came out ahead on value

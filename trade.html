@@ -427,8 +427,7 @@ function runSuggestTradeSearch() {
   const myProfile = Vault.positionalProfile(myTeam, teams);
 
   const consider = (partner, giveA, giveB) => {
-    const aValAdj = giveA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
-    const bValAdj = giveB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB);
     const result = computeTradeAnalysis(myTeam, partner, giveA, giveB, aValAdj, bValAdj);
     if (result.verdict.tone !== 'bad') candidates.push({ partner, giveA, giveB, result });
   };
@@ -592,8 +591,7 @@ function balanceSide(mySide, btn) {
   const evaluate = combo => {
     const giveA = mySide === 'A' ? combo : otherAssets;
     const giveB = mySide === 'A' ? otherAssets : combo;
-    const aValAdj = giveA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
-    const bValAdj = giveB.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+    const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB);
     const result = computeTradeAnalysis(teamOf('A'), teamOf('B'), giveA, giveB, aValAdj, bValAdj);
     return mySide === 'A' ? result.resA.fit : result.resB.fit;
   };
@@ -1072,10 +1070,10 @@ function updateTrade() {
   const bAssets = [...selectedB].map(k => teamB.assets.find(x => x.key === k)).filter(Boolean);
   const aVal = aAssets.reduce((s, a) => s + a.value, 0);
   const bVal = bAssets.reduce((s, a) => s + a.value, 0);
-  // Fairness is judged in VBA-adjusted space throughout (see Vault.adjustedValue) —
-  // raw sums above are for the line-item display only.
-  const aValAdj = aAssets.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
-  const bValAdj = bAssets.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+  // Fairness is judged with KTC's own consolidation adjustment applied (see
+  // Vault.tradeSideValues/consolidationAdjustment) — raw sums above are for the
+  // line-item display only.
+  const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(aAssets, bAssets);
 
   const bar = document.getElementById('tradeBar');
   const empty = document.getElementById('emptyState');
@@ -1124,7 +1122,7 @@ function updateTrade() {
   // encodes, since a raw dollar diff alone doesn't tell you what counts as fair.
   const diffLabelEl = document.getElementById('diffLabel');
   diffLabelEl.textContent = (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${pctDiffNeed.toFixed(0)}% off`;
-  diffLabelEl.title = `Need-adjusted — weights each side by what the RECEIVING team actually needs there. By raw sticker price alone, this trade is ${pctDiff.toFixed(0)}% off.`;
+  diffLabelEl.title = `Need-adjusted — weights each side by what the RECEIVING team actually needs there. By value alone (KTC's own consolidation adjustment, before need), this trade is ${pctDiff.toFixed(0)}% off.`;
   diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500');
 
   // Gap-closer suggestion
@@ -1305,7 +1303,8 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
 
   const { before, after, pool } = Vault.simulateTrade(teams, slots, teamA.rosterId, teamB.rosterId, giveA, giveB);
   const avgSideAdj = (aValAdj + bValAdj) / 2 || 1;
-  // Value delta in VBA-adjusted terms — same basis as the trade bar, not raw KTC sum.
+  // Value delta with KTC's consolidation adjustment applied (Vault.tradeSideValues)
+  // — same basis as the trade bar, not a plain per-asset sum.
   const dValueAdjA = bValAdj - aValAdj;
   const dValueAdjB = aValAdj - bValAdj;
 
