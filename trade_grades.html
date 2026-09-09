@@ -161,7 +161,7 @@ function renderCard(g) {
       </div>
       <div class="pt-3 border-t border-white/5">
         <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiffNeed)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-500 font-normal">(some asset values unavailable)</span>' : ''}</p>
-        <div class="text-[11px] ${fairColor(g.pctDiffNeed)} mt-1" title="Need-adjusted — weights each side by what it was actually worth to the team that received it. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~19,300 real trades from KeepTradeCut's trade database. By raw sticker price alone, this trade was ${g.pctDiff.toFixed(0)}% off.">${bucket} · ${g.pctDiffNeed.toFixed(0)}% off</div>
+        <div class="text-[11px] ${fairColor(g.pctDiffNeed)} mt-1" title="Need-adjusted — weights each side by what it was actually worth to the team that received it. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. By value alone (KTC's own consolidation adjustment, before need), this trade was ${g.pctDiff.toFixed(0)}% off.">${bucket} · ${g.pctDiffNeed.toFixed(0)}% off</div>
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
         <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">

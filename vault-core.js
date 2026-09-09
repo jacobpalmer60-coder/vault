@@ -64,20 +64,29 @@ const VAULT_CONFIG = {
     TE: { young: 24, veteran: 28 }
   },
   ARCH_AGE_BAND_DEFAULT: { young: 24, veteran: 28 },
-  // Fair/Borderline/Lopsided cutoffs for VBA-adjusted value-diff %, shared by the
-  // Trade Calculator and Trade Grades. Originally 6/15 (picked by feel); recalibrated
-  // against ~19,300 real completed trades pulled from KeepTradeCut's trade database
-  // (resolved via this same VBA curve) after finding the OLD cutoffs called 62% of
-  // real, mutually-agreed trades "Lopsided" — the median real trade sits at ~22% off,
-  // so 15% wasn't a lopsided outlier, it was normal. 10/35 splits that same real
-  // population into a much more even ~27%/42%/31% Fair/Borderline/Lopsided read.
-  // The VBA curve itself (VBA_EXPONENT) was grid-searched against the same data and
-  // left unchanged — 1.7 was already within a rounding error of the empirical
-  // minimum for both mean gap and Lopsided rate. VBA_REFERENCE turned out to have
-  // NO effect on this % at all (it's a pure scale constant that cancels out of any
-  // ratio), so it stays as-is too, chosen only to keep displayed numbers legible.
-  FAIR_PCT: 10,
-  LOPSIDED_PCT: 35,
+  // Fair/Borderline/Lopsided cutoffs for the value-diff %, shared by the Trade
+  // Calculator and Trade Grades. Originally 6/15 (picked by feel), then 10/35 —
+  // both calibrated against the same ~25,000 real completed trades pulled from
+  // KeepTradeCut's trade database (data/ktc-trades.json), resolved via whatever
+  // value-diff formula was live at the time, to land on a real, non-arbitrary
+  // target: ~27% of real, mutually-agreed trades read as "Fair," ~31% as
+  // "Lopsided" (the shape a manually-picked 6/15 badly missed, calling 62% of
+  // real trades "Lopsided").
+  //
+  // Re-run after Vault.consolidationAdjustment (the KTC-algorithm port) replaced
+  // the old VBA curve as the value-diff basis here — the two formulas don't
+  // distribute the same way. Consolidation-adjusted, real trades run WIDER
+  // (median ~27% off vs. the old curve's ~21%) because it correctly stops
+  // touching evenly-matched-piece-count trades at all (avg ~18% off vs. the old
+  // curve's ~23% — that noise was the old per-asset curve reacting to raw value
+  // even when there was no real piece-count asymmetry to reward) while applying
+  // real, much bigger swings specifically to 1-for-several trades (avg ~50% off
+  // vs. the old curve's ~37%). Reusing 10/35 against this wider distribution
+  // over-called Lopsided (38.8% of real trades, vs. the 30.3% target) and
+  // under-called Fair (19.3% vs. 27.1%). 14/41 reproduces the original real-world
+  // target almost exactly (27.2%/42.4%/30.4%).
+  FAIR_PCT: 14,
+  LOPSIDED_PCT: 41,
   // How many percentile points apart a player's value-rank and PPG-rank at their own
   // position (see buildLeagueTeams' valueRiskGap) have to be before it's worth
   // calling out as a real disagreement rather than the normal noise between two
