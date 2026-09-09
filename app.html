@@ -163,7 +163,9 @@ function renderValueHistory(history, currentTeams) {
     mount.innerHTML = `<div class="text-[13px] text-zinc-500 py-10 text-center">Value history is building — check back after a few daily snapshots to see trends.</div>`;
     return;
   }
-  meta.textContent = snaps.length === 1 ? `Day 1 • ${snaps[0].date}` : `${snaps.length} daily snapshots • ${snaps[0].date} → ${snaps[snaps.length - 1].date}`;
+  const estimatedDates = snaps.filter(s => s.estimated).map(s => s.date);
+  meta.textContent = (snaps.length === 1 ? `Day 1 • ${snaps[0].date}` : `${snaps.length} daily snapshots • ${snaps[0].date} → ${snaps[snaps.length - 1].date}`)
+    + (estimatedDates.length ? ` (${estimatedDates.join(', ')} estimated — data outage)` : '');
 
   const { field, decimals } = VALUE_METRICS[valueHistoryMetric];
   const fmt = v => v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -202,9 +204,15 @@ function renderValueHistory(history, currentTeams) {
   // A single day-1 snapshot draws as a lone dot per team rather than a line (nothing
   // to connect yet) — still visible, still confirms tracking has actually started,
   // instead of an empty "building" placeholder until a second snapshot lands.
+  // An estimated day (interpolated to paper over a real data outage — see
+  // Vault.fetchTeamValueHistory's snapshot `estimated` flag) draws as a hollow ring
+  // instead of a filled dot, so the line stays visually continuous without quietly
+  // passing off a guess as an observed value.
   const lines = series.map(s => {
     const pts = s.points.map((v, i) => v == null ? null : `${x(i)},${y(v)}`).filter(Boolean).join(' ');
-    const dots = s.points.map((v, i) => v == null ? '' : `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}"/>`).join('');
+    const dots = s.points.map((v, i) => v == null ? '' : snaps[i].estimated
+      ? `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="none" stroke="${s.color}" stroke-width="1.5" stroke-dasharray="1.5 1.5"><title>${snaps[i].date}: estimated (data outage)</title></circle>`
+      : `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}"><title>${snaps[i].date}</title></circle>`).join('');
     return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>${dots}`;
   }).join('');
 

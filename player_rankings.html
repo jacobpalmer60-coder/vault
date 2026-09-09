@@ -206,7 +206,7 @@
     (history.snapshots || []).forEach(snap => {
       Object.entries(snap.players || {}).forEach(([norm, entry]) => {
         if (!map.has(norm)) map.set(norm, []);
-        map.get(norm).push({ date: snap.date, value: entry.value, ppg: entry.ppg });
+        map.get(norm).push({ date: snap.date, value: entry.value, ppg: entry.ppg, estimated: !!snap.estimated });
       });
     });
     return map;
@@ -234,8 +234,14 @@
     const fmt = v => v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     const pts = series.map((p, i) => `${x(i)},${y(p[field])}`).join(' ');
     // A lone day-1 point still needs to be visible even though there's no line to
-    // draw yet — a dot per point confirms tracking has actually started.
-    const dots = series.map((p, i) => `<circle cx="${x(i)}" cy="${y(p[field])}" r="2.5" fill="${vals[vals.length - 1] >= vals[0] ? '#34d399' : '#f87171'}"/>`).join('');
+    // draw yet — a dot per point confirms tracking has actually started. An
+    // estimated day (interpolated over a real data outage — see the `estimated`
+    // flag buildTrendMap carries through from the snapshot) draws hollow instead
+    // of filled, so the line stays continuous without passing off a guess as real.
+    const trendColor = vals[vals.length - 1] >= vals[0] ? '#34d399' : '#f87171';
+    const dots = series.map((p, i) => p.estimated
+      ? `<circle cx="${x(i)}" cy="${y(p[field])}" r="3" fill="none" stroke="${trendColor}" stroke-width="1.25" stroke-dasharray="1.5 1.5"><title>${p.date}: estimated (data outage)</title></circle>`
+      : `<circle cx="${x(i)}" cy="${y(p[field])}" r="2.5" fill="${trendColor}"><title>${p.date}</title></circle>`).join('');
     const gridLines = [0, 0.5, 1].map(f => {
       const v = yMin + (yMax - yMin) * f, yy = y(v);
       return `<line x1="${ML}" y1="${yy}" x2="${W - MR}" y2="${yy}" stroke="currentColor" class="text-white/5"/>
