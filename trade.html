@@ -421,6 +421,10 @@ function runSuggestTradeSearch() {
   const partners = teams.filter(t => t.rosterId !== myTeam.rosterId);
   const myAnchors = tradeableAssets(myTeam);
   const candidates = [];
+  // Computed once per team, not per candidate — positionalProfile loops the whole
+  // league itself, and this search already runs it against up to ~9 partners x
+  // ~15-30 anchors each.
+  const myProfile = Vault.positionalProfile(myTeam, teams);
 
   const consider = (partner, giveA, giveB) => {
     const aValAdj = giveA.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
@@ -430,16 +434,20 @@ function runSuggestTradeSearch() {
   };
 
   partners.forEach(partner => {
+    const partnerProfile = Vault.positionalProfile(partner, teams);
     // Direction 1: Team A sends one meaningful asset, gets back the partner's best
-    // matching package (mirrors the "Find" shop-out flow, run automatically).
+    // matching package (mirrors the "Find" shop-out flow, run automatically). The
+    // package flows to ME, so it's searched against MY profile — a package that
+    // actually fills my need can settle for less sticker value and still get found.
     myAnchors.forEach(mine => {
-      const combo = bestCombo(partner.assets, mine.value);
+      const combo = bestCombo(partner.assets, mine.value, myProfile);
       if (combo) consider(partner, [mine], combo.combo);
     });
     // Direction 2: Team A acquires one of the partner's meaningful assets, sending
-    // its own best matching package (mirrors the Finder's acquire-mode flow).
+    // its own best matching package (mirrors the Finder's acquire-mode flow) — this
+    // package flows to THEM, so it's searched against their profile instead.
     tradeableAssets(partner).forEach(theirs => {
-      const combo = bestCombo(myTeam.assets, theirs.value);
+      const combo = bestCombo(myTeam.assets, theirs.value, partnerProfile);
       if (combo) consider(partner, combo.combo, [theirs]);
     });
   });
@@ -577,6 +585,9 @@ function balanceSide(mySide, btn) {
   const mySel = mySide === 'A' ? selectedA : selectedB;
   const myCurrent = [...mySel].map(k => myTeam.assets.find(a => a.key === k)).filter(Boolean);
   const targetAdj = otherAssets.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
+  // This package flows FROM myTeam TO otherTeam, so the search should credit it
+  // for filling otherTeam's actual needs, not just matching sticker value.
+  const otherProfile = Vault.positionalProfile(otherTeam, teams);
 
   const evaluate = combo => {
     const giveA = mySide === 'A' ? combo : otherAssets;
@@ -591,7 +602,7 @@ function balanceSide(mySide, btn) {
   // my roster, aimed at the remaining value gap.
   const fillerPool = myTeam.assets.filter(a => !mySel.has(a.key));
   const remainingAdj = targetAdj - myCurrent.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
-  const additive = comboSearchTopN(fillerPool, remainingAdj, 6).map(c => [...myCurrent, ...c.combo]);
+  const additive = comboSearchTopN(fillerPool, remainingAdj, 6, otherProfile).map(c => [...myCurrent, ...c.combo]);
   if (myCurrent.length) additive.push(myCurrent); // "add nothing" is a valid option too
 
   let best = null, bestFit = -Infinity;
@@ -600,7 +611,7 @@ function balanceSide(mySide, btn) {
   // Tier 2: my current selection genuinely can't be built into a good fit —
   // search my whole roster fresh instead.
   if (bestFit < 2) {
-    const fresh = comboSearchTopN(myTeam.assets, targetAdj, 10).map(c => c.combo);
+    const fresh = comboSearchTopN(myTeam.assets, targetAdj, 10, otherProfile).map(c => c.combo);
     fresh.forEach(combo => { const fit = evaluate(combo); if (fit > bestFit) { bestFit = fit; best = combo; } });
   }
   if (!best) return flashButtonMessage(btn, 'No alternative package found');
@@ -649,15 +660,27 @@ function comboScore(diff, len, targetAdj) {
   return pct + (len - 1) * COMBO_SIZE_PENALTY_PCT;
 }
 
+// Sums a combo's value the same way the headline fairness verdict does: need-
+// weighted (Vault.needAdjustedValue) against the RECEIVING team's profile when one
+// is given, plain VBA-adjusted otherwise — every combo-search function below takes
+// an optional `profile` (Vault.positionalProfile of whoever would receive this
+// combo) so a suggested package can settle for genuinely less sticker value when it
+// actually fills a need, or demand more when it's just piling onto a surplus,
+// instead of only ever matching raw dollars. Computed ONCE by the caller and passed
+// in, not recomputed here — these functions run this per combo, up to ~10,700 times
+// for a 40-asset pool, and positionalProfile itself loops every team in the league.
+function comboValue(combo, profile) {
+  return combo.reduce((s, a) => s + (profile ? Vault.needAdjustedValue(Vault.adjustedValue(a.value), a.pos, profile) : Vault.adjustedValue(a.value)), 0);
+}
+
 /* Package builder core: pool of assets, target already in VBA-adjusted-value space.
    All combo search happens here so gap-closer, Match, and the Finder agree with the
    same fairness math the analysis panel uses — a suggested combo should still look
    fair once VBA is applied to it, not just fair by raw KTC sum. */
-function comboSearchAdj(pool, targetAdj) {
+function comboSearchAdj(pool, targetAdj, profile) {
   let best = null, bestScore = Infinity;
   const consider = combo => {
-    const sumAdj = combo.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
-    const diff = Math.abs(sumAdj - targetAdj);
+    const diff = Math.abs(comboValue(combo, profile) - targetAdj);
     const score = comboScore(diff, combo.length, targetAdj);
     if (score < bestScore) { bestScore = score; best = { combo, diff }; }
   };
@@ -670,17 +693,18 @@ function comboSearchAdj(pool, targetAdj) {
 /* Public entry point: pool + a RAW target value (a real KTC asset/gap value) —
    returns the combo whose VBA-adjusted sum is closest to the target's adjusted
    value. `sum` is the raw KTC total (for display); `pctOff` is how far off in
-   adjusted-space terms, the same basis the trade bar and headline use. */
+   adjusted-space terms, the same basis the trade bar and headline use — need-
+   weighted when `profile` is given, same as comboValue above. */
 // Same enumeration as comboSearchAdj, but keeps every combo considered instead of
 // only the single best, then returns up to N of them — skipping any combo that's
 // mostly the same assets as one already picked (>50% overlap), so the results are
 // genuinely different packages rather than "same core plus a different throw-in".
 // Used by the acquire Finder so it can offer a few real options instead of picking
 // one for you.
-function comboSearchTopN(pool, targetAdj, n) {
+function comboSearchTopN(pool, targetAdj, n, profile) {
   const all = [];
   const consider = combo => {
-    const diff = Math.abs(combo.reduce((s, a) => s + Vault.adjustedValue(a.value), 0) - targetAdj);
+    const diff = Math.abs(comboValue(combo, profile) - targetAdj);
     all.push({ combo, diff, score: comboScore(diff, combo.length, targetAdj) });
   };
   pool.forEach(a => consider([a]));
@@ -703,17 +727,17 @@ function comboSearchTopN(pool, targetAdj, n) {
   return picked;
 }
 
-function bestCombos(pool, targetValueRaw, n) {
+function bestCombos(pool, targetValueRaw, n, profile) {
   const targetAdj = Vault.adjustedValue(targetValueRaw);
-  return comboSearchTopN(pool, targetAdj, n).map(r => {
+  return comboSearchTopN(pool, targetAdj, n, profile).map(r => {
     const sum = r.combo.reduce((s, a) => s + a.value, 0);
     return { combo: r.combo, sum, diff: r.diff, pctOff: targetAdj ? r.diff / targetAdj * 100 : 0 };
   });
 }
 
-function bestCombo(pool, targetValueRaw) {
+function bestCombo(pool, targetValueRaw, profile) {
   const targetAdj = Vault.adjustedValue(targetValueRaw);
-  const best = comboSearchAdj(pool, targetAdj);
+  const best = comboSearchAdj(pool, targetAdj, profile);
   if (!best) return null;
   const sum = best.combo.reduce((s, a) => s + a.value, 0);
   return { combo: best.combo, sum, diff: best.diff, pctOff: targetAdj ? best.diff / targetAdj * 100 : 0 };
@@ -721,21 +745,20 @@ function bestCombo(pool, targetValueRaw) {
 
 /* Like bestCombo, but requires the combo to include one asset matching `posFilter`
    (a position, or 'PICK' for any pick) if given — that anchor asset is picked closest
-   to the target value (in adjusted space), then the remaining adjusted-value gap is
-   filled from the rest of the pool. */
-function anchoredCombo(pool, targetValueRaw, posFilter) {
-  if (!posFilter || posFilter === 'ANY') return bestCombo(pool, targetValueRaw);
+   to the target value (need-weighted against `profile` when given, same as
+   comboValue), then the remaining value gap is filled from the rest of the pool. */
+function anchoredCombo(pool, targetValueRaw, posFilter, profile) {
+  if (!posFilter || posFilter === 'ANY') return bestCombo(pool, targetValueRaw, profile);
   const anchors = pool.filter(a => posFilter === 'PICK' ? a.type === 'pick' : a.pos === posFilter);
   if (!anchors.length) return null;
   const targetAdj = Vault.adjustedValue(targetValueRaw);
-  const anchor = [...anchors].sort((a, b) => Math.abs(Vault.adjustedValue(a.value) - targetAdj) - Math.abs(Vault.adjustedValue(b.value) - targetAdj))[0];
-  const anchorAdj = Vault.adjustedValue(anchor.value);
-  const remainingAdj = targetAdj - anchorAdj;
+  const anchor = [...anchors].sort((a, b) => Math.abs(comboValue([a], profile) - targetAdj) - Math.abs(comboValue([b], profile) - targetAdj))[0];
+  const remainingAdj = targetAdj - comboValue([anchor], profile);
   const fillerPool = pool.filter(a => a.key !== anchor.key);
-  const filler = Math.abs(remainingAdj) > targetAdj * 0.06 ? comboSearchAdj(fillerPool, remainingAdj) : null;
+  const filler = Math.abs(remainingAdj) > targetAdj * 0.06 ? comboSearchAdj(fillerPool, remainingAdj, profile) : null;
   const combo = filler ? [anchor, ...filler.combo] : [anchor];
   const sum = combo.reduce((s, a) => s + a.value, 0);
-  const diff = Math.abs(combo.reduce((s, a) => s + Vault.adjustedValue(a.value), 0) - targetAdj);
+  const diff = Math.abs(comboValue(combo, profile) - targetAdj);
   return { combo, sum, diff, pctOff: targetAdj ? diff / targetAdj * 100 : 0 };
 }
 
@@ -854,7 +877,10 @@ function renderAcquireFinder() {
   // Up to 5 genuinely different packages, most fair to least — same "several real
   // options, not just one auto-pick" pattern as Suggested Trades and the shop-mode
   // Finder (which already shows up to 5 partners here).
-  acquireCombos = bestCombos(myTeam.assets, asset.value, 5);
+  // This package flows FROM myTeam TO targetTeam, so it's searched against
+  // targetTeam's needs — the package that would actually convince them, not just
+  // whichever combo happens to match the sticker price.
+  acquireCombos = bestCombos(myTeam.assets, asset.value, 5, Vault.positionalProfile(targetTeam, teams));
   const resultsEl = document.getElementById('finderResults');
   if (!acquireCombos.length) {
     resultsEl.innerHTML = `<div class="text-[12px] text-zinc-500 py-2">Not enough value on ${Vault.escapeHtml(myTeam.teamName)}'s roster to realistically match this.</div>`;
@@ -972,8 +998,11 @@ function renderFinder() {
   ).join('');
 
   const partners = teams.filter(t => t.rosterId !== team.rosterId);
+  // Every partner's package would flow to `team` (whoever's shopping `asset` out),
+  // so it's searched against `team`'s own needs, computed once for every partner.
+  const teamProfile = Vault.positionalProfile(team, teams);
   const results = partners.map(partner => {
-    const combo = anchoredCombo(partner.assets, asset.value, position);
+    const combo = anchoredCombo(partner.assets, asset.value, position, teamProfile);
     if (!combo) return null;
     return { partner, combo, pctOff: combo.pctOff, rationale: partnerRationale(partner, combo.combo) };
   }).filter(Boolean).sort((a, b) => a.pctOff - b.pctOff).slice(0, 5);
@@ -1009,7 +1038,7 @@ function proposeFromFinder(partnerId) {
   const team = teamOf(side);
   const asset = team.assets.find(a => a.key === key);
   const partner = teamOf(other);
-  const combo = anchoredCombo(partner.assets, asset.value, finderState.position);
+  const combo = anchoredCombo(partner.assets, asset.value, finderState.position, Vault.positionalProfile(team, teams));
   if (combo) combo.combo.forEach(a => (other === 'A' ? selectedA : selectedB).add(a.key));
 
   closeFinder();
@@ -1028,7 +1057,8 @@ function matchTarget(side, key) {
   const otherTeam = teamOf(other);
   const otherSel = other === 'A' ? selectedA : selectedB;
   const pool = otherTeam.assets.filter(a => !otherSel.has(a.key));
-  const combo = bestCombo(pool, asset.value);
+  // This package flows FROM otherTeam TO `team`, so it's searched against team's needs.
+  const combo = bestCombo(pool, asset.value, Vault.positionalProfile(team, teams));
   if (combo) combo.combo.forEach(a => otherSel.add(a.key));
 
   render('A'); render('B');
@@ -1105,7 +1135,9 @@ function updateTrade() {
     const behindSel = behindSide === 'A' ? selectedA : selectedB;
     const neededAdj = Math.abs(aValAdj - bValAdj);
     const pool = behindTeam.assets.filter(a => !behindSel.has(a.key));
-    const best = comboSearchAdj(pool, neededAdj);
+    // This addition flows TO the other (currently shortchanged) side, so search for
+    // whatever would actually help them, not just whatever hits the raw dollar gap.
+    const best = comboSearchAdj(pool, neededAdj, Vault.positionalProfile(teamOf(otherSide(behindSide)), teams));
     const combo = best ? { combo: best.combo, sum: best.combo.reduce((s, a) => s + a.value, 0) } : null;
     if (combo) {
       gapBox.classList.remove('hidden');
