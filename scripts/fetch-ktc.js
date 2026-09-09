@@ -50,16 +50,27 @@ async function main() {
   // numbered slot, so losing nothing by ignoring the new format.
   const pickNamePattern = /^(\d{4})\s+(Early|Mid|Late)\s+(\d+)(?:st|nd|rd|th)$/i;
 
+  // KTC exposes three value sources per player — `.value` (Crowdsourced: daily
+  // Keep/Trade/Cut votes, ELO-aggregated), `.vftValue` (Tradesourced: derived from
+  // their real trade database), and `.blendValue` (Crowd + Trade, their own
+  // recommended default for "the perfect blend"). Using the blend rather than pure
+  // Crowdsourced matches the rest of this app's direction this session — need-
+  // aware fairness, the ported consolidation algorithm, calibrating against real
+  // trades — all grounded in actual trade behavior, not just crowd sentiment.
+  // Deliberately NOT pure Tradesourced: by KTC's own explanation, a rookie has NO
+  // tradesourced value at all before they're drafted (can't trade a player who
+  // isn't rosterable yet), and any thinly-traded player is noisy — the blend still
+  // leans on crowd data to cover exactly those gaps.
   const players = [];
   const picks = [];
   for (const p of all) {
     const row = {
-      oneQB: p.oneQBValues.value,
-      oneQB_tep: p.oneQBValues.tep.value,
-      oneQB_tepp: p.oneQBValues.tepp.value,
-      sf: p.superflexValues.value,
-      sf_tep: p.superflexValues.tep.value,
-      sf_tepp: p.superflexValues.tepp.value
+      oneQB: p.oneQBValues.blendValue,
+      oneQB_tep: p.oneQBValues.tep.blendValue,
+      oneQB_tepp: p.oneQBValues.tepp.blendValue,
+      sf: p.superflexValues.blendValue,
+      sf_tep: p.superflexValues.tep.blendValue,
+      sf_tepp: p.superflexValues.tepp.blendValue
     };
     if (p.position === 'RDP') {
       const m = p.playerName.match(pickNamePattern);
