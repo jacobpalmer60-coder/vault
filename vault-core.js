@@ -1000,6 +1000,25 @@ const Vault = {
     return value;
   },
 
+  /* What a whole pile of assets is actually worth to the team RECEIVING it, not just
+     its raw sticker price — sums needAdjustedValue across every asset against the
+     recipient's CURRENT (pre-trade) roster, the same "does this fill a real hole"
+     read positionalFitNotes' incoming scan already uses. This is what turns the
+     headline Fair/Borderline/Lopsided verdict from "did the two piles cost the same"
+     into "did each side actually gain comparable REAL value" — a pile heavy at a
+     position the recipient is already deep at is worth less to them than the same
+     dollars spread across a real need, even when the sticker prices match exactly.
+     Picks pass through at sticker value (needAdjustedValue's own behavior — no
+     position to be a need or surplus at). FAIR_PCT/LOPSIDED_PCT were calibrated
+     against real trades in raw-dollar terms, not this need-weighted version; reused
+     as-is since the need multiplier is a modest ±15% swing and only applies to
+     assets that actually land on a need/surplus position, not a wholesale rescale
+     of the distribution those cutoffs were fit to. */
+  needAdjustedTradeValue(receivingTeam, allTeams, assets) {
+    const profile = Vault.positionalProfile(receivingTeam, allTeams);
+    return assets.reduce((s, a) => s + Vault.needAdjustedValue(Vault.adjustedValue(a.value), a.pos, profile), 0);
+  },
+
   /* Need/surplus scales each asset's OWN value (via needAdjustedValue) rather than
      handing out a flat bonus/penalty regardless of size — a superstar filling a real
      need should swing this far more than a bench piece at the same position.
@@ -1460,6 +1479,20 @@ const Vault = {
     const dOptA = sim.before.A.opt - sim.after.A.opt;
     const dOptB = sim.before.B.opt - sim.after.B.opt;
 
+    // Need-weighted fairness — same reasoning as trade.html's computeTradeAnalysis
+    // (Vault.needAdjustedTradeValue), applied here to a completed trade instead of a
+    // live one: what each side gave up, valued by what it was actually worth to the
+    // team that received it, not just its sticker price. Judged against the
+    // recipient's reconstructed PRE-trade roster (sim.after, despite the name — see
+    // above) — "was this a real need for them AT THE TIME," not colored by whatever
+    // else has happened to their roster since. This is what drives the
+    // Fair/Borderline/Lopsided badge on Trade Grades; pctDiff above stays the raw
+    // sticker-price version, kept for the recap text and as a tooltip detail.
+    const aGaveAdjNeed = Vault.needAdjustedTradeValue(sim.after.B, teams, toB);
+    const bGaveAdjNeed = Vault.needAdjustedTradeValue(sim.after.A, teams, toA);
+    const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
+    const pctDiffNeed = Math.abs(aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100;
+
     // positionalFitNotes needs both snapshots — see its own comment for why. What
     // each team received is judged against its pre-trade roster (sim.after, despite
     // the name — see above); what it gave up is judged against its real current
@@ -1473,10 +1506,10 @@ const Vault = {
     const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0);
     const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0);
 
-    const verdict = Vault.historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
+    const verdict = Vault.historyVerdict(pctDiffNeed, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, dOptA, dOptB, optNoteA, optNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, dOptA, dOptB, optNoteA, optNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
   },
 
   /* Full fetch-build-grade pipeline for a league's real trade history — shared by
@@ -1578,10 +1611,10 @@ const Vault = {
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
         if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
         if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
-        const bucket = g.pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'lopsided' : g.pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'borderline' : 'fair';
+        const bucket = g.pctDiffNeed >= VAULT_CONFIG.LOPSIDED_PCT ? 'lopsided' : g.pctDiffNeed >= VAULT_CONFIG.FAIR_PCT ? 'borderline' : 'fair';
         s[bucket]++;
         if (bucket === 'lopsided') { if (dVal > 0) s.lopsidedFor++; else s.lopsidedAgainst++; }
-        const rec = { opp, dVal, pctDiff: g.pctDiff, created: g.tx.created };
+        const rec = { opp, dVal, pctDiffNeed: g.pctDiffNeed, created: g.tx.created };
         if (!s.best || dVal > s.best.dVal) s.best = rec;
         if (!s.worst || dVal < s.worst.dVal) s.worst = rec;
 

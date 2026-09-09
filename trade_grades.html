@@ -127,7 +127,7 @@ function optDeltaHtml(dOpt) {
 
 function renderCard(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  const bucket = fairBucket(g.pctDiff);
+  const bucket = fairBucket(g.pctDiffNeed);
   const notes = [
     ...g.archA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.timelineA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
@@ -158,8 +158,8 @@ function renderCard(g) {
         </div>
       </div>
       <div class="pt-3 border-t border-white/5">
-        <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiff)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-500 font-normal">(some asset values unavailable)</span>' : ''}</p>
-        <div class="text-[11px] ${fairColor(g.pctDiff)} mt-1" title="Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — calibrated against ~19,300 real trades from KeepTradeCut's trade database.">${bucket} · ${g.pctDiff.toFixed(0)}% off</div>
+        <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiffNeed)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-500 font-normal">(some asset values unavailable)</span>' : ''}</p>
+        <div class="text-[11px] ${fairColor(g.pctDiffNeed)} mt-1" title="Need-adjusted — weights each side by what it was actually worth to the team that received it. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~19,300 real trades from KeepTradeCut's trade database. By raw sticker price alone, this trade was ${g.pctDiff.toFixed(0)}% off.">${bucket} · ${g.pctDiffNeed.toFixed(0)}% off</div>
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
         <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
@@ -175,9 +175,9 @@ function renderCard(g) {
 
 const FAIR_FILTER_TITLE = {
   All: 'Every completed trade, any value gap.',
-  Fair: `Under ${VAULT_CONFIG.FAIR_PCT}% off in VBA-adjusted value.`,
+  Fair: `Under ${VAULT_CONFIG.FAIR_PCT}% off in need-adjusted value.`,
   Borderline: `${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% off — a real tilt, but within normal give-and-take.`,
-  Lopsided: `${VAULT_CONFIG.LOPSIDED_PCT}%+ off — one side clearly came out ahead on value.`
+  Lopsided: `${VAULT_CONFIG.LOPSIDED_PCT}%+ off — one side clearly came out ahead on real value.`
 };
 
 function renderFilters() {
@@ -193,8 +193,8 @@ function setFairFilter(f) { fairFilter = f; renderFilters(); renderList(); }
 function setSort(k) { sortKey = k; renderFilters(); renderList(); }
 
 function renderList() {
-  let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => fairBucket(g.pctDiff) === fairFilter);
-  items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.pctDiff - a.pctDiff : b.created - a.created);
+  let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => fairBucket(g.pctDiffNeed) === fairFilter);
+  items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.pctDiffNeed - a.pctDiffNeed : b.created - a.created);
 
   const list = document.getElementById('list');
   const empty = document.getElementById('empty');

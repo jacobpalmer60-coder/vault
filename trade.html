@@ -455,12 +455,13 @@ function runSuggestTradeSearch() {
     return true;
   });
 
-  // Ranked purely by fairness (VBA-adjusted value-diff %) — most fair first. Every
-  // candidate here already cleared the "not bad" bar in consider() above, so this
-  // ordering is specifically "which of these genuinely-viable trades is closest to
-  // even", not a blend with fit/archetype scoring (that's still visible per-card
-  // via the verdict label, just not what determines the order).
-  deduped.sort((x, y) => x.result.pctDiff - y.result.pctDiff);
+  // Ranked purely by fairness (need-weighted value-diff % — see
+  // computeTradeAnalysis's pctDiffNeed) — most fair first. Every candidate here
+  // already cleared the "not bad" bar in consider() above, so this ordering is
+  // specifically "which of these genuinely-viable trades is closest to even", not a
+  // blend with fit/archetype scoring (that's still visible per-card via the verdict
+  // label, just not what determines the order).
+  deduped.sort((x, y) => x.result.pctDiffNeed - y.result.pctDiffNeed);
 
   // Cap per-partner, not just overall — otherwise the pool fills up with
   // near-duplicate variations against whichever single team fits best, crowding out
@@ -1076,14 +1077,25 @@ function updateTrade() {
   const diffAdj = Math.abs(aValAdj - bValAdj);
   const avgSideAdj = (aValAdj + bValAdj) / 2 || 1;
   const pctDiff = diffAdj / avgSideAdj * 100;
+  // Fair/Borderline/Lopsided is need-weighted (Vault.needAdjustedTradeValue): what
+  // each pile is actually worth to the team RECEIVING it, not just its sticker
+  // price — a pile that costs the same in raw dollars but lands on a real need for
+  // one side and a surplus for the other isn't actually fair just because the
+  // dollar totals matched. The big number stays the raw $ diff (still a real,
+  // checkable fact); the label/color below is what changed.
+  const aValAdjNeed = Vault.needAdjustedTradeValue(teamB, teams, aAssets);
+  const bValAdjNeed = Vault.needAdjustedTradeValue(teamA, teams, bAssets);
+  const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
+  const pctDiffNeed = Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100;
   const diffEl = document.getElementById('diff');
   diffEl.textContent = Math.round(diffAdj).toLocaleString();
-  diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400');
+  diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400');
   // Fairness label spells out the same Fair/Lopsided thresholds the color already
   // encodes, since a raw dollar diff alone doesn't tell you what counts as fair.
   const diffLabelEl = document.getElementById('diffLabel');
-  diffLabelEl.textContent = (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${pctDiff.toFixed(0)}% off`;
-  diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500');
+  diffLabelEl.textContent = (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${pctDiffNeed.toFixed(0)}% off`;
+  diffLabelEl.title = `Need-adjusted — weights each side by what the RECEIVING team actually needs there. By raw sticker price alone, this trade is ${pctDiff.toFixed(0)}% off.`;
+  diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500');
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
@@ -1169,9 +1181,11 @@ function windowShiftNote(befWin, aftWin) {
 }
 
 // Synthesizes value fairness + timeline/production fit + positional need + window
-// shift into one top-level grade — gated on the actual value gap FIRST, so this can
-// never contradict the Fair/Borderline/Lopsided label already shown on the trade bar
-// (previously fit alone drove the verdict, so a 29%-off trade could still read as
+// shift into one top-level grade — gated on the actual value gap FIRST (pctDiff here
+// is need-weighted — see computeTradeAnalysis's pctDiffNeed — so it stays the exact
+// same number the Fair/Borderline/Lopsided badge on the trade bar uses; passing the
+// raw one would silently reintroduce the contradiction this was built to prevent:
+// previously fit alone drove the verdict, so a 29%-off trade could still read as
 // "Fair, No Real Winner" if timeline/positional fit happened to cancel out).
 // Fit only decides the sub-label once value itself is close enough to call fair.
 // `text` is built from Vault.tradeHighlight — a concrete "Team A gave up X, but
@@ -1263,6 +1277,18 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const dValueAdjA = bValAdj - aValAdj;
   const dValueAdjB = aValAdj - bValAdj;
 
+  // Need-weighted fairness — what each pile is actually worth to the team RECEIVING
+  // it (Vault.needAdjustedTradeValue), not just its raw sticker price. This is what
+  // decides Fair/Borderline/Lopsided below (pctDiffNeed), so two piles that cost the
+  // same in raw dollars but land on a need for one side and a surplus for the other
+  // don't get called "fair" just because the sticker prices matched. dValueAdjA/B
+  // above stay raw — that's a real, separate fact ("you gained $X in sticker value")
+  // worth keeping, just not the one that should gate the fairness label.
+  const aValAdjNeed = Vault.needAdjustedTradeValue(teamB, teams, aAssets);
+  const bValAdjNeed = Vault.needAdjustedTradeValue(teamA, teams, bAssets);
+  const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
+  const pctDiffNeed = avgSideAdjNeed ? Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
+
   const resA = analyzeSide(before.A, after.A);
   const resB = analyzeSide(before.B, after.B);
   const trade = classifyTrade(resA, resB, aAssets, bAssets);
@@ -1292,9 +1318,9 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   });
 
   const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
-  const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiff, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
+  const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiffNeed, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
 
-  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, verdict };
+  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, verdict };
 }
 
 function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
