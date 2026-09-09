@@ -1249,8 +1249,11 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const heads = {}, wins = {}, posResults = {};
   [['A', before.A, after.A, resA, dValueAdjA, bAssets, aAssets], ['B', before.B, after.B, resB, dValueAdjB, aAssets, bAssets]].forEach(([side, bef, aft, res, dValueAdj, incoming, outgoing]) => {
     // Positional need/surplus fit for the specific assets moving this direction —
-    // judged against the team's roster BEFORE the trade, not the shifting post-trade pool.
-    const posResult = Vault.positionalFitNotes(bef, teams, incoming, outgoing);
+    // what's incoming is judged against the roster BEFORE the trade (does it fill a
+    // real hole), what's outgoing is judged against the roster AFTER (does losing it
+    // leave one) — see Vault.positionalFitNotes for why those need to be different
+    // snapshots, not the same one twice.
+    const posResult = Vault.positionalFitNotes(bef, teams, aft, pool, incoming, outgoing);
     res.fit += posResult.posFit;
     posResults[side] = posResult;
 

@@ -1006,13 +1006,34 @@ const Vault = {
      `dollarSwing` is the total effective-value gain/loss this causes (positive helps
      this team), converted to a fit-scale contribution proportional to team size.
      Shared by the Trade Calculator (a proposed trade) and Trade Grades (a completed
-     one) — both just need `team`, the league, and what moved in which direction. */
-  positionalFitNotes(team, allTeams, incoming, outgoing) {
-    const profile = Vault.positionalProfile(team, allTeams);
+     one).
+
+     Takes TWO team snapshots, not one, because "does this fill a need" and "does
+     giving this up create one" are different questions that need different roster
+     states to answer honestly:
+       - incoming assets are judged against beforeTeam/beforeAll — the roster as it
+         stood BEFORE the trade, since that's what determines whether something is
+         actually filling a real hole.
+       - outgoing assets are judged against afterTeam/afterAll — the roster as it
+         looks AFTER the trade (this team's real post-trade state, ranked against the
+         rest of the post-trade league) — since a position that looked perfectly fine
+         before can still become a real hole once the departing asset is gone, and
+         judging outgoing assets against the BEFORE profile can never see that: a team
+         with exactly enough startable-caliber depth (no bench cushion) at a scarce
+         position — Superflex QB being the clearest case — reads as "fine" by the
+         current roster alone right up until the trade leaves them with zero margin
+         for a bye week or injury. Both callers already have both snapshots on hand
+         (trade.html's live before/after, Trade Grades' reconstructed pre-trade state
+         via Vault.simulateTrade run in reverse), so this doesn't cost either caller
+         an extra pass. */
+  positionalFitNotes(beforeTeam, beforeAll, afterTeam, afterAll, incoming, outgoing) {
+    const beforeProfile = Vault.positionalProfile(beforeTeam, beforeAll);
+    const afterProfile = Vault.positionalProfile(afterTeam, afterAll);
     const notes = [];
     let dollarSwing = 0;
 
     const scan = (list, isIncoming) => {
+      const profile = isIncoming ? beforeProfile : afterProfile;
       ['QB', 'RB', 'WR', 'TE'].forEach(POS => {
         const assets = list.filter(a => a.pos === POS);
         if (!assets.length) return;
@@ -1043,15 +1064,15 @@ const Vault = {
         } else {
           dollarSwing -= delta;
           notes.push(delta < 0
-            ? { tone: 'good', text: `Deals from ${POS} surplus — worth closer to ${weightedDisplay} to this team than its ${rawDisplay} sticker price.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth` }
-            : { tone: 'bad', text: `Gives up ${POS} value at a position this team is already thin — costs more than the ${rawDisplay} sticker price suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value` });
+            ? { tone: 'good', text: `Deals from ${POS} surplus — still worth closer to ${weightedDisplay} to this team than its ${rawDisplay} sticker price even after the trade.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth` }
+            : { tone: 'bad', text: `Gives up ${POS} value and leaves this team thin there — costs more than the ${rawDisplay} sticker price suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value` });
         }
       });
     };
     scan(incoming, true);
     scan(outgoing, false);
 
-    const posFit = team.total ? Math.max(-3, Math.min(3, dollarSwing / team.total * 120)) : 0;
+    const posFit = beforeTeam.total ? Math.max(-3, Math.min(3, dollarSwing / beforeTeam.total * 120)) : 0;
     return { posFit, notes };
   },
 
@@ -1424,19 +1445,28 @@ const Vault = {
     const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
     const dValueAdjA = bGaveAdj - aGaveAdj; // positive = A came out ahead on value
 
-    const fitA = Vault.positionalFitNotes(teamA, teams, toA, toB);
-    const fitB = Vault.positionalFitNotes(teamB, teams, toB, toA);
     const timelineA = Vault.timelineFitNotes(teamA, toA, toB);
     const timelineB = Vault.timelineFitNotes(teamB, toB, toA);
     const archA = Vault.archetypeFitNotes(teamA, toA, toB);
     const archB = Vault.archetypeFitNotes(teamB, toB, toA);
 
-    // Reconstruct each team's optimal-lineup PPG the day before this trade by running
-    // Vault.simulateTrade in reverse: passing what each side actually RECEIVED as the
-    // "give" list undoes the trade against their CURRENT roster.
+    // Reconstruct each team's roster (and optimal-lineup PPG) the day before this
+    // trade by running Vault.simulateTrade in reverse: passing what each side
+    // actually RECEIVED as the "give" list undoes the trade against their CURRENT
+    // roster. Confusingly, simulateTrade's OWN before/after refer to ITS OWN
+    // give/take (this reversed trade), so sim.before.A is teamA's real CURRENT
+    // (already-post-trade) roster and sim.after.A is the RECONSTRUCTED pre-trade one.
     const sim = Vault.simulateTrade(teams, slots, rA, rB, toA, toB);
     const dOptA = sim.before.A.opt - sim.after.A.opt;
     const dOptB = sim.before.B.opt - sim.after.B.opt;
+
+    // positionalFitNotes needs both snapshots — see its own comment for why. What
+    // each team received is judged against its pre-trade roster (sim.after, despite
+    // the name — see above); what it gave up is judged against its real current
+    // roster, so a position that only looks thin because of THIS trade still gets
+    // caught, not just a position that was already thin beforehand.
+    const fitA = Vault.positionalFitNotes(sim.after.A, teams, teamA, teams, toA, toB);
+    const fitB = Vault.positionalFitNotes(sim.after.B, teams, teamB, teams, toB, toA);
     const optNoteA = Vault.optShiftNote(timelineA.mode, dOptA);
     const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
 
