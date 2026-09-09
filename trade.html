@@ -139,6 +139,7 @@
           <div class="text-[12px] text-zinc-500 mono" id="totalA"></div>
           <span id="archA" class="text-[11px] px-2 py-0.5 rounded-full border"></span>
         </div>
+        <div id="needsA" class="pl-[42px] mt-1 text-[11px] leading-relaxed"></div>
         <div id="posFilterA" class="flex gap-1.5 flex-wrap mt-2"></div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
@@ -163,6 +164,7 @@
           <div class="text-[12px] text-zinc-500 mono" id="totalB"></div>
           <span id="archB" class="text-[11px] px-2 py-0.5 rounded-full border"></span>
         </div>
+        <div id="needsB" class="pl-[42px] mt-1 text-[11px] leading-relaxed"></div>
         <div id="posFilterB" class="flex gap-1.5 flex-wrap mt-2"></div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
@@ -325,6 +327,24 @@ function similarRow(side, a) {
   </div>`;
 }
 
+const POS_LABEL = { qb: 'QB', rb: 'RB', wr: 'WR', te: 'TE' };
+
+// So you can see what the OTHER side actually needs while picking what to offer
+// them, not just discover it after the fact in the post-trade breakdown. Same
+// Vault.positionalProfile read as the fit-check notes and Best Trade Partners, just
+// surfaced up front on the roster this team is currently loaded as (this team's
+// CURRENT roster, before any assets are selected — it doesn't shift as you build
+// the trade, since "what do they need" is the question you're building the trade
+// to answer, not something the trade itself should be allowed to quietly move).
+function renderNeeds(side, team) {
+  const { needs, surpluses } = Vault.positionalProfile(team, teams);
+  const el = document.getElementById(`needs${side}`);
+  const parts = [];
+  if (needs.length) parts.push(`<span class="text-emerald-400/80">Needs ${needs.map(k => POS_LABEL[k]).join(', ')}</span>`);
+  if (surpluses.length) parts.push(`<span class="text-zinc-600">Deep at ${surpluses.map(k => POS_LABEL[k]).join(', ')}</span>`);
+  el.innerHTML = parts.join('<span class="text-zinc-700 mx-1.5">·</span>');
+}
+
 function render(side) {
   const team = teamOf(side);
   const selected = side === 'A' ? selectedA : selectedB;
@@ -335,6 +355,7 @@ function render(side) {
   archEl.textContent = team.arch;
   archEl.title = Vault.ARCHETYPE_INFO[team.arch]?.desc || '';
   archEl.className = `text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1 ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
+  renderNeeds(side, team);
 
   const visible = filter === 'ALL' ? team.assets : team.assets.filter(a => filter === 'PICK' ? a.type === 'pick' : a.pos === filter);
   container.innerHTML = visible.length
