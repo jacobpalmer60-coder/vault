@@ -1344,7 +1344,12 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     const shift = windowShiftNote(befWin, win);
     res.fit += shift.fit;
 
-    res.notes = [...archResult.notes, ...posResult.notes, ...(shift.note ? [shift.note] : []), ...res.notes];
+    // Scanning only `outgoing` (not incoming too) is deliberate: each moving asset
+    // is outgoing for exactly one side, so this surfaces once per asset, attributed
+    // to whoever's giving it up, instead of the same fact appearing on both cards.
+    const riskNotes = Vault.valueRiskNotes(outgoing);
+
+    res.notes = [...archResult.notes, ...posResult.notes, ...riskNotes, ...(shift.note ? [shift.note] : []), ...res.notes];
     heads[side] = headline(dValueAdj, avgSideAdj, res.fit);
     wins[side] = win;
   });

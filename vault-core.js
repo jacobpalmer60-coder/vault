@@ -70,7 +70,17 @@ const VAULT_CONFIG = {
   // NO effect on this % at all (it's a pure scale constant that cancels out of any
   // ratio), so it stays as-is too, chosen only to keep displayed numbers legible.
   FAIR_PCT: 10,
-  LOPSIDED_PCT: 35
+  LOPSIDED_PCT: 35,
+  // How many percentile points apart a player's value-rank and PPG-rank at their own
+  // position (see buildLeagueTeams' valueRiskGap) have to be before it's worth
+  // calling out as a real disagreement rather than the normal noise between two
+  // independently-sourced numbers. 35 was picked by inspecting the real spread of
+  // gaps across this league's actual rostered players — modest, expected gaps (like
+  // a rookie slightly outprojecting a veteran QB at a similar price) mostly land
+  // under 20; genuinely notable cases (an aging star WR still producing near the
+  // top of the position on a bottomed-out trade price, or a rookie stash priced on
+  // pure potential with next to no projected production yet) start around 35-40+.
+  VALUE_RISK_GAP: 35
 };
 
 /* ---------- League ID handling (shared across every page) ---------- */
@@ -561,6 +571,36 @@ const Vault = {
       return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [] };
     });
 
+    /* ---------- Per-player value/production divergence ----------
+       Dynasty VALUE (KTC market price — weighted toward proven track record and
+       long-term ceiling, see Vault.adjustedValue) and PROJECTED PPG (this season's
+       raw box-score math, see buildProjectedPpgMapById) come from two completely
+       independent sources and are answering different questions ("what's this worth
+       long-term" vs. "how many points will this score THIS year") — they can
+       legitimately disagree, and that disagreement is itself useful information a
+       trade shouldn't silently paper over. valuePct/ppgPct rank a player against
+       every OTHER rostered player at their own position, league-wide (not just
+       within one team, unlike posPpg above) — the only apples-to-apples comparison
+       for "is this player priced/producing like a top-tier guy at their position."
+       valueRiskGap = ppgPct - valuePct: strongly positive means producing well
+       above what the market currently pays (an aging vet whose price crashed but
+       who's still starting-caliber — a real buy-low signal); strongly negative
+       means priced well above this year's actual output (a rookie stash getting
+       paid for potential, not production yet — real bust risk if it never arrives).
+       Requires at least 4 players at the position leaguewide to rank meaningfully;
+       skips positions too thin to have a real percentile spread. */
+    ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
+      const atPos = built.flatMap(t => t.plist.filter(p => p.pos === pos && p.value > 0 && p.ppg > 0));
+      if (atPos.length < 4) return;
+      const vals = atPos.map(p => p.value).sort((a, b) => a - b);
+      const ppgs = atPos.map(p => p.ppg).sort((a, b) => a - b);
+      atPos.forEach(p => {
+        p.valuePct = vals.indexOf(p.value) / (vals.length - 1) * 100;
+        p.ppgPct = ppgs.indexOf(p.ppg) / (ppgs.length - 1) * 100;
+        p.valueRiskGap = p.ppgPct - p.valuePct;
+      });
+    });
+
     // Draft order rank (1 = worst team, picks first; n = best team, picks last),
     // used to convert each pick into its overall pick number for ktcPickSlot.
     const sorted = [...built].sort((a, b) => b.opt - a.opt); // best team first
@@ -1019,6 +1059,29 @@ const Vault = {
     return assets.reduce((s, a) => s + Vault.needAdjustedValue(Vault.adjustedValue(a.value), a.pos, profile), 0);
   },
 
+  /* Flags moving assets whose dynasty value and this-season production disagree by
+     more than VALUE_RISK_GAP percentile points at their own position (see
+     buildLeagueTeams' valueRiskGap) — informational, not a correction to either
+     number, since both are legitimate answers to different questions ("worth
+     long-term" vs. "scores this year"). Tone is deliberately neutral either
+     direction: whether a gap helps or hurts depends on which side of the trade is
+     receiving the asset, which this function doesn't know and isn't trying to
+     judge — it's just naming a fact a trade could otherwise paper over. Picks and
+     any player too new/thin at their position to have a real percentile (see
+     buildLeagueTeams) carry no valueRiskGap and are silently skipped. */
+  valueRiskNotes(assets) {
+    const notes = [];
+    assets.forEach(a => {
+      if (a.valueRiskGap == null) return;
+      if (a.valueRiskGap >= VAULT_CONFIG.VALUE_RISK_GAP) {
+        notes.push({ tone: 'neutral', text: `${a.name} is producing well above what the market currently pays for a ${a.pos} — priced like a bench piece, playing like a starter.` });
+      } else if (a.valueRiskGap <= -VAULT_CONFIG.VALUE_RISK_GAP) {
+        notes.push({ tone: 'neutral', text: `${a.name}'s price is well ahead of this season's actual production at ${a.pos} — paying for track record or upside, not this year's box score.` });
+      }
+    });
+    return notes;
+  },
+
   /* Need/surplus scales each asset's OWN value (via needAdjustedValue) rather than
      handing out a flat bonus/penalty regardless of size — a superstar filling a real
      need should swing this far more than a bench piece at the same position.
@@ -1469,6 +1532,18 @@ const Vault = {
     const archA = Vault.archetypeFitNotes(teamA, toA, toB);
     const archB = Vault.archetypeFitNotes(teamB, toB, toA);
 
+    // Value/production divergence (see Vault.valueRiskNotes) — resolveTradeAssets
+    // builds toA/toB fresh from playersDb/valMap/ppgMap, not from a team's plist, so
+    // they don't carry the valueRiskGap buildLeagueTeams already computed; best-
+    // effort lookup by player id against every CURRENTLY rostered player in the
+    // league. A player traded away and since dropped, or who left the league
+    // entirely, won't resolve and is silently skipped — same as any player too new
+    // at their position for a real percentile (see buildLeagueTeams).
+    const riskById = new Map(teams.flatMap(t => t.plist).filter(p => p.valueRiskGap != null).map(p => [p.id, p.valueRiskGap]));
+    const withRisk = list => list.map(a => ({ ...a, valueRiskGap: riskById.get(a.id) }));
+    const riskA = Vault.valueRiskNotes(withRisk(toB)); // toB = what B received = what A gave up
+    const riskB = Vault.valueRiskNotes(withRisk(toA)); // toA = what A received = what B gave up
+
     // Reconstruct each team's roster (and optimal-lineup PPG) the day before this
     // trade by running Vault.simulateTrade in reverse: passing what each side
     // actually RECEIVED as the "give" list undoes the trade against their CURRENT
@@ -1509,7 +1584,7 @@ const Vault = {
     const verdict = Vault.historyVerdict(pctDiffNeed, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, dOptA, dOptB, optNoteA, optNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
   },
 
   /* Full fetch-build-grade pipeline for a league's real trade history — shared by

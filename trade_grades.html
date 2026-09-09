@@ -132,10 +132,12 @@ function renderCard(g) {
     ...g.archA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.timelineA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.fitA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
+    ...g.riskA.map(n => ({ ...n, who: g.teamA.teamName })),
     ...(g.optNoteA ? [{ ...g.optNoteA, who: g.teamA.teamName }] : []),
     ...g.archB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
     ...g.timelineB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
     ...g.fitB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
+    ...g.riskB.map(n => ({ ...n, who: g.teamB.teamName })),
     ...(g.optNoteB ? [{ ...g.optNoteB, who: g.teamB.teamName }] : [])
   ];
   return `
