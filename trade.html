@@ -1348,7 +1348,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     // to whoever's giving it up, instead of the same fact appearing on both cards.
     const riskNotes = Vault.valueRiskNotes(outgoing);
 
-    res.notes = [...archResult.notes, ...posResult.notes, ...riskNotes, ...(shift.note ? [shift.note] : []), ...res.notes];
+    res.notes = [...Vault.mergeAssetNotes(archResult.notes, posResult.notes), ...riskNotes, ...(shift.note ? [shift.note] : []), ...res.notes];
     heads[side] = headline(dValueAdj, avgSideAdj, res.fit);
     wins[side] = win;
   });

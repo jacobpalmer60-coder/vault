@@ -1291,17 +1291,23 @@ const Vault = {
         // `phrase` + `absDelta` are a short, tone-neutral verb phrase and this
         // theme's dollar weight — used by Vault.sideTheme to pick the single
         // biggest positional storyline for a one-sentence trade recap, without
-        // having to parse the full `text` sentence back apart.
+        // having to parse the full `text` sentence back apart. `assetIds`/isIncoming/
+        // needMult let Vault.mergeAssetNotes recognize when this note is about the
+        // exact same single asset as an archetypeFitNotes note, so the two don't show
+        // as competing "worth closer to X" figures for the same player — only
+        // possible when this group is exactly one asset, since a multi-asset group's
+        // figure isn't about any one of them.
+        const noteExtra = { assetIds: assets.map(a => a.id), isIncoming, needMult: rawSum ? weightedRaw / rawSum : 1 };
         if (isIncoming) {
           dollarSwing += delta;
           notes.push(delta > 0
-            ? { tone: 'good', text: `Adds ${rawDisplay} at ${POS}, a genuine roster need — worth closer to ${weightedDisplay} to this team than sticker price.`, pos: POS, absDelta: Math.abs(delta), phrase: `addressed ${article} ${POS} need` }
-            : { tone: 'bad', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — really worth closer to ${weightedDisplay} here.`, pos: POS, absDelta: Math.abs(delta), phrase: `added ${POS} depth` });
+            ? { tone: 'good', text: `Adds ${rawDisplay} at ${POS}, a genuine roster need — worth closer to ${weightedDisplay} to this team than sticker price.`, pos: POS, absDelta: Math.abs(delta), phrase: `addressed ${article} ${POS} need`, ...noteExtra }
+            : { tone: 'bad', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — really worth closer to ${weightedDisplay} here.`, pos: POS, absDelta: Math.abs(delta), phrase: `added ${POS} depth`, ...noteExtra });
         } else {
           dollarSwing -= delta;
           notes.push(delta < 0
-            ? { tone: 'good', text: `Deals from ${POS} surplus — still worth closer to ${weightedDisplay} to this team than its ${rawDisplay} sticker price even after the trade.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth` }
-            : { tone: 'bad', text: `Gives up ${POS} value and leaves this team thin there — costs more than the ${rawDisplay} sticker price suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value` });
+            ? { tone: 'good', text: `Deals from ${POS} surplus — still worth closer to ${weightedDisplay} to this team than its ${rawDisplay} sticker price even after the trade.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth`, ...noteExtra }
+            : { tone: 'bad', text: `Gives up ${POS} value and leaves this team thin there — costs more than the ${rawDisplay} sticker price suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value`, ...noteExtra });
         }
       });
     };
@@ -1431,20 +1437,28 @@ const Vault = {
      veteran as worth LESS, on paper value fairness aside; a contender gets the
      opposite read. Age band decides this for a rebuilder regardless of current
      production — a rebuild wants the years whether the player has broken out yet or
-     not. A contender's read also checks production: a young player who's ALREADY an
-     elite producer (isProvenProducer) isn't treated as a misfit just for being young
-     — see the module comment above. Flexible teams, and any PLAYER in their
-     position's prime years with no production override (assetTimelineClass returns
-     null), get no adjustment either way. Scales with the asset's own value (via the
-     same raw-display/adjusted-scoring split as positionalFitNotes) rather than a flat
-     bonus regardless of size. */
+     not. A contender's read also checks production: an already-elite young producer
+     (isProvenProducer — the Jahmyr Gibbs case, see that comment) is treated exactly
+     like a proven veteran, fit-wise — he wins games right now just as much as a
+     veteran does, so a contender gets full credit for landing one and pays the full
+     cost for losing one, not just a pass from being penalized. A young player who
+     ISN'T yet proven still gets no signal either way — not a misfit for being
+     unproven, but no credit for upside that hasn't shown up yet. Flexible teams, and
+     any PLAYER in their position's prime years with no production override
+     (assetTimelineClass returns null), get no adjustment either way. Scales with the
+     asset's own value (via the same raw-display/adjusted-scoring split as
+     positionalFitNotes) rather than a flat bonus regardless of size. */
   archetypeFitNotes(team, incoming, outgoing) {
     const mode = Vault.teamMode(team);
     const notes = [];
     if (mode === 'flexible') return { archFit: 0, notes };
     let dollarSwing = 0;
 
-    const kindOf = (a, cls) => a.type === 'pick' ? 'a future pick' : (cls === 'young' ? `a ${a.age}-year-old` : 'a proven veteran');
+    const kindOf = (a, cls) => {
+      if (a.type === 'pick') return 'a future pick';
+      if (cls === 'young' && Vault.isProvenProducer(a)) return 'an already-elite young producer';
+      return cls === 'young' ? `a ${a.age}-year-old` : 'a proven veteran';
+    };
     const planWord = mode === 'rebuild' ? 'rebuild' : 'win-now push';
 
     // Returns null (no archetype read at all) or a {fitsMode, cls} verdict for one asset.
@@ -1453,9 +1467,10 @@ const Vault = {
       const cls = Vault.assetTimelineClass(a);
       if (cls == null) return null; // prime-years player — good for either timeline
       if (mode === 'rebuild') return { fitsMode: cls === 'young', cls };
-      // contend: a young-but-already-producing player reads as neither a misfit
-      // nor specifically the reason the trade fits — same as a prime-years player.
-      if (cls === 'young' && Vault.isProvenProducer(a)) return null;
+      // contend: an already-elite young producer fits a win-now plan the same way a
+      // veteran does (see module comment); a young player who hasn't proven it yet
+      // gets no signal either way.
+      if (cls === 'young') return Vault.isProvenProducer(a) ? { fitsMode: true, cls } : null;
       return { fitsMode: cls === 'veteran', cls };
     };
 
@@ -1471,16 +1486,22 @@ const Vault = {
         const delta = Vault.adjustedValue(a.value) * mult - Vault.adjustedValue(a.value);
         if (Math.abs(delta) < 1) return;
 
+        // assetId/isIncoming/mult/rawValue/assetName/kindOfLabel/planWord below aren't
+        // used by this note's own text — they let Vault.mergeAssetNotes recognize when
+        // this note and a positionalFitNotes note are about the exact same asset, so
+        // the two competing "worth closer to X" figures can be reconciled into one
+        // instead of showing both side by side.
+        const noteExtra = { assetId: a.id, isIncoming, mult, rawValue: a.value, assetName: a.name, kindOfLabel: kindOf(a, cls), planWord };
         if (isIncoming) {
           dollarSwing += delta;
           notes.push(fitsMode
-            ? { tone: 'good', text: `${a.name} is ${kindOf(a, cls)} — exactly what a ${planWord} wants, worth closer to ${weightedDisplay} than its ${rawDisplay} sticker price.` }
-            : { tone: 'bad', text: `${a.name} is ${kindOf(a, cls)} — doesn't fit a ${planWord}, really worth closer to ${weightedDisplay} here.` });
+            ? { tone: 'good', text: `${a.name} is ${kindOf(a, cls)} — exactly what a ${planWord} wants, worth closer to ${weightedDisplay} than its ${rawDisplay} sticker price.`, ...noteExtra }
+            : { tone: 'bad', text: `${a.name} is ${kindOf(a, cls)} — doesn't fit a ${planWord}, really worth closer to ${weightedDisplay} here.`, ...noteExtra });
         } else {
           dollarSwing -= delta;
           notes.push(!fitsMode
-            ? { tone: 'good', text: `Deals away ${a.name} (${kindOf(a, cls)}) — didn't fit the ${planWord} anyway, worth closer to ${weightedDisplay} to give up.` }
-            : { tone: 'bad', text: `Gives up ${a.name}, ${kindOf(a, cls)} that fit the ${planWord} — costs more than the ${rawDisplay} sticker price suggests.` });
+            ? { tone: 'good', text: `Deals away ${a.name} (${kindOf(a, cls)}) — didn't fit the ${planWord} anyway, worth closer to ${weightedDisplay} to give up.`, ...noteExtra }
+            : { tone: 'bad', text: `Gives up ${a.name}, ${kindOf(a, cls)} that fit the ${planWord} — costs more than the ${rawDisplay} sticker price suggests.`, ...noteExtra });
         }
       });
     };
@@ -1489,6 +1510,55 @@ const Vault = {
 
     const archFit = team.total ? Math.max(-3, Math.min(3, dollarSwing / team.total * 120)) : 0;
     return { archFit, notes };
+  },
+
+  /* archetypeFitNotes and positionalFitNotes each independently decide whether a
+     moving asset is worth more or less than sticker price — one from timeline fit,
+     one from positional need — and when both fire on the SAME single asset, showing
+     both verbatim reads as two competing price tags for the same player with no
+     explanation of how they relate (e.g. "worth closer to 5,501" right next to
+     "worth closer to 7,443" for the identical player). Collapses that pair into one
+     note with one reconciled number (both multipliers stacked on the same raw
+     value, the basis both already use for display). Only merges when the positional
+     note covers exactly one asset — a multi-asset group's figure isn't about any one
+     of them, so there's nothing single to reconcile it with. Everything else passes
+     through untouched. */
+  mergeAssetNotes(archNotes, posNotes) {
+    const usedArch = new Set(), usedPos = new Set();
+    const merged = [];
+    posNotes.forEach((pn, pi) => {
+      if (pn.assetIds.length !== 1 || pn.assetIds[0] == null) return;
+      const ai = archNotes.findIndex((an, i) => !usedArch.has(i) && an.assetId === pn.assetIds[0] && an.isIncoming === pn.isIncoming);
+      if (ai === -1) return;
+      const an = archNotes[ai];
+      usedArch.add(ai); usedPos.add(pi);
+
+      const combinedMult = pn.needMult * an.mult;
+      const combinedDisplay = Math.round(an.rawValue * combinedMult).toLocaleString();
+      const rawDisplay = Math.round(an.rawValue).toLocaleString();
+      const connector = pn.tone === an.tone ? 'and' : 'but';
+
+      const needClause = pn.isIncoming
+        ? (pn.tone === 'good' ? `fills a genuine ${pn.pos} need` : `piles onto an already-deep ${pn.pos} room`)
+        : (pn.tone === 'good' ? `deals from ${pn.pos} surplus` : `leaves this team thin at ${pn.pos}`);
+      const archClause = an.isIncoming
+        ? (an.tone === 'good' ? `is exactly what a ${an.planWord} wants` : `doesn't fit a ${an.planWord}`)
+        : (an.tone === 'bad' ? `fit the ${an.planWord}` : `didn't fit the ${an.planWord} anyway`);
+
+      const text = pn.isIncoming
+        ? `${an.assetName} ${needClause} ${connector} ${archClause} — netting closer to ${combinedDisplay} for this team than the ${rawDisplay} sticker price.`
+        : `Giving up ${an.assetName} (${an.kindOfLabel}) ${needClause} ${connector} ${archClause} — netting closer to ${combinedDisplay} to give up than the ${rawDisplay} sticker price.`;
+
+      // Incoming: a combined value ABOVE sticker is good (you got more than the price
+      // tag says). Outgoing: a combined value above sticker is bad (it cost you more
+      // to give up than the price tag says) — same direction both source notes
+      // already used individually, just applied to the one merged figure.
+      const tone = pn.isIncoming === (combinedMult >= 1) ? 'good' : 'bad';
+      merged.push({ tone, text, pos: pn.pos, absDelta: Math.abs(an.rawValue * combinedMult - an.rawValue), phrase: pn.phrase });
+    });
+    const restArch = archNotes.filter((_, i) => !usedArch.has(i));
+    const restPos = posNotes.filter((_, i) => !usedPos.has(i));
+    return [...merged, ...restArch, ...restPos];
   },
 
   /* Picks the single biggest storyline for one side of a trade — the positional
