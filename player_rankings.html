@@ -515,6 +515,7 @@
       leagueInfo.textContent = 'Loading…';
       const league = await fetch(`https://api.sleeper.app/v1/league/${id}`).then(r => r.json());
       if (!league || league.error) throw new Error('League not found');
+      if (!Vault.isDynastyLeague(league)) throw new Error(`"${league.name}" is a redraft/keeper league, not dynasty — The Vault only supports dynasty leagues.`);
       const users = await fetch(`https://api.sleeper.app/v1/league/${id}/users`).then(r => r.json());
       isSF = (league.roster_positions || []).includes('SUPER_FLEX');
       scoringSettings = league.scoring_settings || {};
@@ -532,20 +533,19 @@
         </div>
       `;
       log(`Sleeper league loaded: ${Vault.escapeHtml(league.name)} (${users.length} users, ${isSF ? 'Superflex' : '1QB'})`);
+      return true;
     } catch (e) {
       console.error(e);
-      leagueInfo.textContent = 'Failed to load league';
+      leagueInfo.textContent = e.message;
       log(`League load error: ${e.message}`, 'error');
+      return false;
     }
-    return isSF;
   }
 
   $('#loadLeague').addEventListener('click', async () => {
     const id = $('#leagueId').value.trim();
     if (!id) return;
-    Vault.setLeagueId(id);
-    await loadLeague(id);
-    loadData();
+    if (await loadLeague(id)) { Vault.setLeagueId(id); loadData(); }
   });
   $('#leagueId').addEventListener('keydown', e => { if (e.key === 'Enter') $('#loadLeague').click(); });
 

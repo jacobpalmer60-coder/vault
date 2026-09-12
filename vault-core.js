@@ -302,6 +302,14 @@ const Vault = {
     ));
   },
 
+  // Sleeper's settings.type: 0 = redraft, 1 = keeper, 2 = dynasty. Everything this
+  // app models — rebuild/contend archetypes, contention windows, 4-year pick-value
+  // curves — only means anything for a dynasty league, so anything else needs to be
+  // refused up front rather than quietly producing numbers that don't mean anything.
+  isDynastyLeague(league) {
+    return !!(league && league.settings && league.settings.type === 2);
+  },
+
   /* ---------- Sleeper API ---------- */
   async fetchSleeperCore(leagueId) {
     const [league, users, rosters, players, traded, drafts] = await Promise.all([
@@ -313,6 +321,7 @@ const Vault = {
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`).then(r => r.json()).catch(() => [])
     ]);
     if (!league || league.error) throw new Error('League not found. Double-check the league ID.');
+    if (!Vault.isDynastyLeague(league)) throw new Error(`"${league.name}" is a redraft/keeper league, not dynasty — The Vault only supports dynasty leagues.`);
     return { league, users, rosters, players, traded, drafts };
   },
 

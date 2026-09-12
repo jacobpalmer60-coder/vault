@@ -99,9 +99,11 @@ async function loadLeague(id) {
     renderSingle(found || built[0]);
     renderSummary(built);
     $('#status').textContent = `Loaded ${built.length} teams • ${isSF ? 'Superflex' : '1QB'}`;
+    return true;
   } catch (e) {
     console.error(e);
     $('#status').textContent = e.message;
+    return false;
   }
 }
 
@@ -196,9 +198,9 @@ function renderSummary(teams) {
   `).join('');
 }
 
-document.getElementById('loadBtn').onclick = () => {
+document.getElementById('loadBtn').onclick = async () => {
   const id = document.getElementById('leagueId').value.trim();
-  if (id) { Vault.setLeagueId(id); loadLeague(id); }
+  if (id && await loadLeague(id)) Vault.setLeagueId(id);
 };
 window.addEventListener('DOMContentLoaded', () => {
   const id = Vault.getLeagueId();

@@ -135,12 +135,17 @@
         try {
           const u = await fetch(`https://api.sleeper.app/v1/user/${user}`).then(r => r.json());
           if (!u || !u.user_id) throw new Error('User not found');
-          const leagues = await Promise.all(
+          const allLeagues = await Promise.all(
             [...Array(12)].map((_, i) =>
               fetch(`https://api.sleeper.app/v1/user/${u.user_id}/leagues/nfl/${2026 - i}`).then(r => r.json()).catch(() => [])
             )
           ).then(a => a.flat());
-          if (!leagues.length) throw new Error('No leagues found for that username');
+          if (!allLeagues.length) throw new Error('No leagues found for that username');
+          // The Vault only supports dynasty leagues — see Vault.isDynastyLeague.
+          // Redraft/keeper leagues are excluded here rather than left for a later
+          // page to reject, so the picker only ever offers leagues that'll work.
+          const leagues = allLeagues.filter(Vault.isDynastyLeague);
+          if (!leagues.length) throw new Error(`Found ${allLeagues.length} league(s) for that username, but none are dynasty — The Vault only supports dynasty leagues.`);
           leagueSelect.innerHTML = leagues.map(l => `<option value="${l.league_id}">${Vault.escapeHtml(l.name)} • ${l.season}</option>`).join('');
           stepLeague.classList.remove('hidden');
           onChange();
@@ -169,9 +174,19 @@
 
       loadBtn.onclick = loadLeagues;
       leagueSelect.onchange = onChange;
-      $('directBtn').onclick = () => {
+      $('directBtn').onclick = async () => {
         const id = $('directLeagueId').value.trim();
-        if (id) activate(id);
+        if (!id) return;
+        errorMsg.classList.add('hidden');
+        try {
+          const league = await fetch(`https://api.sleeper.app/v1/league/${id}`).then(r => r.json());
+          if (!league || league.error) throw new Error('League not found. Double-check the league ID.');
+          if (!Vault.isDynastyLeague(league)) throw new Error(`"${league.name}" is a redraft/keeper league, not dynasty — The Vault only supports dynasty leagues.`);
+          activate(id);
+        } catch (e) {
+          errorMsg.textContent = e.message;
+          errorMsg.classList.remove('hidden');
+        }
       };
     })();
   </script>
