@@ -41,7 +41,7 @@
 
     mount.innerHTML = `
       <header class="sticky top-0 z-40 border-b border-white/8 bg-black/70 backdrop-blur-xl">
-        <div class="max-w-[1500px] mx-auto px-4 sm:px-6 h-16 flex flex-wrap items-center justify-between gap-3">
+        <div class="max-w-[1500px] mx-auto px-4 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-3">
           <a href="index.html" class="flex items-center gap-3 shrink-0 group">
             <div class="size-9 rounded-full bg-gradient-to-br from-amber-300 to-yellow-600 p-[1.5px] shadow-[0_0_20px_rgba(250,204,21,0.25)] transition-shadow group-hover:shadow-[0_0_28px_rgba(250,204,21,0.4)]">
               <div class="size-full rounded-full bg-black grid place-items-center"><span class="display text-base gold-text">V</span></div>

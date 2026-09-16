@@ -49,10 +49,11 @@ function renderCard(s, rank) {
   const notes = Vault.managerTendencyNotes(s, window._avgTrades || 0);
   return `
     <div class="card rounded-vault-sm p-5">
-      <div class="flex items-center justify-between gap-3 mb-4">
+      <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div>
           <div class="text-[11px] text-zinc-500 uppercase tracking-wider">Rank #${rank}</div>
-          <h3 class="text-[18px] font-semibold text-zinc-100">${Vault.escapeHtml(s.teamName)}</h3>
+          <h3 class="text-[16px] sm:text-[18px] font-semibold text-zinc-100 break-words">${Vault.escapeHtml(s.teamName)}</h3>
+          ${s.record ? `<div class="text-[12px] mono text-zinc-400 mt-0.5">${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''} <span class="text-zinc-600">season record</span></div>` : ''}
         </div>
         <div class="text-right">
           <div class="text-[17px] mono font-semibold ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</div>
@@ -60,9 +61,9 @@ function renderCard(s, rank) {
         </div>
       </div>
 
-      <div class="grid grid-cols-4 gap-1 text-center py-3 border-y border-white/5 mb-4">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-1 text-center py-3 border-y border-white/5 mb-4">
         <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[11px] text-zinc-500">Trades</div></div>
-        <div><div class="text-[14px] mono">${s.won}-${s.lost}</div><div class="text-[11px] text-zinc-500">W-L</div></div>
+        <div><div class="text-[14px] mono">${s.won}-${s.lost}</div><div class="text-[11px] text-zinc-500" title="Trades that came out ahead vs. behind on value">Trade W-L</div></div>
         <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.avgFit, 1)}</div><div class="text-[11px] text-zinc-500">Avg Fit</div></div>
         <div><div class="text-[14px] mono">${s.fair}/${s.borderline}/${s.lopsided}</div><div class="text-[11px] text-zinc-500" title="Fair / Borderline / Lopsided">F/B/L</div></div>
       </div>

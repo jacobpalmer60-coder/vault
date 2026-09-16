@@ -24,7 +24,9 @@
     <button id="refresh" class="btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
   </div>
 
-  <div class="card rounded-vault overflow-hidden">
+  <div id="mobileCards" class="md:hidden space-y-3"></div>
+
+  <div class="hidden md:block card rounded-vault overflow-hidden">
     <div class="overflow-x-auto scrollbar">
       <table class="w-full text-[13px]">
         <thead class="bg-black/40 border-b border-white/5 sticky top-0">
@@ -41,6 +43,9 @@
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="age">Age</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="opt">Opt PPG</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="longevity">Longevity</th>
+            <th class="text-right px-3 py-3.5 font-medium">Proj. Record</th>
+            <th class="text-right px-3 py-3.5 font-medium">Playoff %</th>
+            <th class="text-right px-3 py-3.5 font-medium">Title %</th>
             <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="archSort">Archetype</th>
           </tr>
         </thead>
@@ -71,6 +76,8 @@
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Opt PPG</span><span class="text-zinc-400"> — Best lineup, league scoring</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Longevity</span><span class="text-zinc-400"> — Of the next 5 projected years (position-decay + arriving picks), how many still clear the real playoff line. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from how you stand now vs. how long that lasts (see guide below)</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Career</span><span class="text-zinc-400"> — All-time W-L-T for this manager, summed across every season Sleeper's league-history chain has for this league</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Proj. Record / Playoff % / Title %</span><span class="text-zinc-400"> — Monte Carlo'd against the real remaining schedule using each team's Opt PPG as weekly strength (±22% week-to-week variance) — a rough estimate, not a guarantee</span></div>
     </div>
   </div>
 
@@ -103,6 +110,24 @@ document.getElementById('archGuide').innerHTML = Object.entries(Vault.ARCHETYPE_
     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border bg-gradient-to-r mb-1.5 ${info.cls}">${name}</span>
     <div class="text-zinc-400 text-[12px]">${Vault.escapeHtml(info.desc)}</div>
   </div>`).join('');
+
+function recordText(t) {
+  const r = t.record;
+  return `${r.wins}-${r.losses}${r.ties ? '-' + r.ties : ''}`;
+}
+
+function careerRecordText(t) {
+  const c = t.careerRecord;
+  if (!c) return null;
+  return `${c.wins}-${c.losses}${c.ties ? '-' + c.ties : ''} <span class="text-zinc-600">career (${c.seasons} season${c.seasons === 1 ? '' : 's'})</span>`;
+}
+
+function projectedText(t) {
+  const p = t.projected;
+  if (!p) return null;
+  const rec = `${Math.round(p.projWins)}-${Math.round(p.projLosses)}${p.projTies >= 0.5 ? '-' + Math.round(p.projTies) : ''}`;
+  return { rec, playoffPct: p.playoffPct, championshipPct: p.championshipPct };
+}
 
 function microBar(val, max) {
   const pct = max > 0 ? Math.max(3, Math.min(100, val / max * 100)) : 0;
@@ -242,7 +267,7 @@ async function load() {
   const status = document.getElementById('status');
   status.innerHTML = `<div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>`;
   try {
-    const { teams: built } = await Vault.buildLeagueTeams(Vault.getLeagueId());
+    const { teams: built, league } = await Vault.buildLeagueTeams(Vault.getLeagueId());
     teams = built;
     render();
     status.innerHTML = `<div class="size-2 rounded-full bg-emerald-400"></div><span>Live • ${teams.length} teams</span>`;
@@ -252,10 +277,82 @@ async function load() {
       document.getElementById('picksLegend').textContent = ` — ${lo}-${String(hi).slice(-2)} R1-4 live from Sleeper`;
     }
     Vault.fetchTeamValueHistory().then(h => renderValueHistory(h, teams)).catch(() => {});
+
+    // Career record (walks the league's season-history chain) and the rest-of-
+    // season simulation (real remaining schedule, Monte Carlo'd) both take a
+    // handful of extra fetches — run them after the initial paint instead of
+    // blocking it, then re-render once each lands.
+    Vault.fetchLeagueHistory(league).then(past => {
+      const overall = Vault.buildOverallRecords(teams, past);
+      teams.forEach(t => { t.careerRecord = overall.get(t.ownerId) || null; });
+      render();
+    }).catch(() => {});
+    Vault.fetchRemainingSchedule(Vault.getLeagueId(), league).then(remainingWeeks => {
+      const projections = Vault.simulateSeason(teams, league, remainingWeeks);
+      teams.forEach(t => { t.projected = projections.get(t.rosterId) || null; });
+      render();
+    }).catch(() => {});
   } catch (e) {
     console.error(e);
     status.innerHTML = `<div class="size-2 rounded-full bg-rose-400"></div><span>${Vault.escapeHtml(e.message)}</span>`;
   }
+}
+
+// Shared expanded detail (best lineup + top players by position + picks) — used
+// by both the desktop table row and the mobile card, so they can't drift apart.
+function teamDetailPanel(t) {
+  return `<div class="grid lg:grid-cols-6 gap-6 pt-4">${bestLineupPanel(t)}${['QB', 'RB', 'WR', 'TE'].map(pos => { const ps = t.plist.filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8); return `<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${pos}</div><div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-300 truncate mr-2">${Vault.escapeHtml(p.name) || '—'}</span><span class="font-mono text-zinc-500">${Math.round(p.value).toLocaleString()}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div>`; }).join('')}<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${t.picks.length ? Math.min(...t.picks.map(p => p.season)) + '-' + String(Math.max(...t.picks.map(p => p.season))).slice(-2) : ''} Picks</div><div class="space-y-1.5 max-h-[180px] overflow-auto pr-2 scrollbar">${t.picks.sort((a, b) => a.season - b.season || a.round - b.round).map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-400">${p.season} R${p.round} <span class="text-zinc-600">(orig ${p.original})</span></span><span class="font-mono ${p.tier === 'early' ? 'text-emerald-400' : p.tier === 'mid' ? 'text-amber-300' : 'text-rose-400'}">${p.tier}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div></div>`;
+}
+
+// Card view for narrow screens — same data as the table, no horizontal scroll.
+// Tapping a card expands the same detail panel the table row does.
+function renderMobileCards(data, maxOverall) {
+  const mount = document.getElementById('mobileCards');
+  mount.innerHTML = data.map(t => {
+    const exp = expanded.has(t.rosterId);
+    const proj = projectedText(t);
+    return `<div class="card card-hover rounded-vault-sm p-4 mobile-team-card" data-id="${t.rosterId}">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="w-5 text-right text-[11px] font-mono text-zinc-500 shrink-0">${t.rank}</span>
+          <div class="min-w-0">
+            <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
+            <div class="text-[11px] text-zinc-500 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
+            ${careerRecordText(t) ? `<div class="text-[11px] text-zinc-600 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
+          </div>
+        </div>
+        <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 mt-3.5">
+        <div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider">Overall</div>
+          <div class="font-mono text-[16px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
+          ${microBar(t.overall, maxOverall)}
+        </div>
+        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
+      </div>
+
+      <div class="mt-3.5">${posSplitBar(t)}</div>
+
+      <div class="grid grid-cols-3 gap-2 text-center py-3 mt-3.5 border-y border-white/5">
+        <div><div class="font-mono text-[13px] text-zinc-200">${t.age.toFixed(1)}</div><div class="text-[11px] text-zinc-500">Age</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-200">${t.opt.toFixed(1)}</div><div class="text-[11px] text-zinc-500">Opt PPG</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-200">${t.windowYears}yr</div><div class="text-[11px] text-zinc-500">Longevity</div></div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2 text-center py-3 border-b border-white/5">
+        <div><div class="font-mono text-[13px] text-zinc-200">${proj?.rec ?? '—'}</div><div class="text-[11px] text-zinc-500">Proj. Record</div></div>
+        <div><div class="font-mono text-[13px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-200'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</div><div class="text-[11px] text-zinc-500">Playoff %</div></div>
+        <div><div class="font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-200'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</div><div class="text-[11px] text-zinc-500">Title %</div></div>
+      </div>
+
+      ${exp ? `<div class="pt-4">${teamDetailPanel(t)}</div>` : ''}
+    </div>`;
+  }).join('');
+  mount.querySelectorAll('.mobile-team-card').forEach(el => {
+    el.onclick = () => { const id = Number(el.dataset.id); if (expanded.has(id)) { expanded.delete(id); } else { expanded.add(id); } render(); };
+  });
 }
 
 function render() {
@@ -277,6 +374,7 @@ function render() {
   const maxLongevity = Math.max(...data.map(t => t.longevity));
   tb.innerHTML = data.map(t => {
     const exp = expanded.has(t.rosterId);
+    const proj = projectedText(t);
     return `<tr class="team-row" data-id="${t.rosterId}">
       <td class="px-6 py-3.5">
         <div class="flex items-center gap-3">
@@ -284,7 +382,8 @@ function render() {
           <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
           <div class="min-w-0">
             <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
-            <div class="text-[11px] text-zinc-500 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks</div>
+            <div class="text-[11px] text-zinc-500 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
+            ${careerRecordText(t) ? `<div class="text-[11px] text-zinc-600 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>
         </div>
       </td>
@@ -326,16 +425,20 @@ function render() {
         <div class="font-mono text-[13px] text-zinc-200">${t.windowYears}yr</div>
         ${microBar(t.longevity, maxLongevity)}
       </td>
+      <td class="px-3 py-3.5 text-right font-mono text-[13px] text-zinc-200">${proj?.rec ?? '—'}</td>
+      <td class="px-3 py-3.5 text-right font-mono text-[13px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-400'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
+      <td class="px-3 py-3.5 text-right font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-400'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
       <td class="px-6 py-3.5">
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
         <div class="text-[10px] text-zinc-500 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
       </td>
     </tr>
-    ${exp ? `<tr><td colspan="13" class="px-6 pb-6 bg-black/40"><div class="grid lg:grid-cols-6 gap-6 pt-4">${bestLineupPanel(t)}${['QB', 'RB', 'WR', 'TE'].map(pos => { const ps = t.plist.filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8); return `<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${pos}</div><div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-300 truncate mr-2">${Vault.escapeHtml(p.name) || '—'}</span><span class="font-mono text-zinc-500">${Math.round(p.value).toLocaleString()}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div>`; }).join('')}<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${t.picks.length ? Math.min(...t.picks.map(p => p.season)) + '-' + String(Math.max(...t.picks.map(p => p.season))).slice(-2) : ''} Picks</div><div class="space-y-1.5 max-h-[180px] overflow-auto pr-2 scrollbar">${t.picks.sort((a, b) => a.season - b.season || a.round - b.round).map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-400">${p.season} R${p.round} <span class="text-zinc-600">(orig ${p.original})</span></span><span class="font-mono ${p.tier === 'early' ? 'text-emerald-400' : p.tier === 'mid' ? 'text-amber-300' : 'text-rose-400'}">${p.tier}</span></div>`).join('') || '<div class="text-zinc-600">—</div>'}</div></div></div></td></tr>` : ''}`;
+    ${exp ? `<tr><td colspan="16" class="px-6 pb-6 bg-black/40">${teamDetailPanel(t)}</td></tr>` : ''}`;
   }).join('');
   document.querySelectorAll('tr.team-row').forEach(tr => {
     tr.onclick = () => { const id = Number(tr.dataset.id); if (expanded.has(id)) { expanded.delete(id); } else { expanded.add(id); } render(); };
   });
+  renderMobileCards(data, maxOverall);
 }
 document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.sort; if (sort.key === k) { sort.dir *= -1; } else { sort.key = k; sort.dir = -1; } render(); });
 document.getElementById('refresh').onclick = load;

@@ -717,7 +717,15 @@ const Vault = {
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
       const { total: opt, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
-      return { rosterId: r.roster_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [] };
+      // Real season standings (Sleeper's own scoreboard record), not a value or
+      // trade-derived stat — wins/losses/ties are tracked directly on the roster.
+      const rs = r.settings || {};
+      const record = {
+        wins: rs.wins || 0, losses: rs.losses || 0, ties: rs.ties || 0,
+        fpts: (rs.fpts || 0) + (rs.fpts_decimal || 0) / 100,
+        fptsAgainst: (rs.fpts_against || 0) + (rs.fpts_against_decimal || 0) / 100
+      };
+      return { rosterId: r.roster_id, ownerId: r.owner_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [], record };
     });
 
     /* ---------- Per-player value/production divergence ----------
@@ -1895,7 +1903,7 @@ const Vault = {
     const byTeam = new Map();
     const ensure = team => {
       if (!byTeam.has(team.rosterId)) byTeam.set(team.rosterId, {
-        teamName: team.teamName, rosterId: team.rosterId,
+        teamName: team.teamName, rosterId: team.rosterId, record: team.record,
         trades: 0, won: 0, lost: 0, netValue: 0, fitSum: 0,
         netPicks: 0, ageDeltaSum: 0,
         fair: 0, borderline: 0, lopsided: 0, lopsidedFor: 0, lopsidedAgainst: 0,
@@ -2012,5 +2020,185 @@ const Vault = {
     }
     if (!notes.length) notes.push({ tone: 'neutral', text: 'Not enough trade history yet for a clear read.' });
     return notes;
+  },
+
+  /* ---------- Career (all-time) record ----------
+     Sleeper's roster.settings.wins/losses only cover the CURRENT season — a
+     manager's real history spans however many seasons this league has run,
+     chained backward through each league's own previous_league_id. Rosters
+     (and roster_ids) get reshuffled/recreated every season, but a manager's
+     Sleeper user_id doesn't, so career totals are keyed by owner_id, not
+     roster_id — see buildOverallRecords. Capped at 25 seasons back purely as
+     a runaway-loop guard; no real dynasty league is anywhere close to that. */
+  async fetchLeagueHistory(league) {
+    const seasons = [];
+    // Sleeper sets previous_league_id to the STRING "0" (truthy in JS) for a
+    // league's first season, not null/empty — without this check that fetches
+    // a guaranteed-404 /league/0 every time a brand-new league loads this page.
+    let prevId = league.previous_league_id;
+    if (prevId === '0') prevId = null;
+    let guard = 0;
+    while (prevId && guard < 25) {
+      guard++;
+      let lg, rosters;
+      try {
+        [lg, rosters] = await Promise.all([
+          fetch(`https://api.sleeper.app/v1/league/${prevId}`).then(r => r.json()),
+          fetch(`https://api.sleeper.app/v1/league/${prevId}/rosters`).then(r => r.json())
+        ]);
+      } catch { break; }
+      if (!lg || lg.error) break;
+      seasons.push({ season: lg.season, rosters: rosters || [] });
+      prevId = lg.previous_league_id === '0' ? null : lg.previous_league_id;
+    }
+    return seasons;
+  },
+
+  // owner_id -> { wins, losses, ties, seasons } summed across the current season's
+  // teams (from buildLeagueTeams — already carries ownerId + record) plus every
+  // past season fetchLeagueHistory found. A manager who joined partway through
+  // the league's history just accumulates fewer seasons, same as a real career
+  // record would.
+  buildOverallRecords(currentTeams, pastSeasons) {
+    const byOwner = new Map();
+    const add = (ownerId, rs) => {
+      if (!ownerId) return;
+      const rec = byOwner.get(ownerId) || { wins: 0, losses: 0, ties: 0, seasons: 0 };
+      rec.wins += rs.wins || 0; rec.losses += rs.losses || 0; rec.ties += rs.ties || 0; rec.seasons++;
+      byOwner.set(ownerId, rec);
+    };
+    (currentTeams || []).forEach(t => add(t.ownerId, t.record || {}));
+    (pastSeasons || []).forEach(s => s.rosters.forEach(r => add(r.owner_id, r.settings || {})));
+    return byOwner;
+  },
+
+  /* ---------- Rest-of-season simulation ----------
+     Projected record / playoff odds / championship odds, Monte Carlo'd against
+     the league's REAL remaining schedule (not a random pairing) — Sleeper
+     generates the full-season matchup grid up front, so future weeks' roster
+     pairings are already known even though they haven't been played. A week
+     counts as "remaining" if nobody has posted points yet; anything already
+     played is left alone since it's already baked into the real win/loss record. */
+  async fetchRemainingSchedule(leagueId, league) {
+    const playoffStart = league.settings?.playoff_week_start || 15;
+    const startWeek = Math.max(1, (league.settings?.leg || 1));
+    const weeks = [];
+    for (let w = startWeek; w < playoffStart; w++) weeks.push(w);
+    if (!weeks.length) return [];
+    const results = await Promise.all(weeks.map(w =>
+      fetch(`https://api.sleeper.app/v1/league/${leagueId}/matchups/${w}`).then(r => r.json()).catch(() => [])
+    ));
+    return weeks.map((w, i) => {
+      const entries = results[i] || [];
+      const played = entries.some(m => (m.points || 0) > 0);
+      if (played) return null;
+      const byMatchup = new Map();
+      entries.forEach(m => {
+        if (m.matchup_id == null) return;
+        if (!byMatchup.has(m.matchup_id)) byMatchup.set(m.matchup_id, []);
+        byMatchup.get(m.matchup_id).push(m.roster_id);
+      });
+      const pairs = [...byMatchup.values()].filter(a => a.length === 2);
+      return pairs.length ? { week: w, pairs } : null;
+    }).filter(Boolean);
+  },
+
+  // Standard normal draw (Box-Muller) — the only randomness source for the
+  // season/bracket simulation below.
+  _randn() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  },
+
+  // One simulated single-elimination bracket from a seed list (best seed first).
+  // Byes go to the top seeds when the field isn't a power of two — e.g. 6 seeds
+  // reduces to seeds 1-2 on a bye, 3v6 and 4v5 playing it out — the standard
+  // convention most fantasy platforms use, then reseeds the survivors by their
+  // original seed each round. Sleeper doesn't expose a way to query its own
+  // bracket's exact pairing ahead of the playoffs actually starting, so this is
+  // an approximation — close enough that simulated title odds track team
+  // strength correctly even if one specific pairing differs from Sleeper's own.
+  simulateBracket(seeds, strength, sigmaPct) {
+    const drawScore = id => {
+      const mean = strength.get(id) || 0;
+      return Math.max(0, mean + Vault._randn() * mean * sigmaPct);
+    };
+    let remaining = seeds.slice();
+    while (remaining.length > 1) {
+      const n = remaining.length;
+      const p = Math.pow(2, Math.ceil(Math.log2(n)));
+      const byes = p - n;
+      const byeTeams = remaining.slice(0, byes);
+      const playing = remaining.slice(byes);
+      const winners = [];
+      for (let i = 0; i < playing.length / 2; i++) {
+        const a = playing[i], b = playing[playing.length - 1 - i];
+        winners.push(drawScore(a) >= drawScore(b) ? a : b);
+      }
+      remaining = [...byeTeams, ...winners];
+    }
+    return remaining[0];
+  },
+
+  /* Main entry point: Monte Carlo the rest of the regular season plus the
+     playoff bracket, `trials` times. Team "strength" is held fixed at each
+     team's current Opt PPG for the whole simulation (no in-season strength
+     drift modeled) with a flat +/-22% per-week standard deviation — a rough
+     but honest stand-in for real week-to-week fantasy variance, not fitted
+     against this league's actual scoring spread. Regular-season standings use
+     Sleeper's own tiebreak (wins, then total points). Returns rosterId ->
+     { projWins, projLosses, projTies, playoffPct, championshipPct }. */
+  simulateSeason(teams, league, remainingWeeks, opts = {}) {
+    const trials = opts.trials || 2000;
+    const sigmaPct = opts.sigmaPct || 0.22;
+    const playoffSpots = Math.min(teams.length, league.settings?.playoff_teams || 6);
+    const rosterIds = teams.map(t => t.rosterId);
+    const strength = new Map(teams.map(t => [t.rosterId, t.opt]));
+    const baseWins = new Map(teams.map(t => [t.rosterId, t.record?.wins || 0]));
+    const baseLosses = new Map(teams.map(t => [t.rosterId, t.record?.losses || 0]));
+    const baseTies = new Map(teams.map(t => [t.rosterId, t.record?.ties || 0]));
+    const baseFpts = new Map(teams.map(t => [t.rosterId, t.record?.fpts || 0]));
+
+    const totals = new Map(rosterIds.map(id => [id, { winsSum: 0, lossesSum: 0, tiesSum: 0, playoffCount: 0, champCount: 0 }]));
+    const drawScore = id => {
+      const mean = strength.get(id) || 0;
+      return Math.max(0, mean + Vault._randn() * mean * sigmaPct);
+    };
+
+    for (let trial = 0; trial < trials; trial++) {
+      const wins = new Map(baseWins), losses = new Map(baseLosses), ties = new Map(baseTies), fpts = new Map(baseFpts);
+      remainingWeeks.forEach(wk => {
+        wk.pairs.forEach(([a, b]) => {
+          const sa = drawScore(a), sb = drawScore(b);
+          fpts.set(a, fpts.get(a) + sa); fpts.set(b, fpts.get(b) + sb);
+          if (sa > sb) { wins.set(a, wins.get(a) + 1); losses.set(b, losses.get(b) + 1); }
+          else if (sb > sa) { wins.set(b, wins.get(b) + 1); losses.set(a, losses.get(a) + 1); }
+          else { ties.set(a, ties.get(a) + 1); ties.set(b, ties.get(b) + 1); }
+        });
+      });
+      const standings = [...rosterIds].sort((x, y) => (wins.get(y) - wins.get(x)) || (fpts.get(y) - fpts.get(x)));
+      const seeds = standings.slice(0, playoffSpots);
+      seeds.forEach(id => totals.get(id).playoffCount++);
+      rosterIds.forEach(id => {
+        const t = totals.get(id);
+        t.winsSum += wins.get(id); t.lossesSum += losses.get(id); t.tiesSum += ties.get(id);
+      });
+      if (seeds.length >= 2) {
+        const champ = Vault.simulateBracket(seeds, strength, sigmaPct);
+        totals.get(champ).champCount++;
+      }
+    }
+
+    const out = new Map();
+    rosterIds.forEach(id => {
+      const t = totals.get(id);
+      out.set(id, {
+        projWins: t.winsSum / trials, projLosses: t.lossesSum / trials, projTies: t.tiesSum / trials,
+        playoffPct: t.playoffCount / trials * 100, championshipPct: t.champCount / trials * 100
+      });
+    });
+    return out;
   }
 };
