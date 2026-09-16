@@ -33,7 +33,7 @@
           <tr class="text-[11px] uppercase tracking-wider text-zinc-500">
             <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="teamName">Team</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="overall">Overall</th>
-            <th class="text-left px-3 py-3.5 font-medium min-w-[170px]">Position Split</th>
+            <th class="text-left px-3 py-3.5 font-medium min-w-[170px] sortable" data-sort="posConcentration" title="Sorts by how concentrated a roster's value is in its single biggest position">Position Split</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="total">Players</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="qb">QB</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="rb">RB</th>
@@ -43,9 +43,9 @@
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="age">Age</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="opt">Opt PPG</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="longevity">Longevity</th>
-            <th class="text-right px-3 py-3.5 font-medium">Proj. Record</th>
-            <th class="text-right px-3 py-3.5 font-medium">Playoff %</th>
-            <th class="text-right px-3 py-3.5 font-medium">Title %</th>
+            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="projWins">Proj. Record</th>
+            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="playoffPct">Playoff %</th>
+            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="championshipPct">Title %</th>
             <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="archSort">Archetype</th>
           </tr>
         </thead>
@@ -328,7 +328,15 @@ async function load() {
     }).catch(() => {});
     Vault.fetchRemainingSchedule(Vault.getLeagueId(), league).then(remainingWeeks => {
       const projections = Vault.simulateSeason(teams, league, remainingWeeks);
-      teams.forEach(t => { t.projected = projections.get(t.rosterId) || null; });
+      teams.forEach(t => {
+        const p = projections.get(t.rosterId) || null;
+        t.projected = p;
+        // Flat aliases so the generic column sort (a[sort.key]) can reach these —
+        // it only ever does a plain property read, not a nested path.
+        t.projWins = p ? p.projWins : undefined;
+        t.playoffPct = p ? p.playoffPct : undefined;
+        t.championshipPct = p ? p.championshipPct : undefined;
+      });
       render();
     }).catch(() => {});
   } catch (e) {
@@ -396,6 +404,13 @@ function renderMobileCards(data, maxOverall) {
 
 function render() {
   const tb = document.getElementById('tbody');
+  // Position Split has no single natural number to sort by — use how
+  // concentrated a roster's player value is in its single biggest position
+  // (0-1) as the sort metric, computed fresh each render since it's cheap.
+  teams.forEach(t => {
+    const sum = t.qb + t.rb + t.wr + t.te || 1;
+    t.posConcentration = Math.max(t.qb, t.rb, t.wr, t.te) / sum;
+  });
   const data = [...teams].sort((a, b) => {
     let av = a[sort.key], bv = b[sort.key];
     if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
