@@ -26,8 +26,8 @@
 
   <div id="mobileCards" class="md:hidden space-y-3"></div>
 
-  <div class="hidden md:block card rounded-vault overflow-hidden">
-    <div class="overflow-x-auto scrollbar">
+  <div class="hidden md:block card rounded-vault overflow-hidden relative">
+    <div id="tableScroll" class="overflow-x-auto scrollbar">
       <table class="w-full text-[13px]">
         <thead class="bg-black/40 border-b border-white/5 sticky top-0">
           <tr class="text-[11px] uppercase tracking-wider text-zinc-500">
@@ -46,12 +46,13 @@
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="projWins">Proj. Record</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="playoffPct">Playoff %</th>
             <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="championshipPct">Title %</th>
-            <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="archSort">Archetype</th>
+            <th class="text-left pl-6 pr-10 py-3.5 font-medium sortable" data-sort="archSort">Archetype</th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.04]"></tbody>
       </table>
     </div>
+    <div id="scrollHint" class="hidden absolute top-0 right-0 bottom-0 w-10 pointer-events-none bg-gradient-to-l from-[#14161b] to-transparent"></div>
   </div>
 
   <div class="mt-8 card rounded-vault p-6">
@@ -482,7 +483,7 @@ function render() {
       <td class="px-3 py-3.5 text-right font-mono text-[13px] text-zinc-200">${proj?.rec ?? '—'}</td>
       <td class="px-3 py-3.5 text-right font-mono text-[13px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-400'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
       <td class="px-3 py-3.5 text-right font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-400'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
-      <td class="px-6 py-3.5">
+      <td class="pl-6 pr-10 py-3.5">
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
         <div class="text-[10px] text-zinc-500 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
       </td>
@@ -493,9 +494,26 @@ function render() {
     tr.onclick = () => { const id = Number(tr.dataset.id); if (expanded.has(id)) { expanded.delete(id); } else { expanded.add(id); } render(); };
   });
   renderMobileCards(data, maxOverall);
+  updateScrollHint();
 }
 document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.sort; if (sort.key === k) { sort.dir *= -1; } else { sort.key = k; sort.dir = -1; } render(); });
 document.getElementById('refresh').onclick = load;
+
+// The 16-column table needs horizontal scroll on anything short of a very wide
+// monitor — without a visible cue, a partly-scrolled-off column (the rightmost,
+// Archetype) reads as broken/cut-off text rather than "there's more, scroll".
+// Fades in a right-edge gradient whenever there's unscrolled content, and hides
+// it once scrolled to the true end so it never overlaps real content.
+function updateScrollHint() {
+  const el = document.getElementById('tableScroll');
+  const hint = document.getElementById('scrollHint');
+  if (!el || !hint) return;
+  const hasMore = el.scrollWidth - el.clientWidth - el.scrollLeft > 4;
+  hint.classList.toggle('hidden', !hasMore);
+}
+document.getElementById('tableScroll')?.addEventListener('scroll', updateScrollHint);
+window.addEventListener('resize', updateScrollHint);
+
 load();
 </script>
 </body>
