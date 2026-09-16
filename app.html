@@ -211,7 +211,9 @@ function renderValueHistory(history, currentTeams) {
   const pad = (maxV - minV) * 0.08 || maxV * 0.1 || 1000;
   const yMin = Math.max(0, minV - pad), yMax = maxV + pad;
 
-  const W = 900, H = 300, ML = 56, MR = 16, MT = 12, MB = 28;
+  // Bigger canvas than before (380 vs 300 tall) — with up to 10 overlapping team
+  // lines, cramped vertical space was the main thing making this hard to read.
+  const W = 900, H = 380, ML = 60, MR = 16, MT = 16, MB = 32;
   const plotW = W - ML - MR, plotH = H - MT - MB;
   const x = i => ML + (snaps.length > 1 ? i / (snaps.length - 1) * plotW : 0);
   const y = v => MT + plotH - (v - yMin) / (yMax - yMin) * plotH;
@@ -219,11 +221,18 @@ function renderValueHistory(history, currentTeams) {
   const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => {
     const v = yMin + (yMax - yMin) * f, yy = y(v);
     return `<line x1="${ML}" y1="${yy}" x2="${W - MR}" y2="${yy}" stroke="currentColor" class="text-white/5"/>
-      <text x="${ML - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-500">${fmt(v)}</text>`;
+      <text x="${ML - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="currentColor" class="text-zinc-500">${fmt(v)}</text>`;
   }).join('');
 
-  const dateTicks = (snaps.length === 1 ? [0] : [0, snaps.length - 1]).map(i =>
-    `<text x="${x(i)}" y="${H - 8}" text-anchor="${snaps.length === 1 ? 'middle' : i === 0 ? 'start' : 'end'}" font-size="10" fill="currentColor" class="text-zinc-500">${snaps[i].date}</text>`
+  // Previously only ever showed the first/last date, leaving every point in
+  // between unlabeled — now shows up to 6 evenly-spaced ticks (all of them if
+  // there are fewer than 6 snapshots) so the timeline actually reads.
+  const maxTicks = 6;
+  const tickIdx = snaps.length <= maxTicks
+    ? snaps.map((_, i) => i)
+    : [...new Set(Array.from({ length: maxTicks }, (_, i) => Math.round(i * (snaps.length - 1) / (maxTicks - 1))))];
+  const dateTicks = tickIdx.map(i =>
+    `<text x="${x(i)}" y="${H - 10}" text-anchor="${i === 0 ? 'start' : i === snaps.length - 1 ? 'end' : 'middle'}" font-size="11" fill="currentColor" class="text-zinc-500">${snaps[i].date.slice(5)}</text>`
   ).join('');
 
   // A single day-1 snapshot draws as a lone dot per team rather than a line (nothing
@@ -238,24 +247,54 @@ function renderValueHistory(history, currentTeams) {
     const dots = s.points.map((v, i) => v == null ? '' : snaps[i].estimated
       ? `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="none" stroke="${s.color}" stroke-width="1.5" stroke-dasharray="1.5 1.5"><title>${snaps[i].date}: estimated (data outage)</title></circle>`
       : `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}"><title>${snaps[i].date}</title></circle>`).join('');
-    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>${dots}`;
+    // Grouped per team (data-series) so hovering a legend row can dim every
+    // other line instead of leaving all 10 stacked on top of each other at
+    // equal weight all the time.
+    return `<g data-series="${s.id}" style="transition:opacity .15s"><polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>${dots}</g>`;
   }).join('');
+
+  // Legend sorted by current value (most relevant ordering — matches the
+  // standings table) rather than snapshot/roster order, and hoverable to
+  // isolate one team's line in the chart above.
+  const legendRows = series.map(s => {
+    const vals = s.points.filter(v => v != null);
+    const first = vals[0], last = vals[vals.length - 1];
+    const delta = (snaps.length >= 2 && first != null && last != null) ? last - first : null;
+    return { s, last, delta };
+  }).sort((a, b) => (b.last ?? -Infinity) - (a.last ?? -Infinity));
 
   mount.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto">${gridLines}${lines}${dateTicks}</svg>
-    <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-      ${series.map(s => {
-        const vals = s.points.filter(v => v != null);
-        const first = vals[0], last = vals[vals.length - 1];
-        const delta = (snaps.length >= 2 && first != null && last != null) ? last - first : null;
-        return `<div class="flex items-center gap-1.5 text-[11px]">
+    <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1.5">
+      ${legendRows.map(({ s, last, delta }) => `
+        <div class="flex items-center gap-1.5 text-[11px] px-1.5 py-1 rounded-lg cursor-default legend-row" data-series="${s.id}">
           <span class="size-2 rounded-full shrink-0" style="background:${s.color}"></span>
-          <span class="text-zinc-300">${Vault.escapeHtml(s.name)}</span>
-          <span class="text-zinc-500 mono">${last != null ? fmt(last) : '—'}</span>
-          ${delta != null ? `<span class="mono ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${delta >= 0 ? '+' : ''}${fmt(delta)}</span>` : ''}
-        </div>`;
-      }).join('')}
+          <span class="text-zinc-300 truncate">${Vault.escapeHtml(s.name)}</span>
+          <span class="text-zinc-500 mono ml-auto">${last != null ? fmt(last) : '—'}</span>
+          ${delta != null ? `<span class="mono w-16 text-right ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${delta >= 0 ? '+' : ''}${fmt(delta)}</span>` : ''}
+        </div>`).join('')}
     </div>`;
+
+  mount.querySelectorAll('.legend-row').forEach(row => {
+    row.onmouseenter = () => highlightSeries(row.dataset.series);
+    row.onmouseleave = clearSeriesHighlight;
+  });
+}
+
+function highlightSeries(id) {
+  // SVG element tagNames stay their original lowercase case (unlike HTML,
+  // which normalizes to uppercase) — compare in lowercase, not '=== "G"'.
+  document.querySelectorAll('#valueHistoryChart [data-series]').forEach(el => {
+    const match = String(el.dataset.series) === String(id);
+    if (el.tagName.toLowerCase() === 'g') el.style.opacity = match ? '1' : '0.12';
+    else el.classList.toggle('bg-white/[0.06]', match);
+  });
+}
+function clearSeriesHighlight() {
+  document.querySelectorAll('#valueHistoryChart [data-series]').forEach(el => {
+    if (el.tagName.toLowerCase() === 'g') el.style.opacity = '';
+    else el.classList.remove('bg-white/[0.06]');
+  });
 }
 
 function setValueHistoryMetric(key) {

@@ -2148,12 +2148,23 @@ const Vault = {
      drift modeled) with a flat +/-22% per-week standard deviation — a rough
      but honest stand-in for real week-to-week fantasy variance, not fitted
      against this league's actual scoring spread. Regular-season standings use
-     Sleeper's own tiebreak (wins, then total points). Returns rosterId ->
-     { projWins, projLosses, projTies, playoffPct, championshipPct }. */
+     Sleeper's own tiebreak (wins, then total points).
+
+     If the league plays a median ("league average") game — league.settings.
+     league_average_match === 1 — every remaining week awards a SECOND win or
+     loss per team based on whether their score beat the field's median that
+     week, same as Sleeper itself scores it live (real season/career records
+     already reflect this since they're read straight from Sleeper's own
+     wins/losses — only the forward-looking simulation needs to model it).
+     That doubles the games-per-week for the rest of this projection, same as
+     it does in the real standings.
+
+     Returns rosterId -> { projWins, projLosses, projTies, playoffPct, championshipPct }. */
   simulateSeason(teams, league, remainingWeeks, opts = {}) {
     const trials = opts.trials || 2000;
     const sigmaPct = opts.sigmaPct || 0.22;
     const playoffSpots = Math.min(teams.length, league.settings?.playoff_teams || 6);
+    const medianGame = league.settings?.league_average_match === 1;
     const rosterIds = teams.map(t => t.rosterId);
     const strength = new Map(teams.map(t => [t.rosterId, t.opt]));
     const baseWins = new Map(teams.map(t => [t.rosterId, t.record?.wins || 0]));
@@ -2170,13 +2181,27 @@ const Vault = {
     for (let trial = 0; trial < trials; trial++) {
       const wins = new Map(baseWins), losses = new Map(baseLosses), ties = new Map(baseTies), fpts = new Map(baseFpts);
       remainingWeeks.forEach(wk => {
+        // One score per roster for the week — reused for both the head-to-head
+        // result AND the median comparison, since it's the same real game.
+        const weekScores = new Map(rosterIds.map(id => [id, drawScore(id)]));
         wk.pairs.forEach(([a, b]) => {
-          const sa = drawScore(a), sb = drawScore(b);
+          const sa = weekScores.get(a), sb = weekScores.get(b);
           fpts.set(a, fpts.get(a) + sa); fpts.set(b, fpts.get(b) + sb);
           if (sa > sb) { wins.set(a, wins.get(a) + 1); losses.set(b, losses.get(b) + 1); }
           else if (sb > sa) { wins.set(b, wins.get(b) + 1); losses.set(a, losses.get(a) + 1); }
           else { ties.set(a, ties.get(a) + 1); ties.set(b, ties.get(b) + 1); }
         });
+        if (medianGame) {
+          const sorted = [...weekScores.values()].sort((x, y) => x - y);
+          const mid = sorted.length / 2;
+          const median = sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[mid - 1] + sorted[mid]) / 2;
+          rosterIds.forEach(id => {
+            const s = weekScores.get(id);
+            if (s > median) wins.set(id, wins.get(id) + 1);
+            else if (s < median) losses.set(id, losses.get(id) + 1);
+            else ties.set(id, ties.get(id) + 1);
+          });
+        }
       });
       const standings = [...rosterIds].sort((x, y) => (wins.get(y) - wins.get(x)) || (fpts.get(y) - fpts.get(x)));
       const seeds = standings.slice(0, playoffSpots);
