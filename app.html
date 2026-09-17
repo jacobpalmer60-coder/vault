@@ -43,6 +43,7 @@
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="age">Age</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="opt">Opt PPG</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="longevity">Longevity</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="recordWinPct">Record</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="projWins">Proj. Record</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="playoffPct">Playoff %</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="championshipPct">Title %</th>
@@ -309,6 +310,9 @@ async function load() {
   try {
     const { teams: built, league } = await Vault.buildLeagueTeams(Vault.getLeagueId());
     teams = built;
+    // Flat alias so the generic column sort (a[sort.key]) can reach this — it only
+    // ever does a plain property read, not a nested path into t.record.
+    teams.forEach(t => { const g = t.record.wins + t.record.losses + t.record.ties; t.recordWinPct = g ? (t.record.wins + t.record.ties * 0.5) / g : -1; });
     render();
     status.innerHTML = `<div class="size-2 rounded-full bg-emerald-400"></div><span>Live • ${teams.length} teams</span>`;
     const allYears = teams.flatMap(t => t.picks.map(p => p.season));
@@ -437,7 +441,7 @@ function render() {
           <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
           <div class="min-w-0">
             <div class="font-semibold text-[15px] text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
-            <div class="text-[12px] text-zinc-400 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-300">${recordText(t)}</span>` : ''}</div>
+            <div class="text-[12px] text-zinc-400 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks</div>
             ${careerRecordText(t) ? `<div class="text-[12px] text-zinc-500 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>
         </div>
@@ -480,6 +484,7 @@ function render() {
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.windowYears}yr</div>
         ${microBar(t.longevity, maxLongevity)}
       </td>
+      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-200">${recordText(t)}</td>
       <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-200">${proj?.rec ?? '—'}</td>
       <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-300'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
       <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-300'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
@@ -488,7 +493,7 @@ function render() {
         <div class="text-[11px] text-zinc-400 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
       </td>
     </tr>
-    ${exp ? `<tr><td colspan="16" class="px-6 pb-6 bg-black/40">${teamDetailPanel(t)}</td></tr>` : ''}`;
+    ${exp ? `<tr><td colspan="17" class="px-6 pb-6 bg-black/40">${teamDetailPanel(t)}</td></tr>` : ''}`;
   }).join('');
   document.querySelectorAll('tr.team-row').forEach(tr => {
     tr.onclick = () => { const id = Number(tr.dataset.id); if (expanded.has(id)) { expanded.delete(id); } else { expanded.add(id); } render(); };
@@ -499,7 +504,7 @@ function render() {
 document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.sort; if (sort.key === k) { sort.dir *= -1; } else { sort.key = k; sort.dir = -1; } render(); });
 document.getElementById('refresh').onclick = load;
 
-// The 16-column table needs horizontal scroll on anything short of a very wide
+// The 17-column table needs horizontal scroll on anything short of a very wide
 // monitor — without a visible cue, a partly-scrolled-off column (the rightmost,
 // Archetype) reads as broken/cut-off text rather than "there's more, scroll".
 // Fades in a right-edge gradient whenever there's unscrolled content, and hides
