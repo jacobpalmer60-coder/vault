@@ -13,7 +13,7 @@
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[1500px] mx-auto px-6 py-10 fade-in">
+<main class="max-w-[1800px] mx-auto px-6 py-10 fade-in">
   <div class="flex items-center justify-between mb-8">
     <div>
       <h1 class="display text-[28px] gold-text">League Overview</h1>
@@ -28,25 +28,25 @@
 
   <div class="hidden md:block card rounded-vault overflow-hidden relative">
     <div id="tableScroll" class="overflow-x-auto scrollbar">
-      <table class="w-full text-[13px]">
+      <table class="w-full text-[14px]">
         <thead class="bg-black/40 border-b border-white/5 sticky top-0">
-          <tr class="text-[11px] uppercase tracking-wider text-zinc-500">
-            <th class="text-left px-6 py-3.5 font-medium sortable" data-sort="teamName">Team</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="overall">Overall</th>
-            <th class="text-left px-3 py-3.5 font-medium min-w-[170px] sortable" data-sort="posConcentration" title="Sorts by how concentrated a roster's value is in its single biggest position">Position Split</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="total">Players</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="qb">QB</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="rb">RB</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="wr">WR</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="te">TE</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="picksValue">Picks</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="age">Age</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="opt">Opt PPG</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="longevity">Longevity</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="projWins">Proj. Record</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="playoffPct">Playoff %</th>
-            <th class="text-right px-3 py-3.5 font-medium sortable" data-sort="championshipPct">Title %</th>
-            <th class="text-left pl-6 pr-10 py-3.5 font-medium sortable" data-sort="archSort">Archetype</th>
+          <tr class="text-[12px] uppercase tracking-wider text-zinc-400">
+            <th class="text-left px-6 py-4 font-semibold sortable" data-sort="teamName">Team</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="overall">Overall</th>
+            <th class="text-left px-3 py-4 font-semibold min-w-[170px] sortable" data-sort="posConcentration" title="Sorts by how concentrated a roster's value is in its single biggest position">Position Split</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="total">Players</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="qb">QB</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="rb">RB</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="wr">WR</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="te">TE</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="picksValue">Picks</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="age">Age</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="opt">Opt PPG</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="longevity">Longevity</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="projWins">Proj. Record</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="playoffPct">Playoff %</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="championshipPct">Title %</th>
+            <th class="text-left pl-6 pr-10 py-4 font-semibold sortable" data-sort="archSort">Archetype</th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.04]"></tbody>
@@ -431,61 +431,61 @@ function render() {
     const exp = expanded.has(t.rosterId);
     const proj = projectedText(t);
     return `<tr class="team-row" data-id="${t.rosterId}">
-      <td class="px-6 py-3.5">
+      <td class="px-6 py-4">
         <div class="flex items-center gap-3">
-          <span class="w-5 text-right text-[11px] font-mono text-zinc-500">${t.rank}</span>
+          <span class="w-5 text-right text-[12px] font-mono text-zinc-500">${t.rank}</span>
           <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
           <div class="min-w-0">
-            <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
-            <div class="text-[11px] text-zinc-500 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
-            ${careerRecordText(t) ? `<div class="text-[11px] text-zinc-600 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
+            <div class="font-semibold text-[15px] text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
+            <div class="text-[12px] text-zinc-400 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-300">${recordText(t)}</span>` : ''}</div>
+            ${careerRecordText(t) ? `<div class="text-[12px] text-zinc-500 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>
         </div>
       </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[15px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
         ${microBar(t.overall, maxOverall)}
       </td>
-      <td class="px-3 py-3.5">${posSplitBar(t)}</td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-zinc-100">${Math.round(t.total).toLocaleString()}</div>
+      <td class="px-3 py-4">${posSplitBar(t)}</td>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[14px] text-zinc-100">${Math.round(t.total).toLocaleString()}</div>
         ${microBar(t.total, maxTotal)}
       </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] ${POS_TEXT.QB}">${Math.round(t.qb).toLocaleString()}</div>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[14px] ${POS_TEXT.QB}">${Math.round(t.qb).toLocaleString()}</div>
         ${microBar(t.qb, maxQb)}
       </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] ${POS_TEXT.RB}">${Math.round(t.rb).toLocaleString()}</div>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[14px] ${POS_TEXT.RB}">${Math.round(t.rb).toLocaleString()}</div>
         ${microBar(t.rb, maxRb)}
       </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] ${POS_TEXT.WR}">${Math.round(t.wr).toLocaleString()}</div>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[14px] ${POS_TEXT.WR}">${Math.round(t.wr).toLocaleString()}</div>
         ${microBar(t.wr, maxWr)}
       </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] ${POS_TEXT.TE}">${Math.round(t.te).toLocaleString()}</div>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[14px] ${POS_TEXT.TE}">${Math.round(t.te).toLocaleString()}</div>
         ${microBar(t.te, maxTe)}
       </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-zinc-200">${Math.round(t.picksValue).toLocaleString()}</div>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[14px] text-zinc-200">${Math.round(t.picksValue).toLocaleString()}</div>
         ${microBar(t.picksValue, maxPicks)}
       </td>
-      <td class="px-3 py-3.5 text-right font-mono text-[13px] text-zinc-400">${t.age.toFixed(1)}</td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-zinc-200">${t.opt.toFixed(1)}</div>
+      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-300">${t.age.toFixed(1)}</td>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.opt.toFixed(1)}</div>
         ${microBar(t.opt, maxOpt)}
       </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono text-[13px] text-zinc-200">${t.windowYears}yr</div>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.windowYears}yr</div>
         ${microBar(t.longevity, maxLongevity)}
       </td>
-      <td class="px-3 py-3.5 text-right font-mono text-[13px] text-zinc-200">${proj?.rec ?? '—'}</td>
-      <td class="px-3 py-3.5 text-right font-mono text-[13px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-400'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
-      <td class="px-3 py-3.5 text-right font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-400'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
-      <td class="pl-6 pr-10 py-3.5">
-        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
-        <div class="text-[10px] text-zinc-500 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
+      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-200">${proj?.rec ?? '—'}</td>
+      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-300'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
+      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-300'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
+      <td class="pl-6 pr-10 py-4">
+        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
+        <div class="text-[11px] text-zinc-400 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
       </td>
     </tr>
     ${exp ? `<tr><td colspan="16" class="px-6 pb-6 bg-black/40">${teamDetailPanel(t)}</td></tr>` : ''}`;
