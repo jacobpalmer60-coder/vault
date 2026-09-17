@@ -32,6 +32,10 @@
         <thead class="bg-black/40 border-b border-white/5 sticky top-0">
           <tr class="text-[12px] uppercase tracking-wider text-zinc-400">
             <th class="text-left px-6 py-4 font-semibold sortable" data-sort="teamName">Team</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="recordWinPct">Record</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="projWins">Proj. Record</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="playoffPct">Playoff %</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="championshipPct">Title %</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="overall">Overall</th>
             <th class="text-left px-3 py-4 font-semibold min-w-[170px] sortable" data-sort="posConcentration" title="Sorts by how concentrated a roster's value is in its single biggest position">Position Split</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="total">Players</th>
@@ -43,10 +47,6 @@
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="age">Age</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="opt">Opt PPG</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="longevity">Longevity</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="recordWinPct">Record</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="projWins">Proj. Record</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="playoffPct">Playoff %</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="championshipPct">Title %</th>
             <th class="text-left pl-6 pr-10 py-4 font-semibold sortable" data-sort="archSort">Archetype</th>
           </tr>
         </thead>
@@ -446,6 +446,10 @@ function render() {
           </div>
         </div>
       </td>
+      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-200">${recordText(t)}</td>
+      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-200">${proj?.rec ?? '—'}</td>
+      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-300'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
+      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-300'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[15px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
         ${microBar(t.overall, maxOverall)}
@@ -484,10 +488,6 @@ function render() {
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.windowYears}yr</div>
         ${microBar(t.longevity, maxLongevity)}
       </td>
-      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-200">${recordText(t)}</td>
-      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-200">${proj?.rec ?? '—'}</td>
-      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-300'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
-      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-300'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
       <td class="pl-6 pr-10 py-4">
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
         <div class="text-[11px] text-zinc-400 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
