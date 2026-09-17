@@ -212,7 +212,11 @@
     return map;
   }
 
-  function sparkline(points, width = 56, height = 20) {
+  function sparkline(rawPoints, width = 56, height = 20) {
+    // A ppg-only backfilled checkpoint can land on a date this player has no
+    // KTC value for (see backfill-player-ppg-history.js) — filter those holes
+    // out here too, same reasoning as playerChart.
+    const points = rawPoints.filter(Number.isFinite);
     if (points.length < 2) return '';
     const min = Math.min(...points), max = Math.max(...points);
     const range = max - min || 1;
@@ -222,9 +226,17 @@
     return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="inline-block align-middle"><polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
   }
 
-  function playerChart(series, field = 'value', decimals = 0) {
+  function playerChart(rawSeries, field = 'value', decimals = 0) {
     const W = 460, H = 150, ML = 48, MR = 12, MT = 10, MB = 22;
     const plotW = W - ML - MR, plotH = H - MT - MB;
+    // Not every date has every field — the value backfill (KTC) covers years
+    // densely, but PPG only ever gets a real number on days something actually
+    // recorded it (a season boundary, or a live daily snapshot), so most
+    // backfilled days have no ppg at all. Plotting a field means only the points
+    // that actually HAVE it, not the raw shared date grid — a hole doesn't
+    // corrupt the whole scale into NaN.
+    const series = rawSeries.filter(p => Number.isFinite(p[field]));
+    if (series.length < 1) return `<div class="text-[12px] text-zinc-500 py-6 text-center">Not enough data yet.</div>`;
     const vals = series.map(p => p[field]);
     const minV = Math.min(...vals), maxV = Math.max(...vals);
     const pad = (maxV - minV) * 0.1 || maxV * 0.1 || (decimals ? 1 : 100);
@@ -372,7 +384,10 @@
         const ppg = ppgMap.get(norm) ?? null;
         const vpRatio = (Number.isFinite(value) && Number.isFinite(ppg) && ppg > 0) ? value / ppg : null;
         const trendSeries = trendMap.get(norm) || [];
-        const trendValues = trendSeries.map(pt => pt.value);
+        // Filtered to dates that actually have a value — a ppg-only backfilled
+        // checkpoint (see backfill-player-ppg-history.js) can land on a date
+        // this player has no KTC price for.
+        const trendValues = trendSeries.map(pt => pt.value).filter(Number.isFinite);
         const trendDelta = trendValues.length >= 2 ? trendValues[trendValues.length - 1] - trendValues[0] : null;
         const yearsExp = expByName.get(norm) ?? null;
         const pid = pidByName.get(norm);
