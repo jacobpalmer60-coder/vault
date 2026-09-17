@@ -75,13 +75,23 @@ function futurePickYears(league, drafts) {
   ));
 }
 
+// Mirrors Vault.ktcTepSuffix — see that function for why this picks the nearest
+// tier rather than requiring an exact bonus_rec_te match.
+function ktcTepSuffix(bonusRecTe) {
+  const b = +bonusRecTe || 0;
+  if (b < 0.25) return '';
+  if (b < 0.75) return '_tep';
+  return '_tepp';
+}
+
 // Mirrors Vault.buildKtcPickMap — maps this league's future pick years to KTC's
 // nearest priced draft class (KTC's grid can lag a year behind).
-function buildKtcPickMap(ktcData, isSF, years) {
+function buildKtcPickMap(ktcData, isSF, years, bonusRecTe) {
+  const field = (isSF ? 'sf' : 'oneQB') + ktcTepSuffix(bonusRecTe);
   const raw = new Map();
   const seasons = new Set();
   (ktcData.picks || []).forEach(p => {
-    raw.set(`${p.season}-${p.round}-${p.slot}`, isSF ? p.sf_tep : p.oneQB_tep);
+    raw.set(`${p.season}-${p.round}-${p.slot}`, p[field]);
     seasons.add(p.season);
   });
   const availYears = [...seasons].sort((a, b) => a - b);
@@ -139,10 +149,12 @@ async function main() {
   if (!projData) throw new Error('data/projections.json missing — run fetch-projections.js first.');
 
   const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+  const bonusRecTe = league.scoring_settings?.bonus_rec_te;
+  const valueField = (isSF ? 'sf' : 'oneQB') + ktcTepSuffix(bonusRecTe);
   const valueByName = new Map();
   (ktcData.players || []).forEach(p => {
     const key = normalizeName(p.name);
-    if (key) valueByName.set(key, isSF ? p.sf_tep : p.oneQB_tep);
+    if (key) valueByName.set(key, p[valueField]);
   });
 
   // Projections are keyed by Sleeper player_id (no name-matching needed, unlike KTC).
@@ -183,7 +195,7 @@ async function main() {
   // players, so "total" here has to fold picksValue in the same way the live
   // League Overview page already does (its separate "Total"/"Picks" columns).
   const pickYears = futurePickYears(league, drafts);
-  const pickMap = buildKtcPickMap(ktcData, isSF, pickYears);
+  const pickMap = buildKtcPickMap(ktcData, isSF, pickYears, bonusRecTe);
   const pickOwner = new Map();
   pickYears.forEach(y => PICK_ROUNDS.forEach(rnd => rosters.forEach(ro => pickOwner.set(`${y}-${rnd}-${ro.roster_id}`, ro.roster_id))));
   (traded || []).filter(p => pickYears.includes(+p.season)).forEach(p => {

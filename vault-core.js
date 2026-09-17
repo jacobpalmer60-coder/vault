@@ -359,12 +359,25 @@ const Vault = {
     return res.json();
   },
 
-  buildKtcValueMap(ktcData, isSF) {
+  // KTC only prices Tight End Premium at two discrete bonus tiers — 0.5 ("TEP") and
+  // 1.0 ("TEPP") — but a league's own bonus_rec_te can be set to anything, so this
+  // picks whichever tier is closest instead of requiring an exact match, and falls
+  // through to the plain (no-TEP) field below a 0.25 bonus. Suffix appended to the
+  // 'sf'/'oneQB' field names fetch-ktc.js writes to ktc-values.json.
+  ktcTepSuffix(bonusRecTe) {
+    const b = +bonusRecTe || 0;
+    if (b < 0.25) return '';
+    if (b < 0.75) return '_tep';
+    return '_tepp';
+  },
+
+  buildKtcValueMap(ktcData, isSF, bonusRecTe) {
+    const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
     const map = new Map();
     (ktcData.players || []).forEach(p => {
       const key = Vault.normalizeName(p.name);
       if (!key) return;
-      map.set(key, isSF ? p.sf_tep : p.oneQB_tep);
+      map.set(key, p[field]);
     });
     return map;
   },
@@ -407,11 +420,12 @@ const Vault = {
      available seasons can lag a league's actual future pick years by a year. Map
      each of the league's years to whichever KTC season is closest rather than
      hardcoding either. `years` comes from Vault.futurePickYears. */
-  buildKtcPickMap(ktcData, isSF, years) {
+  buildKtcPickMap(ktcData, isSF, years, bonusRecTe) {
+    const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
     const raw = new Map();
     const seasons = new Set();
     (ktcData.picks || []).forEach(p => {
-      raw.set(`${p.season}-${p.round}-${p.slot}`, isSF ? p.sf_tep : p.oneQB_tep);
+      raw.set(`${p.season}-${p.round}-${p.slot}`, p[field]);
       seasons.add(p.season);
     });
     const availYears = [...seasons].sort((a, b) => a - b);
@@ -496,9 +510,10 @@ const Vault = {
   },
 
   buildValueMaps({ ktcData, projData, isSF, scoringSettings, pickYears }) {
-    const valMap = Vault.buildKtcValueMap(ktcData, isSF);
+    const bonusRecTe = scoringSettings?.bonus_rec_te;
+    const valMap = Vault.buildKtcValueMap(ktcData, isSF, bonusRecTe);
     const ppgMap = Vault.buildProjectedPpgMapById(projData, scoringSettings);
-    const pickMap = Vault.buildKtcPickMap(ktcData, isSF, pickYears);
+    const pickMap = Vault.buildKtcPickMap(ktcData, isSF, pickYears, bonusRecTe);
     return { valMap, ppgMap, pickMap };
   },
 
@@ -1842,7 +1857,7 @@ const Vault = {
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json()),
       ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
     ]);
-    const valMap = Vault.buildKtcValueMap(ktcData, isSF);
+    const valMap = Vault.buildKtcValueMap(ktcData, isSF, league.scoring_settings?.bonus_rec_te);
     const ppgMap = Vault.buildProjectedPpgMapById(projData, league.scoring_settings);
 
     const teamById = new Map(teams.map(t => [t.rosterId, t]));
@@ -1863,7 +1878,7 @@ const Vault = {
     const referencedYears = [...new Set(trades.flatMap(tx => (tx.draft_picks || []).map(pk => +pk.season)))];
     const pickValueByKey = new Map();
     if (referencedYears.length) {
-      const pickMap = Vault.buildKtcPickMap(ktcData, isSF, referencedYears);
+      const pickMap = Vault.buildKtcPickMap(ktcData, isSF, referencedYears, league.scoring_settings?.bonus_rec_te);
       const ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
       const pickOwner = new Map();
       referencedYears.forEach(y => ROUNDS.forEach(r => rosters.forEach(ro => pickOwner.set(`${y}-${r}-${ro.roster_id}`, ro.roster_id))));

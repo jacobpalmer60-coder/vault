@@ -365,9 +365,10 @@
         pidByName.set(key, pid);
       });
 
+      const valueField = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(scoringSettings?.bonus_rec_te);
       const rows = ktcData.players.map(p => {
         const norm = Vault.normalizeName(p.name);
-        const value = isSF ? p.sf_tep : p.oneQB_tep;
+        const value = p[valueField];
         const ppg = ppgMap.get(norm) ?? null;
         const vpRatio = (Number.isFinite(value) && Number.isFinite(ppg) && ppg > 0) ? value / ppg : null;
         const trendSeries = trendMap.get(norm) || [];
