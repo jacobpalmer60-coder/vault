@@ -52,6 +52,10 @@
           <button data-pos="WR" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">WR</button>
           <button data-pos="TE" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">TE</button>
         </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs text-zinc-500">Trend:</span>
+          <div id="trendWindowToggle" class="flex items-center bg-black/40 border border-white/8 rounded-xl p-1"></div>
+        </div>
       </div>
       <div class="flex items-center gap-3 text-xs text-zinc-500">
         <span class="hidden sm:inline">Sort by clicking headers</span>
@@ -72,7 +76,7 @@
             <th class="px-4 py-3 font-medium sortable" data-key="team">Team <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="age">Age <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="value">Value <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="trendDelta" title="Value change since the earliest daily snapshot — tracked for players rostered in your league only">Trend <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="trendDelta" title="Value change over the selected trend window (see the 3mo/6mo/1yr/All toggle above the table) — tracked for players rostered in your league only">Trend <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg">PPG <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="vpRatio">Value/PPG <span class="sort-ind"></span></th>
           </tr>
@@ -137,6 +141,9 @@
   let isSF = true; // default assumption until league loads
   let scoringSettings = null;
   let rosterPositions = [];
+  // Trend window in days — a raw "since the earliest snapshot" delta became
+  // meaningless once value history reached back years; Infinity means "All".
+  let trendWindowDays = 90;
 
   function log(msg, type = 'info') {
     const time = new Date().toLocaleTimeString();
@@ -212,6 +219,43 @@
     return map;
   }
 
+  const TREND_WINDOWS = [
+    { label: '3mo', days: 90 },
+    { label: '6mo', days: 180 },
+    { label: '1yr', days: 365 },
+    { label: 'All', days: Infinity }
+  ];
+
+  function renderTrendWindowToggle() {
+    const el = $('#trendWindowToggle');
+    if (!el) return;
+    el.innerHTML = TREND_WINDOWS.map(w => `<button data-days="${w.days}" class="trend-window-btn px-3 py-1.5 text-sm rounded-lg ${trendWindowDays === w.days ? 'bg-amber-500/15 text-zinc-300 font-medium' : 'hover:bg-white/5'}">${w.label}</button>`).join('');
+    el.querySelectorAll('.trend-window-btn').forEach(btn => btn.addEventListener('click', () => {
+      trendWindowDays = btn.dataset.days === 'Infinity' ? Infinity : +btn.dataset.days;
+      renderTrendWindowToggle();
+      applyTrendWindow();
+      applyFiltersAndRender();
+    }));
+  }
+
+  // Recomputes each row's windowed trend series (and the sparkline/delta/modal
+  // charts derived from it) from the full trendSeries every row already
+  // carries — called once on load and again whenever the window toggle
+  // changes, so nothing needs re-fetching.
+  function applyTrendWindow() {
+    const cutoff = trendWindowDays === Infinity ? null : Date.now() - trendWindowDays * 24 * 60 * 60 * 1000;
+    allRows.forEach(r => {
+      const windowed = cutoff == null ? r.trendSeries : r.trendSeries.filter(pt => new Date(pt.date).getTime() >= cutoff);
+      // Filtered to dates that actually have a value — a ppg-only backfilled
+      // checkpoint (see backfill-player-ppg-history.js) can land on a date
+      // this player has no KTC price for.
+      const values = windowed.map(pt => pt.value).filter(Number.isFinite);
+      r.windowedSeries = windowed;
+      r.trendValues = values;
+      r.trendDelta = values.length >= 2 ? values[values.length - 1] - values[0] : null;
+    });
+  }
+
   function sparkline(rawPoints, width = 56, height = 20) {
     // A ppg-only backfilled checkpoint can land on a date this player has no
     // KTC value for (see backfill-player-ppg-history.js) — filter those holes
@@ -225,6 +269,14 @@
     const up = points[points.length - 1] >= points[0];
     return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="inline-block align-middle"><polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
   }
+
+  // Shared hover machinery for playerChart (see wireChartHover, set up once at
+  // page init) — each chart registers its series + coordinate mapping here
+  // under a unique id so one delegated mousemove listener can serve every
+  // chart on the page, including ones inside a modal that gets re-rendered
+  // from scratch each time it opens.
+  let chartRegistrySeq = 0;
+  const chartRegistry = new Map();
 
   function playerChart(rawSeries, field = 'value', decimals = 0) {
     const W = 460, H = 150, ML = 48, MR = 12, MT = 10, MB = 22;
@@ -263,14 +315,70 @@
       `<text x="${x(i)}" y="${H - 6}" text-anchor="${series.length === 1 ? 'middle' : i === 0 ? 'start' : 'end'}" font-size="9" fill="currentColor" class="text-zinc-500">${series[i].date}</text>`
     ).join('');
     const up = vals[vals.length - 1] >= vals[0];
-    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${dateTicks}</svg>`;
+
+    const chartId = `pc${chartRegistrySeq++}`;
+    chartRegistry.set(chartId, { series, field, decimals, ML, MT, plotW, plotH, W, H, label: field === 'ppg' ? 'PPG' : 'Value' });
+    // A transparent rect over the whole plot area catches mousemove anywhere
+    // in the chart, not just exactly on a 2.5px-radius circle.
+    const hoverRect = `<rect x="${ML}" y="${MT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>`;
+    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" data-chart-id="${chartId}">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${hoverRect}${dateTicks}</svg>`;
   }
+
+  // One delegated listener serves every chart, including ones re-rendered
+  // fresh each time the modal opens — no per-render re-wiring needed. Shows a
+  // small floating tooltip plus a vertical guide line snapped to the nearest
+  // real data point, so hovering anywhere near a value can be matched back to
+  // the exact date something happened (a trade, a draft, a news hit).
+  function wireChartHover() {
+    const tooltip = document.createElement('div');
+    tooltip.id = 'chartTooltip';
+    tooltip.className = 'hidden fixed z-50 pointer-events-none bg-black/90 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-200 shadow-lg';
+    document.body.appendChild(tooltip);
+    let guideEl = null;
+
+    function clear() {
+      tooltip.classList.add('hidden');
+      if (guideEl) { guideEl.remove(); guideEl = null; }
+    }
+
+    document.addEventListener('mousemove', e => {
+      const svg = e.target.closest('svg[data-chart-id]');
+      if (!svg) { clear(); return; }
+      const info = chartRegistry.get(svg.dataset.chartId);
+      if (!info || !info.series.length) { clear(); return; }
+      const rect = svg.getBoundingClientRect();
+      const svgX = (e.clientX - rect.left) / rect.width * info.W;
+      const { series, ML, plotW } = info;
+      const frac = series.length > 1 ? Math.max(0, Math.min(1, (svgX - ML) / plotW)) : 0;
+      const idx = Math.round(frac * (series.length - 1));
+      const p = series[idx];
+      if (!p) { clear(); return; }
+
+      guideEl?.remove();
+      const guideX = ML + (series.length > 1 ? idx / (series.length - 1) * plotW : 0);
+      guideEl = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      guideEl.setAttribute('x1', guideX); guideEl.setAttribute('x2', guideX);
+      guideEl.setAttribute('y1', info.MT); guideEl.setAttribute('y2', info.MT + info.plotH);
+      guideEl.setAttribute('stroke', 'currentColor');
+      guideEl.setAttribute('class', 'text-white/25');
+      guideEl.setAttribute('stroke-dasharray', '2 2');
+      svg.appendChild(guideEl);
+
+      const fmt = v => v.toLocaleString(undefined, { minimumFractionDigits: info.decimals, maximumFractionDigits: info.decimals });
+      tooltip.innerHTML = `<div class="text-zinc-400">${p.date}${p.estimated ? ' (estimated)' : ''}</div><div class="font-semibold mono">${info.label}: ${fmt(p[info.field])}</div>`;
+      tooltip.classList.remove('hidden');
+      tooltip.style.left = `${e.clientX + 14}px`;
+      tooltip.style.top = `${e.clientY + 14}px`;
+    });
+    document.addEventListener('mouseleave', clear);
+  }
+  wireChartHover();
 
   function renderPlayerCard(r) {
     const tm = teamMeta(r.team);
     const noHistory = `<div class="text-[12px] text-zinc-500 py-6 text-center">Building — only tracked for players rostered in your league.</div>`;
-    const valueChart = r.trendSeries.length >= 1 ? playerChart(r.trendSeries, 'value', 0) : noHistory;
-    const ppgChart = r.trendSeries.length >= 1 ? playerChart(r.trendSeries, 'ppg', 1) : noHistory;
+    const valueChart = r.windowedSeries.length >= 1 ? playerChart(r.windowedSeries, 'value', 0) : noHistory;
+    const ppgChart = r.windowedSeries.length >= 1 ? playerChart(r.windowedSeries, 'ppg', 1) : noHistory;
 
     let seasonRows = '';
     if (r.seasonHistory) {
@@ -383,19 +491,18 @@
         const value = p[valueField];
         const ppg = ppgMap.get(norm) ?? null;
         const vpRatio = (Number.isFinite(value) && Number.isFinite(ppg) && ppg > 0) ? value / ppg : null;
+        // Full history — trendValues/trendDelta/windowedSeries (what's actually
+        // displayed) get derived from this by applyTrendWindow() below, since
+        // they depend on the current trend-window toggle, not just the data.
         const trendSeries = trendMap.get(norm) || [];
-        // Filtered to dates that actually have a value — a ppg-only backfilled
-        // checkpoint (see backfill-player-ppg-history.js) can land on a date
-        // this player has no KTC price for.
-        const trendValues = trendSeries.map(pt => pt.value).filter(Number.isFinite);
-        const trendDelta = trendValues.length >= 2 ? trendValues[trendValues.length - 1] - trendValues[0] : null;
         const yearsExp = expByName.get(norm) ?? null;
         const pid = pidByName.get(norm);
         const seasonHistory = pid ? playerHistory.players?.[pid]?.seasons || null : null;
-        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio, trendSeries, trendValues, trendDelta, yearsExp, seasonHistory, pid };
+        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio, trendSeries, yearsExp, seasonHistory, pid };
       });
 
       allRows = rows.filter(r => r.value != null);
+      applyTrendWindow();
       log(`Merged rows: ${allRows.length.toLocaleString()}`);
 
       // Position rank — computed once here rather than per-render, since it only
@@ -564,6 +671,8 @@
     if (await loadLeague(id)) { Vault.setLeagueId(id); loadData(); }
   });
   $('#leagueId').addEventListener('keydown', e => { if (e.key === 'Enter') $('#loadLeague').click(); });
+
+  renderTrendWindowToggle();
 
   (async () => {
     const id = Vault.getLeagueId();
