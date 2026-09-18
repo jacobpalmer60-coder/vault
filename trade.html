@@ -183,6 +183,7 @@
 <script src="vault-nav.js"></script>
 <script>
 let teams = [], league = null, slots = [];
+let playerTrend = new Map(), pickTrend = new Map();
 let selectedA = new Set();
 let selectedB = new Set();
 let filterA = 'ALL', filterB = 'ALL';
@@ -193,9 +194,46 @@ const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-ambe
 const TIER_COLOR = { early: 'text-emerald-400', mid: 'text-amber-300', late: 'text-rose-400' };
 
 function assetsFor(team) {
-  const players = team.plist.filter(p => p.value > 0).map(p => ({ type: 'player', key: 'p_' + p.id, ...p }));
-  const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, name: `${p.season} R${p.round}`, pos: 'PICK', ...p }));
+  const players = team.plist.filter(p => p.value > 0).map(p => ({ type: 'player', key: 'p_' + p.id, ...p, trend: playerTrend.get(Vault.normalizeName(p.name)) ?? null }));
+  const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, name: `${p.season} R${p.round}`, pos: 'PICK', ...p, trend: pickTrendFor(p.season, p.round, p.tier) }));
   return [...players, ...picks].sort((a, b) => b.value - a.value);
+}
+
+// Mirrors Vault.buildKtcPickMap's season fallback: a pick label too far out for KTC
+// to have priced yet (e.g. 2029, confirmed only ~2 draft classes out get tracked)
+// reuses the nearest tracked season's trend — same fallback its current VALUE
+// already goes through, so the two numbers stay consistent with each other.
+function pickTrendFor(season, round, tier) {
+  const key = `${season}-${round}-${tier}`;
+  if (pickTrend.has(key)) return pickTrend.get(key);
+  const seasons = [...new Set([...pickTrend.keys()].map(k => +k.split('-')[0]))];
+  if (!seasons.length) return null;
+  const nearest = seasons.reduce((best, y) => Math.abs(y - season) < Math.abs(best - season) ? y : best, seasons[0]);
+  return pickTrend.get(`${nearest}-${round}-${tier}`) ?? null;
+}
+
+// 90-day value trend per asset — same "is this rising or falling" signal
+// player_rankings.html shows, surfaced here because it's directly relevant to a
+// trade decision: two assets priced the same today can be headed opposite
+// directions. Delta-only (first vs. last resolved value in the window), not a
+// full series — this just needs a quick "up or down and by how much" per asset
+// in a dense roster list, not a chart.
+const TREND_WINDOW_DAYS = 90;
+function buildTrendDeltas(snapshots, listField, isSF, bonusRecTe) {
+  const cutoff = Date.now() - TREND_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const byKey = new Map();
+  (snapshots || []).forEach(s => {
+    if (new Date(s.date).getTime() < cutoff) return;
+    Object.entries(s[listField] || {}).forEach(([key, entry]) => {
+      const v = Vault.resolveHistoricalValue(entry, isSF, bonusRecTe);
+      if (!Number.isFinite(v)) return;
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(v);
+    });
+  });
+  const deltas = new Map();
+  byKey.forEach((vals, key) => { if (vals.length >= 2) deltas.set(key, vals[vals.length - 1] - vals[0]); });
+  return deltas;
 }
 
 // Surfaces the same need/surplus/timeline/pick-capital fit read Team Analyzer uses
@@ -228,6 +266,12 @@ async function init() {
   try {
     const built = await Vault.buildLeagueTeams(Vault.getLeagueId());
     league = built.league; slots = built.slots;
+
+    const [playerHist, pickHist] = await Promise.all([Vault.fetchPlayerValueHistory(), Vault.fetchPickValueHistory()]);
+    const bonusRecTe = league.scoring_settings?.bonus_rec_te;
+    playerTrend = buildTrendDeltas(playerHist.snapshots, 'players', built.isSF, bonusRecTe);
+    pickTrend = buildTrendDeltas(pickHist.snapshots, 'picks', built.isSF, bonusRecTe);
+
     teams = built.teams.map(t => ({ ...t, assets: [] }));
     teams.forEach(t => t.assets = assetsFor(t));
     teams.sort((a, b) => b.overall - a.overall);
@@ -303,6 +347,7 @@ function assetRow(side, a, isSelected, extra) {
         </div>
         <div class="text-right">
           <div class="text-[13px] mono font-medium ${isSelected ? 'text-white' : 'text-zinc-400'}">${Math.round(a.value).toLocaleString()}</div>
+          ${a.trend != null ? `<div class="text-[10px] mono ${a.trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Value change over the last ${TREND_WINDOW_DAYS} days">${a.trend >= 0 ? '+' : ''}${Math.round(a.trend).toLocaleString()}</div>` : ''}
         </div>
         <div class="flex gap-1.5 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
           <button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
