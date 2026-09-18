@@ -383,37 +383,268 @@ const Vault = {
   },
 
   /* ---------- Value history ----------
-     data/team-value-history.json and data/player-value-history.json are written
-     daily by scripts/snapshot-value-history.js (same Action as the KTC refresh).
-     Both files exist from the start (seeded empty) so these never 404 — pages just
-     render a "not enough history yet" state until snapshots accumulate. Player
-     history only covers players actually rostered in the tracked league, keyed by
-     normalized name (KTC has no Sleeper IDs), not the full KTC universe. */
-  async fetchTeamValueHistory() {
-    try {
-      const res = await fetch('data/team-value-history.json');
-      if (!res.ok) return { leagueId: null, snapshots: [] };
-      return res.json();
-    } catch { return { leagueId: null, snapshots: [] }; }
-  },
+     data/player-value-history.json and data/pick-value-history.json are UNIVERSAL,
+     league-agnostic daily price time series — written by scripts/snapshot-value-
+     history.js (same Action as the KTC refresh) for every player/pick KTC ranks,
+     not filtered to any one league's roster. Both files exist from the start
+     (seeded empty) so these never 404. A specific league's own team-by-team value
+     history (which roster/picks it held on which day) is reconstructed live from
+     these two files by Vault.buildTeamValueHistory below — there's no per-league
+     stored file for that, so it works for any league immediately. */
   async fetchPlayerValueHistory() {
     try {
       const res = await fetch('data/player-value-history.json');
-      if (!res.ok) return { leagueId: null, snapshots: [] };
+      if (!res.ok) return { snapshots: [] };
       return res.json();
-    } catch { return { leagueId: null, snapshots: [] }; }
+    } catch { return { snapshots: [] }; }
+  },
+  async fetchPickValueHistory() {
+    try {
+      const res = await fetch('data/pick-value-history.json');
+      if (!res.ok) return { snapshots: [] };
+      return res.json();
+    } catch { return { snapshots: [] }; }
+  },
+
+  // A player-value-history / pick-value-history entry always carries plain sf/oneQB;
+  // the TEP/TEPP fields only exist where KTC's own history actually differs from
+  // plain (real TEs, for players — always present for picks), so this falls back to
+  // plain when the league's TEP tier isn't stored on that particular entry. Mirrors
+  // Vault.ktcTepSuffix's field-naming convention exactly.
+  resolveHistoricalValue(entry, isSF, bonusRecTe) {
+    if (!entry) return null;
+    const base = isSF ? 'sf' : 'oneQB';
+    const field = base + Vault.ktcTepSuffix(bonusRecTe);
+    const v = entry[field] ?? entry[base];
+    return v == null ? null : v;
   },
 
   /* data/player-history.json is a one-time pull (scripts/fetch-player-history.js,
-     run manually — not part of the daily Action) of real END-OF-SEASON stats for
-     every player rostered in the tracked league, scored to this league's actual
-     settings, going back a few completed NFL seasons. Keyed by Sleeper player_id. */
+     run manually — not part of the daily Action) of real, RAW end-of-season stat
+     totals for every dynasty-relevant player (anyone KTC currently ranks), going
+     back to each player's rookie year. Keyed by Sleeper player_id. Stats are raw
+     (not pre-scored) so any league can score them to its own real scoring_settings
+     via Vault.scoreStats — see Vault.playerSeasonPpg below. */
   async fetchPlayerHistory() {
     try {
       const res = await fetch('data/player-history.json');
       if (!res.ok) return { seasons: [], players: {} };
       return res.json();
     } catch { return { seasons: [], players: {} }; }
+  },
+
+  // Real season PPG for one player-season, scored to THIS league's actual settings
+  // — the historical-stats analog of buildProjectedPpgMapById/ByName.
+  playerSeasonPpg(stats, scoringSettings) {
+    if (!stats || !stats.gp) return null;
+    return Vault.scoreStats(stats, scoringSettings) / stats.gp;
+  },
+
+  /* ---------- Live, per-league team-value history ----------
+     There's no stored file for "this league's roster/picks on day X" — that's
+     reconstructed here, on demand, for whichever league is loaded, from real
+     Sleeper history (drafts + transactions + traded picks) plus the two universal
+     price-history files above. Any dynasty league works immediately, with no setup
+     or backfill step, the first time anyone loads it.
+
+     Two disclosed simplifications (same tradeoffs the original single-league
+     backfill made, kept because reconstructing them properly needs full historical
+     standings, a separate and much larger problem):
+       1. A pick's tier (early/mid/late) is fixed ONCE from TODAY's real
+          standings-based draft order, not recomputed for every historical day.
+       2. TODAY's row always uses the league's real current roster/pick ownership
+          (never the replayed state) — replay is only trusted for days before today,
+          so a page never shows a "today" number that disagrees with the rest of the
+          live app even if a replay edge case (an admin action with no transaction
+          record, etc.) can't be perfectly reconstructed.
+     Unlike the one-time Node backfill this replaces, this runs in a visitor's
+     browser for an arbitrary league it has never validated against — so it never
+     throws on a replay mismatch; it logs a warning and degrades gracefully instead
+     of breaking the page. */
+  async buildTeamValueHistory(leagueId) {
+    const { league, users, rosters, players, traded, drafts } = await Vault.fetchSleeperCore(leagueId);
+    const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+    const bonusRecTe = league.scoring_settings?.bonus_rec_te;
+    const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
+    const userMap = new Map(users.map(u => [u.user_id, u]));
+
+    const [weeks, draftPickSets, playerHist, pickHist, projData] = await Promise.all([
+      Promise.all([...Array(18)].map((_, i) =>
+        fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))),
+      Promise.all((drafts || []).map(d =>
+        fetch(`https://api.sleeper.app/v1/draft/${d.draft_id}/picks`).then(r => r.json()).catch(() => []).then(picks => ({ draft: d, picks })))),
+      Vault.fetchPlayerValueHistory(),
+      Vault.fetchPickValueHistory(),
+      Vault.fetchProjections()
+    ]);
+    const transactions = weeks.flat().filter(t => t && t.status === 'complete');
+    const realDrafts = draftPickSets.filter(d => d.picks.length > 0);
+
+    const allEventDates = [
+      ...realDrafts.map(d => new Date(d.draft.start_time)),
+      ...transactions.map(t => new Date(t.created))
+    ];
+    if (!allEventDates.length) return { snapshots: [] }; // brand-new league — nothing to replay yet
+
+    const playerByDate = new Map(playerHist.snapshots.map(s => [s.date, s.players || {}]));
+    const pickByDate = new Map(pickHist.snapshots.map(s => [s.date, s.picks || {}]));
+    const playerDates = [...playerByDate.keys()].sort();
+    const pickDates = [...pickByDate.keys()].sort();
+    function latestOnOrBefore(sortedDates, target) {
+      let best = null;
+      for (const d of sortedDates) { if (d <= target) best = d; else break; }
+      return best;
+    }
+
+    // Today's real projected PPG (for optimal-lineup math) — same join Vault.
+    // buildProjectedPpgMapById already does, just inlined since this needs it
+    // per-pid, not per-name.
+    const ppgByPid = new Map();
+    Object.entries(projData.players || {}).forEach(([pid, p]) => {
+      if (p.stats?.gp) ppgByPid.set(pid, Vault.scoreStats(p.stats, league.scoring_settings) / p.stats.gp);
+    });
+
+    // ---- Roster replay: who held which player on which day ----
+    const events = [];
+    realDrafts.forEach(({ draft, picks }) => {
+      const date = new Date(draft.start_time);
+      picks.forEach(pk => { if (pk.player_id) events.push({ date, rosterId: pk.roster_id, add: String(pk.player_id) }); });
+    });
+    transactions.forEach(t => {
+      const date = new Date(t.created);
+      Object.entries(t.adds || {}).forEach(([pid, rosterId]) => events.push({ date, rosterId, add: String(pid) }));
+      Object.entries(t.drops || {}).forEach(([pid, rosterId]) => events.push({ date, rosterId, drop: String(pid) }));
+    });
+    events.sort((a, b) => a.date - b.date);
+
+    const dayZero = Math.min(...allEventDates.map(d => +d));
+    const startDay = Date.UTC(new Date(dayZero).getUTCFullYear(), new Date(dayZero).getUTCMonth(), new Date(dayZero).getUTCDate());
+    const now = new Date();
+    const todayDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    const rosterOfPid = new Map(rosters.map(r => [r.roster_id, new Set()]));
+
+    // ---- Pick replay: who held which pick on which day ----
+    const pickYears = Vault.futurePickYears(league, drafts);
+    const PICK_ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
+    function currentOptPpg(r) {
+      const plist = (r.players || []).map(pid => {
+        const p = players[String(pid)];
+        return p ? { id: String(pid), pos: p.position || '', ppg: ppgByPid.get(String(pid)) || 0 } : null;
+      }).filter(Boolean);
+      return Vault.optimalLineup(plist, slots);
+    }
+    const draftOrder = [...rosters].sort((a, b) => currentOptPpg(b) - currentOptPpg(a)); // best team first
+    const nTeams = draftOrder.length;
+    const draftRank = new Map(draftOrder.map((r, i) => [r.roster_id, nTeams - i]));
+
+    const pickAssets = [];
+    pickYears.forEach(season => PICK_ROUNDS.forEach(round => rosters.forEach(r => {
+      const rank = draftRank.get(r.roster_id);
+      const overall = (round - 1) * nTeams + rank;
+      const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
+      pickAssets.push({ season, round, originalRoster: r.roster_id, label: `${season}-${ktcRound}-${tier}` });
+    })));
+
+    // KTC's pick grid can lag this league's tracked years (e.g. no 2029 pricing
+    // yet) — fall back each asset's label to the nearest season KTC actually
+    // prices, same reasoning as Vault.buildKtcPickMap.
+    const todayPickRow = pickHist.snapshots[pickHist.snapshots.length - 1]?.picks || {};
+    const pricedSeasons = [...new Set(Object.keys(todayPickRow).map(k => +k.split('-')[0]))].sort((a, b) => a - b);
+    if (pricedSeasons.length) {
+      pickAssets.forEach(a => {
+        if (todayPickRow[a.label]) return;
+        const [season, round, tier] = a.label.split('-');
+        const nearest = pricedSeasons.reduce((best, y) => Math.abs(y - (+season)) < Math.abs(best - (+season)) ? y : best, pricedSeasons[0]);
+        a.label = `${nearest}-${round}-${tier}`;
+      });
+    }
+
+    const ownerOf = new Map(pickAssets.map(a => [`${a.season}-${a.round}-${a.originalRoster}`, a.originalRoster]));
+    const pickEvents = [];
+    transactions.forEach(t => (t.draft_picks || []).forEach(pk => {
+      if (!pickYears.includes(+pk.season)) return;
+      pickEvents.push({ date: new Date(t.created), key: `${pk.season}-${pk.round}-${pk.roster_id}`, newOwner: pk.owner_id });
+    }));
+    pickEvents.sort((a, b) => a.date - b.date);
+
+    // Real current pick ownership, straight from Sleeper — used for TODAY's row
+    // (never the replay) and as the ground truth a replay drift gets checked against.
+    const realPickOwner = new Map(ownerOf);
+    traded.filter(p => pickYears.includes(+p.season)).forEach(p => {
+      const to = Number(p.owner_id);
+      if (to && to !== p.roster_id) realPickOwner.set(`${p.season}-${p.round}-${p.roster_id}`, to);
+    });
+
+    // ---- Day-by-day replay ----
+    const snapshots = [];
+    let eventIdx = 0, pickEventIdx = 0;
+    for (let dayStart = startDay; dayStart <= todayDay; dayStart += DAY_MS) {
+      const isToday = dayStart === todayDay;
+      const cursor = dayStart + DAY_MS - 1;
+      while (eventIdx < events.length && +events[eventIdx].date <= cursor) {
+        const e = events[eventIdx];
+        const set = rosterOfPid.get(e.rosterId);
+        if (set) { if (e.add) set.add(e.add); if (e.drop) set.delete(e.drop); }
+        eventIdx++;
+      }
+      while (pickEventIdx < pickEvents.length && +pickEvents[pickEventIdx].date <= cursor) {
+        const e = pickEvents[pickEventIdx];
+        if (ownerOf.has(e.key)) ownerOf.set(e.key, e.newOwner);
+        pickEventIdx++;
+      }
+
+      const date = new Date(dayStart).toISOString().slice(0, 10);
+      const pvDate = latestOnOrBefore(playerDates, date);
+      const pkDate = latestOnOrBefore(pickDates, date);
+      const playerVals = pvDate ? playerByDate.get(pvDate) : null;
+      const pickVals = pkDate ? pickByDate.get(pkDate) : null;
+
+      const teams = rosters.map(r => {
+        const u = userMap.get(r.owner_id) || {};
+        const teamName = u.metadata?.team_name || u.display_name || 'Team';
+        const pidSet = isToday ? new Set((r.players || []).map(String)) : (rosterOfPid.get(r.roster_id) || new Set());
+        let playerValue = 0;
+        const plist = [];
+        pidSet.forEach(pid => {
+          const p = players[pid];
+          if (!p) return;
+          const nameKey = Vault.normalizeName(`${p.first_name || ''} ${p.last_name || ''}`.trim());
+          const v = playerVals ? Vault.resolveHistoricalValue(playerVals[nameKey], isSF, bonusRecTe) : null;
+          playerValue += v || 0;
+          plist.push({ id: pid, pos: p.position || '', ppg: ppgByPid.get(pid) || 0 });
+        });
+        const optPpg = Vault.optimalLineup(plist, slots);
+
+        let picksValue = 0;
+        pickAssets.forEach(a => {
+          const ownerKey = `${a.season}-${a.round}-${a.originalRoster}`;
+          const owner = isToday ? realPickOwner.get(ownerKey) : ownerOf.get(ownerKey);
+          if (owner !== r.roster_id) return;
+          const v = pickVals ? Vault.resolveHistoricalValue(pickVals[a.label], isSF, bonusRecTe) : null;
+          picksValue += v || 0;
+        });
+
+        const playerValueR = Math.round(playerValue), picksValueR = Math.round(picksValue);
+        return { rosterId: r.roster_id, teamName, playerValue: playerValueR, picksValue: picksValueR, total: playerValueR + picksValueR, optPpg: +optPpg.toFixed(1) };
+      });
+      snapshots.push({ date, teams });
+    }
+
+    // Replay drift is a real gap in what Sleeper's public API exposes (an admin
+    // action with no transaction record, etc.), not something worth breaking a
+    // visitor's page over — today's row already uses real state regardless, so
+    // this only affects how precise PAST days are. Log it and move on.
+    rosters.forEach(r => {
+      const real = new Set((r.players || []).map(String));
+      const replayed = rosterOfPid.get(r.roster_id) || new Set();
+      if (replayed.size !== real.size || [...real].some(pid => !replayed.has(pid))) {
+        console.warn(`Vault.buildTeamValueHistory: roster ${r.roster_id} (${(userMap.get(r.owner_id) || {}).display_name || 'unknown'}) replay drifted from Sleeper's real current roster — historical days may be slightly off for this team.`);
+      }
+    });
+
+    return { snapshots };
   },
 
   /* KTC's pick grid rolls forward each spring after that year's rookie draft, so its

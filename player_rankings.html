@@ -205,15 +205,19 @@
     return order.filter(s => counts.has(s)).map(s => `${counts.get(s)}${labels[s]}`).join('/');
   }
 
-  // Builds { norm -> [{date, value, ppg}, ...] } across every daily snapshot. Only
-  // covers players rostered in the tracked league (see snapshot-value-history.js) —
-  // most rows in this page's full KTC universe simply won't have a trend yet.
-  function buildTrendMap(history) {
+  // Builds { norm -> [{date, value, ppg}, ...] } across every daily snapshot.
+  // data/player-value-history.json is universal (every player KTC ranks, not just
+  // this league's roster) and stores raw sf/oneQB/tep/tepp price fields plus raw
+  // projected stats — resolved here to THIS league's real format/TEP/scoring
+  // settings, same as every other value/PPG number on this page.
+  function buildTrendMap(history, isSFLeague, scoring) {
     const map = new Map();
     (history.snapshots || []).forEach(snap => {
       Object.entries(snap.players || {}).forEach(([norm, entry]) => {
         if (!map.has(norm)) map.set(norm, []);
-        map.get(norm).push({ date: snap.date, value: entry.value, ppg: entry.ppg, estimated: !!snap.estimated });
+        const value = Vault.resolveHistoricalValue(entry, isSFLeague, scoring?.bonus_rec_te);
+        const ppg = entry.stats ? Vault.playerSeasonPpg(entry.stats, scoring) : null;
+        map.get(norm).push({ date: snap.date, value, ppg, estimated: !!snap.estimated });
       });
     });
     return map;
@@ -246,9 +250,9 @@
     const cutoff = trendWindowDays === Infinity ? null : Date.now() - trendWindowDays * 24 * 60 * 60 * 1000;
     allRows.forEach(r => {
       const windowed = cutoff == null ? r.trendSeries : r.trendSeries.filter(pt => new Date(pt.date).getTime() >= cutoff);
-      // Filtered to dates that actually have a value — a ppg-only backfilled
-      // checkpoint (see backfill-player-ppg-history.js) can land on a date
-      // this player has no KTC price for.
+      // Filtered to dates that actually resolved a finite value — a day this
+      // player has projected-stat data (ppg) but no KTC price yet, or vice versa,
+      // can land a null in either field.
       const values = windowed.map(pt => pt.value).filter(Number.isFinite);
       r.windowedSeries = windowed;
       r.trendValues = values;
@@ -257,9 +261,8 @@
   }
 
   function sparkline(rawPoints, width = 56, height = 20) {
-    // A ppg-only backfilled checkpoint can land on a date this player has no
-    // KTC value for (see backfill-player-ppg-history.js) — filter those holes
-    // out here too, same reasoning as playerChart.
+    // A day can resolve one field (value or ppg) but not the other — filter
+    // those holes out here too, same reasoning as playerChart.
     const points = rawPoints.filter(Number.isFinite);
     if (points.length < 2) return '';
     const min = Math.min(...points), max = Math.max(...points);
@@ -376,7 +379,7 @@
 
   function renderPlayerCard(r) {
     const tm = teamMeta(r.team);
-    const noHistory = `<div class="text-[12px] text-zinc-500 py-6 text-center">Building — only tracked for players rostered in your league.</div>`;
+    const noHistory = `<div class="text-[12px] text-zinc-500 py-6 text-center">No price history yet for this player.</div>`;
     const valueChart = r.windowedSeries.length >= 1 ? playerChart(r.windowedSeries, 'value', 0) : noHistory;
     const ppgChart = r.windowedSeries.length >= 1 ? playerChart(r.windowedSeries, 'ppg', 1) : noHistory;
 
@@ -469,8 +472,30 @@
       const ppgMap = Vault.buildProjectedPpgMapByName(projData, scoringSettings);
       log(`Projected PPG map built: ${ppgMap.size.toLocaleString()} players (league scoring)`);
 
-      const trendMap = buildTrendMap(valueHistory);
-      log(`Value history: ${valueHistory.snapshots.length} daily snapshot${valueHistory.snapshots.length === 1 ? '' : 's'} for rostered players`);
+      const trendMap = buildTrendMap(valueHistory, isSF, scoringSettings);
+      log(`Value history: ${valueHistory.snapshots.length} daily snapshot${valueHistory.snapshots.length === 1 ? '' : 's'} (universal — every KTC-ranked player)`);
+
+      // Real per-season stats are stored RAW (data/player-history.json covers
+      // every dynasty-relevant player, not just this league's roster) — scored to
+      // THIS league's actual settings here, once, rather than trusting a number
+      // baked in for a different league. Rank needs every player's score for that
+      // season to be meaningful, so it's computed across the whole file, not
+      // per-row.
+      const seasonScored = new Map(); // "pid-year" -> {points, gp, posRank, overallRank}
+      const seasonsByYear = new Map();
+      Object.entries(playerHistory.players || {}).forEach(([pid, p]) => {
+        Object.entries(p.seasons || {}).forEach(([year, stats]) => {
+          if (!seasonsByYear.has(year)) seasonsByYear.set(year, []);
+          seasonsByYear.get(year).push({ pid, pos: p.pos, points: Vault.scoreStats(stats, scoringSettings), gp: stats.gp || 0 });
+        });
+      });
+      seasonsByYear.forEach((rows, year) => {
+        [...rows].sort((a, b) => b.points - a.points).forEach((r, i) => { r.overallRank = i + 1; });
+        ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
+          rows.filter(r => r.pos === pos).sort((a, b) => b.points - a.points).forEach((r, i) => { r.posRank = i + 1; });
+        });
+        rows.forEach(r => seasonScored.set(`${r.pid}-${year}`, r));
+      });
 
       // NFL experience isn't in KTC's data — matched from Sleeper's player database
       // by normalized name, same join key as everything else on this page.
@@ -497,7 +522,17 @@
         const trendSeries = trendMap.get(norm) || [];
         const yearsExp = expByName.get(norm) ?? null;
         const pid = pidByName.get(norm);
-        const seasonHistory = pid ? playerHistory.players?.[pid]?.seasons || null : null;
+        const rawSeasons = pid ? playerHistory.players?.[pid]?.seasons : null;
+        let seasonHistory = null;
+        if (rawSeasons) {
+          seasonHistory = {};
+          Object.keys(rawSeasons).forEach(year => {
+            const s = seasonScored.get(`${pid}-${year}`);
+            if (!s) return;
+            seasonHistory[year] = { points: +s.points.toFixed(1), ppg: s.gp ? +(s.points / s.gp).toFixed(2) : 0, gp: s.gp, posRank: s.posRank, overallRank: s.overallRank };
+          });
+          if (!Object.keys(seasonHistory).length) seasonHistory = null;
+        }
         return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio, trendSeries, yearsExp, seasonHistory, pid };
       });
 

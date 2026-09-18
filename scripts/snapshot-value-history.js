@@ -1,25 +1,43 @@
-// Daily snapshot of team totals/Opt PPG and rostered-player value/PPG for the
-// tracked league, so League Overview and Player Rankings can chart trends over
-// time. Runs as part of the same daily Action as the other data refreshes — one
-// snapshot per calendar day (a manual re-run same day is a no-op, not a duplicate).
+// Daily snapshot of REAL, UNIVERSAL (not league-specific) KTC price history for
+// every player and pick KTC currently ranks, so any league's League Overview and
+// Player Rankings pages can chart trends over time — not just the one league this
+// tool originally tracked. A league's own dynasty roster/pick-ownership history is
+// reconstructed live, client-side, from Sleeper (see Vault.buildTeamValueHistory in
+// vault-core.js); this script only maintains the two shared price-history references
+// that any league's reconstruction reads from.
+//
+// Self-extending: today's row for every ALREADY-tracked player/pick is just copied
+// straight out of data/ktc-values.json (already fetched by fetch-ktc.js this same
+// run — no extra request). Any player/pick that's NEVER been seen before (a rookie
+// gaining relevance, a new pick-year label rolling in) triggers a one-time deep
+// scrape of their KTC profile page, which carries that asset's FULL historical price
+// series (confirmed live: individual player/pick pages go back years further than
+// this daily snapshot could accumulate on its own) — merged into every past date the
+// files already cover, not just appended going forward.
+//
+// Runs as part of the same daily Action as the other data refreshes — one snapshot
+// per calendar day (a manual re-run same day replaces, not duplicates).
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
-// The Vault's tracked league — this is a personal single-league tool, not
-// multi-tenant, so the league to snapshot is pinned rather than configurable here.
-const LEAGUE_ID = '1313454100225990656';
-const TEAM_HISTORY_PATH = path.join(DATA_DIR, 'team-value-history.json');
+const KTC_PATH = path.join(DATA_DIR, 'ktc-values.json');
+const PROJ_PATH = path.join(DATA_DIR, 'projections.json');
 const PLAYER_HISTORY_PATH = path.join(DATA_DIR, 'player-value-history.json');
-// Bounds file growth. At measured real sizes (~774 bytes/snapshot for team, ~14KB/snapshot
-// for player, both keyed by rostered-player count), these give 10yrs of team history
-// (~2.8MB) and ~7yrs of player history (~36MB) before the oldest day starts rolling off —
-// comfortable margin past the 5yr target even if the roster grows, and well under GitHub's
-// 100MB hard per-file limit (50MB soft warning).
-const MAX_TEAM_SNAPSHOTS = 3650;
-const MAX_PLAYER_SNAPSHOTS = 2600;
+const PICK_HISTORY_PATH = path.join(DATA_DIR, 'pick-value-history.json');
+
+// Bounds file growth (see original sizing note this replaces): trims the OLDEST
+// day once history exceeds this many snapshots. Picks are far fewer distinct
+// assets than players, so its file stays tiny regardless — no separate cap needed.
+const MAX_PLAYER_SNAPSHOTS = 3650;
+
+const RANKINGS_URL = 'https://keeptradecut.com/dynasty-rankings';
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+};
+const REQUEST_DELAY_MS = 500; // considerate pacing — one page per new asset
 
 // Mirrors Vault.normalizeName in vault-core.js — must match exactly, since this is
 // how KTC's name-only data gets matched against Sleeper's player database both here
@@ -35,88 +53,23 @@ function normalizeName(s) {
     .replace(/\s+/g, ' ');
 }
 
-// Mirrors Vault.scoreStats — dot-products raw projected stat counts against this
-// league's actual scoring_settings, so PPG matches how points are really scored here.
-function scoreStats(stats, scoringSettings) {
-  let total = 0;
-  for (const [k, w] of Object.entries(scoringSettings || {})) total += (stats[k] || 0) * w;
-  return total;
+function extractJsonScriptTag(html, id) {
+  const openTag = html.match(new RegExp(`<script[^>]*id=["']${id}["'][^>]*>`));
+  if (!openTag) return null;
+  const start = openTag.index + openTag[0].length;
+  const end = html.indexOf('</script>', start);
+  if (end === -1) return null;
+  return JSON.parse(html.slice(start, end));
 }
 
-// Mirrors Vault.optimalLineup — best-PPG lineup a roster can field given the
-// league's actual starting slots (FLEX/SUPER_FLEX/etc. eligibility included).
-function optimalLineup(plist, slots) {
-  const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
-  const used = new Set();
-  let tot = 0;
-  for (const slot of slots) {
-    let allowed = [slot];
-    if (slot === 'FLEX') allowed = ['RB', 'WR', 'TE'];
-    if (slot === 'SUPER_FLEX') allowed = ['QB', 'RB', 'WR', 'TE'];
-    if (slot === 'WRRB_FLEX') allowed = ['RB', 'WR'];
-    if (slot === 'REC_FLEX') allowed = ['WR', 'TE'];
-    const i = pool.findIndex(p => !used.has(p.id) && allowed.includes(p.pos));
-    if (i >= 0) { tot += pool[i].ppg; used.add(pool[i].id); }
-  }
-  return tot;
+// KTC's history dates are "YYMMDD" strings (e.g. "260917" = 2026-09-17).
+function parseKtcDate(d) {
+  const yy = +d.slice(0, 2), mm = d.slice(2, 4), dd = d.slice(4, 6);
+  const yyyy = yy < 70 ? 2000 + yy : 1900 + yy;
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-const PICK_ROUNDS = [1, 2, 3, 4]; // mirrors VAULT_CONFIG.PICK_ROUNDS
-const PICK_YEARS_WINDOW = 4; // mirrors VAULT_CONFIG.PICK_YEARS_WINDOW
-
-// Mirrors Vault.seasonDraftComplete/Vault.futurePickYears — a pick's year stops
-// being a real tradeable asset once that season's rookie draft has happened.
-function futurePickYears(league, drafts) {
-  const season = +league.season;
-  const window = Array.from({ length: PICK_YEARS_WINDOW }, (_, i) => season + i);
-  return window.filter(year => !(drafts || []).some(d =>
-    String(d.season) === String(year) && d.status === 'complete' &&
-    d.settings && d.settings.rounds === PICK_ROUNDS.length
-  ));
-}
-
-// Mirrors Vault.ktcTepSuffix — see that function for why this picks the nearest
-// tier rather than requiring an exact bonus_rec_te match.
-function ktcTepSuffix(bonusRecTe) {
-  const b = +bonusRecTe || 0;
-  if (b < 0.25) return '';
-  if (b < 0.75) return '_tep';
-  return '_tepp';
-}
-
-// Mirrors Vault.buildKtcPickMap — maps this league's future pick years to KTC's
-// nearest priced draft class (KTC's grid can lag a year behind).
-function buildKtcPickMap(ktcData, isSF, years, bonusRecTe) {
-  const field = (isSF ? 'sf' : 'oneQB') + ktcTepSuffix(bonusRecTe);
-  const raw = new Map();
-  const seasons = new Set();
-  (ktcData.picks || []).forEach(p => {
-    raw.set(`${p.season}-${p.round}-${p.slot}`, p[field]);
-    seasons.add(p.season);
-  });
-  const availYears = [...seasons].sort((a, b) => a - b);
-  const map = new Map();
-  if (!availYears.length) return map;
-  years.forEach(year => {
-    const nearest = availYears.reduce((best, y) => Math.abs(y - year) < Math.abs(best - year) ? y : best, availYears[0]);
-    PICK_ROUNDS.forEach(round => {
-      ['early', 'mid', 'late'].forEach(tier => {
-        const val = raw.get(`${nearest}-${round}-${tier}`);
-        if (val != null) map.set(`${year}-${round}-${tier}`, val);
-      });
-    });
-  });
-  return map;
-}
-
-// Mirrors Vault.ktcPickSlot — converts an overall pick number into KTC's
-// round/tier pricing buckets (12-team-pace convention; see vault-core.js for why).
-function ktcPickSlot(overallPick) {
-  const round = Math.min(4, Math.max(1, Math.ceil(overallPick / 12)));
-  const pos = ((overallPick - 1) % 12) + 1;
-  const tier = pos <= 4 ? 'early' : pos <= 8 ? 'mid' : 'late';
-  return { round, tier };
-}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function readJson(p, fallback) {
   try { return JSON.parse(await fs.readFile(p, 'utf8')); }
@@ -131,121 +84,166 @@ function mountainDateString(d = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 }
 
+// Pulls BOTH format variants (Superflex and 1QB) and, when requested, both TEP
+// tiers, from ONE already-fetched profile page — KTC embeds both as separate JSON
+// data islands (pd-superflex / pd-oneqb) on every player's and pick's page, so this
+// costs no extra requests regardless of which league format eventually reads it.
+// Returns Map<date, {sf, oneQB, sf_tep?, sf_tepp?, oneQB_tep?, oneQB_tepp?}>.
+function buildDateMap(html, includeTep) {
+  const byDate = new Map();
+  function apply(tagId, prefix) {
+    const detail = extractJsonScriptTag(html, tagId);
+    if (!detail) return;
+    (detail.blendValueHistory || []).forEach(pt => {
+      const date = parseKtcDate(pt.d);
+      if (!byDate.has(date)) byDate.set(date, {});
+      byDate.get(date)[prefix] = pt.v;
+    });
+    if (!includeTep) return;
+    ['tep', 'tepp'].forEach(tier => {
+      ((detail[tier] || {}).blendHistory || []).forEach(pt => {
+        const date = parseKtcDate(pt.d);
+        if (!byDate.has(date)) byDate.set(date, {});
+        byDate.get(date)[`${prefix}_${tier}`] = pt.v;
+      });
+    });
+  }
+  apply('pd-superflex', 'sf');
+  apply('pd-oneqb', 'oneQB');
+  return byDate;
+}
+
+// Merges a newly-scraped asset's date map into every date the history file already
+// spans (or extends it further back) — NOT just appended forward — since a
+// never-before-seen asset can still have real KTC history reaching back through
+// dates other assets are already tracked for.
+function mergeAssetHistory(history, listKey, key, dateMap, skipDate) {
+  const byDate = new Map(history.snapshots.map(s => [s.date, s]));
+  dateMap.forEach((fields, date) => {
+    if (date === skipDate) return; // today is written separately, straight from ktc-values.json
+    let snap = byDate.get(date);
+    if (!snap) {
+      snap = { date, [listKey]: {} };
+      history.snapshots.push(snap);
+      byDate.set(date, snap);
+    }
+    if (!snap[listKey]) snap[listKey] = {};
+    snap[listKey][key] = fields;
+  });
+}
+
 async function main() {
   const today = mountainDateString();
 
-  const [league, users, rosters, players, traded, drafts, ktcData, projData] = await Promise.all([
-    fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}`).then(r => r.json()),
-    fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/users`).then(r => r.json()),
-    fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/rosters`).then(r => r.json()),
-    fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
-    fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/traded_picks`).then(r => r.json()),
-    fetch(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/drafts`).then(r => r.json()).catch(() => []),
-    readJson(path.join(DATA_DIR, 'ktc-values.json'), null),
-    readJson(path.join(DATA_DIR, 'projections.json'), null)
-  ]);
-  if (!league || league.error) throw new Error('League not found.');
+  const ktcData = await readJson(KTC_PATH, null);
+  const projData = await readJson(PROJ_PATH, null);
   if (!ktcData) throw new Error('data/ktc-values.json missing — run fetch-ktc.js first.');
   if (!projData) throw new Error('data/projections.json missing — run fetch-projections.js first.');
 
-  const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
-  const bonusRecTe = league.scoring_settings?.bonus_rec_te;
-  const valueField = (isSF ? 'sf' : 'oneQB') + ktcTepSuffix(bonusRecTe);
-  const valueByName = new Map();
+  const playerHistory = await readJson(PLAYER_HISTORY_PATH, { snapshots: [] });
+  const pickHistory = await readJson(PICK_HISTORY_PATH, { snapshots: [] });
+
+  // Same-day re-run (e.g. manual dispatch) replaces today's row, not duplicates.
+  [playerHistory, pickHistory].forEach(h => {
+    if (h.snapshots.length && h.snapshots[h.snapshots.length - 1].date === today) h.snapshots.pop();
+  });
+
+  const seenPlayerKeys = new Set();
+  playerHistory.snapshots.forEach(s => Object.keys(s.players || {}).forEach(k => seenPlayerKeys.add(k)));
+  const seenPickKeys = new Set();
+  pickHistory.snapshots.forEach(s => Object.keys(s.picks || {}).forEach(k => seenPickKeys.add(k)));
+
+  // Raw projected stats (not pre-scored) keyed by normalized name, so any league
+  // can score this player's projected PPG trend to its OWN scoring settings later
+  // — mirrors Vault.buildProjectedPpgMapByName's join, just kept raw instead of
+  // dot-producted against one particular league's weights.
+  const statsByName = new Map();
+  Object.values(projData.players || {}).forEach(p => {
+    const key = normalizeName(p.name);
+    if (key && p.stats?.gp) statsByName.set(key, p.stats);
+  });
+
+  const todayPlayers = {};
+  const newPlayers = [];
   (ktcData.players || []).forEach(p => {
     const key = normalizeName(p.name);
-    if (key) valueByName.set(key, p[valueField]);
+    if (!key) return;
+    const entry = { sf: p.sf, oneQB: p.oneQB };
+    if (p.pos === 'TE') { entry.sf_tep = p.sf_tep; entry.sf_tepp = p.sf_tepp; entry.oneQB_tep = p.oneQB_tep; entry.oneQB_tepp = p.oneQB_tepp; }
+    const stats = statsByName.get(key);
+    if (stats) entry.stats = stats;
+    todayPlayers[key] = entry;
+    if (!seenPlayerKeys.has(key)) newPlayers.push({ key, name: p.name });
   });
 
-  // Projections are keyed by Sleeper player_id (no name-matching needed, unlike KTC).
-  // fetch-projections.js sums each player's real per-week projections, so p.stats.gp
-  // is their own real count of weeks with a projection — dividing by it directly
-  // (mirrors Vault.buildProjectedPpgMapById in vault-core.js) accounts for each
-  // player's own bye week without assuming everyone's falls in the same place.
-  const ppgByPid = new Map();
-  Object.entries(projData.players || {}).forEach(([pid, p]) => {
-    if (p.stats?.gp) ppgByPid.set(pid, scoreStats(p.stats, league.scoring_settings) / p.stats.gp);
+  const todayPicks = {};
+  const newPicks = [];
+  (ktcData.picks || []).forEach(p => {
+    const key = `${p.season}-${p.round}-${p.slot}`;
+    todayPicks[key] = { sf: p.sf, oneQB: p.oneQB, sf_tep: p.sf_tep, sf_tepp: p.sf_tepp, oneQB_tep: p.oneQB_tep, oneQB_tepp: p.oneQB_tepp };
+    if (!seenPickKeys.has(key)) newPicks.push({ key, season: p.season, round: p.round, slot: p.slot });
   });
 
-  const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
-  const userMap = new Map(users.map(u => [u.user_id, u]));
-  const playerSnaps = {};
-  const teams = rosters.map(r => {
-    const u = userMap.get(r.owner_id) || {};
-    const teamName = u.metadata?.team_name || u.display_name || 'Team';
-    let playerValue = 0;
-    const plist = [];
-    (r.players || []).forEach(pid => {
-      const p = players[String(pid)];
-      if (!p) return;
-      const name = `${p.first_name || ''} ${p.last_name || ''}`.trim();
-      const key = normalizeName(name);
-      const value = valueByName.get(key) || 0;
-      const ppg = ppgByPid.get(String(pid)) || 0;
-      playerValue += value;
-      plist.push({ id: String(pid), pos: p.position || '', ppg });
-      if (value > 0 || ppg > 0) playerSnaps[key] = { value, ppg: +ppg.toFixed(2) };
+  console.log(`Today (${today}): ${Object.keys(todayPlayers).length} players, ${Object.keys(todayPicks).length} picks tracked. ${newPlayers.length} new player(s), ${newPicks.length} new pick label(s) need historical backfill.`);
+
+  if (newPlayers.length || newPicks.length) {
+    console.log('Fetching bulk rankings page for slug lookup...');
+    const rankingsHtml = await fetch(RANKINGS_URL, { headers: HEADERS }).then(r => r.text());
+    const allEntries = extractJsonScriptTag(rankingsHtml, 'ktc-players');
+    if (!allEntries) throw new Error('Could not find ktc-players data on rankings page — page shape may have changed.');
+    const pickNamePattern = /^(\d{4})\s+(Early|Mid|Late)\s+(\d+)(?:st|nd|rd|th)$/i;
+    const slugByPlayerName = new Map();
+    const slugByPickLabel = new Map();
+    allEntries.forEach(p => {
+      if (p.position === 'RDP') {
+        const m = p.playerName.match(pickNamePattern);
+        if (m) slugByPickLabel.set(`${m[1]}-${+m[3]}-${m[2].toLowerCase()}`, p.slug);
+      } else {
+        const key = normalizeName(p.playerName);
+        if (key) slugByPlayerName.set(key, p.slug);
+      }
     });
-    const optPpg = optimalLineup(plist, slots);
-    return { rosterId: r.roster_id, teamName, playerValue: Math.round(playerValue), optPpg: +optPpg.toFixed(1) };
-  });
 
-  // Mirrors buildLeagueTeams' pick-ownership/pricing block in vault-core.js — a
-  // team's real dynasty value includes the picks it holds, not just rostered
-  // players, so "total" here has to fold picksValue in the same way the live
-  // League Overview page already does (its separate "Total"/"Picks" columns).
-  const pickYears = futurePickYears(league, drafts);
-  const pickMap = buildKtcPickMap(ktcData, isSF, pickYears, bonusRecTe);
-  const pickOwner = new Map();
-  pickYears.forEach(y => PICK_ROUNDS.forEach(rnd => rosters.forEach(ro => pickOwner.set(`${y}-${rnd}-${ro.roster_id}`, ro.roster_id))));
-  (traded || []).filter(p => pickYears.includes(+p.season)).forEach(p => {
-    const to = Number(p.owner_id);
-    if (to && to !== p.roster_id) pickOwner.set(`${p.season}-${p.round}-${p.roster_id}`, to);
-  });
-  const own = new Map(rosters.map(r => [r.roster_id, []]));
-  pickOwner.forEach((owner, k) => {
-    const [season, round, original] = k.split('-').map(Number);
-    own.get(owner).push({ season, round, original });
-  });
-
-  // Draft order rank (1 = worst team, picks first; n = best team, picks last) —
-  // same "best optPpg picks last" convention buildLeagueTeams uses, so a pick's
-  // overall slot (and therefore its KTC tier) matches what the live pages show.
-  const sorted = [...teams].sort((a, b) => b.optPpg - a.optPpg);
-  const n = sorted.length;
-  const draftRank = new Map(sorted.map((t, k) => [t.rosterId, n - k]));
-  teams.forEach(t => {
-    const picks = own.get(t.rosterId) || [];
-    const picksValue = picks.reduce((sum, p) => {
-      const rank = draftRank.get(p.original) || 1;
-      const overall = (p.round - 1) * n + rank;
-      const { round: ktcRound, tier } = ktcPickSlot(overall);
-      return sum + (pickMap.get(`${p.season}-${ktcRound}-${tier}`) || 0);
-    }, 0);
-    t.picksValue = Math.round(picksValue);
-    t.total = t.playerValue + t.picksValue;
-  });
-
-  const teamHistory = await readJson(TEAM_HISTORY_PATH, { leagueId: LEAGUE_ID, snapshots: [] });
-  const playerHistory = await readJson(PLAYER_HISTORY_PATH, { leagueId: LEAGUE_ID, snapshots: [] });
-
-  [teamHistory, playerHistory].forEach(h => {
-    if (h.snapshots.length && h.snapshots[h.snapshots.length - 1].date === today) {
-      h.snapshots.pop(); // Same-day re-run (e.g. manual dispatch) replaces, not duplicates.
+    let ok = 0, skipped = 0, failed = 0;
+    for (const { key, name } of newPlayers) {
+      const slug = slugByPlayerName.get(key);
+      if (!slug) { skipped++; continue; }
+      await sleep(REQUEST_DELAY_MS);
+      try {
+        const html = await fetch(`${RANKINGS_URL}/players/${slug}`, { headers: HEADERS }).then(r => r.text());
+        const isTE = (ktcData.players.find(p => normalizeName(p.name) === key) || {}).pos === 'TE';
+        const dateMap = buildDateMap(html, isTE);
+        mergeAssetHistory(playerHistory, 'players', key, dateMap, today);
+        ok++;
+      } catch (e) { failed++; console.log(`  ERROR fetching player ${name}: ${e.message}`); }
     }
-  });
+    if (newPlayers.length) console.log(`Backfilled ${ok} new players (${skipped} not found on rankings page, ${failed} failed).`);
 
-  teamHistory.leagueId = LEAGUE_ID;
-  teamHistory.snapshots.push({ date: today, teams });
-  if (teamHistory.snapshots.length > MAX_TEAM_SNAPSHOTS) teamHistory.snapshots = teamHistory.snapshots.slice(-MAX_TEAM_SNAPSHOTS);
+    let pOk = 0, pFailed = 0;
+    for (const { key, season, round, slot } of newPicks) {
+      const slug = slugByPickLabel.get(key);
+      if (!slug) { console.log(`  SKIP pick ${key} — not found on today's rankings page.`); continue; }
+      await sleep(REQUEST_DELAY_MS);
+      try {
+        const html = await fetch(`${RANKINGS_URL}/players/${slug}`, { headers: HEADERS }).then(r => r.text());
+        const dateMap = buildDateMap(html, true);
+        mergeAssetHistory(pickHistory, 'picks', key, dateMap, today);
+        pOk++;
+      } catch (e) { pFailed++; console.log(`  ERROR fetching pick ${season} ${slot} ${round}: ${e.message}`); }
+    }
+    if (newPicks.length) console.log(`Backfilled ${pOk} new pick labels (${pFailed} failed).`);
+  }
 
-  playerHistory.leagueId = LEAGUE_ID;
-  playerHistory.snapshots.push({ date: today, players: playerSnaps });
+  playerHistory.snapshots.push({ date: today, players: todayPlayers });
+  pickHistory.snapshots.push({ date: today, picks: todayPicks });
+  playerHistory.snapshots.sort((a, b) => a.date < b.date ? -1 : 1);
+  pickHistory.snapshots.sort((a, b) => a.date < b.date ? -1 : 1);
+
   if (playerHistory.snapshots.length > MAX_PLAYER_SNAPSHOTS) playerHistory.snapshots = playerHistory.snapshots.slice(-MAX_PLAYER_SNAPSHOTS);
 
-  await fs.writeFile(TEAM_HISTORY_PATH, JSON.stringify(teamHistory));
   await fs.writeFile(PLAYER_HISTORY_PATH, JSON.stringify(playerHistory));
-  console.log(`Snapshotted ${teams.length} teams and ${Object.keys(playerSnaps).length} rostered players (value + PPG) for ${today}.`);
+  await fs.writeFile(PICK_HISTORY_PATH, JSON.stringify(pickHistory));
+  console.log(`Wrote ${playerHistory.snapshots.length} player-history days, ${pickHistory.snapshots.length} pick-history days.`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

@@ -265,10 +265,12 @@ function renderValueHistory(history, currentTeams) {
   // A single day-1 snapshot draws as a lone dot per team rather than a line (nothing
   // to connect yet) — still visible, still confirms tracking has actually started,
   // instead of an empty "building" placeholder until a second snapshot lands.
-  // An estimated day (interpolated to paper over a real data outage — see
-  // Vault.fetchTeamValueHistory's snapshot `estimated` flag) draws as a hollow ring
-  // instead of a filled dot, so the line stays visually continuous without quietly
-  // passing off a guess as an observed value.
+  // An `estimated` day (a snapshot flagged as interpolated to paper over a real
+  // data outage) draws as a hollow ring instead of a filled dot, so the line stays
+  // visually continuous without quietly passing off a guess as an observed value.
+  // Vault.buildTeamValueHistory's live replay never sets this — every day it
+  // produces is a real reconstruction, not an interpolation — but the rendering
+  // still honors the flag in case a future data source needs it.
   const lines = series.map(s => {
     const pts = s.points.map((v, i) => v == null ? null : `${x(i)},${y(v)}`).filter(Boolean).join(' ');
     const dots = s.points.map((v, i) => v == null ? '' : snaps[i].estimated
@@ -407,7 +409,7 @@ async function load() {
       const lo = Math.min(...allYears), hi = Math.max(...allYears);
       document.getElementById('picksLegend').textContent = ` — ${lo}-${String(hi).slice(-2)} R1-4 live from Sleeper`;
     }
-    Vault.fetchTeamValueHistory().then(h => renderValueHistory(h, teams)).catch(() => {});
+    Vault.buildTeamValueHistory(Vault.getLeagueId()).then(h => renderValueHistory(h, teams)).catch(e => { console.error(e); renderValueHistory({ snapshots: [] }, teams); });
 
     // Career record (walks the league's season-history chain) and the rest-of-
     // season simulation (real remaining schedule, Monte Carlo'd) both take a
