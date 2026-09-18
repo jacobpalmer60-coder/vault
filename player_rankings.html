@@ -51,6 +51,7 @@
           <button data-pos="RB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">RB</button>
           <button data-pos="WR" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">WR</button>
           <button data-pos="TE" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">TE</button>
+          <button data-pos="FLEX" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">FLEX</button>
         </div>
         <div class="flex items-center gap-1.5">
           <span class="text-xs text-zinc-500">Trend:</span>
@@ -189,6 +190,16 @@
     if (bonus <= 0.5) return 'TE+';
     if (bonus <= 1) return 'TE++';
     return 'TE+++';
+  }
+
+  // Points per reception — always shown (not gated on "non-default") since it's
+  // as core to describing a league's scoring as Superflex/1QB is to its format.
+  function pprLabel(rec) {
+    const r = +rec || 0;
+    if (r <= 0) return 'Standard';
+    if (r === 0.5) return 'Half PPR';
+    if (r === 1) return 'Full PPR';
+    return `${r} PPR`;
   }
 
   // Compact "1QB/2RB/3WR/1TE/2FLEX/1SFLEX" read on the league's actual starting
@@ -457,8 +468,9 @@
   async function loadData() {
     try {
       statFormat.textContent = isSF ? 'Superflex' : '1QB';
+      const ppr = pprLabel(scoringSettings?.rec);
       const tep = tePremiumLabel(scoringSettings?.bonus_rec_te);
-      statFormatDetail.textContent = [tep, startersLabel(rosterPositions)].filter(Boolean).join(' • ');
+      statFormatDetail.textContent = [ppr, tep, startersLabel(rosterPositions)].filter(Boolean).join(' • ');
       log('Fetching KTC values…');
       const [ktcData, projData, valueHistory, sleeperPlayers, playerHistory] = await Promise.all([
         Vault.fetchKtcValues(),
@@ -562,7 +574,7 @@
   function applyFiltersAndRender() {
     const q = searchQuery.toLowerCase().trim();
     filteredRows = allRows.filter(r => {
-      if (posFilter !== 'ALL' && r.pos !== posFilter) return false;
+      if (posFilter === 'FLEX' ? !['RB', 'WR', 'TE'].includes(r.pos) : posFilter !== 'ALL' && r.pos !== posFilter) return false;
       if (q) {
         const hay = `${r.player} ${r.team} ${r.pos}`.toLowerCase();
         if (!hay.includes(q)) return false;
