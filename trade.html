@@ -19,7 +19,11 @@
       <h1 class="display text-[28px] font-semibold gold-text">Trade Calculator</h1>
       <p id="status" class="text-[13px] text-zinc-400 mt-1">Connecting...</p>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 flex-wrap justify-end">
+      <div id="offeredByWrap" class="hidden flex items-center gap-2">
+        <span class="text-[11px] text-zinc-500 uppercase tracking-wider">Who's offering?</span>
+        <div id="offeredByToggle" class="flex gap-1.5"></div>
+      </div>
       <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-emerald-500/25 text-[12px] text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">✨ Suggest a Trade</button>
       <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-sky-500/25 text-[12px] text-sky-300/80 hover:text-sky-200 hover:border-sky-500/50 hover:bg-sky-500/5 transition-colors">🔍 Find a Trade</button>
       <div class="h-8 px-3 rounded-lg bg-black/40 border border-white/8 flex items-center gap-2 text-[12px] text-zinc-400">
@@ -122,13 +126,7 @@
 
   <!-- Trade-wide verdict + archetype (applies to both sides, so spans full width) -->
   <div id="analysisHeader" class="hidden mb-6">
-    <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
-      <h2 class="display text-[24px] gold-text">Trade Analysis</h2>
-      <div class="flex items-center gap-2">
-        <span class="text-[11px] text-zinc-500 uppercase tracking-wider">Who's offering?</span>
-        <div id="offeredByToggle" class="flex gap-1.5"></div>
-      </div>
-    </div>
+    <h2 class="display text-[24px] gold-text mb-3">Trade Analysis</h2>
     <div id="tradeVerdict" class="card rounded-2xl p-5 mb-4"></div>
     <div id="tradeArchetype" class="card rounded-2xl p-4"></div>
   </div>
@@ -355,6 +353,7 @@ async function init() {
       document.getElementById('workspace').classList.remove('hidden');
       document.getElementById('finderPickerBtn').classList.remove('hidden');
       document.getElementById('suggestBtn').classList.remove('hidden');
+      document.getElementById('offeredByWrap').classList.remove('hidden');
       renderPosFilter('A'); renderPosFilter('B');
       render('A'); render('B');
     };
@@ -1248,6 +1247,10 @@ function confidenceBandHtml(aAssets, bAssets, aValAdjNeed, bValAdjNeed, pctDiffN
 
 function updateTrade() {
   const teamA = teamOf('A'), teamB = teamOf('B');
+  // Unconditional (unlike the trade bar/analysis below) — who's offering is
+  // meaningful the moment two teams are picked, before any assets are even
+  // selected, not just once there's a trade to analyze.
+  renderOfferedByToggle(teamA, teamB);
   const aAssets = [...selectedA].map(k => teamA.assets.find(x => x.key === k)).filter(Boolean);
   const bAssets = [...selectedB].map(k => teamB.assets.find(x => x.key === k)).filter(Boolean);
   const aVal = aAssets.reduce((s, a) => s + a.value, 0);
@@ -1600,7 +1603,6 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   header.classList.remove('hidden');
   document.getElementById('analysisA').classList.remove('hidden');
   document.getElementById('analysisB').classList.remove('hidden');
-  renderOfferedByToggle(teamA, teamB);
 
   const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiffNeed, bandPct, verdict } =
     computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
