@@ -45,7 +45,22 @@ function bestWorstLine(rec, label, tone) {
   </div>`;
 }
 
-function renderCard(s, rank) {
+// Net value can land either side of zero — a diverging bar centered on a zero
+// tick (fills right in emerald for a gain, left in rose for a loss) instead of a
+// plain 0-to-max magnitude bar, which would wrongly read "longer = better"
+// regardless of sign. Same treatment as Trade Grades' League Trade Summary table,
+// since both render the exact same Vault.buildManagerStats numbers.
+function divergingBar(val, maxAbs) {
+  if (!maxAbs) return '';
+  const pct = Math.min(100, Math.abs(val) / maxAbs * 100) / 2;
+  const color = val > 0 ? '#34d399' : val < 0 ? '#fb7185' : 'transparent';
+  return `<div class="mt-1.5 h-[4px] w-full max-w-[120px] ml-auto relative rounded-full bg-white/[0.06] overflow-hidden">
+    <div class="absolute inset-y-0 left-1/2 w-px bg-white/20"></div>
+    <div class="absolute inset-y-0 rounded-full" style="background:${color}; width:${pct}%; ${val >= 0 ? `left:50%` : `right:50%`}"></div>
+  </div>`;
+}
+
+function renderCard(s, rank, maxAbsNet) {
   const notes = Vault.managerTendencyNotes(s, window._avgTrades || 0);
   return `
     <div class="card rounded-vault-sm p-5">
@@ -58,6 +73,7 @@ function renderCard(s, rank) {
         <div class="text-right">
           <div class="text-[17px] mono font-semibold ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</div>
           <div class="text-[11px] text-zinc-500">net value, all trades</div>
+          ${divergingBar(s.netValue, maxAbsNet)}
         </div>
       </div>
 
@@ -90,7 +106,8 @@ function render(stats) {
     return;
   }
   empty.classList.add('hidden');
-  grid.innerHTML = stats.map((s, i) => renderCard(s, i + 1)).join('');
+  const maxAbsNet = Math.max(...stats.map(s => Math.abs(s.netValue)), 1);
+  grid.innerHTML = stats.map((s, i) => renderCard(s, i + 1, maxAbsNet)).join('');
 }
 
 async function init() {

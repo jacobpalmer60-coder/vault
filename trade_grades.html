@@ -105,11 +105,29 @@ function synopsisColor(pctDiff) {
 // League-wide "how are we doing" rollup — one row per team across every graded
 // trade, sorted by net value so it reads as a leaderboard. Built on
 // Vault.buildManagerStats, the same aggregation the Manager page uses.
+// Net Value and Timeline/Need Fit can land either side of zero — a plain 0-to-max
+// magnitude bar (like League Overview's microBar) would be misleading here, since
+// "longer bar" wouldn't consistently mean "better." A diverging bar centered on a
+// zero tick, filling right in emerald for a positive number or left in rose for a
+// negative one, matches what these two columns actually mean instead of forcing
+// them into the wrong bar shape just for visual consistency.
+function divergingBar(val, maxAbs) {
+  if (!maxAbs) return '';
+  const pct = Math.min(100, Math.abs(val) / maxAbs * 100) / 2;
+  const color = val > 0 ? '#34d399' : val < 0 ? '#fb7185' : 'transparent';
+  return `<div class="mt-1 h-[4px] w-full max-w-[90px] ml-auto relative rounded-full bg-white/[0.06] overflow-hidden">
+    <div class="absolute inset-y-0 left-1/2 w-px bg-white/20"></div>
+    <div class="absolute inset-y-0 rounded-full" style="background:${color}; width:${pct}%; ${val >= 0 ? `left:50%` : `right:50%`}"></div>
+  </div>`;
+}
+
 function renderTeamSummary(graded, teams) {
   const box = document.getElementById('teamSummary');
   if (!graded.length) { box.classList.add('hidden'); return; }
 
   const rows = Vault.buildManagerStats(graded, teams);
+  const maxAbsNet = Math.max(...rows.map(s => Math.abs(s.netValue)), 1);
+  const maxAbsFit = Math.max(...rows.map(s => Math.abs(s.fitSum)), 1);
 
   box.classList.remove('hidden');
   box.innerHTML = `
@@ -135,8 +153,8 @@ function renderTeamSummary(graded, teams) {
                 <td class="px-4 py-2.5 font-medium">${Vault.escapeHtml(s.teamName)}</td>
                 <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.trades}</td>
                 <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.won}-${s.lost}</td>
-                <td class="px-3 py-2.5 text-right mono font-medium ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</td>
-                <td class="px-4 py-2.5 text-right mono ${s.fitSum > 0.5 ? 'text-emerald-400/80' : s.fitSum < -0.5 ? 'text-rose-400/80' : 'text-zinc-500'}">${fmtSigned(s.fitSum, 1)}</td>
+                <td class="px-3 py-2.5 text-right"><div class="mono font-medium ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</div>${divergingBar(s.netValue, maxAbsNet)}</td>
+                <td class="px-4 py-2.5 text-right"><div class="mono ${s.fitSum > 0.5 ? 'text-emerald-400/80' : s.fitSum < -0.5 ? 'text-rose-400/80' : 'text-zinc-500'}">${fmtSigned(s.fitSum, 1)}</div>${divergingBar(s.fitSum, maxAbsFit)}</td>
               </tr>`).join('')}
           </tbody>
         </table>
