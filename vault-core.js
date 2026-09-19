@@ -1599,37 +1599,60 @@ const Vault = {
     return value;
   },
 
-  /* What a whole pile of assets is actually worth to the team RECEIVING it, not just
-     its raw sticker price — sums needAdjustedValue across every asset against the
-     recipient's CURRENT (pre-trade) roster, the same "does this fill a real hole"
-     read positionalFitNotes' incoming scan already uses. This is what turns the
-     headline Fair/Borderline/Lopsided verdict from "did the two piles cost the same"
-     into "did each side actually gain comparable REAL value" — a pile heavy at a
-     position the recipient is already deep at is worth less to them than the same
-     dollars spread across a real need, even when the sticker prices match exactly.
-     Picks pass through at sticker value (needAdjustedValue's own behavior — no
-     position to be a need or surplus at). FAIR_PCT/LOPSIDED_PCT were calibrated
-     against real trades in raw-dollar terms, not this need-weighted version; reused
-     as-is since the need multiplier is a modest ±15% swing and only applies to
-     assets that actually land on a need/surplus position, not a wholesale rescale
-     of the distribution those cutoffs were fit to. */
-  needAdjustedTradeValue(receivingTeam, allTeams, assets) {
-    const profile = Vault.positionalProfile(receivingTeam, allTeams);
-    return assets.reduce((s, a) => s + Vault.needAdjustedValue(Vault.adjustedValue(a.value), a.pos, profile), 0);
-  },
-
   /* What each side of a proposed trade is really worth once KTC's own consolidation
      bonus (Vault.consolidationAdjustment) is applied — the raw-dollar basis for the
      trade bar's $ number, the headline value comparison, and the recap text's
-     "gave up about $X" language, replacing a plain per-asset sum. Need-weighting
-     (Vault.needAdjustedTradeValue) stays a separate, additional lens layered on
-     top for the Fair/Borderline/Lopsided verdict itself — this function only fixes
-     the piece-count-blind raw comparison underneath it. */
+     "gave up about $X" language, replacing a plain per-asset sum. */
   tradeSideValues(assetsA, assetsB) {
     const valsA = assetsA.map(a => a.value), valsB = assetsB.map(a => a.value);
     const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
     const { adjust1, adjust2, display } = Vault.consolidationAdjustment(valsA, valsB);
     return { rawA, rawB, valueA: rawA + adjust1, valueB: rawB + adjust2, bonusA: adjust1, bonusB: adjust2, display };
+  },
+
+  // Splits a side's already-computed total (real two-sided consolidation value, not
+  // a plain sum) back across its individual assets, proportional to each asset's own
+  // raw share — needAdjustedTradeValues needs a per-asset number to weight by
+  // position, but the accurate total only exists at the whole-side level (KTC's
+  // consolidation bonus depends on BOTH sides' piece counts at once, not any one
+  // asset alone). Proportional split keeps things simple and undoes cleanly: sum
+  // the results back up and you get exactly the side total you started from.
+  distributeAdjustedValue(assets, adjustedTotal) {
+    const rawTotal = assets.reduce((s, a) => s + a.value, 0);
+    if (!rawTotal) return assets.map(a => ({ ...a, distAdjValue: 0 }));
+    return assets.map(a => ({ ...a, distAdjValue: adjustedTotal * (a.value / rawTotal) }));
+  },
+
+  /* What each side of a proposed trade is really worth to the team RECEIVING it —
+     this is what drives the Fair/Borderline/Lopsided verdict and the Suggest-a-
+     Trade "not bad" filter, so it needs to start from the real, two-sided
+     consolidation math (Vault.tradeSideValues) that the raw dollar number already
+     uses, not each asset's isolated VBA score (the old needAdjustedTradeValue).
+     VBA alone can't see a real concentration premium/penalty the way two-sided
+     consolidation does, since it scores one asset at a time with no visibility
+     into the other side's piece count — confirmed at scale by running 24,000+ real
+     KTC trades through both: VBA overstated lopsidedness in every one of the ~160
+     cases where the two disagreed by more than 40 points, never the reverse, and
+     the gap wasn't confined to extreme piece counts — most of those cases were
+     ordinary 2- or 3-piece trades where one side's value happened to be
+     concentrated in one big piece rather than spread evenly.
+
+     `teamA` gives `aAssets` (received by `teamB`); `teamB` gives `bAssets`
+     (received by `teamA`) — matches Vault.tradeSideValues' A/B pairing exactly, so
+     a caller already holding that result's shape doesn't need to remember a
+     different convention here. Each side's real consolidation-adjusted total gets
+     split back across its own assets (Vault.distributeAdjustedValue) before need-
+     weighting, so a pile heavy at a position the recipient is already deep at is
+     still worth less to them than the same real dollars spread across a need. */
+  needAdjustedTradeValues(teamA, teamB, allTeams, aAssets, bAssets) {
+    const { valueA: consolAdjA, valueB: consolAdjB } = Vault.tradeSideValues(aAssets, bAssets);
+    const profileB = Vault.positionalProfile(teamB, allTeams); // judges aAssets (B receives)
+    const profileA = Vault.positionalProfile(teamA, allTeams); // judges bAssets (A receives)
+    const distA = Vault.distributeAdjustedValue(aAssets, consolAdjA);
+    const distB = Vault.distributeAdjustedValue(bAssets, consolAdjB);
+    const aValAdjNeed = distA.reduce((s, x) => s + Vault.needAdjustedValue(x.distAdjValue, x.pos, profileB), 0);
+    const bValAdjNeed = distB.reduce((s, x) => s + Vault.needAdjustedValue(x.distAdjValue, x.pos, profileA), 0);
+    return { aValAdjNeed, bValAdjNeed };
   },
 
   /* Flags moving assets whose dynasty value and this-season production disagree by
@@ -2265,7 +2288,7 @@ const Vault = {
     const dVorpB = sim.before.B.vorpTotal - sim.after.B.vorpTotal;
 
     // Need-weighted fairness — same reasoning as trade.html's computeTradeAnalysis
-    // (Vault.needAdjustedTradeValue), applied here to a completed trade instead of a
+    // (Vault.needAdjustedTradeValues), applied here to a completed trade instead of a
     // live one: what each side gave up, valued by what it was actually worth to the
     // team that received it, not just its sticker price. Judged against the
     // recipient's reconstructed PRE-trade roster (sim.after, despite the name — see
@@ -2273,8 +2296,7 @@ const Vault = {
     // else has happened to their roster since. This is what drives the
     // Fair/Borderline/Lopsided badge on Trade Grades; pctDiff above stays the raw
     // sticker-price version, kept for the recap text and as a tooltip detail.
-    const aGaveAdjNeed = Vault.needAdjustedTradeValue(sim.after.B, teams, toB);
-    const bGaveAdjNeed = Vault.needAdjustedTradeValue(sim.after.A, teams, toA);
+    const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toB, toA);
     const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
     const pctDiffNeed = Math.abs(aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100;
 

@@ -1189,14 +1189,13 @@ function updateTrade() {
   const diffAdj = Math.abs(aValAdj - bValAdj);
   const avgSideAdj = (aValAdj + bValAdj) / 2 || 1;
   const pctDiff = diffAdj / avgSideAdj * 100;
-  // Fair/Borderline/Lopsided is need-weighted (Vault.needAdjustedTradeValue): what
+  // Fair/Borderline/Lopsided is need-weighted (Vault.needAdjustedTradeValues): what
   // each pile is actually worth to the team RECEIVING it, not just its sticker
   // price — a pile that costs the same in raw dollars but lands on a real need for
   // one side and a surplus for the other isn't actually fair just because the
   // dollar totals matched. The big number stays the raw $ diff (still a real,
   // checkable fact); the label/color below is what changed.
-  const aValAdjNeed = Vault.needAdjustedTradeValue(teamB, teams, aAssets);
-  const bValAdjNeed = Vault.needAdjustedTradeValue(teamA, teams, bAssets);
+  const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
   const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
   const pctDiffNeed = Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100;
   const diffEl = document.getElementById('diff');
@@ -1396,14 +1395,13 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const dValueAdjB = aValAdj - bValAdj;
 
   // Need-weighted fairness — what each pile is actually worth to the team RECEIVING
-  // it (Vault.needAdjustedTradeValue), not just its raw sticker price. This is what
+  // it (Vault.needAdjustedTradeValues), not just its raw sticker price. This is what
   // decides Fair/Borderline/Lopsided below (pctDiffNeed), so two piles that cost the
   // same in raw dollars but land on a need for one side and a surplus for the other
   // don't get called "fair" just because the sticker prices matched. dValueAdjA/B
   // above stay raw — that's a real, separate fact ("you gained $X in sticker value")
   // worth keeping, just not the one that should gate the fairness label.
-  const aValAdjNeed = Vault.needAdjustedTradeValue(teamB, teams, aAssets);
-  const bValAdjNeed = Vault.needAdjustedTradeValue(teamA, teams, bAssets);
+  const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
   const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
   const pctDiffNeed = avgSideAdjNeed ? Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
 

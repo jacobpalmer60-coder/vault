@@ -76,9 +76,9 @@
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Overall</span><span class="text-zinc-400"> — Players + Picks combined, a team's real total dynasty value</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Position Split</span><span class="text-zinc-400"> — Share of player value by QB/RB/WR/TE</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Players</span><span class="text-zinc-400"> — Sum of rostered player values</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — R1-4 live from Sleeper</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Opt PPG</span><span class="text-zinc-400"> — Best lineup, league scoring</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">VORP</span><span class="text-zinc-400"> — Best lineup's total edge over the best readily-available replacement at each position, comparable across positions unlike raw PPG (see Player Rankings for the per-player breakdown)</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Opt PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored to your league's real settings — not necessarily who you'd actually start today</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">VORP</span><span class="text-zinc-400"> — Same lineup as Opt PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's real, hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Longevity</span><span class="text-zinc-400"> — Of the next 5 projected years (position-decay + arriving picks), how many still clear the real playoff line. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from how you stand now vs. how long that lasts (see guide below)</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Career</span><span class="text-zinc-400"> — All-time W-L-T for this manager, summed across every season Sleeper's league-history chain has for this league</span></div>
@@ -409,7 +409,7 @@ async function load() {
     const allYears = teams.flatMap(t => t.picks.map(p => p.season));
     if (allYears.length) {
       const lo = Math.min(...allYears), hi = Math.max(...allYears);
-      document.getElementById('picksLegend').textContent = ` — ${lo}-${String(hi).slice(-2)} R1-4 live from Sleeper`;
+      document.getElementById('picksLegend').textContent = ` — Total KTC value of every future draft pick this team owns, ${lo}-${String(hi).slice(-2)} R1-4, live from Sleeper`;
     }
     Vault.buildTeamValueHistory(Vault.getLeagueId()).then(h => renderValueHistory(h, teams)).catch(e => { console.error(e); renderValueHistory({ snapshots: [] }, teams); });
 
