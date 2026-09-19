@@ -278,24 +278,22 @@ function renderPartnerSuggestions() {
 
 function useSuggestedPartner(rosterId) {
   document.getElementById('teamBSetup').value = rosterId;
-  refreshTeamOptions();
+  prevBSetup = String(rosterId);
 }
 
-// Team A and Team B (both the setup screen and the workspace dropdowns) can never
-// be the same team — trading with yourself isn't a real trade and produces a
-// meaningless result. Disabling the other side's already-picked team in each
-// dropdown's own option list prevents it from being selected at all, rather than
-// reacting after the fact — called after every action that can change either
-// pairing (each select's own onchange, and as the first line of render(), which
-// already runs after every other code path that sets a team programmatically).
-function refreshTeamOptions() {
-  const selA = document.getElementById('teamA'), selB = document.getElementById('teamB');
-  const setupA = document.getElementById('teamASetup'), setupB = document.getElementById('teamBSetup');
-  [[selA, selB], [setupA, setupB]].forEach(([x, y]) => {
-    if (!x || !y) return;
-    [...x.options].forEach(o => { o.disabled = o.value === y.value; });
-    [...y.options].forEach(o => { o.disabled = o.value === x.value; });
-  });
+// Team A and Team B can never end up on the same team — trading with yourself
+// isn't a real trade. Previously enforced by disabling the other side's current
+// team in each dropdown's own option list, which meant clicking a team you could
+// plainly see in the list appeared to do nothing. Now any team is always
+// clickable, and picking one that's already on the other side bumps that other
+// side to whichever team THIS side used to hold instead — resolving the
+// collision the way a person would (swap them) rather than silently blocking it.
+// Needs each select's own previous value tracked (a plain "current value" read
+// after the fact is already the NEW one), updated after every resolution.
+let prevA = null, prevB = null, prevASetup = null, prevBSetup = null;
+function resolveDup(newVal, otherEl, prevOfChanged) {
+  if (newVal === otherEl.value) { otherEl.value = prevOfChanged; return true; }
+  return false;
 }
 
 async function init() {
@@ -319,13 +317,29 @@ async function init() {
     [selA, selB, setupA, setupB].forEach(sel => sel.innerHTML = opts);
     selA.value = setupA.value = teams[0].rosterId;
     selB.value = setupB.value = teams[1]?.rosterId || teams[0].rosterId;
-    refreshTeamOptions();
+    prevA = prevASetup = selA.value;
+    prevB = prevBSetup = selB.value;
 
-    selA.onchange = () => { refreshTeamOptions(); selectedA.clear(); filterA = 'ALL'; renderPosFilter('A'); render('A'); };
-    selB.onchange = () => { refreshTeamOptions(); selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B'); };
+    selA.onchange = () => {
+      if (resolveDup(selA.value, selB, prevA)) { prevB = selB.value; selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B'); }
+      prevA = selA.value;
+      selectedA.clear(); filterA = 'ALL'; renderPosFilter('A'); render('A');
+    };
+    selB.onchange = () => {
+      if (resolveDup(selB.value, selA, prevB)) { prevA = selA.value; selectedA.clear(); filterA = 'ALL'; renderPosFilter('A'); render('A'); }
+      prevB = selB.value;
+      selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B');
+    };
 
-    setupA.onchange = () => { refreshTeamOptions(); renderPartnerSuggestions(); };
-    setupB.onchange = () => refreshTeamOptions();
+    setupA.onchange = () => {
+      if (resolveDup(setupA.value, setupB, prevASetup)) prevBSetup = setupB.value;
+      prevASetup = setupA.value;
+      renderPartnerSuggestions();
+    };
+    setupB.onchange = () => {
+      if (resolveDup(setupB.value, setupA, prevBSetup)) prevASetup = setupA.value;
+      prevBSetup = setupB.value;
+    };
     renderPartnerSuggestions();
 
     document.getElementById('status').textContent = `${teams.length} teams • ${league.name} • ${built.isSF ? 'Superflex' : '1QB'}`;
@@ -334,6 +348,7 @@ async function init() {
     document.getElementById('loadRostersBtn').onclick = () => {
       selA.value = setupA.value;
       selB.value = setupB.value;
+      prevA = selA.value; prevB = selB.value;
       selectedA.clear(); selectedB.clear();
       filterA = 'ALL'; filterB = 'ALL';
       document.getElementById('setup').classList.add('hidden');
@@ -439,7 +454,6 @@ function renderNeeds(side, team) {
 }
 
 function render(side) {
-  refreshTeamOptions();
   const team = teamOf(side);
   const selected = side === 'A' ? selectedA : selectedB;
   const filter = side === 'A' ? filterA : filterB;
@@ -649,6 +663,7 @@ function useSuggestion(i) {
   const c = suggestState[i];
   if (!c) return;
   document.getElementById('teamB').value = c.partner.rosterId;
+  prevB = String(c.partner.rosterId);
   selectedA.clear(); selectedB.clear();
   c.giveA.forEach(a => selectedA.add(a.key));
   c.giveB.forEach(a => selectedB.add(a.key));
