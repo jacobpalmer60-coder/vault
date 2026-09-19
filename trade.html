@@ -1376,7 +1376,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     // real hole), what's outgoing is judged against the roster AFTER (does losing it
     // leave one) — see Vault.positionalFitNotes for why those need to be different
     // snapshots, not the same one twice.
-    const posResult = Vault.positionalFitNotes(bef, teams, aft, pool, incoming, outgoing);
+    const posResult = Vault.positionalFitNotes(bef, teams, aft, pool, incoming, outgoing, res.mode);
     res.fit += posResult.posFit;
     posResults[side] = posResult;
 

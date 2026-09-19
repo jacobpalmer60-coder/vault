@@ -42,6 +42,20 @@ const VAULT_CONFIG = {
   // scales with the asset's own value, not a flat bonus regardless of size.
   POS_NEED_MULTIPLIER: 1.15,
   POS_SURPLUS_MULTIPLIER: 0.85,
+  // How much of the incoming-surplus penalty above still applies to a REBUILDING
+  // team specifically (see Vault.positionalFitNotes) — a rebuild is banking future
+  // value, not fielding this year's roster, so "already deep here" shouldn't cost
+  // it much. Dampened, not zeroed: a real dump of redundant depth is still weaker
+  // value than the same dollars at a real need, just not penalized as if the team
+  // were trying to win now with a bloated position group.
+  REBUILD_SURPLUS_DAMPEN: 0.3,
+  // How much the "leaves this team thin" outgoing-need penalty still applies when
+  // the departing player is priced mostly on upside, not current production (see
+  // Vault.positionalFitNotes) — the roster-body-count check that drives "need"
+  // can't otherwise tell a real starter from a stash apart; this is the same
+  // dampening idea as REBUILD_SURPLUS_DAMPEN, just gated on the ASSET's own
+  // price/production gap instead of the team's timeline.
+  SPECULATIVE_NEED_DAMPEN: 0.3,
   // Same idea, along a different axis: does the asset TYPE fit the team's timeline
   // (see Vault.teamMode)? A rebuilder should read a pick or a young player as worth
   // more than sticker price — that's exactly what they're stockpiling for — and a
@@ -1525,7 +1539,17 @@ const Vault = {
          (trade.html's live before/after, Trade Grades' reconstructed pre-trade state
          via Vault.simulateTrade run in reverse), so this doesn't cost either caller
          an extra pass. */
-  positionalFitNotes(beforeTeam, beforeAll, afterTeam, afterAll, incoming, outgoing) {
+  // `mode` (Vault.teamMode — 'rebuild'/'contend'/'flexible') softens ONE specific
+  // case: a REBUILDING team receiving value at a position it's already deep at.
+  // "Deep at" here means enough startable-caliber bodies for THIS season's lineup
+  // — a distinction a rebuild doesn't actually care about, since it isn't trying to
+  // field the best possible roster this year, it's accumulating value/optionality
+  // for later. Penalizing a rebuilder for taking a good young asset at a "surplus"
+  // position (real case: acquiring a cheap ascending RB) fights the exact strategy
+  // a rebuild should be running. Every other branch (a genuine need, or what either
+  // mode gives UP) is untouched — a rebuild still shouldn't go fully empty at a
+  // position with no plan, and dealing from surplus is already scored as good.
+  positionalFitNotes(beforeTeam, beforeAll, afterTeam, afterAll, incoming, outgoing, mode) {
     const beforeProfile = Vault.positionalProfile(beforeTeam, beforeAll);
     const afterProfile = Vault.positionalProfile(afterTeam, afterAll);
     const notes = [];
@@ -1562,15 +1586,42 @@ const Vault = {
         // figure isn't about any one of them.
         const noteExtra = { assetIds: assets.map(a => a.id), isIncoming, needMult: rawSum ? weightedRaw / rawSum : 1 };
         if (isIncoming) {
-          dollarSwing += delta;
+          const rebuildSurplus = delta < 0 && mode === 'rebuild';
+          const swing = rebuildSurplus ? delta * VAULT_CONFIG.REBUILD_SURPLUS_DAMPEN : delta;
+          dollarSwing += swing;
           notes.push(delta > 0
             ? { tone: 'good', text: `Adds ${rawDisplay} at ${POS}, a genuine roster need — worth closer to ${weightedDisplay} to this team than sticker price.`, pos: POS, absDelta: Math.abs(delta), phrase: `addressed ${article} ${POS} need`, ...noteExtra }
-            : { tone: 'bad', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — really worth closer to ${weightedDisplay} here.`, pos: POS, absDelta: Math.abs(delta), phrase: `added ${POS} depth`, ...noteExtra });
+            : rebuildSurplus
+              ? { tone: 'neutral', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — a rebuild isn't fielding this year's roster, so banking more value here is fine even if it's closer to ${weightedDisplay} at this position.`, pos: POS, absDelta: Math.abs(swing), phrase: `added ${POS} depth`, ...noteExtra }
+              : { tone: 'bad', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — really worth closer to ${weightedDisplay} here.`, pos: POS, absDelta: Math.abs(delta), phrase: `added ${POS} depth`, ...noteExtra });
         } else {
-          dollarSwing -= delta;
+          // Two independent reasons the standard "leaves this team thin" penalty
+          // can overstate a real loss — checked in order of specificity:
+          //   1. The departing player's OWN valueRiskGap (buildLeagueTeams — how far
+          //      price sits ahead of actual production) separates a real, playing
+          //      starter from a speculative stash — losing a rookie flier priced on
+          //      upside doesn't cost a team the way losing a proven contributor
+          //      does, even though both trip the same roster-body-count check.
+          //      Reuses VALUE_RISK_GAP's existing threshold, not a new number.
+          //   2. Failing that, a REBUILDING team giving up a real need still isn't
+          //      the same problem it is for a contender — a rebuild is playing for
+          //      when it NEXT contends, not patching this year's depth chart, so a
+          //      hole today is largely beside the point (mirrors the incoming-
+          //      surplus dampening above, same reasoning, opposite direction).
+          const gaps = assets.map(a => a.valueRiskGap).filter(g => g != null);
+          const avgRiskGap = gaps.length ? gaps.reduce((s, g) => s + g, 0) / gaps.length : 0;
+          const isSpeculative = delta > 0 && avgRiskGap <= -VAULT_CONFIG.VALUE_RISK_GAP;
+          const rebuildGiving = delta > 0 && mode === 'rebuild' && !isSpeculative;
+          const dampened = isSpeculative || rebuildGiving;
+          const swing = dampened ? delta * VAULT_CONFIG.SPECULATIVE_NEED_DAMPEN : delta;
+          dollarSwing -= swing;
           notes.push(delta < 0
             ? { tone: 'good', text: `Deals from ${POS} surplus — still worth closer to ${weightedDisplay} to this team than its ${rawDisplay} sticker price even after the trade.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth`, ...noteExtra }
-            : { tone: 'bad', text: `Gives up ${POS} value and leaves this team thin there — costs more than the ${rawDisplay} sticker price suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value`, ...noteExtra });
+            : isSpeculative
+              ? { tone: 'neutral', text: `Gives up ${rawDisplay} of ${POS} value, but it's priced mostly on upside rather than current production — a real loss of depth, not the same as losing a proven contributor.`, pos: POS, absDelta: Math.abs(swing), phrase: `gave up speculative ${POS} depth`, ...noteExtra }
+              : rebuildGiving
+                ? { tone: 'neutral', text: `Gives up ${rawDisplay} of needed ${POS} value — a real hole today, but a rebuild is playing for when it next contends, not patching this year's roster.`, pos: POS, absDelta: Math.abs(swing), phrase: `gave up needed ${POS} value`, ...noteExtra }
+                : { tone: 'bad', text: `Gives up ${POS} value and leaves this team thin there — costs more than the ${rawDisplay} sticker price suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value`, ...noteExtra });
         }
       });
     };
@@ -2061,8 +2112,8 @@ const Vault = {
     // the name — see above); what it gave up is judged against its real current
     // roster, so a position that only looks thin because of THIS trade still gets
     // caught, not just a position that was already thin beforehand.
-    const fitA = Vault.positionalFitNotes(sim.after.A, teams, teamA, teams, toA, toB);
-    const fitB = Vault.positionalFitNotes(sim.after.B, teams, teamB, teams, toB, toA);
+    const fitA = Vault.positionalFitNotes(sim.after.A, teams, teamA, teams, toA, toB, timelineA.mode);
+    const fitB = Vault.positionalFitNotes(sim.after.B, teams, teamB, teams, toB, toA, timelineB.mode);
     const optNoteA = Vault.optShiftNote(timelineA.mode, dOptA);
     const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
 
