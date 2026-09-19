@@ -60,6 +60,11 @@ function fairBucket(pctDiff) {
 function fairColor(pctDiff) {
   return pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500';
 }
+// "% off" is a ratio against the average side value, not a bounded percentage — it
+// can mathematically clear 100 for a real one-sided "gift" trade. Display-only cap
+// (bucket comparisons above still use the real number) so that reads as "100% off"
+// instead of a figure that looks like a bug.
+function capPct(pct) { return Math.sign(pct) * Math.min(100, Math.abs(pct)); }
 // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand, computed in
 // Vault.gradeTrade) — silent when there's not enough price history to say anything,
 // a plain "±Xpp" when it wouldn't have changed the verdict, a fuller callout when
@@ -219,7 +224,7 @@ function renderCard(g) {
       </div>
       <div class="pt-3 border-t border-white/5">
         <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiffNeed)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-500 font-normal">(some asset values unavailable)</span>' : ''}</p>
-        <div class="text-[11px] ${fairColor(g.pctDiffNeed)} mt-1" title="Need-adjusted — weights each side by what it was actually worth to the team that received it. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. By value alone (KTC's own consolidation adjustment, before need), this trade was ${g.pctDiff.toFixed(0)}% off.">${bucket} · ${g.pctDiffNeed.toFixed(0)}% off</div>
+        <div class="text-[11px] ${fairColor(g.pctDiffNeed)} mt-1" title="Need-adjusted — weights each side by what it was actually worth to the team that received it. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. By value alone (KTC's own consolidation adjustment, before need), this trade was ${capPct(g.pctDiff).toFixed(0)}% off.">${bucket} · ${capPct(g.pctDiffNeed).toFixed(0)}% off</div>
         <div class="max-w-[200px] mt-1.5">${fairnessBarHtml(g.pctDiffNeed, g.bandPct)}</div>
         ${confidenceBandText(g)}
       </div>

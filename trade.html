@@ -992,7 +992,7 @@ function renderAcquireFinder() {
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <div class="text-right">
-          <div class="text-[12px] mono ${combo.pctOff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : combo.pctOff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400'}">${combo.pctOff.toFixed(0)}% off</div>
+          <div class="text-[12px] mono ${combo.pctOff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : combo.pctOff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400'}">${capPct(combo.pctOff).toFixed(0)}% off</div>
         </div>
         <button onclick="proposeAcquire(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
       </div>
@@ -1118,7 +1118,7 @@ function renderFinder() {
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <div class="text-right">
-          <div class="text-[12px] mono ${r.pctOff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : r.pctOff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400'}">${r.pctOff.toFixed(0)}% off</div>
+          <div class="text-[12px] mono ${r.pctOff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : r.pctOff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400'}">${capPct(r.pctOff).toFixed(0)}% off</div>
         </div>
         <button onclick="proposeFromFinder('${r.partner.rosterId}')" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
       </div>
@@ -1166,6 +1166,16 @@ function fmtSigned(n) { return (n >= 0 ? '+' : '') + Math.round(n).toLocaleStrin
 function fairnessBucket(pct) {
   return pct < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pct < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided';
 }
+
+// "% off" is a ratio against the average (or target) side value, not a bounded
+// percentage — it can mathematically clear 100 when one side gives up next to
+// nothing (the other side's whole value lands on top of a near-zero average).
+// Real trades never approach that; a one-sided "gift" does, and displaying
+// "200% off" there reads as a bug to anyone used to percentages topping out at
+// 100, not as "yes, this is about as lopsided as it gets." Display-only clamp —
+// bucket comparisons (Fair/Borderline/Lopsided) still use the real, uncapped
+// number, which is well below this ceiling for any of them anyway.
+function capPct(pct) { return Math.sign(pct) * Math.min(100, Math.abs(pct)); }
 
 // Visual scale caps at 60% off — the app's own real-trade calibration puts the
 // Lopsided cutoff at 41%, so anything past 60 is deep into "obviously lopsided"
@@ -1264,8 +1274,8 @@ function updateTrade() {
   // Fairness label spells out the same Fair/Lopsided thresholds the color already
   // encodes, since a raw dollar diff alone doesn't tell you what counts as fair.
   const diffLabelEl = document.getElementById('diffLabel');
-  diffLabelEl.textContent = (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${pctDiffNeed.toFixed(0)}% off`;
-  diffLabelEl.title = `Need-adjusted — weights each side by what the RECEIVING team actually needs there. By value alone (KTC's own consolidation adjustment, before need), this trade is ${pctDiff.toFixed(0)}% off.`;
+  diffLabelEl.textContent = (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${capPct(pctDiffNeed).toFixed(0)}% off`;
+  diffLabelEl.title = `Need-adjusted — weights each side by what the RECEIVING team actually needs there. By value alone (KTC's own consolidation adjustment, before need), this trade is ${capPct(pctDiff).toFixed(0)}% off.`;
   diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500');
   const { bandPct: diffBandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed);
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(pctDiffNeed, diffBandPct) : '';
@@ -1341,15 +1351,16 @@ function analyzeSide(before, after) {
 // of hidden behind a hover.
 function headline(dValue, avgSide, fit) {
   const pct = avgSide ? dValue / avgSide * 100 : 0;
+  const dpct = capPct(pct); // display only — bucket checks below use the real pct
   const even = Math.abs(pct) < VAULT_CONFIG.FAIR_PCT;
-  if (pct <= -40) return { tone: 'bad', text: `Well below sticker value (${pct.toFixed(0)}%)${fit >= 2 ? ' — good timeline fit, but not enough to cover a discount this big' : ''}` };
+  if (pct <= -40) return { tone: 'bad', text: `Well below sticker value (${dpct.toFixed(0)}%)${fit >= 2 ? ' — good timeline fit, but not enough to cover a discount this big' : ''}` };
   if (even && fit >= 2) return { tone: 'good', text: 'Even on sticker value, strong fit — good trade' };
   if (even && fit <= -2) return { tone: 'bad', text: 'Even on sticker value, bad fit for your timeline' };
   if (even) return { tone: 'neutral', text: 'Even on sticker value, neutral fit' };
-  if (pct >= VAULT_CONFIG.FAIR_PCT && fit >= 0) return { tone: 'good', text: `Ahead on sticker value (+${pct.toFixed(0)}%) and fits your timeline` };
-  if (pct >= VAULT_CONFIG.FAIR_PCT) return { tone: 'neutral', text: `Ahead on sticker value (+${pct.toFixed(0)}%), but questionable fit` };
-  if (fit >= 2) return { tone: 'neutral', text: `Behind on sticker value (${pct.toFixed(0)}%), but strong timeline fit` };
-  return { tone: 'bad', text: `Behind on sticker value (${pct.toFixed(0)}%) and a poor fit` };
+  if (pct >= VAULT_CONFIG.FAIR_PCT && fit >= 0) return { tone: 'good', text: `Ahead on sticker value (+${dpct.toFixed(0)}%) and fits your timeline` };
+  if (pct >= VAULT_CONFIG.FAIR_PCT) return { tone: 'neutral', text: `Ahead on sticker value (+${dpct.toFixed(0)}%), but questionable fit` };
+  if (fit >= 2) return { tone: 'neutral', text: `Behind on sticker value (${dpct.toFixed(0)}%), but strong timeline fit` };
+  return { tone: 'bad', text: `Behind on sticker value (${dpct.toFixed(0)}%) and a poor fit` };
 }
 
 // Positional need/surplus fit lives in Vault.positionalFitNotes (vault-core.js) now —
