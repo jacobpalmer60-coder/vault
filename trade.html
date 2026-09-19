@@ -122,7 +122,13 @@
 
   <!-- Trade-wide verdict + archetype (applies to both sides, so spans full width) -->
   <div id="analysisHeader" class="hidden mb-6">
-    <h2 class="display text-[24px] gold-text mb-3">Trade Analysis</h2>
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+      <h2 class="display text-[24px] gold-text">Trade Analysis</h2>
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] text-zinc-500 uppercase tracking-wider">Who's offering?</span>
+        <div id="offeredByToggle" class="flex gap-1.5"></div>
+      </div>
+    </div>
     <div id="tradeVerdict" class="card rounded-2xl p-5 mb-4"></div>
     <div id="tradeArchetype" class="card rounded-2xl p-4"></div>
   </div>
@@ -189,6 +195,13 @@ let playerTrend = new Map(), pickTrend = new Map(), playerVolatility = new Map()
 let selectedA = new Set();
 let selectedB = new Set();
 let filterA = 'ALL', filterB = 'ALL';
+// Who's offering this trade to whom — null (the default) keeps today's neutral,
+// both-sides-considered verdict. Picking a side reframes the SAME top verdict as a
+// direct "should the other team accept this" recommendation instead — see
+// acceptanceVerdict. Deliberately NOT touched by resetTrade(): if you're evaluating
+// "should I accept this from Team A" you're probably about to try a few
+// counter-packages, and re-picking who's offering every time would be busywork.
+let offeredBy = null;
 const POS_FILTERS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'PICK'];
 
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
@@ -1425,6 +1438,29 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
   return { tone: 'neutral', label: 'Fair, No Real Winner', text };
 }
 
+/* When someone's identified as the one OFFERING this trade, the neutral "who came
+   out ahead" verdict above stops being the useful question — the offering team
+   already chose to propose whatever they're giving up, so grading it as unfair TO
+   THEM isn't telling anyone anything actionable. The only real decision left is
+   the recipient's: should they take it? This reuses heads[receivingSide] — the
+   exact same value+fit read already shown on that team's own analysis card, not a
+   new number — so the reframed banner can't say something the rest of the page
+   doesn't already back up. Doesn't touch pctDiffNeed, the Fair/Borderline/Lopsided
+   badge, or the confidence band at all — those stay the same objective, calibrated
+   read regardless of who's offering; only the top verdict banner's framing changes. */
+function acceptanceVerdict(side, heads, teamA, teamB) {
+  const receivingSide = side === 'A' ? 'B' : 'A';
+  const offeringTeam = side === 'A' ? teamA : teamB;
+  const receivingTeam = side === 'A' ? teamB : teamA;
+  const head = heads[receivingSide];
+  const LABEL = { good: 'Worth Accepting', neutral: 'Borderline — Worth a Counter', bad: 'Decline This' };
+  return {
+    tone: head.tone,
+    label: LABEL[head.tone] || LABEL.neutral,
+    text: `${Vault.escapeHtml(offeringTeam.teamName)} is offering this to ${Vault.escapeHtml(receivingTeam.teamName)}. ${head.text}`
+  };
+}
+
 // Labels the trade itself — not either team's fit, but what kind of transaction this is.
 function classifyTrade(resA, resB, aAssets, bAssets) {
   const aSellsProd = resA.dOpt < -3 && resA.dPicks > 500;
@@ -1528,6 +1564,16 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, bandPct, verdict };
 }
 
+function toggleOfferedBy(side) {
+  offeredBy = offeredBy === side ? null : side;
+  render('A'); render('B');
+}
+
+function renderOfferedByToggle(teamA, teamB) {
+  const chip = (side, team) => `<button onclick="toggleOfferedBy('${side}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${offeredBy === side ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${Vault.escapeHtml(team.teamName)} offering</button>`;
+  document.getElementById('offeredByToggle').innerHTML = chip('A', teamA) + chip('B', teamB);
+}
+
 function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   const header = document.getElementById('analysisHeader');
   if (!aAssets.length && !bAssets.length) {
@@ -1539,9 +1585,11 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   header.classList.remove('hidden');
   document.getElementById('analysisA').classList.remove('hidden');
   document.getElementById('analysisB').classList.remove('hidden');
+  renderOfferedByToggle(teamA, teamB);
 
   const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiffNeed, bandPct, verdict } =
     computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
+  const displayVerdict = offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
 
   document.getElementById('tradeArchetype').innerHTML = `
     <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Trade Archetype</div>
@@ -1596,10 +1644,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
 
   document.getElementById('tradeVerdict').innerHTML = `
     <div class="flex items-center gap-2 mb-1.5">
-      <span class="size-2.5 rounded-full ${TONE_DOT[verdict.tone]}"></span>
-      <div class="text-[19px] font-semibold ${TONE[verdict.tone]}">${verdict.label}</div>
+      <span class="size-2.5 rounded-full ${TONE_DOT[displayVerdict.tone]}"></span>
+      <div class="text-[19px] font-semibold ${TONE[displayVerdict.tone]}">${displayVerdict.label}</div>
     </div>
-    <div class="text-[13px] font-bold ${TONE[verdict.tone]} truncate">${verdict.text}</div>
+    <div class="text-[13px] font-bold ${TONE[displayVerdict.tone]} truncate">${displayVerdict.text}</div>
     <div class="max-w-xs mt-2">${fairnessBarHtml(pctDiffNeed, bandPct)}</div>
     <div class="text-[11px] text-zinc-600 mt-1">${confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiffNeed, bandPct)}</div>`;
 }
