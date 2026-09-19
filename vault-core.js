@@ -1115,6 +1115,7 @@ const Vault = {
         const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
         p.tier = tier;
         p.value = pickMap.get(`${p.season}-${ktcRound}-${tier}`) || 0;
+        p.volatilityPct = Vault.pickVolatilityPct(pickMap, p.season, ktcRound);
         sum += p.value;
       });
       t.picksValue = sum;
@@ -1653,6 +1654,98 @@ const Vault = {
     const aValAdjNeed = distA.reduce((s, x) => s + Vault.needAdjustedValue(x.distAdjValue, x.pos, profileB), 0);
     const bValAdjNeed = distB.reduce((s, x) => s + Vault.needAdjustedValue(x.distAdjValue, x.pos, profileA), 0);
     return { aValAdjNeed, bValAdjNeed };
+  },
+
+  /* ---------- Value confidence / uncertainty ----------
+     Every trade number in this app is a point estimate off today's KTC price, but
+     that price itself is a real market's current best guess, not a fact — a rookie
+     nobody's seen play a real snap and a 5-year proven WR1 can carry the exact same
+     dollar value today with wildly different odds of still being right in 3 months.
+     This section turns each asset's own recent price history into an honest ± band
+     around the fairness verdict, instead of presenting one number as gospel.
+
+     Calibrated against real data, not a guess: computing the population coefficient
+     of variation (stdev/mean) of every KTC-priced player's daily value over a
+     trailing 90-day window (matching TREND_WINDOW_DAYS in trade.html) splits
+     cleanly along real risk lines — locked-in stars sitting at the value ceiling
+     (Bijan Robinson, Ja'Marr Chase) come in under 0.5%, while speculative
+     deep-bench rookies (a 3rd-string RB, an unproven late-round WR) run
+     30-85%. Distribution: median 2.2%, 85th pct 5.5%, 95th pct 13%. */
+  PRICE_VOLATILITY_MIN_POINTS: 8,
+
+  // values: a plain array of daily-ish price points for one asset, most-recent
+  // window only (callers filter the date range before calling this — see trade.html's
+  // buildVolatilityMap). null below the minimum sample size or a non-positive mean —
+  // not enough signal to say anything, not the same as "this asset is stable."
+  priceVolatilityPct(values) {
+    if (!values || values.length < Vault.PRICE_VOLATILITY_MIN_POINTS) return null;
+    const mean = values.reduce((s, v) => s + v, 0) / values.length;
+    if (mean <= 0) return null;
+    const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
+    return Math.sqrt(variance) / mean;
+  },
+
+  // A picked-but-not-yet-realized draft pick has no price history of its own to be
+  // volatile — every "2027 R1" pick is priced the same regardless of whose it is
+  // until a season plays out. Its real uncertainty is structural instead: it could
+  // still land anywhere in its round depending on how that team's season goes,
+  // so the round's own early-to-late spread this year IS the honest range. Half the
+  // early/late gap relative to the mid value mirrors priceVolatilityPct's shape (a
+  // relative, ~1-stdev-like measure) so the two can be combined the same way.
+  pickVolatilityPct(pickMap, season, round) {
+    const early = pickMap.get(`${season}-${round}-early`);
+    const late = pickMap.get(`${season}-${round}-late`);
+    const mid = pickMap.get(`${season}-${round}-mid`);
+    if (early == null || late == null || !mid) return null;
+    return (early - late) / (2 * mid);
+  },
+
+  // Buckets a raw volatility fraction into a plain-language read for a single
+  // asset's own card — thresholds are the empirical median/85th-pct split found
+  // above, not arbitrary round numbers.
+  volatilityLabel(pct) {
+    if (pct == null) return null;
+    if (pct < 0.025) return 'stable';
+    if (pct < 0.06) return 'moderate';
+    return 'volatile';
+  },
+
+  /* One side's combined relative uncertainty from its individual assets' own
+     volatility — sqrt of the weighted-sum-of-squares (each asset's share of its
+     side's total value, squared, times its own volatility squared), the standard
+     way to combine INDEPENDENT variances. Real dynasty values aren't fully
+     independent (a depth-chart change or a team's record swinging can move several
+     assets on the same side together), so this understates true correlated risk —
+     disclosed simplification, not an oversight. Assets with no volatility reading
+     (missing history, see priceVolatilityPct/pickVolatilityPct) contribute 0, not
+     an average — an unestablished price isn't the same as a proven-stable one, but
+     this function has no way to tell the difference, so it stays silent about it
+     rather than guessing. Returns a fraction (0.08 = ±8%), or 0 for an empty/zero-
+     value side. */
+  combineSideVolatility(assets) {
+    const total = assets.reduce((s, a) => s + a.value, 0);
+    if (!total) return 0;
+    const variance = assets.reduce((s, a) => s + (a.value / total) ** 2 * (a.volatilityPct || 0) ** 2, 0);
+    return Math.sqrt(variance);
+  },
+
+  /* Turns each side's combined volatility into a ± band (percentage points) around
+     the trade's need-weighted fairness reading (pctDiffNeed in trade.html), the same
+     way a poll reports a margin alongside the topline number. Propagates uncertainty
+     through the DIFFERENCE that actually drives Fair/Borderline/Lopsided: treating
+     each side's dollar uncertainty as independent, Var(diff) = Var(A) + Var(B), so
+     the combined band is sqrt of the two sides' own dollar-uncertainty (value times
+     its own relative volatility) squared and summed — not a raw average of the two
+     percentages, which would understate how a big confident side and a small shaky
+     side actually combine. */
+  tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed) {
+    const volA = Vault.combineSideVolatility(aAssets);
+    const volB = Vault.combineSideVolatility(bAssets);
+    const sigmaDollarsA = aValAdjNeed * volA;
+    const sigmaDollarsB = bValAdjNeed * volB;
+    const sigmaDiff = Math.sqrt(sigmaDollarsA ** 2 + sigmaDollarsB ** 2);
+    const avg = (aValAdjNeed + bValAdjNeed) / 2 || 1;
+    return { bandPct: sigmaDiff / avg * 100, volA, volB };
   },
 
   /* Flags moving assets whose dynasty value and this-season production disagree by

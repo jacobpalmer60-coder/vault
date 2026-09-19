@@ -76,9 +76,10 @@
       </div>
       <div class="flex items-center gap-4">
         <div class="text-right">
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value, using KeepTradeCut's own real adjustment formula. Under 14% off is considered fair, 14-41% is borderline, and above 41% is lopsided — calibrated against ~25,000 real trades from KeepTradeCut's trade database.">Difference <span class="text-zinc-600">(value-adj)</span></div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value, using KeepTradeCut's own real adjustment formula. Under 14% off is considered fair, 14-41% is borderline, and above 41% is lopsided — calibrated against ~25,000 real trades from KeepTradeCut's trade database. The ± line below reflects how much today's price could still move for the less-established pieces here (rookies, far-future picks), based on their own recent price swings.">Difference <span class="text-zinc-600">(value-adj)</span></div>
           <div id="diff" class="text-[22px] font-semibold mono"></div>
           <div id="diffLabel" class="text-[11px] mt-0.5"></div>
+          <div id="diffConfidence" class="text-[10px] text-zinc-600 mt-0.5"></div>
         </div>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
@@ -183,7 +184,7 @@
 <script src="vault-nav.js"></script>
 <script>
 let teams = [], league = null, slots = [];
-let playerTrend = new Map(), pickTrend = new Map();
+let playerTrend = new Map(), pickTrend = new Map(), playerVolatility = new Map();
 let selectedA = new Set();
 let selectedB = new Set();
 let filterA = 'ALL', filterB = 'ALL';
@@ -194,7 +195,9 @@ const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-ambe
 const TIER_COLOR = { early: 'text-emerald-400', mid: 'text-amber-300', late: 'text-rose-400' };
 
 function assetsFor(team) {
-  const players = team.plist.filter(p => p.value > 0).map(p => ({ type: 'player', key: 'p_' + p.id, ...p, trend: playerTrend.get(Vault.normalizeName(p.name)) ?? null }));
+  const players = team.plist.filter(p => p.value > 0).map(p => ({ type: 'player', key: 'p_' + p.id, ...p, trend: playerTrend.get(Vault.normalizeName(p.name)) ?? null, volatilityPct: playerVolatility.get(Vault.normalizeName(p.name)) ?? null }));
+  // Picks already carry volatilityPct from Vault.buildLeagueTeams (the round's own
+  // early/late spread this year — see Vault.pickVolatilityPct) via the ...p spread.
   const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, name: `${p.season} R${p.round}`, pos: 'PICK', ...p, trend: pickTrendFor(p.season, p.round, p.tier) }));
   return [...players, ...picks].sort((a, b) => b.value - a.value);
 }
@@ -234,6 +237,33 @@ function buildTrendDeltas(snapshots, listField, isSF, bonusRecTe) {
   const deltas = new Map();
   byKey.forEach((vals, key) => { if (vals.length >= 2) deltas.set(key, vals[vals.length - 1] - vals[0]); });
   return deltas;
+}
+
+// Per-player price volatility (see Vault.priceVolatilityPct) over the same trailing
+// window as the trend arrow above — reuses the exact same fetch trade.html already
+// pays for (player-value-history.json), just reading a different statistic off the
+// same in-window values instead of a second network round-trip. Picks don't go
+// through this: their volatility comes from Vault.buildLeagueTeams instead (a
+// smooth priced curve has no real day-to-day noise to measure — see
+// Vault.pickVolatilityPct's comment for why picks need a different signal).
+function buildVolatilityMap(snapshots, listField, isSF, bonusRecTe) {
+  const cutoff = Date.now() - TREND_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const byKey = new Map();
+  (snapshots || []).forEach(s => {
+    if (new Date(s.date).getTime() < cutoff) return;
+    Object.entries(s[listField] || {}).forEach(([key, entry]) => {
+      const v = Vault.resolveHistoricalValue(entry, isSF, bonusRecTe);
+      if (!Number.isFinite(v)) return;
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(v);
+    });
+  });
+  const out = new Map();
+  byKey.forEach((vals, key) => {
+    const pct = Vault.priceVolatilityPct(vals);
+    if (pct != null) out.set(key, pct);
+  });
+  return out;
 }
 
 // Surfaces the same need/surplus/timeline/pick-capital fit read Team Analyzer uses
@@ -289,6 +319,7 @@ async function init() {
     const bonusRecTe = league.scoring_settings?.bonus_rec_te;
     playerTrend = buildTrendDeltas(playerHist.snapshots, 'players', built.isSF, bonusRecTe);
     pickTrend = buildTrendDeltas(pickHist.snapshots, 'picks', built.isSF, bonusRecTe);
+    playerVolatility = buildVolatilityMap(playerHist.snapshots, 'players', built.isSF, bonusRecTe);
 
     teams = built.teams.map(t => ({ ...t, assets: [] }));
     teams.forEach(t => t.assets = assetsFor(t));
@@ -345,6 +376,10 @@ function otherSide(side) { return side === 'A' ? 'B' : 'A'; }
 
 function assetRow(side, a, isSelected, extra) {
   const sub = a.type === 'pick' ? `<span class="text-[11px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="text-[11px] text-zinc-500">${a.pos}</span><span class="text-[11px] text-zinc-600">${a.team || ''}</span>`;
+  // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
+  // enough to actually mean something, not turn into visual noise on half the roster.
+  const volBadge = Vault.volatilityLabel(a.volatilityPct) === 'volatile'
+    ? `<span class="text-[9px] px-1 py-px rounded border border-amber-500/30 text-amber-400/80 uppercase tracking-wide" title="This ${a.type === 'pick' ? 'pick' : 'player'}'s price has swung a lot recently — treat today's value as less certain than most">volatile</span>` : '';
   // Team A's row is the user's own asset: "Match" auto-builds a package from Team B
   // to hit its value, "Find" shops it against every team in the league. A Team B row
   // is a player the user doesn't own, so both need different jobs there — "Find"
@@ -363,6 +398,7 @@ function assetRow(side, a, isSelected, extra) {
           <div class="flex items-baseline gap-2">
             <span class="text-[14px] truncate ${isSelected ? 'text-white' : 'text-zinc-100 group-hover/item:text-white'}">${Vault.escapeHtml(a.name)}</span>
             ${sub}
+            ${volBadge}
           </div>
         </div>
         <div class="text-right">
@@ -1148,6 +1184,26 @@ function matchTarget(side, key) {
 
 function fmtSigned(n) { return (n >= 0 ? '+' : '') + Math.round(n).toLocaleString(); }
 
+function fairnessBucket(pct) {
+  return pct < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pct < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided';
+}
+
+// Renders the ± confidence band under a fairness verdict (see
+// Vault.tradeConfidenceBand) — silent when nothing's selected or nothing here has
+// enough price history to say anything (bandPct rounds to 0), a plain "±Xpp" when
+// the low/high edges still read as the same bucket as the point estimate, and a
+// fuller callout when they don't — that's the case where showing only the point
+// estimate would genuinely mislead, not just add noise.
+function confidenceBandHtml(aAssets, bAssets, aValAdjNeed, bValAdjNeed, pctDiffNeed, bandPct) {
+  if (!aAssets.length && !bAssets.length) return '';
+  if (bandPct == null) ({ bandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed));
+  if (!bandPct || bandPct < 1) return '';
+  const lo = Math.max(0, pctDiffNeed - bandPct), hi = pctDiffNeed + bandPct;
+  const bucketLo = fairnessBucket(lo), bucketHi = fairnessBucket(hi);
+  if (bucketLo === bucketHi) return `±${bandPct.toFixed(0)}pp based on recent price swings in the less-established pieces here`;
+  return `±${bandPct.toFixed(0)}pp — could read anywhere from ${bucketLo} to ${bucketHi} once the less-established pieces here (rookies, far-future picks) shake out`;
+}
+
 function updateTrade() {
   const teamA = teamOf('A'), teamB = teamOf('B');
   const aAssets = [...selectedA].map(k => teamA.assets.find(x => x.key === k)).filter(Boolean);
@@ -1207,6 +1263,7 @@ function updateTrade() {
   diffLabelEl.textContent = (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${pctDiffNeed.toFixed(0)}% off`;
   diffLabelEl.title = `Need-adjusted — weights each side by what the RECEIVING team actually needs there. By value alone (KTC's own consolidation adjustment, before need), this trade is ${pctDiff.toFixed(0)}% off.`;
   diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500');
+  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdjNeed, bValAdjNeed, pctDiffNeed);
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
@@ -1404,6 +1461,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
   const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
   const pctDiffNeed = avgSideAdjNeed ? Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
+  const { bandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed);
 
   const resA = analyzeSide(before.A, after.A);
   const resB = analyzeSide(before.B, after.B);
@@ -1441,7 +1499,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
   const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiffNeed, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
 
-  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, verdict };
+  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, bandPct, verdict };
 }
 
 function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
@@ -1456,7 +1514,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   document.getElementById('analysisA').classList.remove('hidden');
   document.getElementById('analysisB').classList.remove('hidden');
 
-  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, verdict } =
+  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiffNeed, bandPct, verdict } =
     computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
 
   document.getElementById('tradeArchetype').innerHTML = `
@@ -1515,7 +1573,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
       <span class="size-2.5 rounded-full ${TONE_DOT[verdict.tone]}"></span>
       <div class="text-[19px] font-semibold ${TONE[verdict.tone]}">${verdict.label}</div>
     </div>
-    <div class="text-[13px] font-bold ${TONE[verdict.tone]} truncate">${verdict.text}</div>`;
+    <div class="text-[13px] font-bold ${TONE[verdict.tone]} truncate">${verdict.text}</div>
+    <div class="text-[11px] text-zinc-600 mt-1">${confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiffNeed, bandPct)}</div>`;
 }
 
 init();
