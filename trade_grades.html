@@ -125,6 +125,12 @@ function optDeltaHtml(dOpt) {
   return ` · Opt PPG <span class="${color}">${dOpt > 0 ? '+' : ''}${dOpt.toFixed(1)}</span>`;
 }
 
+function vorpDeltaHtml(dVorp) {
+  if (!Number.isFinite(dVorp) || Math.abs(dVorp) <= 0.05) return '';
+  const color = dVorp > 0 ? 'text-emerald-400/80' : 'text-rose-400/80';
+  return ` · VORP <span class="${color}" title="Real, scarcity-adjusted edge over replacement — see the VORP column on Player Rankings">${dVorp > 0 ? '+' : ''}${dVorp.toFixed(1)}</span>`;
+}
+
 function renderCard(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const bucket = fairBucket(g.pctDiffNeed);
@@ -133,10 +139,12 @@ function renderCard(g) {
     ...g.timelineA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.riskA.map(n => ({ ...n, who: g.teamA.teamName })),
     ...(g.optNoteA ? [{ ...g.optNoteA, who: g.teamA.teamName }] : []),
+    ...(g.vorpNoteA ? [{ ...g.vorpNoteA, who: g.teamA.teamName }] : []),
     ...Vault.mergeAssetNotes(g.archB.notes, g.fitB.notes).map(n => ({ ...n, who: g.teamB.teamName })),
     ...g.timelineB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
     ...g.riskB.map(n => ({ ...n, who: g.teamB.teamName })),
-    ...(g.optNoteB ? [{ ...g.optNoteB, who: g.teamB.teamName }] : [])
+    ...(g.optNoteB ? [{ ...g.optNoteB, who: g.teamB.teamName }] : []),
+    ...(g.vorpNoteB ? [{ ...g.vorpNoteB, who: g.teamB.teamName }] : [])
   ];
   return `
     <div class="card rounded-vault-sm p-5">
@@ -149,11 +157,11 @@ function renderCard(g) {
       </div>
       <div class="grid md:grid-cols-2 gap-4 mb-4">
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team A · ${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}${optDeltaHtml(g.dOptA)}</span></div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team A · ${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}${optDeltaHtml(g.dOptA)}${vorpDeltaHtml(g.dVorpA)}</span></div>
           <div class="text-[13px]">${assetChips(g.toA)}</div>
         </div>
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team B · ${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}${optDeltaHtml(g.dOptB)}</span></div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team B · ${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}${optDeltaHtml(g.dOptB)}${vorpDeltaHtml(g.dVorpB)}</span></div>
           <div class="text-[13px]">${assetChips(g.toB)}</div>
         </div>
       </div>

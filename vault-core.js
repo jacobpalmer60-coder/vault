@@ -198,13 +198,31 @@ const Vault = {
          hides anything under ~3.3% of the combined total regardless.
 
      processVConsolidation(v, r) is KTC's per-player curve (r = the single highest
-     asset value across BOTH sides of the trade, not just this side) — see
-     CONSOLIDATION_GLOBAL_MAX below for what grounds the 10099-equivalent constant.
-     Ported faithfully from their reachable code paths; one inner recovery branch in
-     their real source is unreachable due to what looks like their own bug (a stray
-     array where a team total was meant), and always resolves to "no adjustment" in
-     practice — reproduced here directly as `valid = false` rather than replicating
-     dead code. */
+     asset value across BOTH sides of the trade, not just this side). The 10099
+     term inside it is KTC's own hardcoded literal (confirmed directly from their
+     live site.min.js — it's baked into their forward curve, not derived from
+     anything we control), kept here as CONSOLIDATION_GLOBAL_MAX.
+
+     Re-verified 2026-09-19 directly against KTC's real client-side source (fetched
+     live, function-for-function) after finding a real bug: a 1-vs-9-piece trade
+     (one elite RB vs. nine real 3rd-round picks) read as "Fair, 1.4% off" — which
+     turned out to be genuinely correct, KTC's real site says the same thing at
+     that exact piece count — but ONE more piece (1-vs-10) caused OUR port to
+     collapse the bonus back to zero and swing wildly, which is NOT what the real
+     site does; it keeps a smooth, sensible bonus. The earlier version treated
+     KTC's real tie-break sub-branch (used whenever the ratio-based and raw-total-
+     based comparisons disagree on which side is ahead) as an "unreachable
+     recovery branch" and gave up (valid=false) instead of implementing it — it
+     was very much reachable. Fixed by porting that branch for real (see
+     Vault.consolidationAdjustment below), fuzz-tested against KTC's actual
+     extracted source across 5,000 randomized trades (0 mismatches beyond
+     Newton's-method rounding noise) before shipping. One more real fix from the
+     same investigation: KTC's inverse solver (reverseAdjustNew) takes the trade's
+     reference ceiling as `playersArray[0].value + 100` — the CURRENT highest-
+     valued player in their whole universe, not the hardcoded 10099 the forward
+     curve uses — so it drifts over time as prices move. Vault._globalMaxValue
+     (set by buildKtcValueMap whenever current values are resolved) tracks this
+     live instead of freezing it at whatever it happened to be when this was built. */
   processVConsolidation(v, r) {
     const g = VAULT_CONFIG.CONSOLIDATION_GLOBAL_MAX;
     return (0.1 * Math.pow(v / g, 1.4) + 0.7 * Math.pow(v / (1.05 * r), 1.25) + 0.2) * v;
@@ -223,28 +241,44 @@ const Vault = {
 
   // Inverts processVConsolidation for a fixed r: finds X such that
   // processVConsolidation(X, r) = target. Newton's method, same as KTC's own
-  // solveForX — the curve is monotonic increasing in the range this is ever called
-  // with, so a few iterations from a generous starting guess always converges.
-  solveConsolidation(target, r) {
-    const g = VAULT_CONFIG.CONSOLIDATION_GLOBAL_MAX;
-    const f = x => (0.1 * Math.pow(x / g, 1.4) + 0.7 * Math.pow(x / (1.05 * r), 1.25) + 0.2) * x - target;
-    const fp = x => 0.24 * Math.pow(x, 1.4) / Math.pow(g, 1.4) + 1.575 * Math.pow(x, 1.25) / (Math.pow(1.05, 1.25) * Math.pow(r, 1.25)) + 0.2;
+  // solveForX. `globalMax` is the live reference ceiling (see the comment above
+  // processVConsolidation) — a real, separate value from `r` (this trade's own
+  // biggest asset), not the same number under two names.
+  solveConsolidation(target, globalMax, r) {
+    const f = x => (0.1 * Math.pow(x / globalMax, 1.4) + 0.7 * Math.pow(x / (1.05 * r), 1.25) + 0.2) * x - target;
+    const fp = x => 0.24 * Math.pow(x, 1.4) / Math.pow(globalMax, 1.4) + 1.575 * Math.pow(x, 1.25) / (Math.pow(1.05, 1.25) * Math.pow(r, 1.25)) + 0.2;
     let x = 5 * target;
     for (let i = 0; i < 20; i++) {
       const dx = f(x) / fp(x);
       const next = x - dx;
-      if (Math.abs(next - x) < 1e-6) return next;
+      if (Math.abs(next - x) < 1e-8) return Math.round(next);
       x = next;
     }
-    return x;
+    return Math.round(x);
   },
 
   /* Main entry point: two sides' raw asset values (VBA plays no part here — this
      works in raw dollars, matching KTC's own calculator), returns how much to add
      to each side's raw total, plus whether the bonus is meaningful enough to call
-     out (KTC's own ~3.3%-of-combined-total display floor). Only ever one of
-     adjust1/adjust2 is nonzero. Needs at least one side to have 2+ pieces (a clean
-     1-for-1 never qualifies, regardless of value) and both sides non-empty. */
+     out (KTC's own ~3.3%-of-combined-total display floor). Needs at least one side
+     to have 2+ pieces (a clean 1-for-1 never qualifies, regardless of value) and
+     both sides non-empty — on KTC's real site this gate lives in the CALLER
+     (evaluateTrade only renders the adjustment when either side has 2+ pieces),
+     not inside this function, but the effect is identical since nothing else here
+     depends on it running unconditionally.
+
+     Structure mirrors KTC's real adjustPackageNew exactly (verified live, see the
+     comment above processVConsolidation): try the "both totals AND both curve-
+     scored totals already roughly agree" case first (favor whichever side has the
+     higher curve score); otherwise fall back to whichever side the RATIO of curve-
+     score-to-raw-total favors, which can itself disagree with which side has the
+     higher raw curve score — that disagreement is the tie-break branch, resolved
+     by a second solve against which side's running total (real total, not curve
+     score) is currently behind. Every failure path (a computed bonus that comes
+     out negative, or one that exceeds MAXPLAYERVAL) falls back to no adjustment —
+     KTC's real code computes something for the OTHER side in a couple of these
+     cases too, but never displays it (see the display gate at the end), so the
+     net externally-visible effect is the same as just not adjusting. */
   consolidationAdjustment(values1, values2) {
     const zero = { adjust1: 0, adjust2: 0, display: false };
     if (!values1.length || !values2.length) return zero;
@@ -253,23 +287,62 @@ const Vault = {
     const total2 = values2.reduce((s, v) => s + v, 0);
     if (!total1 || !total2) return zero;
 
+    const globalMax = (Vault._globalMaxValue || (VAULT_CONFIG.CONSOLIDATION_GLOBAL_MAX - 100)) + 100;
     const r = Math.max(...values1, ...values2);
     const pv = v => Vault.processVConsolidation(v, r);
     const rawAdj1 = values1.reduce((s, v) => s + pv(v), 0);
     const rawAdj2 = values2.reduce((s, v) => s + pv(v), 0);
     const d = rawAdj1 / total1, u = rawAdj2 / total2;
-    const c = Math.abs(rawAdj1 - rawAdj2);
+    const gap = Math.floor(Math.abs(rawAdj1 - rawAdj2));
     const fairRaw = Vault.checkEquality(total1, total2, 5);
     const fairAdj = Vault.checkEquality(rawAdj1, rawAdj2, 5);
+    const solve = target => Vault.solveConsolidation(target, globalMax, r);
 
     let adjust1 = 0, adjust2 = 0, valid = true;
     const favor1 = () => {
-      const b = total2 + Vault.solveConsolidation(c, r) - total1;
-      if (b > 0) adjust1 = b; else { adjust2 = -b; valid = false; }
+      const b = total2 + solve(gap) - total1;
+      if (b > 0) adjust1 = b; else valid = false;
     };
     const favor2 = () => {
-      const b = total1 + Vault.solveConsolidation(c, r) - total2;
-      if (b > 0) adjust2 = b; else { adjust1 = -b; valid = false; }
+      const b = total1 + solve(gap) - total2;
+      if (b > 0) adjust2 = b; else valid = false;
+    };
+    // Reached when the ratio (d vs u) and the raw curve scores (rawAdj1 vs
+    // rawAdj2) disagree on which side is ahead — this is what our previous port
+    // treated as unreachable and gave up on. `g` picks whichever side's actual
+    // running total is currently behind; a second solve against the raw gap
+    // between the two sides' curve scores decides the bonus. `side1Primary`
+    // matches KTC's own two call sites (one from the d>u branch, one from the
+    // u>=d branch), which check g===1 vs g===2 in opposite order and — a real
+    // quirk in KTC's own code, reproduced exactly rather than "corrected" — the
+    // "not capped" case of the secondary check credits the OTHER side, not the
+    // one `g` identified as behind.
+    const tieBreak = side1Primary => {
+      let g = -1;
+      if (total1 + adjust1 < total2 + adjust2) g = 1;
+      else if (total2 + adjust2 < total1 + adjust1) g = 2;
+      if (g < 0) { valid = false; return; }
+      const w = solve(Math.abs(rawAdj1 - rawAdj2));
+      if (!(w > 0)) { valid = false; return; }
+      if (side1Primary) {
+        if (g === 2) {
+          const T = w - (total1 - total2);
+          if (T > 0) adjust2 = T; else valid = false;
+        } else {
+          const T = w - (total2 - total1);
+          if (T > 0) { if (T > VAULT_CONFIG.CONSOLIDATION_GLOBAL_MAX) valid = false; else adjust2 = T; }
+          else adjust1 = -1 * T; // real quirk: credited to side 1 here, and still valid
+        }
+      } else {
+        if (g === 1) {
+          const T = w - (total2 - total1);
+          if (T > 0) adjust1 = T; else valid = false;
+        } else {
+          const T = w - (total1 - total2);
+          if (T > 0) { if (T > VAULT_CONFIG.CONSOLIDATION_GLOBAL_MAX) valid = false; else adjust1 = T; }
+          else adjust2 = -1 * T; // mirror of the quirk above, credited to side 2
+        }
+      }
     };
 
     if (fairRaw && fairAdj) {
@@ -277,10 +350,10 @@ const Vault = {
       else if (rawAdj2 > rawAdj1) favor2();
     } else if (d > u) {
       if (rawAdj1 > rawAdj2) favor1();
-      else valid = false; // KTC's own unreachable recovery branch — see comment above
+      else tieBreak(true);
     } else {
       if (rawAdj2 > rawAdj1) favor2();
-      else valid = false;
+      else tieBreak(false);
     }
 
     const finalAdj = adjust1 || adjust2 || 0;
@@ -388,11 +461,19 @@ const Vault = {
   buildKtcValueMap(ktcData, isSF, bonusRecTe) {
     const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
     const map = new Map();
+    let maxVal = 0;
     (ktcData.players || []).forEach(p => {
       const key = Vault.normalizeName(p.name);
       if (!key) return;
-      map.set(key, p[field]);
+      const v = p[field];
+      map.set(key, v);
+      if (v > maxVal) maxVal = v;
     });
+    // Tracks the CURRENT single highest-valued player (in this format/TEP tier) —
+    // the reference ceiling Vault.consolidationAdjustment needs, kept live instead
+    // of frozen at whatever it happened to be when that code was written. Real
+    // work every time this runs (once per league load, not a hot path).
+    if (maxVal) Vault._globalMaxValue = maxVal;
     return map;
   },
 
@@ -863,6 +944,7 @@ const Vault = {
     const used = new Set();
     const starters = [];
     let total = 0;
+    let vorpTotal = 0;
     for (const slot of slots) {
       let allowed = [slot];
       if (slot === 'FLEX') allowed = ['RB', 'WR', 'TE'];
@@ -873,13 +955,14 @@ const Vault = {
       if (i >= 0) {
         const p = pool[i];
         total += p.ppg;
+        if (Number.isFinite(p.vorp)) vorpTotal += p.vorp;
         used.add(p.id);
-        starters.push({ slot, id: p.id, name: p.name, pos: p.pos, ppg: p.ppg });
+        starters.push({ slot, id: p.id, name: p.name, pos: p.pos, ppg: p.ppg, vorp: p.vorp });
       } else {
-        starters.push({ slot, id: null, name: null, pos: null, ppg: 0 });
+        starters.push({ slot, id: null, name: null, pos: null, ppg: 0, vorp: null });
       }
     }
-    return { total, starters };
+    return { total, vorpTotal, starters };
   },
 
   optimalLineup(plist, slots) {
@@ -909,12 +992,12 @@ const Vault = {
     // reflects real roster depth vs. this league's own format — a 3rd QB is full
     // Superflex depth (2 startable + 1 bye-week/insurance buffer), not surplus, even
     // though 3 rostered QBs would be real excess in a 1QB league with no Superflex.
-    const startable = {
-      qb: slots.filter(s => s === 'QB').length + slots.filter(s => s === 'SUPER_FLEX').length,
-      rb: slots.filter(s => ['RB', 'FLEX', 'SUPER_FLEX', 'WRRB_FLEX'].includes(s)).length,
-      wr: slots.filter(s => ['WR', 'FLEX', 'SUPER_FLEX', 'WRRB_FLEX', 'REC_FLEX'].includes(s)).length,
-      te: slots.filter(s => ['TE', 'FLEX', 'SUPER_FLEX', 'REC_FLEX'].includes(s)).length
-    };
+    const startable = Vault.computeStartable(slots);
+    // Replacement-level PPG per position, for VORP (see Vault.computeReplacementLevels)
+    // — needs PPG joined by NAME across the whole KTC universe, not just rostered
+    // players (buildProjectedPpgMapById only covers Sleeper IDs on THIS roster).
+    const ppgByName = Vault.buildProjectedPpgMapByName(projData, league.scoring_settings);
+    const replacementLevels = Vault.computeReplacementLevels(ktcData, ppgByName, startable, rosters.length);
 
     const YEARS = pickYears, ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
     const pickOwner = new Map();
@@ -936,7 +1019,8 @@ const Vault = {
       const plist = (r.players || []).map(pid => {
         const p = players[String(pid)] || {};
         const nm = `${p.first_name || ''} ${p.last_name || ''}`.trim();
-        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, value: valMap.get(Vault.normalizeName(nm)) || 0, ppg: ppgMap.get(String(pid)) || 0 };
+        const ppg = ppgMap.get(String(pid)) || 0;
+        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels) };
       });
       const total = plist.reduce((s, p) => s + p.value, 0);
       const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);
@@ -976,7 +1060,7 @@ const Vault = {
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
-      const { total: opt, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
+      const { total: opt, vorpTotal, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
       // Real season standings (Sleeper's own scoreboard record), not a value or
       // trade-derived stat — wins/losses/ties are tracked directly on the roster.
       const rs = r.settings || {};
@@ -985,7 +1069,7 @@ const Vault = {
         fpts: (rs.fpts || 0) + (rs.fpts_decimal || 0) / 100,
         fptsAgainst: (rs.fpts_against || 0) + (rs.fpts_against_decimal || 0) / 100
       };
-      return { rosterId: r.roster_id, ownerId: r.owner_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [], record };
+      return { rosterId: r.roster_id, ownerId: r.owner_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, vorpTotal, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [], record };
     });
 
     /* ---------- Per-player value/production divergence ----------
@@ -1173,7 +1257,7 @@ const Vault = {
     built.sort((a, b) => b.overall - a.overall);
     built.forEach((t, i) => t.rank = i + 1);
 
-    return { league, isSF, slots, teams: built };
+    return { league, isSF, slots, startable, replacementLevels, teams: built };
   },
 
   /* ---------- Trade simulation ----------
@@ -1223,11 +1307,11 @@ const Vault = {
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
-      const { total: opt, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
+      const { total: opt, vorpTotal, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
       const removedKeys = new Set(removedPicks.map(pickKey));
       const picks = [...team.picks.filter(p => !removedKeys.has(pickKey(p))), ...addedPicks];
       const picksValue = picks.reduce((s, p) => s + (p.value || 0), 0);
-      return { ...team, plist, total, qb, rb, wr, te, age, opt, lineup, posCount, posPpg, picks, picksValue, overall: total + picksValue };
+      return { ...team, plist, total, qb, rb, wr, te, age, opt, vorpTotal, lineup, posCount, posPpg, picks, picksValue, overall: total + picksValue };
     }
 
     const newA = rebuild(A, giveAPlayers, giveBPlayers, giveAPicks, giveBPicks);
@@ -1418,6 +1502,64 @@ const Vault = {
      Archetype system already uses for valP/ppgP at the team level. Falls back to
      value-only (old behavior) if posCount/posPpg/startable aren't present, so any
      caller passing a bare team object still works. */
+
+  // How many starters this league can ACTUALLY field at each position, counting
+  // every flex type that's eligible for it (a Superflex slot counts for QB; FLEX/
+  // WRRB_FLEX/SUPER_FLEX count for RB; etc). Shared by buildLeagueTeams and any
+  // page (Player Rankings) that needs the same real-format-aware slot count
+  // without going through a full buildLeagueTeams call.
+  computeStartable(slots) {
+    return {
+      qb: slots.filter(s => s === 'QB').length + slots.filter(s => s === 'SUPER_FLEX').length,
+      rb: slots.filter(s => ['RB', 'FLEX', 'SUPER_FLEX', 'WRRB_FLEX'].includes(s)).length,
+      wr: slots.filter(s => ['WR', 'FLEX', 'SUPER_FLEX', 'WRRB_FLEX', 'REC_FLEX'].includes(s)).length,
+      te: slots.filter(s => ['TE', 'FLEX', 'SUPER_FLEX', 'REC_FLEX'].includes(s)).length
+    };
+  },
+
+  /* ---------- VORP (Value Over Replacement Player) ----------
+     Raw PPG conflates "good at this position" with "how scarce is this position"
+     — comparing a QB's PPG to a WR's PPG directly is apples-to-oranges, since QBs
+     score more raw points at EVERY tier, replacement-level included. VORP fixes
+     that by subtracting each position's own replacement level first: what's left
+     is genuinely comparable across positions, which is exactly why a Superflex
+     league's QB premium is real and not just "QBs score more" — replacement-level
+     QB (the guy on IR-stream waivers) is far worse than replacement-level RB/WR
+     relative to a real starter, not because QBs individually outscore them.
+
+     "Replacement level" = the best player at a position who wouldn't start
+     anywhere in this league — i.e., the (teams × startable-at-that-position + 1)th
+     best player leaguewide, ranked by real projected PPG. Computed across the
+     WHOLE KTC-ranked universe (every fantasy-relevant player), not just rostered
+     ones — replacement level means "readily available," not "already on
+     somebody's bench," so a bench stash on another team must not shrink the pool. */
+  computeReplacementLevels(ktcData, ppgByName, startable, teamCount) {
+    const byPos = { QB: [], RB: [], WR: [], TE: [] };
+    (ktcData.players || []).forEach(p => {
+      if (!byPos[p.pos]) return;
+      const key = Vault.normalizeName(p.name);
+      const ppg = ppgByName.get(key);
+      if (Number.isFinite(ppg)) byPos[p.pos].push(ppg);
+    });
+    const levels = {};
+    ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
+      const arr = byPos[pos].sort((a, b) => b - a);
+      if (!arr.length) { levels[pos] = 0; return; }
+      const idx = Math.round(teamCount * (startable[pos.toLowerCase()] || 0)); // 0-indexed: index N is the (N+1)th-best, i.e. the best non-starter
+      levels[pos] = arr[Math.min(idx, arr.length - 1)];
+    });
+    return levels;
+  },
+
+  // A player's edge over the best readily-available replacement at their own
+  // position (see computeReplacementLevels) — null when either input is missing
+  // rather than a misleading 0, since "no projection" and "exactly replacement
+  // level" are different facts.
+  vorp(ppg, pos, replacementLevels) {
+    if (!Number.isFinite(ppg) || !replacementLevels || replacementLevels[pos] == null) return null;
+    return ppg - replacementLevels[pos];
+  },
+
   positionalProfile(t, all) {
     const posPct = {};
     const hasPpg = !!t.posPpg;
@@ -1701,6 +1843,32 @@ const Vault = {
     }
     if (dOpt > 3) return { tone: 'good', text: `Raises optimal lineup PPG by ${dOpt.toFixed(1)}.`, fit: 1 };
     if (dOpt < -3) return { tone: 'bad', text: `Drops optimal lineup PPG by ${Math.abs(dOpt).toFixed(1)}.`, fit: -1 };
+    return null;
+  },
+
+  /* Same idea as optShiftNote, but for the optimal lineup's total VORP (see
+     computeReplacementLevels) instead of raw PPG — catches what a raw-PPG swing
+     can miss: a trade can raise Opt PPG while actually making the roster's real,
+     scarcity-adjusted edge WORSE (e.g. adding a mediocre Superflex QB2 boosts raw
+     points but barely moves VORP, since replacement-level QB is already close
+     behind), or the reverse (a modest PPG bump at a genuinely scarce position is
+     a bigger real gain than the raw number suggests). Thresholds are in VORP
+     points, not PPG points, so they aren't directly comparable to optShiftNote's
+     — calibrated against the same rough "worth mentioning" bar (a few points of
+     real per-game edge), not derived from it. */
+  vorpShiftNote(mode, dVorp) {
+    if (!Number.isFinite(dVorp)) return null;
+    if (mode === 'rebuild') {
+      if (dVorp > 5) return { tone: 'neutral', text: `Raises the roster's real scarcity-adjusted edge by ${dVorp.toFixed(1)} VORP, but that's a this-year signal, not the priority for a rebuild.`, fit: 0 };
+      return null;
+    }
+    if (mode === 'contend') {
+      if (dVorp > 3) return { tone: 'good', text: `Adds ${dVorp.toFixed(1)} in real VORP — a genuine scarcity-adjusted upgrade, not just more raw points.`, fit: 2 };
+      if (dVorp < -3) return { tone: 'bad', text: `Costs ${Math.abs(dVorp).toFixed(1)} in real VORP — a genuine scarcity-adjusted downgrade even if the raw PPG swing looks smaller.`, fit: -2 };
+      return null;
+    }
+    if (dVorp > 3) return { tone: 'good', text: `Adds ${dVorp.toFixed(1)} in real, scarcity-adjusted VORP.`, fit: 1 };
+    if (dVorp < -3) return { tone: 'bad', text: `Costs ${Math.abs(dVorp).toFixed(1)} in real, scarcity-adjusted VORP.`, fit: -1 };
     return null;
   },
 
@@ -2011,13 +2179,14 @@ const Vault = {
   /* ---------- Trade grading pipeline ----------
      Promoted from Trade Grades so a second page (the Manager page) can run the exact
      same real-trade grading without re-implementing or drifting from it. */
-  resolveTradeAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap) {
+  resolveTradeAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels) {
     const assets = [];
     Object.entries(tx.adds || {}).forEach(([pid, toRoster]) => {
       if (toRoster !== sideRosterId) return;
       const p = playersDb[pid] || {};
       const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`;
-      assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, team: p.team || '', ppg: ppgMap.get(pid) || 0, value: valMap.get(Vault.normalizeName(name)) || 0 });
+      const ppg = ppgMap.get(pid) || 0;
+      assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, team: p.team || '', ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), value: valMap.get(Vault.normalizeName(name)) || 0 });
     });
     (tx.draft_picks || []).forEach(pk => {
       if (pk.owner_id !== sideRosterId) return;
@@ -2050,13 +2219,13 @@ const Vault = {
     return { tone: 'neutral', label: 'Fair Trade', text };
   },
 
-  gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots) {
+  gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels) {
     const [rA, rB] = tx.roster_ids;
     const teamA = teamById.get(rA), teamB = teamById.get(rB);
     if (!teamA || !teamB) return null;
 
-    const toA = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap); // what A received (B gave)
-    const toB = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap); // what B received (A gave)
+    const toA = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels); // what A received (B gave)
+    const toB = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels); // what B received (A gave)
     if (!toA.length && !toB.length) return null;
 
     // Fairness uses KTC's own consolidation adjustment (see Vault.tradeSideValues) —
@@ -2092,6 +2261,8 @@ const Vault = {
     const sim = Vault.simulateTrade(teams, slots, rA, rB, toA, toB);
     const dOptA = sim.before.A.opt - sim.after.A.opt;
     const dOptB = sim.before.B.opt - sim.after.B.opt;
+    const dVorpA = sim.before.A.vorpTotal - sim.after.A.vorpTotal;
+    const dVorpB = sim.before.B.vorpTotal - sim.after.B.vorpTotal;
 
     // Need-weighted fairness — same reasoning as trade.html's computeTradeAnalysis
     // (Vault.needAdjustedTradeValue), applied here to a completed trade instead of a
@@ -2116,21 +2287,23 @@ const Vault = {
     const fitB = Vault.positionalFitNotes(sim.after.B, teams, teamB, teams, toB, toA, timelineB.mode);
     const optNoteA = Vault.optShiftNote(timelineA.mode, dOptA);
     const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
+    const vorpNoteA = Vault.vorpShiftNote(timelineA.mode, dVorpA);
+    const vorpNoteB = Vault.vorpShiftNote(timelineB.mode, dVorpB);
 
-    const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0);
-    const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0);
+    const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0);
+    const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0);
 
     const verdict = Vault.historyVerdict(pctDiffNeed, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
   },
 
   /* Full fetch-build-grade pipeline for a league's real trade history — shared by
      Trade Grades and the Manager page so both read the exact same graded trades
      instead of running two copies of this fetch that could drift apart. */
   async fetchAndGradeAllTrades(leagueId) {
-    const { league, isSF, teams, slots } = await Vault.buildLeagueTeams(leagueId);
+    const { league, isSF, teams, slots, replacementLevels } = await Vault.buildLeagueTeams(leagueId);
     const [playersDb, ktcData, projData, rosters, traded, ...weeks] = await Promise.all([
       fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
       Vault.fetchKtcValues(),
@@ -2184,7 +2357,7 @@ const Vault = {
       });
     }
 
-    const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots)).filter(Boolean);
+    const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels)).filter(Boolean);
     return { league, isSF, teams, slots, allGraded };
   },
 

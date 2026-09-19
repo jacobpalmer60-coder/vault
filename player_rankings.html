@@ -79,11 +79,13 @@
             <th class="px-4 py-3 font-medium sortable text-right" data-key="value">Value <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="trendDelta" title="Value change over the selected trend window (see the 3mo/6mo/1yr/All toggle above the table) — tracked for players rostered in your league only">Trend <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg">PPG <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="vorp" title="Value Over Replacement Player — PPG above the best player at this position who wouldn't start anywhere in your league. Comparable ACROSS positions, unlike raw PPG — this is why a Superflex QB is worth so much more than a similar-PPG RB: replacement-level QB is far worse relative to a starter.">VORP <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="vpRatio">Value/PPG <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="vVorpRatio" title="KTC value per point of VORP — how much you're paying, in dollars, for this player's real edge over a replacement, on a scale comparable across positions (unlike Value/PPG, which favors QBs just for scoring more raw points at every tier).">Value/VORP <span class="sort-ind"></span></th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.06]">
-          <tr><td colspan="9" class="px-4 py-16 text-center text-zinc-500">Loading data…</td></tr>
+          <tr><td colspan="11" class="px-4 py-16 text-center text-zinc-500">Loading data…</td></tr>
         </tbody>
       </table>
     </div>
@@ -142,6 +144,7 @@
   let isSF = true; // default assumption until league loads
   let scoringSettings = null;
   let rosterPositions = [];
+  let teamCount = 10;
   // Trend window in days — a raw "since the earliest snapshot" delta became
   // meaningless once value history reached back years; Infinity means "All".
   let trendWindowDays = 90;
@@ -157,6 +160,7 @@
 
   const fmtInt = Vault.fmtInt;
   const fmtFloat = Vault.fmtFloat;
+  const fmtSigned = n => Number.isFinite(n) ? (n >= 0 ? '+' : '') + n.toFixed(1) : '—';
   const posColor = pos => `pos-badge-${['QB','RB','WR','TE'].includes(pos) ? pos : 'default'}`;
 
   // Official primary/secondary brand colors, keyed by Sleeper's canonical team
@@ -441,10 +445,11 @@
         </div>
         <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 ${posColor(r.pos)}">${r.pos || '—'}</span>
       </div>
-      <div class="grid grid-cols-3 gap-2 text-center py-3 border-y border-white/10 mb-4">
+      <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">
         <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">Value</div></div>
         <div><div class="mono text-[15px] text-zinc-100">${r.posRank ? '#' + r.posRank + ' of ' + r.posCount : '—'}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">${r.pos || 'Pos'} Rank</div></div>
         <div><div class="mono text-[15px] text-zinc-100">${fmtFloat(r.ppg, 2)}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">PPG</div></div>
+        <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}" title="Points per game above the best player at ${r.pos || 'this position'} who wouldn't start anywhere in your league">${fmtSigned(r.vorp)}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">VORP</div></div>
       </div>
       <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">Value Over Time</div>
       ${valueChart}
@@ -522,12 +527,23 @@
         pidByName.set(key, pid);
       });
 
+      // VORP (Value Over Replacement Player) — see Vault.computeReplacementLevels.
+      // Needs the SAME "how many starters can this league actually field" math
+      // buildLeagueTeams uses, computed independently here since this page never
+      // calls buildLeagueTeams (it works off the full KTC universe, not one
+      // league's rosters).
+      const startable = Vault.computeStartable(rosterPositions.filter(s => !['BN', 'IR', 'TAXI'].includes(s)));
+      const replacementLevels = Vault.computeReplacementLevels(ktcData, ppgMap, startable, teamCount);
+      log(`Replacement level PPG — QB ${replacementLevels.QB?.toFixed(1)}, RB ${replacementLevels.RB?.toFixed(1)}, WR ${replacementLevels.WR?.toFixed(1)}, TE ${replacementLevels.TE?.toFixed(1)}`);
+
       const valueField = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(scoringSettings?.bonus_rec_te);
       const rows = ktcData.players.map(p => {
         const norm = Vault.normalizeName(p.name);
         const value = p[valueField];
         const ppg = ppgMap.get(norm) ?? null;
+        const vorp = Vault.vorp(ppg, p.pos, replacementLevels);
         const vpRatio = (Number.isFinite(value) && Number.isFinite(ppg) && ppg > 0) ? value / ppg : null;
+        const vVorpRatio = (Number.isFinite(value) && Number.isFinite(vorp) && vorp > 0) ? value / vorp : null;
         // Full history — trendValues/trendDelta/windowedSeries (what's actually
         // displayed) get derived from this by applyTrendWindow() below, since
         // they depend on the current trend-window toggle, not just the data.
@@ -545,7 +561,7 @@
           });
           if (!Object.keys(seasonHistory).length) seasonHistory = null;
         }
-        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vpRatio, trendSeries, yearsExp, seasonHistory, pid };
+        return { player: p.name, norm, pos: p.pos, team: p.team, age: p.age, value, ppg, vorp, vpRatio, vVorpRatio, trendSeries, yearsExp, seasonHistory, pid };
       });
 
       allRows = rows.filter(r => r.value != null);
@@ -567,7 +583,7 @@
     } catch (e) {
       console.error(e);
       log(e.message, 'error');
-      tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
     }
   }
 
@@ -612,7 +628,7 @@
 
   function renderTable() {
     if (filteredRows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-16 text-center text-zinc-500">No players match filters</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-16 text-center text-zinc-500">No players match filters</td></tr>`;
       return;
     }
     const frag = document.createDocumentFragment();
@@ -634,9 +650,15 @@
             : '<span class="text-zinc-600 text-xs">—</span>'}
         </td>
         <td class="px-4 py-3 text-right mono text-zinc-400">${fmtFloat(r.ppg, 2)}</td>
+        <td class="px-4 py-3 text-right mono ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-400'}">${r.vorp != null ? fmtSigned(r.vorp) : '—'}</td>
         <td class="px-4 py-3 text-right mono">
           <span class="${r.vpRatio != null && r.vpRatio < 300 ? 'text-emerald-400' : r.vpRatio != null && r.vpRatio > 600 ? 'text-amber-400' : 'text-zinc-300'}">
             ${r.vpRatio != null ? fmtFloat(r.vpRatio, 0) : '—'}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-right mono">
+          <span class="${r.vVorpRatio != null && r.vVorpRatio < 300 ? 'text-emerald-400' : r.vVorpRatio != null && r.vVorpRatio > 600 ? 'text-amber-400' : 'text-zinc-300'}">
+            ${r.vVorpRatio != null ? fmtFloat(r.vVorpRatio, 0) : '—'}
           </span>
         </td>
       `;
@@ -690,6 +712,7 @@
       isSF = (league.roster_positions || []).includes('SUPER_FLEX');
       scoringSettings = league.scoring_settings || {};
       rosterPositions = league.roster_positions || [];
+      teamCount = league.total_rosters || 10;
       leagueInfo.innerHTML = `
         <div class="font-medium text-zinc-300">${Vault.escapeHtml(league.name)}</div>
         <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1">

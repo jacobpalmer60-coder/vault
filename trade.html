@@ -260,6 +260,24 @@ function renderPartnerSuggestions() {
 
 function useSuggestedPartner(rosterId) {
   document.getElementById('teamBSetup').value = rosterId;
+  refreshTeamOptions();
+}
+
+// Team A and Team B (both the setup screen and the workspace dropdowns) can never
+// be the same team — trading with yourself isn't a real trade and produces a
+// meaningless result. Disabling the other side's already-picked team in each
+// dropdown's own option list prevents it from being selected at all, rather than
+// reacting after the fact — called after every action that can change either
+// pairing (each select's own onchange, and as the first line of render(), which
+// already runs after every other code path that sets a team programmatically).
+function refreshTeamOptions() {
+  const selA = document.getElementById('teamA'), selB = document.getElementById('teamB');
+  const setupA = document.getElementById('teamASetup'), setupB = document.getElementById('teamBSetup');
+  [[selA, selB], [setupA, setupB]].forEach(([x, y]) => {
+    if (!x || !y) return;
+    [...x.options].forEach(o => { o.disabled = o.value === y.value; });
+    [...y.options].forEach(o => { o.disabled = o.value === x.value; });
+  });
 }
 
 async function init() {
@@ -282,11 +300,13 @@ async function init() {
     [selA, selB, setupA, setupB].forEach(sel => sel.innerHTML = opts);
     selA.value = setupA.value = teams[0].rosterId;
     selB.value = setupB.value = teams[1]?.rosterId || teams[0].rosterId;
+    refreshTeamOptions();
 
-    selA.onchange = () => { selectedA.clear(); filterA = 'ALL'; renderPosFilter('A'); render('A'); };
-    selB.onchange = () => { selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B'); };
+    selA.onchange = () => { refreshTeamOptions(); selectedA.clear(); filterA = 'ALL'; renderPosFilter('A'); render('A'); };
+    selB.onchange = () => { refreshTeamOptions(); selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B'); };
 
-    setupA.onchange = () => renderPartnerSuggestions();
+    setupA.onchange = () => { refreshTeamOptions(); renderPartnerSuggestions(); };
+    setupB.onchange = () => refreshTeamOptions();
     renderPartnerSuggestions();
 
     document.getElementById('status').textContent = `${teams.length} teams • ${league.name} • ${built.isSF ? 'Superflex' : '1QB'}`;
@@ -391,6 +411,7 @@ function renderNeeds(side, team) {
 }
 
 function render(side) {
+  refreshTeamOptions();
   const team = teamOf(side);
   const selected = side === 'A' ? selectedA : selectedB;
   const filter = side === 'A' ? filterA : filterB;
@@ -1199,6 +1220,7 @@ function analyzeSide(before, after) {
   const dAge = after.age - before.age;
   const dPicks = after.picksValue - before.picksValue;
   const dOpt = after.opt - before.opt;
+  const dVorp = after.vorpTotal - before.vorpTotal;
   const dValue = after.total - before.total;
   const dArchScore = after.archScore - before.archScore;
   const notes = [];
@@ -1220,10 +1242,12 @@ function analyzeSide(before, after) {
   }
   const optNote = Vault.optShiftNote(mode, dOpt);
   if (optNote) { notes.push({ tone: optNote.tone, text: optNote.text }); fit += optNote.fit; }
+  const vorpNote = Vault.vorpShiftNote(mode, dVorp);
+  if (vorpNote) { notes.push({ tone: vorpNote.tone, text: vorpNote.text }); fit += vorpNote.fit; }
 
   notes.push({ tone: dArchScore > 5 ? 'good' : dArchScore < -5 ? 'bad' : 'neutral', text: `Archetype: ${before.arch} → ${after.arch}`, isArchetype: true });
 
-  return { mode, dAge, dPicks, dOpt, dValue, dArchScore, fit, notes };
+  return { mode, dAge, dPicks, dOpt, dVorp, dValue, dArchScore, fit, notes };
 }
 
 function headline(dValue, avgSide, fit) {
@@ -1343,8 +1367,8 @@ function classifyTrade(resA, resB, aAssets, bAssets) {
 // anything). Takes the two teams and what each side gives, returns everything
 // needed to either render or just rank a candidate.
 function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
-  const giveA = aAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, season: a.season, round: a.round, original: a.original, tier: a.tier }));
-  const giveB = bAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, season: a.season, round: a.round, original: a.original, tier: a.tier }));
+  const giveA = aAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, vorp: a.vorp, season: a.season, round: a.round, original: a.original, tier: a.tier }));
+  const giveB = bAssets.map(a => ({ type: a.type, id: a.id, value: a.value, pos: a.pos, age: a.age, name: a.name, ppg: a.ppg, vorp: a.vorp, season: a.season, round: a.round, original: a.original, tier: a.tier }));
 
   const { before, after, pool } = Vault.simulateTrade(teams, slots, teamA.rosterId, teamB.rosterId, giveA, giveB);
   const avgSideAdj = (aValAdj + bValAdj) / 2 || 1;
@@ -1461,9 +1485,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
             ${res.notes.map(n => `<div class="flex gap-2 text-[12px] ${n.isArchetype ? 'pt-2 border-t border-white/5 mt-2' : ''}"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
           </div>
         </details>` : ''}
-        <div class="grid grid-cols-3 gap-1 text-center pt-3 border-t border-white/5">
+        <div class="grid grid-cols-4 gap-1 text-center pt-3 border-t border-white/5">
           <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="text-[11px] text-zinc-500">Age</div></div>
           <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}<span class="text-[11px] ml-1 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-600'}">${Math.abs(res.dOpt) > 0.05 ? (res.dOpt > 0 ? '+' : '') + res.dOpt.toFixed(1) : ''}</span></div><div class="text-[11px] text-zinc-500">Opt PPG</div></div>
+          <div><div class="text-[14px] font-mono" title="Optimal lineup's total VORP — real, scarcity-adjusted edge over readily-available replacements, not just raw points">${aft.vorpTotal.toFixed(1)}<span class="text-[11px] ml-1 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-600'}">${Math.abs(res.dVorp) > 0.05 ? (res.dVorp > 0 ? '+' : '') + res.dVorp.toFixed(1) : ''}</span></div><div class="text-[11px] text-zinc-500">VORP</div></div>
           <div><div class="text-[14px] font-mono">${win.hasWindow ? win.windowStart + '-' + win.windowEnd : 'None'}</div><div class="text-[11px] text-zinc-500">Window</div></div>
         </div>
       </div>`;

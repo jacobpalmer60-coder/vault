@@ -48,6 +48,7 @@
               <th class="text-right px-3 py-3">Overall</th>
               <th class="text-right px-3 py-3">Players</th>
               <th class="text-right px-3 py-3">Opt PPG</th>
+              <th class="text-right px-3 py-3" title="Value Over Replacement Player — real, scarcity-adjusted edge, comparable across positions">VORP</th>
               <th class="text-right px-3 py-3">Age</th>
               <th class="text-right px-3 py-3">Picks</th>
             </tr>
@@ -126,6 +127,7 @@ function renderSingle(t) {
     { l: 'Overall', v: Math.round(t.overall), c: 'from-amber-500 to-yellow-500' },
     { l: 'Players', v: Math.round(t.total), c: 'from-amber-600/70 to-yellow-600/70' },
     { l: 'Opt PPG', v: t.opt.toFixed(1), c: 'from-emerald-500 to-teal-500' },
+    { l: 'VORP', v: Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—', c: 'from-violet-500 to-fuchsia-500', title: "Optimal lineup's total Value Over Replacement Player — real, scarcity-adjusted edge over readily-available replacements, not just raw scoring rate. Comparable across positions, unlike Opt PPG." },
     { l: 'Age', v: t.age.toFixed(1), c: 'from-zinc-500 to-zinc-400' },
     { l: 'Picks Value', v: Math.round(t.picksValue), c: 'from-sky-500 to-cyan-500' },
   ];
@@ -141,8 +143,8 @@ function renderSingle(t) {
         <div class="text-[11px] text-zinc-500 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]} • ${t.windowYears}yr window</div>
       </div>
     </div>
-    <div class="grid md:grid-cols-5 gap-4 mt-6">
-      ${bars.map(b => `<div class="stat-tile"><div class="stat-label">${b.l}</div><div class="stat-value">${b.v}</div></div>`).join('')}
+    <div class="grid md:grid-cols-6 gap-4 mt-6">
+      ${bars.map(b => `<div class="stat-tile" ${b.title ? `title="${Vault.escapeHtml(b.title)}"` : ''}><div class="stat-label">${b.l}</div><div class="stat-value">${b.v}</div></div>`).join('')}
     </div>
 
     <div class="grid lg:grid-cols-3 gap-4 mt-6">
@@ -192,6 +194,7 @@ function renderSummary(teams) {
       <td class="px-3 py-3 text-right font-mono text-amber-200">${Math.round(t.overall).toLocaleString()}</td>
       <td class="px-3 py-3 text-right font-mono">${Math.round(t.total).toLocaleString()}</td>
       <td class="px-3 py-3 text-right font-mono text-emerald-300/80">${t.opt.toFixed(1)}</td>
+      <td class="px-3 py-3 text-right font-mono text-violet-300/80">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</td>
       <td class="px-3 py-3 text-right font-mono">${t.age.toFixed(1)}</td>
       <td class="px-3 py-3 text-right font-mono">${Math.round(t.picksValue).toLocaleString()}</td>
     </tr>

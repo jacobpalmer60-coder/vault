@@ -46,6 +46,7 @@
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="picksValue">Picks</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="age">Age</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="opt">Opt PPG</th>
+            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Opt PPG)">VORP</th>
             <th class="text-right px-3 py-4 font-semibold sortable" data-sort="longevity">Longevity</th>
             <th class="text-left pl-6 pr-10 py-4 font-semibold sortable" data-sort="archSort">Archetype</th>
           </tr>
@@ -77,6 +78,7 @@
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Players</span><span class="text-zinc-400"> — Sum of rostered player values</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — R1-4 live from Sleeper</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Opt PPG</span><span class="text-zinc-400"> — Best lineup, league scoring</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">VORP</span><span class="text-zinc-400"> — Best lineup's total edge over the best readily-available replacement at each position, comparable across positions unlike raw PPG (see Player Rankings for the per-player breakdown)</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Longevity</span><span class="text-zinc-400"> — Of the next 5 projected years (position-decay + arriving picks), how many still clear the real playoff line. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from how you stand now vs. how long that lasts (see guide below)</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Career</span><span class="text-zinc-400"> — All-time W-L-T for this manager, summed across every season Sleeper's league-history chain has for this league</span></div>
@@ -153,7 +155,7 @@ function bestLineupPanel(t) {
     <span class="font-mono text-zinc-500">${s.name ? s.ppg.toFixed(1) : '—'}</span>
   </div>`).join('');
   return `<div>
-    <div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">Best Lineup <span class="text-zinc-500 normal-case">— ${t.opt.toFixed(1)} PPG</span></div>
+    <div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">Best Lineup <span class="text-zinc-500 normal-case">— ${t.opt.toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` • ${t.vorpTotal.toFixed(1)} VORP` : ''}</span></div>
     <div class="space-y-1.5">${lines || '<div class="text-zinc-600">—</div>'}</div>
   </div>`;
 }
@@ -476,9 +478,10 @@ function renderMobileCards(data, maxOverall) {
 
       <div class="mt-3.5">${posSplitBar(t)}</div>
 
-      <div class="grid grid-cols-3 gap-2 text-center py-3 mt-3.5 border-y border-white/5">
+      <div class="grid grid-cols-4 gap-2 text-center py-3 mt-3.5 border-y border-white/5">
         <div><div class="font-mono text-[13px] text-zinc-200">${t.age.toFixed(1)}</div><div class="text-[11px] text-zinc-500">Age</div></div>
         <div><div class="font-mono text-[13px] text-zinc-200">${t.opt.toFixed(1)}</div><div class="text-[11px] text-zinc-500">Opt PPG</div></div>
+        <div><div class="font-mono text-[13px] text-violet-300">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div><div class="text-[11px] text-zinc-500">VORP</div></div>
         <div><div class="font-mono text-[13px] text-zinc-200">${t.windowYears}yr</div><div class="text-[11px] text-zinc-500">Longevity</div></div>
       </div>
 
@@ -519,6 +522,7 @@ function render() {
   const maxPicks = Math.max(...data.map(t => t.picksValue));
   const maxOverall = Math.max(...data.map(t => t.overall));
   const maxOpt = Math.max(...data.map(t => t.opt));
+  const maxVorp = Math.max(...data.map(t => t.vorpTotal || 0));
   const maxLongevity = Math.max(...data.map(t => t.longevity));
   tb.innerHTML = data.map(t => {
     const exp = expanded.has(t.rosterId);
@@ -572,6 +576,10 @@ function render() {
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.opt.toFixed(1)}</div>
         ${microBar(t.opt, maxOpt)}
+      </td>
+      <td class="px-3 py-4 text-right">
+        <div class="font-mono font-semibold text-[14px] text-violet-300">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div>
+        ${microBar(t.vorpTotal || 0, maxVorp)}
       </td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.windowYears}yr</div>
