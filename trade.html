@@ -1330,17 +1330,26 @@ function analyzeSide(before, after) {
   return { mode, dAge, dPicks, dOpt, dVorp, dValue, dArchScore, fit, notes };
 }
 
+// dValue/avgSide are the RAW (pre-need-weighting) consolidation-adjusted swing —
+// deliberately a different question than the trade bar's headline Fair/Borderline/
+// Lopsided call above (which is need-weighted). Every string below says "sticker
+// value", never bare "value" or "Fair" on its own, specifically so this can't read
+// as contradicting that other number when the two legitimately disagree (a side
+// can be down on raw sticker value but still have a need-weighted trade read as
+// Fair, if what it received happened to fill a real hole) — same reasoning as the
+// "by value alone... X% off" tooltip on the Difference stat, just inline instead
+// of hidden behind a hover.
 function headline(dValue, avgSide, fit) {
   const pct = avgSide ? dValue / avgSide * 100 : 0;
-  const fair = Math.abs(pct) < VAULT_CONFIG.FAIR_PCT;
-  if (pct <= -40) return { tone: 'bad', text: `Well below value (${pct.toFixed(0)}%)${fit >= 2 ? ' — good timeline fit, but not enough to cover a discount this big' : ''}` };
-  if (fair && fit >= 2) return { tone: 'good', text: 'Fair value, strong fit — good trade' };
-  if (fair && fit <= -2) return { tone: 'bad', text: 'Fair by value, bad fit for your timeline' };
-  if (fair) return { tone: 'neutral', text: 'Fair value, neutral fit' };
-  if (pct >= VAULT_CONFIG.FAIR_PCT && fit >= 0) return { tone: 'good', text: `Ahead on value (+${pct.toFixed(0)}%) and fits your timeline` };
-  if (pct >= VAULT_CONFIG.FAIR_PCT) return { tone: 'neutral', text: `Ahead on value (+${pct.toFixed(0)}%), but questionable fit` };
-  if (fit >= 2) return { tone: 'neutral', text: `Behind on value (${pct.toFixed(0)}%), but strong timeline fit` };
-  return { tone: 'bad', text: `Behind on value (${pct.toFixed(0)}%) and a poor fit` };
+  const even = Math.abs(pct) < VAULT_CONFIG.FAIR_PCT;
+  if (pct <= -40) return { tone: 'bad', text: `Well below sticker value (${pct.toFixed(0)}%)${fit >= 2 ? ' — good timeline fit, but not enough to cover a discount this big' : ''}` };
+  if (even && fit >= 2) return { tone: 'good', text: 'Even on sticker value, strong fit — good trade' };
+  if (even && fit <= -2) return { tone: 'bad', text: 'Even on sticker value, bad fit for your timeline' };
+  if (even) return { tone: 'neutral', text: 'Even on sticker value, neutral fit' };
+  if (pct >= VAULT_CONFIG.FAIR_PCT && fit >= 0) return { tone: 'good', text: `Ahead on sticker value (+${pct.toFixed(0)}%) and fits your timeline` };
+  if (pct >= VAULT_CONFIG.FAIR_PCT) return { tone: 'neutral', text: `Ahead on sticker value (+${pct.toFixed(0)}%), but questionable fit` };
+  if (fit >= 2) return { tone: 'neutral', text: `Behind on sticker value (${pct.toFixed(0)}%), but strong timeline fit` };
+  return { tone: 'bad', text: `Behind on sticker value (${pct.toFixed(0)}%) and a poor fit` };
 }
 
 // Positional need/surplus fit lives in Vault.positionalFitNotes (vault-core.js) now —
