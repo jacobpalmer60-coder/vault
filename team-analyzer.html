@@ -108,6 +108,10 @@ async function loadLeague(id) {
   }
 }
 
+// Same red-yellow-green spectrum as League Overview and the trade fairness bar —
+// consistent across the site instead of a different hue per metric.
+const RYG = 'from-rose-400 via-amber-400 to-emerald-400';
+
 function renderSingle(t) {
   if (!t) return;
   const all = window._allTeams || [];
@@ -123,13 +127,16 @@ function renderSingle(t) {
   const partners = getTradePartners(t, all);
   const win = Vault.contentionWindow(t, all);
 
+  // Age keeps a neutral stripe since younger/older isn't a "low=bad, high=good"
+  // scale the way the other five are (mirrors League Overview, which never bars
+  // Age either).
   const bars = [
-    { l: 'Overall', v: Math.round(t.overall), c: 'from-amber-500 to-yellow-500' },
-    { l: 'Players', v: Math.round(t.total), c: 'from-amber-600/70 to-yellow-600/70' },
-    { l: 'Opt PPG', v: t.opt.toFixed(1), c: 'from-emerald-500 to-teal-500' },
-    { l: 'VORP', v: Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—', c: 'from-violet-500 to-fuchsia-500', title: "Optimal lineup's total Value Over Replacement Player — real, scarcity-adjusted edge over readily-available replacements, not just raw scoring rate. Comparable across positions, unlike Opt PPG." },
+    { l: 'Overall', v: Math.round(t.overall), c: RYG },
+    { l: 'Players', v: Math.round(t.total), c: RYG },
+    { l: 'Opt PPG', v: t.opt.toFixed(1), c: RYG },
+    { l: 'VORP', v: Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—', c: RYG, title: "Optimal lineup's total Value Over Replacement Player — real, scarcity-adjusted edge over readily-available replacements, not just raw scoring rate. Comparable across positions, unlike Opt PPG." },
     { l: 'Age', v: t.age.toFixed(1), c: 'from-zinc-500 to-zinc-400' },
-    { l: 'Picks Value', v: Math.round(t.picksValue), c: 'from-sky-500 to-cyan-500' },
+    { l: 'Picks Value', v: Math.round(t.picksValue), c: RYG },
   ];
   $('#singleCard').innerHTML = `
   <div class="card rounded-vault p-6 fade-in">
@@ -205,12 +212,12 @@ function renderSummary(teams) {
       <td class="px-4 py-3 text-amber-300/70">${t.rank}</td>
       <td class="px-4 py-3"><div class="font-medium">${Vault.escapeHtml(t.teamName)}</div><div class="text-[11px] text-zinc-500">${Vault.escapeHtml(t.username)}</div></td>
       <td class="px-4 py-3"><span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="px-2.5 py-1 rounded-full text-[11px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span></td>
-      <td class="px-3 py-3 text-right"><div class="font-mono text-amber-200">${Math.round(t.overall).toLocaleString()}</div>${summaryBar(t.overall, maxOverall, 'from-amber-500 to-yellow-500')}</td>
-      <td class="px-3 py-3 text-right"><div class="font-mono">${Math.round(t.total).toLocaleString()}</div>${summaryBar(t.total, maxTotal, 'from-amber-600/70 to-yellow-600/70')}</td>
-      <td class="px-3 py-3 text-right"><div class="font-mono text-emerald-300/80">${t.opt.toFixed(1)}</div>${summaryBar(t.opt, maxOpt, 'from-emerald-500 to-teal-500')}</td>
-      <td class="px-3 py-3 text-right"><div class="font-mono text-violet-300/80">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div>${summaryBar(t.vorpTotal || 0, maxVorp, 'from-violet-500 to-fuchsia-500')}</td>
+      <td class="px-3 py-3 text-right"><div class="font-mono text-amber-200">${Math.round(t.overall).toLocaleString()}</div>${summaryBar(t.overall, maxOverall, RYG)}</td>
+      <td class="px-3 py-3 text-right"><div class="font-mono">${Math.round(t.total).toLocaleString()}</div>${summaryBar(t.total, maxTotal, RYG)}</td>
+      <td class="px-3 py-3 text-right"><div class="font-mono text-emerald-300/80">${t.opt.toFixed(1)}</div>${summaryBar(t.opt, maxOpt, RYG)}</td>
+      <td class="px-3 py-3 text-right"><div class="font-mono text-violet-300/80">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div>${summaryBar(t.vorpTotal || 0, maxVorp, RYG)}</td>
       <td class="px-3 py-3 text-right font-mono">${t.age.toFixed(1)}</td>
-      <td class="px-3 py-3 text-right"><div class="font-mono">${Math.round(t.picksValue).toLocaleString()}</div>${summaryBar(t.picksValue, maxPicks, 'from-sky-500 to-cyan-500')}</td>
+      <td class="px-3 py-3 text-right"><div class="font-mono">${Math.round(t.picksValue).toLocaleString()}</div>${summaryBar(t.picksValue, maxPicks, RYG)}</td>
     </tr>
   `).join('');
 }
