@@ -110,7 +110,15 @@ const VAULT_CONFIG = {
   // under 20; genuinely notable cases (an aging star WR still producing near the
   // top of the position on a bottomed-out trade price, or a rookie stash priced on
   // pure potential with next to no projected production yet) start around 35-40+.
-  VALUE_RISK_GAP: 35
+  VALUE_RISK_GAP: 35,
+  // Trailing window for Vault.priceVolatilityPct / buildPlayerVolatilityMap — matches
+  // trade.html's TREND_WINDOW_DAYS (the "up/down over the last 90 days" arrow), so a
+  // volatile asset's badge and its trend arrow are reading the same stretch of time.
+  PRICE_VOLATILITY_WINDOW_DAYS: 90,
+  // Minimum daily price points required before priceVolatilityPct trusts a coefficient
+  // of variation enough to report it — below this, a couple of noisy data points could
+  // swing the number wildly and the asset just gets treated as "no signal" instead.
+  PRICE_VOLATILITY_MIN_POINTS: 8
 };
 
 /* ---------- League ID handling (shared across every page) ---------- */
@@ -1671,18 +1679,46 @@ const Vault = {
      (Bijan Robinson, Ja'Marr Chase) come in under 0.5%, while speculative
      deep-bench rookies (a 3rd-string RB, an unproven late-round WR) run
      30-85%. Distribution: median 2.2%, 85th pct 5.5%, 95th pct 13%. */
-  PRICE_VOLATILITY_MIN_POINTS: 8,
 
   // values: a plain array of daily-ish price points for one asset, most-recent
-  // window only (callers filter the date range before calling this — see trade.html's
-  // buildVolatilityMap). null below the minimum sample size or a non-positive mean —
-  // not enough signal to say anything, not the same as "this asset is stable."
+  // window only (callers filter the date range before calling this — see
+  // buildPlayerVolatilityMap below). null below the minimum sample size or a
+  // non-positive mean — not enough signal to say anything, not the same as "this
+  // asset is stable."
   priceVolatilityPct(values) {
-    if (!values || values.length < Vault.PRICE_VOLATILITY_MIN_POINTS) return null;
+    if (!values || values.length < VAULT_CONFIG.PRICE_VOLATILITY_MIN_POINTS) return null;
     const mean = values.reduce((s, v) => s + v, 0) / values.length;
     if (mean <= 0) return null;
     const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
     return Math.sqrt(variance) / mean;
+  },
+
+  /* Normalized-name -> volatility map straight from player-value-history.json's
+     snapshots — shared by trade.html (live trade building) and
+     fetchAndGradeAllTrades (Trade Grades / Manager page grading real historical
+     trades) so both read the same numbers off the same fetch instead of two
+     independent implementations that could drift apart. Callers already pay for
+     this fetch for other reasons (trade.html's trend arrows; nothing new here for
+     the grading pipeline, which fetches it purely for this) — see each caller for
+     why it's not fetched by every page that touches a team/trade. */
+  buildPlayerVolatilityMap(snapshots, isSF, bonusRecTe) {
+    const cutoff = Date.now() - VAULT_CONFIG.PRICE_VOLATILITY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const byKey = new Map();
+    (snapshots || []).forEach(s => {
+      if (new Date(s.date).getTime() < cutoff) return;
+      Object.entries(s.players || {}).forEach(([key, entry]) => {
+        const v = Vault.resolveHistoricalValue(entry, isSF, bonusRecTe);
+        if (!Number.isFinite(v)) return;
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key).push(v);
+      });
+    });
+    const out = new Map();
+    byKey.forEach((vals, key) => {
+      const pct = Vault.priceVolatilityPct(vals);
+      if (pct != null) out.set(key, pct);
+    });
+    return out;
   },
 
   // A picked-but-not-yet-realized draft pick has no price history of its own to be
@@ -2295,19 +2331,24 @@ const Vault = {
   /* ---------- Trade grading pipeline ----------
      Promoted from Trade Grades so a second page (the Manager page) can run the exact
      same real-trade grading without re-implementing or drifting from it. */
-  resolveTradeAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels) {
+  // playerVolatility is optional (a normalized-name -> pct map from
+  // Vault.buildPlayerVolatilityMap) — callers that haven't fetched price history
+  // (or don't need confidence bands) can omit it and every asset just comes back
+  // with volatilityPct: null, same as an asset with too little history to measure.
+  resolveTradeAssets(tx, sideRosterId, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility) {
     const assets = [];
     Object.entries(tx.adds || {}).forEach(([pid, toRoster]) => {
       if (toRoster !== sideRosterId) return;
       const p = playersDb[pid] || {};
       const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`;
       const ppg = ppgMap.get(pid) || 0;
-      assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, team: p.team || '', ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), value: valMap.get(Vault.normalizeName(name)) || 0 });
+      const volatilityPct = playerVolatility ? (playerVolatility.get(Vault.normalizeName(name)) ?? null) : null;
+      assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, team: p.team || '', ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), value: valMap.get(Vault.normalizeName(name)) || 0, volatilityPct });
     });
     (tx.draft_picks || []).forEach(pk => {
       if (pk.owner_id !== sideRosterId) return;
       const info = pickValueByKey.get(`${pk.season}-${pk.round}-${pk.roster_id}`);
-      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}`, pos: 'PICK', age: 0, value: info ? info.value : 0 });
+      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}`, pos: 'PICK', age: 0, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
     });
     return assets;
   },
@@ -2335,13 +2376,13 @@ const Vault = {
     return { tone: 'neutral', label: 'Fair Trade', text };
   },
 
-  gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels) {
+  gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels, playerVolatility) {
     const [rA, rB] = tx.roster_ids;
     const teamA = teamById.get(rA), teamB = teamById.get(rB);
     if (!teamA || !teamB) return null;
 
-    const toA = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels); // what A received (B gave)
-    const toB = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels); // what B received (A gave)
+    const toA = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what A received (B gave)
+    const toB = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what B received (A gave)
     if (!toA.length && !toB.length) return null;
 
     // Fairness uses KTC's own consolidation adjustment (see Vault.tradeSideValues) —
@@ -2392,6 +2433,11 @@ const Vault = {
     const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toB, toA);
     const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
     const pctDiffNeed = Math.abs(aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100;
+    // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand) — for a
+    // completed trade this reads less like "how sure are we" and more like "how much
+    // of this verdict rode on pieces that were genuinely unproven at the time," since
+    // the picks/rookies involved have often resolved into real production by now.
+    const { bandPct } = Vault.tradeConfidenceBand(toB, toA, aGaveAdjNeed, bGaveAdjNeed);
 
     // positionalFitNotes needs both snapshots — see its own comment for why. What
     // each team received is judged against its pre-trade roster (sim.after, despite
@@ -2411,7 +2457,7 @@ const Vault = {
     const verdict = Vault.historyVerdict(pctDiffNeed, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, bandPct, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
   },
 
   /* Full fetch-build-grade pipeline for a league's real trade history — shared by
@@ -2419,16 +2465,22 @@ const Vault = {
      instead of running two copies of this fetch that could drift apart. */
   async fetchAndGradeAllTrades(leagueId) {
     const { league, isSF, teams, slots, replacementLevels } = await Vault.buildLeagueTeams(leagueId);
-    const [playersDb, ktcData, projData, rosters, traded, ...weeks] = await Promise.all([
+    const [playersDb, ktcData, projData, rosters, traded, playerHist, ...weeks] = await Promise.all([
       fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
       Vault.fetchKtcValues(),
       Vault.fetchProjections(),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json()),
+      Vault.fetchPlayerValueHistory(),
       ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
     ]);
     const valMap = Vault.buildKtcValueMap(ktcData, isSF, league.scoring_settings?.bonus_rec_te);
     const ppgMap = Vault.buildProjectedPpgMapById(projData, league.scoring_settings);
+    const bonusRecTe = league.scoring_settings?.bonus_rec_te;
+    // Confidence bands (Vault.tradeConfidenceBand) for each graded trade — same
+    // price-history signal the Trade Calculator uses, fetched here specifically for
+    // this (unlike trade.html, nothing else in this pipeline already needed it).
+    const playerVolatility = Vault.buildPlayerVolatilityMap(playerHist.snapshots, isSF, bonusRecTe);
 
     const teamById = new Map(teams.map(t => [t.rosterId, t]));
 
@@ -2468,11 +2520,11 @@ const Vault = {
         const rank = draftRank.get(originalRosterId) || 1;
         const overall = (round - 1) * n + rank;
         const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
-        pickValueByKey.set(key, { value: pickMap.get(`${season}-${ktcRound}-${tier}`) || 0, tier });
+        pickValueByKey.set(key, { value: pickMap.get(`${season}-${ktcRound}-${tier}`) || 0, tier, volatilityPct: Vault.pickVolatilityPct(pickMap, season, ktcRound) });
       });
     }
 
-    const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels)).filter(Boolean);
+    const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels, playerVolatility)).filter(Boolean);
     return { league, isSF, teams, slots, allGraded };
   },
 

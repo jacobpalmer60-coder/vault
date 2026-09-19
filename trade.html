@@ -79,6 +79,7 @@
           <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value, using KeepTradeCut's own real adjustment formula. Under 14% off is considered fair, 14-41% is borderline, and above 41% is lopsided — calibrated against ~25,000 real trades from KeepTradeCut's trade database. The ± line below reflects how much today's price could still move for the less-established pieces here (rookies, far-future picks), based on their own recent price swings.">Difference <span class="text-zinc-600">(value-adj)</span></div>
           <div id="diff" class="text-[22px] font-semibold mono"></div>
           <div id="diffLabel" class="text-[11px] mt-0.5"></div>
+          <div id="diffBar" class="w-36 ml-auto"></div>
           <div id="diffConfidence" class="text-[10px] text-zinc-600 mt-0.5"></div>
         </div>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
@@ -239,32 +240,6 @@ function buildTrendDeltas(snapshots, listField, isSF, bonusRecTe) {
   return deltas;
 }
 
-// Per-player price volatility (see Vault.priceVolatilityPct) over the same trailing
-// window as the trend arrow above — reuses the exact same fetch trade.html already
-// pays for (player-value-history.json), just reading a different statistic off the
-// same in-window values instead of a second network round-trip. Picks don't go
-// through this: their volatility comes from Vault.buildLeagueTeams instead (a
-// smooth priced curve has no real day-to-day noise to measure — see
-// Vault.pickVolatilityPct's comment for why picks need a different signal).
-function buildVolatilityMap(snapshots, listField, isSF, bonusRecTe) {
-  const cutoff = Date.now() - TREND_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-  const byKey = new Map();
-  (snapshots || []).forEach(s => {
-    if (new Date(s.date).getTime() < cutoff) return;
-    Object.entries(s[listField] || {}).forEach(([key, entry]) => {
-      const v = Vault.resolveHistoricalValue(entry, isSF, bonusRecTe);
-      if (!Number.isFinite(v)) return;
-      if (!byKey.has(key)) byKey.set(key, []);
-      byKey.get(key).push(v);
-    });
-  });
-  const out = new Map();
-  byKey.forEach((vals, key) => {
-    const pct = Vault.priceVolatilityPct(vals);
-    if (pct != null) out.set(key, pct);
-  });
-  return out;
-}
 
 // Surfaces the same need/surplus/timeline/pick-capital fit read Team Analyzer uses
 // to suggest trade partners, but here — while a trade is actually being built —
@@ -319,7 +294,7 @@ async function init() {
     const bonusRecTe = league.scoring_settings?.bonus_rec_te;
     playerTrend = buildTrendDeltas(playerHist.snapshots, 'players', built.isSF, bonusRecTe);
     pickTrend = buildTrendDeltas(pickHist.snapshots, 'picks', built.isSF, bonusRecTe);
-    playerVolatility = buildVolatilityMap(playerHist.snapshots, 'players', built.isSF, bonusRecTe);
+    playerVolatility = Vault.buildPlayerVolatilityMap(playerHist.snapshots, built.isSF, bonusRecTe);
 
     teams = built.teams.map(t => ({ ...t, assets: [] }));
     teams.forEach(t => t.assets = assetsFor(t));
@@ -1188,6 +1163,31 @@ function fairnessBucket(pct) {
   return pct < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pct < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided';
 }
 
+// Visual scale caps at 60% off — the app's own real-trade calibration puts the
+// Lopsided cutoff at 41%, so anything past 60 is deep into "obviously lopsided"
+// territory where showing the marker even further right stops adding information.
+const FAIRNESS_BAR_MAX = 60;
+
+// A green-to-amber-to-red gradient track standing in for the Fair/Borderline/
+// Lopsided badge — the gradient's own color stops sit exactly at FAIR_PCT/
+// LOPSIDED_PCT, so the bar and the text badge are always reading the same
+// thresholds, never two numbers that could quietly drift apart. The white dot
+// marks the point estimate (pctDiffNeed); the translucent band around it (when
+// there's enough price history to say anything — see Vault.tradeConfidenceBand)
+// is the same ± range as the text callout below it, just made visible at a glance.
+function fairnessBarHtml(pctDiffNeed, bandPct) {
+  const pos = p => Math.min(100, Math.max(0, p / FAIRNESS_BAR_MAX * 100));
+  const marker = pos(pctDiffNeed);
+  const fairStop = pos(VAULT_CONFIG.FAIR_PCT);
+  const lopStop = pos(VAULT_CONFIG.LOPSIDED_PCT);
+  const band = bandPct >= 1 ? { lo: pos(Math.max(0, pctDiffNeed - bandPct)), hi: pos(pctDiffNeed + bandPct) } : null;
+  return `
+    <div class="relative h-1.5 rounded-full overflow-hidden" style="background: linear-gradient(to right, #34d399 0%, #34d399 ${fairStop}%, #fbbf24 ${fairStop}%, #fbbf24 ${lopStop}%, #fb7185 ${lopStop}%, #fb7185 100%);">
+      ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${band.lo}%; width:${Math.max(0.75, band.hi - band.lo)}%;"></div>` : ''}
+      <div class="absolute top-1/2 size-2.5 rounded-full bg-white ring-2 ring-black/50" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
+    </div>`;
+}
+
 // Renders the ± confidence band under a fairness verdict (see
 // Vault.tradeConfidenceBand) — silent when nothing's selected or nothing here has
 // enough price history to say anything (bandPct rounds to 0), a plain "±Xpp" when
@@ -1263,7 +1263,9 @@ function updateTrade() {
   diffLabelEl.textContent = (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${pctDiffNeed.toFixed(0)}% off`;
   diffLabelEl.title = `Need-adjusted — weights each side by what the RECEIVING team actually needs there. By value alone (KTC's own consolidation adjustment, before need), this trade is ${pctDiff.toFixed(0)}% off.`;
   diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500');
-  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdjNeed, bValAdjNeed, pctDiffNeed);
+  const { bandPct: diffBandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed);
+  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(pctDiffNeed, diffBandPct) : '';
+  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdjNeed, bValAdjNeed, pctDiffNeed, diffBandPct);
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
@@ -1574,6 +1576,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
       <div class="text-[19px] font-semibold ${TONE[verdict.tone]}">${verdict.label}</div>
     </div>
     <div class="text-[13px] font-bold ${TONE[verdict.tone]} truncate">${verdict.text}</div>
+    <div class="max-w-xs mt-2">${fairnessBarHtml(pctDiffNeed, bandPct)}</div>
     <div class="text-[11px] text-zinc-600 mt-1">${confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiffNeed, bandPct)}</div>`;
 }
 

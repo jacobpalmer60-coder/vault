@@ -60,6 +60,37 @@ function fairBucket(pctDiff) {
 function fairColor(pctDiff) {
   return pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500';
 }
+// Same ± band as the Trade Calculator (Vault.tradeConfidenceBand, computed in
+// Vault.gradeTrade) — silent when there's not enough price history to say anything,
+// a plain "±Xpp" when it wouldn't have changed the verdict, a fuller callout when
+// the trade's actual bucket at the time could plausibly have read differently.
+const FAIRNESS_BAR_MAX = 60;
+// Same gradient-track fairness bar as the Trade Calculator (trade.html) — the
+// color stops sit at FAIR_PCT/LOPSIDED_PCT so it reads the same thresholds as the
+// text badge next to it, and the translucent band mirrors confidenceBandText's ±
+// range so both are showing the same uncertainty, just in two forms.
+function fairnessBarHtml(pctDiffNeed, bandPct) {
+  const pos = p => Math.min(100, Math.max(0, p / FAIRNESS_BAR_MAX * 100));
+  const marker = pos(pctDiffNeed);
+  const fairStop = pos(VAULT_CONFIG.FAIR_PCT);
+  const lopStop = pos(VAULT_CONFIG.LOPSIDED_PCT);
+  const band = bandPct >= 1 ? { lo: pos(Math.max(0, pctDiffNeed - bandPct)), hi: pos(pctDiffNeed + bandPct) } : null;
+  return `
+    <div class="relative h-1.5 rounded-full overflow-hidden" style="background: linear-gradient(to right, #34d399 0%, #34d399 ${fairStop}%, #fbbf24 ${fairStop}%, #fbbf24 ${lopStop}%, #fb7185 ${lopStop}%, #fb7185 100%);">
+      ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${band.lo}%; width:${Math.max(0.75, band.hi - band.lo)}%;"></div>` : ''}
+      <div class="absolute top-1/2 size-2.5 rounded-full bg-white ring-2 ring-black/50" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
+    </div>`;
+}
+
+function confidenceBandText(g) {
+  if (!g.bandPct || g.bandPct < 1) return '';
+  const lo = Math.max(0, g.pctDiffNeed - g.bandPct), hi = g.pctDiffNeed + g.bandPct;
+  const bucketLo = fairBucket(lo), bucketHi = fairBucket(hi);
+  const text = bucketLo === bucketHi
+    ? `±${g.bandPct.toFixed(0)}pp based on price swings in the less-established pieces here`
+    : `±${g.bandPct.toFixed(0)}pp — could have read anywhere from ${bucketLo} to ${bucketHi} depending on how the rookies/far-future picks here were valued at the time`;
+  return `<div class="text-[10px] text-zinc-600 mt-0.5">${text}</div>`;
+}
 // The synopsis headline gets a bolder version of the same tiers — Lopsided reads as
 // an actual warning (red) here, unlike the muted badge above which intentionally
 // dials it back so the page isn't drenched in red on a page full of real trades.
@@ -168,6 +199,8 @@ function renderCard(g) {
       <div class="pt-3 border-t border-white/5">
         <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiffNeed)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-500 font-normal">(some asset values unavailable)</span>' : ''}</p>
         <div class="text-[11px] ${fairColor(g.pctDiffNeed)} mt-1" title="Need-adjusted — weights each side by what it was actually worth to the team that received it. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. By value alone (KTC's own consolidation adjustment, before need), this trade was ${g.pctDiff.toFixed(0)}% off.">${bucket} · ${g.pctDiffNeed.toFixed(0)}% off</div>
+        <div class="max-w-[200px] mt-1.5">${fairnessBarHtml(g.pctDiffNeed, g.bandPct)}</div>
+        ${confidenceBandText(g)}
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
         <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
