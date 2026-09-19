@@ -134,9 +134,24 @@ function projectedText(t) {
   return { rec, playoffPct: p.playoffPct, championshipPct: p.championshipPct };
 }
 
-function microBar(val, max) {
+// Dim-to-bright gradient fill instead of a flat wash — reads as "how full" at a
+// glance, and each column's bar uses the SAME hue as that column's own number/
+// legend color (POS_TEXT's fuchsia/emerald/sky/amber for QB/RB/WR/TE, gold for
+// Overall, violet for VORP) instead of one flat amber everywhere regardless of
+// meaning. Deliberately not gold by default — this site's own theme reserves gold
+// for primary actions and headline numbers, not every bar on the page.
+const BAR_GRADIENT = {
+  gold: 'linear-gradient(to right, #c7922e, #f5d998, #fff)',
+  neutral: 'linear-gradient(to right, #52525b, #a1a1aa, #f4f4f5)',
+  QB: 'linear-gradient(to right, rgba(162,28,175,.6), #e879f9, #f0abfc)',
+  RB: 'linear-gradient(to right, rgba(5,150,105,.6), #34d399, #6ee7b7)',
+  WR: 'linear-gradient(to right, rgba(2,132,199,.6), #38bdf8, #7dd3fc)',
+  TE: 'linear-gradient(to right, rgba(217,119,6,.6), #fbbf24, #fcd34d)',
+  VORP: 'linear-gradient(to right, rgba(124,58,237,.6), #a78bfa, #c4b5fd)'
+};
+function microBar(val, max, gradient) {
   const pct = max > 0 ? Math.max(3, Math.min(100, val / max * 100)) : 0;
-  return `<div class="mt-1.5 h-[3px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full bg-amber-400/50 rounded-full" style="width:${pct}%"></div></div>`;
+  return `<div class="mt-1.5 h-[4px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%; background:${gradient || BAR_GRADIENT.neutral}"></div></div>`;
 }
 
 const POS_TEXT = { QB: 'text-fuchsia-300/80', RB: 'text-emerald-300/80', WR: 'text-sky-300/80', TE: 'text-amber-300/80' };
@@ -471,7 +486,7 @@ function renderMobileCards(data, maxOverall) {
         <div>
           <div class="text-[11px] text-zinc-500 uppercase tracking-wider">Overall</div>
           <div class="font-mono text-[16px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
-          ${microBar(t.overall, maxOverall)}
+          ${microBar(t.overall, maxOverall, BAR_GRADIENT.gold)}
         </div>
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
       </div>
@@ -545,45 +560,45 @@ function render() {
       <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-300'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[15px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
-        ${microBar(t.overall, maxOverall)}
+        ${microBar(t.overall, maxOverall, BAR_GRADIENT.gold)}
       </td>
       <td class="px-3 py-4">${posSplitBar(t)}</td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-100">${Math.round(t.total).toLocaleString()}</div>
-        ${microBar(t.total, maxTotal)}
+        ${microBar(t.total, maxTotal, BAR_GRADIENT.neutral)}
       </td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] ${POS_TEXT.QB}">${Math.round(t.qb).toLocaleString()}</div>
-        ${microBar(t.qb, maxQb)}
+        ${microBar(t.qb, maxQb, BAR_GRADIENT.QB)}
       </td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] ${POS_TEXT.RB}">${Math.round(t.rb).toLocaleString()}</div>
-        ${microBar(t.rb, maxRb)}
+        ${microBar(t.rb, maxRb, BAR_GRADIENT.RB)}
       </td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] ${POS_TEXT.WR}">${Math.round(t.wr).toLocaleString()}</div>
-        ${microBar(t.wr, maxWr)}
+        ${microBar(t.wr, maxWr, BAR_GRADIENT.WR)}
       </td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] ${POS_TEXT.TE}">${Math.round(t.te).toLocaleString()}</div>
-        ${microBar(t.te, maxTe)}
+        ${microBar(t.te, maxTe, BAR_GRADIENT.TE)}
       </td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${Math.round(t.picksValue).toLocaleString()}</div>
-        ${microBar(t.picksValue, maxPicks)}
+        ${microBar(t.picksValue, maxPicks, BAR_GRADIENT.neutral)}
       </td>
       <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-300">${t.age.toFixed(1)}</td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.opt.toFixed(1)}</div>
-        ${microBar(t.opt, maxOpt)}
+        ${microBar(t.opt, maxOpt, BAR_GRADIENT.neutral)}
       </td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] text-violet-300">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div>
-        ${microBar(t.vorpTotal || 0, maxVorp)}
+        ${microBar(t.vorpTotal || 0, maxVorp, BAR_GRADIENT.VORP)}
       </td>
       <td class="px-3 py-4 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.windowYears}yr</div>
-        ${microBar(t.longevity, maxLongevity)}
+        ${microBar(t.longevity, maxLongevity, BAR_GRADIENT.neutral)}
       </td>
       <td class="pl-6 pr-10 py-4">
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
