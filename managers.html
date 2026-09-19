@@ -53,10 +53,13 @@ function bestWorstLine(rec, label, tone) {
 function divergingBar(val, maxAbs) {
   if (!maxAbs) return '';
   const pct = Math.min(100, Math.abs(val) / maxAbs * 100) / 2;
-  const color = val > 0 ? '#34d399' : val < 0 ? '#fb7185' : 'transparent';
+  // Yellow right at the zero tick, deepening into green or red as the magnitude
+  // grows — a true diverging read (barely-off-zero looks neutral, not already
+  // fully red/green) instead of a flat color the instant a number ticks off zero.
+  const gradient = val > 0 ? 'linear-gradient(to right, #fbbf24, #34d399)' : val < 0 ? 'linear-gradient(to left, #fbbf24, #fb7185)' : 'transparent';
   return `<div class="mt-1.5 h-[4px] w-full max-w-[120px] ml-auto relative rounded-full bg-white/[0.06] overflow-hidden">
     <div class="absolute inset-y-0 left-1/2 w-px bg-white/20"></div>
-    <div class="absolute inset-y-0 rounded-full" style="background:${color}; width:${pct}%; ${val >= 0 ? `left:50%` : `right:50%`}"></div>
+    <div class="absolute inset-y-0 rounded-full" style="background:${gradient}; width:${pct}%; ${val >= 0 ? `left:50%` : `right:50%`}"></div>
   </div>`;
 }
 
