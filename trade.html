@@ -719,9 +719,17 @@ function swap(side, outKey, inKey) {
 // to 0.7% (a real improvement, worth the 2nd asset), best 3-piece only reached
 // 0.01% (not worth a 3rd asset for 0.66 more points of fairness).
 const COMBO_SIZE_PENALTY_PCT = 3;
-function comboScore(diff, len, targetAdj) {
+// Small enough that it only ever breaks a near-tie on dollar fairness, never
+// overrides a real one: two combos within ~1-2 points of %-off can differ by
+// dozens of VORP (a full bench piece's worth), so this nudges the search toward
+// the one with more real, scarcity-adjusted production for the same price —
+// exactly the "VORP factored into trades" gap this closes — without ever letting
+// VORP talk the search into a worse-priced package. A 15-point dollar gap would
+// need a ~100-VORP swing to flip, which doesn't happen at realistic trade sizes.
+const VORP_TIEBREAK_WEIGHT = 0.15;
+function comboScore(diff, len, targetAdj, vorpSum) {
   const pct = targetAdj ? diff / targetAdj * 100 : 0;
-  return pct + (len - 1) * COMBO_SIZE_PENALTY_PCT;
+  return pct + (len - 1) * COMBO_SIZE_PENALTY_PCT - (vorpSum || 0) * VORP_TIEBREAK_WEIGHT;
 }
 
 // Sums a combo's value the same way the headline fairness verdict does: need-
@@ -737,6 +745,13 @@ function comboValue(combo, profile) {
   return combo.reduce((s, a) => s + (profile ? Vault.needAdjustedValue(Vault.adjustedValue(a.value), a.pos, profile) : Vault.adjustedValue(a.value)), 0);
 }
 
+// Total real production edge in a combo — picks and any player missing a
+// projection contribute 0 rather than breaking the sum, same null-handling as
+// everywhere else VORP shows up.
+function comboVorp(combo) {
+  return combo.reduce((s, a) => s + (Number.isFinite(a.vorp) ? a.vorp : 0), 0);
+}
+
 /* Package builder core: pool of assets, target already in VBA-adjusted-value space.
    All combo search happens here so gap-closer, Match, and the Finder agree with the
    same fairness math the analysis panel uses — a suggested combo should still look
@@ -745,7 +760,7 @@ function comboSearchAdj(pool, targetAdj, profile) {
   let best = null, bestScore = Infinity;
   const consider = combo => {
     const diff = Math.abs(comboValue(combo, profile) - targetAdj);
-    const score = comboScore(diff, combo.length, targetAdj);
+    const score = comboScore(diff, combo.length, targetAdj, comboVorp(combo));
     if (score < bestScore) { bestScore = score; best = { combo, diff }; }
   };
   pool.forEach(a => consider([a]));
@@ -769,7 +784,7 @@ function comboSearchTopN(pool, targetAdj, n, profile) {
   const all = [];
   const consider = combo => {
     const diff = Math.abs(comboValue(combo, profile) - targetAdj);
-    all.push({ combo, diff, score: comboScore(diff, combo.length, targetAdj) });
+    all.push({ combo, diff, score: comboScore(diff, combo.length, targetAdj, comboVorp(combo)) });
   };
   pool.forEach(a => consider([a]));
   for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) consider([pool[i], pool[j]]);
@@ -816,7 +831,10 @@ function anchoredCombo(pool, targetValueRaw, posFilter, profile) {
   const anchors = pool.filter(a => posFilter === 'PICK' ? a.type === 'pick' : a.pos === posFilter);
   if (!anchors.length) return null;
   const targetAdj = Vault.adjustedValue(targetValueRaw);
-  const anchor = [...anchors].sort((a, b) => Math.abs(comboValue([a], profile) - targetAdj) - Math.abs(comboValue([b], profile) - targetAdj))[0];
+  const anchor = [...anchors].sort((a, b) =>
+    comboScore(Math.abs(comboValue([a], profile) - targetAdj), 1, targetAdj, comboVorp([a]))
+    - comboScore(Math.abs(comboValue([b], profile) - targetAdj), 1, targetAdj, comboVorp([b]))
+  )[0];
   const remainingAdj = targetAdj - comboValue([anchor], profile);
   const fillerPool = pool.filter(a => a.key !== anchor.key);
   const filler = Math.abs(remainingAdj) > targetAdj * 0.06 ? comboSearchAdj(fillerPool, remainingAdj, profile) : null;
