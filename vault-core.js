@@ -1737,12 +1737,32 @@ const Vault = {
   },
 
   // Buckets a raw volatility fraction into a plain-language read for a single
-  // asset's own card — thresholds are the empirical median/85th-pct split found
+  // player's own card — thresholds are the empirical median/85th-pct split found
   // above, not arbitrary round numbers.
   volatilityLabel(pct) {
     if (pct == null) return null;
     if (pct < 0.025) return 'stable';
     if (pct < 0.06) return 'moderate';
+    return 'volatile';
+  },
+
+  /* Picks need their OWN thresholds, not volatilityLabel's — pickVolatilityPct is a
+     structurally different measurement (this year's cross-sectional early-to-late
+     spread within a round, not a price history's own day-to-day noise), and it
+     naturally runs much higher across the board: computing it for every real
+     season/round combination currently on the board came back 4.8%-17.9%, nowhere
+     near volatilityLabel's player-calibrated 0.5%-85% range. Reusing volatilityLabel
+     for picks made EVERY pick read "moderate" or "volatile" with nothing ever
+     "stable" — a badge that fires on almost everything stops meaning anything.
+     These cutoffs split that same real distribution at its own quartiles instead:
+     under the 25th pct reads stable, over the 75th (in practice, only Round 1
+     picks) reads volatile — which also happens to match real dynasty instinct,
+     where a future 1st is the one pick people actually worry could redraw its
+     value entirely once a season plays out. */
+  pickVolatilityLabel(pct) {
+    if (pct == null) return null;
+    if (pct < 0.075) return 'stable';
+    if (pct < 0.13) return 'moderate';
     return 'volatile';
   },
 

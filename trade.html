@@ -353,8 +353,12 @@ function assetRow(side, a, isSelected, extra) {
   const sub = a.type === 'pick' ? `<span class="text-[11px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="text-[11px] text-zinc-500">${a.pos}</span><span class="text-[11px] text-zinc-600">${a.team || ''}</span>`;
   // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
   // enough to actually mean something, not turn into visual noise on half the roster.
-  const volBadge = Vault.volatilityLabel(a.volatilityPct) === 'volatile'
-    ? `<span class="text-[9px] px-1 py-px rounded border border-amber-500/30 text-amber-400/80 uppercase tracking-wide" title="This ${a.type === 'pick' ? 'pick' : 'player'}'s price has swung a lot recently — treat today's value as less certain than most">volatile</span>` : '';
+  // Picks use their own thresholds (Vault.pickVolatilityLabel) — reusing the
+  // player-calibrated ones flagged nearly every pick on the board as "volatile",
+  // which stopped meaning anything.
+  const volLabel = a.type === 'pick' ? Vault.pickVolatilityLabel(a.volatilityPct) : Vault.volatilityLabel(a.volatilityPct);
+  const volBadge = volLabel === 'volatile'
+    ? `<span class="text-[9px] px-1 py-px rounded border border-amber-500/30 text-amber-400/80 uppercase tracking-wide" title="${a.type === 'pick' ? "This pick's real slot is still unsettled — its value could move more than most picks once this team's season plays out" : "This player's price has swung a lot recently — treat today's value as less certain than most"}">volatile</span>` : '';
   // Team A's row is the user's own asset: "Match" auto-builds a package from Team B
   // to hit its value, "Find" shops it against every team in the league. A Team B row
   // is a player the user doesn't own, so both need different jobs there — "Find"
