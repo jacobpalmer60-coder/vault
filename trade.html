@@ -20,10 +20,6 @@
       <p id="status" class="text-[13px] text-zinc-400 mt-1">Connecting...</p>
     </div>
     <div class="flex items-center gap-2 flex-wrap justify-end">
-      <div id="offeredByWrap" class="hidden flex items-center gap-2">
-        <span class="text-[11px] text-zinc-500 uppercase tracking-wider">Who's offering?</span>
-        <div id="offeredByToggle" class="flex gap-1.5"></div>
-      </div>
       <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-emerald-500/25 text-[12px] text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">✨ Suggest a Trade</button>
       <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-sky-500/25 text-[12px] text-sky-300/80 hover:text-sky-200 hover:border-sky-500/50 hover:bg-sky-500/5 transition-colors">🔍 Find a Trade</button>
       <div class="h-8 px-3 rounded-lg bg-black/40 border border-white/8 flex items-center gap-2 text-[12px] text-zinc-400">
@@ -57,6 +53,13 @@
 
   <div id="workspace" class="hidden">
   <button onclick="backToSetup()" class="mb-4 text-[12px] text-zinc-400 hover:text-white transition-colors">← Change teams</button>
+
+  <!-- Who's offering: its own card, not a small chip buried in a button row —
+       this decides how the verdict below reads, so it needs to be seen. -->
+  <div id="offeredByWrap" class="hidden flex mb-4 p-4 rounded-2xl card items-center justify-between flex-wrap gap-3">
+    <div class="text-[14px] font-medium text-zinc-200">Who's offering this trade?</div>
+    <div id="offeredByToggle" class="flex gap-2.5"></div>
+  </div>
 
   <!-- Trade Bar -->
   <div id="tradeBar" class="hidden mb-4 p-4 rounded-2xl card">
@@ -1588,7 +1591,7 @@ function toggleOfferedBy(side) {
 }
 
 function renderOfferedByToggle(teamA, teamB) {
-  const chip = (side, team) => `<button onclick="toggleOfferedBy('${side}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${offeredBy === side ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${Vault.escapeHtml(team.teamName)} offering</button>`;
+  const chip = (side, team) => `<button onclick="toggleOfferedBy('${side}')" class="text-[14px] font-medium px-4 py-2.5 rounded-xl border-2 transition-colors ${offeredBy === side ? 'btn-gold-solid border-transparent' : 'border-white/15 text-zinc-300 hover:text-white hover:border-amber-500/40 hover:bg-amber-500/5'}">${Vault.escapeHtml(team.teamName)} offering</button>`;
   document.getElementById('offeredByToggle').innerHTML = chip('A', teamA) + chip('B', teamB);
 }
 
