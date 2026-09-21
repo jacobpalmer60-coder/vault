@@ -13,7 +13,7 @@
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1200px] mx-auto p-6 lg:p-8">
+<div class="max-w-[1500px] mx-auto p-6 lg:p-8">
   <div class="flex items-center justify-between flex-wrap gap-3 mb-1">
     <h1 class="display text-[28px] font-semibold gold-text">Live Scores</h1>
     <div class="flex items-center gap-2">
@@ -24,8 +24,40 @@
   </div>
   <p id="status" class="text-[13px] text-zinc-500 mb-6">Loading…</p>
 
-  <div id="grid" class="grid md:grid-cols-2 gap-5"></div>
-  <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+  <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr_300px] gap-5 items-start">
+    <!-- Weekly Leaders: top scorers by position among YOUR league's own rostered
+         players this week — not NFL-wide, since that's not what a manager here is
+         actually trying to decide anything from. Every number already comes from
+         Sleeper's own per-roster points, which Sleeper computes using this
+         league's real scoring_settings, so this is auto-scored to your format
+         (PPR/TE premium/Superflex/whatever it is) with nothing to configure. -->
+    <aside class="card rounded-vault-sm p-4 lg:sticky lg:top-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-[11px] uppercase tracking-widest text-zinc-400">Weekly Leaders</div>
+        <span class="text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-zinc-500" title="Every number here is already scored to this league's own real settings (PPR, TE premium, Superflex, etc.) — Sleeper computes it that way, nothing here re-derives or guesses at format.">AUTO</span>
+      </div>
+      <div id="leadersPanel"></div>
+    </aside>
+
+    <!-- Live play-by-play: always visible, not hidden behind expanding a matchup —
+         every real play from every in-progress NFL game that mentions one of this
+         league's own rostered players, most recent first. -->
+    <main class="card rounded-vault-sm p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-[11px] uppercase tracking-widest text-zinc-400">Live Feed</div>
+        <span class="inline-flex items-center gap-1.5 text-[10px] text-zinc-500"><span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Live</span>
+      </div>
+      <div id="feedPanel" class="max-h-[70vh] overflow-y-auto scrollbar pr-1"></div>
+    </main>
+
+    <!-- My Matchups keeps the full detail (roster breakdown per side, on expand) —
+         this sidebar slot is just narrower, not stripped down. -->
+    <div>
+      <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-3">My Matchups</div>
+      <div id="grid" class="space-y-5"></div>
+      <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+    </div>
+  </div>
 </div>
 
 <script src="vault-core.js"></script>
@@ -145,10 +177,20 @@ async function fetchEspnLive() {
         const sum = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=${ev.id}`).then(r => r.json());
         const drives = [...(sum.drives?.previous || [])];
         if (sum.drives?.current) drives.push(sum.drives.current);
+        // ESPN's own drives.previous/drives.current occasionally repeat the same
+        // play across that boundary (seen live in an OT game) — de-duped by exact
+        // text, keeping first-seen order, before anything downstream ever sees it.
+        const seen = new Set();
         const plays = [];
         drives.forEach(d => {
           const teamAbbr = normTeam(d.team?.abbreviation);
-          (d.plays || []).forEach(p => { if (p.text) plays.push({ text: p.text.trim(), teamAbbr }); });
+          (d.plays || []).forEach(p => {
+            if (!p.text) return;
+            const text = p.text.trim();
+            if (seen.has(text)) return;
+            seen.add(text);
+            plays.push({ text, teamAbbr });
+          });
         });
         espnGames.set(ev.id, { teams, plays: plays.slice(-15) });
       } catch { /* one game's summary failing shouldn't drop the rest */ }
@@ -166,36 +208,71 @@ function allLivePlays() {
   return [...espnGames.values()].flatMap(g => g.plays);
 }
 
-// Scans live plays for anything mentioning one of this roster's players — checked
-// against the player's own real NFL team so "J.Jackson" on the Ravens doesn't
-// match a play about a different J.Jackson on another team.
-function matchupPlays(m) {
-  if (!m) return [];
-  const candidates = Object.keys(m.players_points || {}).map(pid => {
-    const p = playersDb[pid];
-    const pattern = playPattern(p);
-    return pattern ? { pid, pattern, team: normTeam(p.team), name: `${p.first_name} ${p.last_name}` } : null;
-  }).filter(Boolean);
-  if (!candidates.length) return [];
+// Every rostered player across the WHOLE league this week, tagged with which
+// fantasy team holds them — the shared candidate list behind both the Weekly
+// Leaders panel and the live play-by-play feed. Every point value already came
+// straight from Sleeper's own players_points, which Sleeper computed using this
+// league's real scoring_settings, so nothing here re-derives or guesses at format.
+function allRosteredCandidates(rosterMap, userMap) {
+  const list = [];
+  lastMatchups.forEach(m => {
+    const teamName = teamNameFor(m.roster_id, rosterMap, userMap);
+    Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
+      const p = playersDb[pid];
+      if (!p) return;
+      list.push({ pid, pts: pts || 0, pos: p.position, name: `${p.first_name} ${p.last_name}`, team: normTeam(p.team), teamName, pattern: playPattern(p) });
+    });
+  });
+  return list;
+}
+
+function renderWeeklyLeaders(rosterMap, userMap) {
+  const candidates = allRosteredCandidates(rosterMap, userMap);
+  const positions = ['QB', 'RB', 'WR', 'TE'];
+  const sections = positions.map(pos => {
+    const top = candidates.filter(c => c.pos === pos).sort((a, b) => b.pts - a.pts).slice(0, 5);
+    if (!top.length) return '';
+    return `
+      <div class="mb-4 last:mb-0">
+        <div class="text-[10px] uppercase tracking-widest text-amber-300/50 mb-1.5">${pos}</div>
+        <div class="space-y-1">
+          ${top.map((c, i) => `<div class="flex items-center gap-2 text-[12px]">
+            <span class="text-zinc-600 w-3 shrink-0">${i + 1}</span>
+            <span class="text-zinc-200 truncate flex-1 min-w-0" title="${Vault.escapeHtml(c.teamName)}">${Vault.escapeHtml(c.name)}</span>
+            <span class="mono text-zinc-400 shrink-0">${c.pts.toFixed(1)}</span>
+          </div>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
+  document.getElementById('leadersPanel').innerHTML = sections || '<div class="text-zinc-600 text-[12px] py-4 text-center">No scoring yet this week.</div>';
+}
+
+// Global feed — every live play mentioning ANY of this league's rostered players,
+// not just whichever matchup happens to be expanded. Checked against each
+// player's real NFL team so a common surname can't false-match a different
+// player of the same name on another team.
+function renderLiveFeed(rosterMap, userMap) {
+  const candidates = allRosteredCandidates(rosterMap, userMap).filter(c => c.pattern);
   const found = [];
   allLivePlays().forEach(play => {
     candidates.forEach(c => {
-      if (play.teamAbbr === c.team && play.text.includes(c.pattern)) found.push({ ...play, player: c.name });
+      if (play.teamAbbr === c.team && play.text.includes(c.pattern)) found.push({ ...play, player: c.name, teamName: c.teamName });
     });
   });
-  return found.slice(-6).reverse();
-}
-
-function playFeedHtml(m) {
-  const plays = matchupPlays(m);
-  if (!plays.length) return '';
-  return `
-    <div class="pt-3 mt-3 border-t border-white/5">
-      <div class="text-[10px] uppercase tracking-widest text-sky-300/50 mb-1.5">Live Plays</div>
-      <div class="space-y-1.5">
-        ${plays.map(p => `<div class="text-[11px] leading-snug"><span class="text-zinc-200 font-medium">${Vault.escapeHtml(p.player)}</span> <span class="text-zinc-500">${Vault.escapeHtml(p.text)}</span></div>`).join('')}
+  const recent = found.slice(-25).reverse();
+  const panel = document.getElementById('feedPanel');
+  if (!recent.length) {
+    panel.innerHTML = `<div class="text-zinc-600 text-[12px] py-10 text-center">${espnGames.size ? 'No plays yet involving your rostered players.' : 'No games in progress right now.'}</div>`;
+    return;
+  }
+  panel.innerHTML = recent.map(p => `
+    <div class="py-2 border-b border-white/5 last:border-0">
+      <div class="flex items-center gap-2 mb-0.5">
+        <span class="text-[12px] font-medium text-zinc-100">${Vault.escapeHtml(p.player)}</span>
+        <span class="text-[10px] text-zinc-600">${Vault.escapeHtml(p.teamName)}</span>
       </div>
-    </div>`;
+      <div class="text-[11px] text-zinc-500 leading-snug">${Vault.escapeHtml(p.text)}</div>
+    </div>`).join('');
 }
 
 function teamNameFor(rosterId, rosterMap, userMap) {
@@ -240,8 +317,7 @@ function rosterBreakdown(m) {
       ${startersHtml}
       <div class="text-[10px] uppercase tracking-widest text-zinc-600 mt-3 mb-1">Bench</div>
       ${benchHtml}
-    </div>
-    ${playFeedHtml(m)}`;
+    </div>`;
 }
 
 function toggleExpand(key) {
@@ -280,6 +356,9 @@ function render() {
   const rosterMap = new Map(rosters.map(r => [r.roster_id, r]));
   const userMap = new Map(users.map(u => [u.user_id, u]));
   const pairs = buildPairs();
+
+  renderWeeklyLeaders(rosterMap, userMap);
+  renderLiveFeed(rosterMap, userMap);
 
   const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');
