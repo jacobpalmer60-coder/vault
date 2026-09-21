@@ -405,7 +405,7 @@ function assetRow(side, a, isSelected, extra) {
       <div onclick="toggle('${side}','${a.key}')" class="flex items-center gap-3 px-3 py-1.5 mx-1 my-0.5 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline gap-2">
-            <span class="text-[14px] truncate ${isSelected ? 'text-white' : 'text-zinc-100 group-hover/item:text-white'}">${Vault.escapeHtml(a.name)}</span>
+            <span class="text-[14px] truncate min-w-[56px] ${isSelected ? 'text-white' : 'text-zinc-100 group-hover/item:text-white'}" title="${Vault.escapeHtml(a.name)}">${Vault.escapeHtml(a.name)}</span>
             ${sub}
             ${volBadge}
           </div>
