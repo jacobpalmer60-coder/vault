@@ -707,12 +707,48 @@ function balanceSide(mySide, btn) {
   // for filling otherTeam's actual needs, not just matching sticker value.
   const otherProfile = Vault.positionalProfile(otherTeam, teams);
 
+  // computeTradeAnalysis's fit score already folds in positional need/surplus (via
+  // Vault.positionalFitNotes), but that contribution is scaled to a whole roster
+  // (dollarSwing / team total * 120) — for any single throw-in-sized asset it comes
+  // out to a few tenths of a point, easily buried under the timeline/archetype/VORP
+  // swings the same fit score also carries. That's fine when those other factors are
+  // genuinely what's at stake, but it means a real need-fit piece (a TE for a
+  // TE-needy team) can lose out to a same-priced surplus piece (a bench WR) whose
+  // unrelated stats happen to nudge the score higher — exactly the "still
+  // recommends the throw-in" gap bestFit/buildBalancedOffer closed for the Finder
+  // but this evaluate-a-few-candidates design never got. A direct per-asset bonus
+  // for otherTeam's actual need/surplus positions makes sure fit alone can't be the
+  // one carrying that decision.
+  const needBias = combo => combo.reduce((s, a) => {
+    const pos = (a.pos || '').toLowerCase();
+    if (otherProfile.needs.includes(pos)) return s + 1;
+    if (otherProfile.surpluses.includes(pos)) return s - 1;
+    return s;
+  }, 0);
+
   const evaluate = combo => {
     const giveA = mySide === 'A' ? combo : otherAssets;
     const giveB = mySide === 'A' ? otherAssets : combo;
     const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB);
     const result = computeTradeAnalysis(teamOf('A'), teamOf('B'), giveA, giveB, aValAdj, bValAdj);
-    return mySide === 'A' ? result.resA.fit : result.resB.fit;
+    const fit = mySide === 'A' ? result.resA.fit : result.resB.fit;
+    return fit + needBias(combo);
+  };
+
+  // Real trade partners actually want (bestFit/buildBalancedOffer's whole point) —
+  // but this function's own candidate-then-evaluate design predates that fix and
+  // never got it: comboSearchTopN alone (no needs-first bias) supplies every
+  // candidate `evaluate` gets to compare, so a genuine need-fit piece (a TE for a
+  // TE-needy team, say) never even makes the shortlist when a same-dollar surplus
+  // piece (e.g. a bench WR) matches the target more closely in raw terms. Mixing in
+  // a needs-only search alongside the plain one fixes that without changing how
+  // candidates get judged — `evaluate` (real fairness + fit) still makes the final
+  // call, this just makes sure a need-fit option is on the table for it to pick.
+  const otherNeeds = otherProfile.needs || [];
+  const needCandidates = (pool, targetAdj, n) => {
+    if (!otherNeeds.length) return [];
+    const needPool = pool.filter(a => a.type === 'pick' || otherNeeds.includes((a.pos || '').toLowerCase()));
+    return needPool.length ? comboSearchTopN(needPool, targetAdj, n, otherProfile).map(c => c.combo) : [];
   };
 
   // Tier 1: current selection (if any) + up to a few added pieces from the rest of
@@ -720,17 +756,21 @@ function balanceSide(mySide, btn) {
   const fillerPool = myTeam.assets.filter(a => !mySel.has(a.key));
   const remainingAdj = targetAdj - myCurrent.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
   const additive = comboSearchTopN(fillerPool, remainingAdj, 6, otherProfile).map(c => [...myCurrent, ...c.combo]);
+  needCandidates(fillerPool, remainingAdj, 3).forEach(c => additive.push([...myCurrent, ...c]));
   if (myCurrent.length) additive.push(myCurrent); // "add nothing" is a valid option too
 
-  let best = null, bestFit = -Infinity;
-  additive.forEach(combo => { const fit = evaluate(combo); if (fit > bestFit) { bestFit = fit; best = combo; } });
+  let best = null, bestFitScore = -Infinity;
+  additive.forEach(combo => { const fit = evaluate(combo); if (fit > bestFitScore) { bestFitScore = fit; best = combo; } });
 
-  // Tier 2: my current selection genuinely can't be built into a good fit —
-  // search my whole roster fresh instead.
-  if (bestFit < 2) {
-    const fresh = comboSearchTopN(myTeam.assets, targetAdj, 10, otherProfile).map(c => c.combo);
-    fresh.forEach(combo => { const fit = evaluate(combo); if (fit > bestFit) { bestFit = fit; best = combo; } });
-  }
+  // Tier 2: a fresh, whole-roster search — always run, not just when Tier 1 looks
+  // bad. Tier 1 can only ever ADD to the current selection, never remove from it,
+  // so a bad piece that's already selected (and numerically "good enough" to clear
+  // an early-exit gate) would survive Balance forever if this only ran as a
+  // fallback — exactly how a surplus-position throw-in kept surviving repeated
+  // Balance clicks even after a genuinely better-fitting option existed.
+  const fresh = comboSearchTopN(myTeam.assets, targetAdj, 10, otherProfile).map(c => c.combo);
+  fresh.push(...needCandidates(myTeam.assets, targetAdj, 5));
+  fresh.forEach(combo => { const fit = evaluate(combo); if (fit > bestFitScore) { bestFitScore = fit; best = combo; } });
   if (!best) return flashButtonMessage(btn, 'No alternative package found');
 
   // Either tier can legitimately land back on exactly what's already selected.
