@@ -851,11 +851,34 @@ function comboSearchTopN(pool, targetAdj, n, profile) {
   return picked;
 }
 
+/* The search above (comboSearchAdj/comboSearchTopN/comboValue) scores thousands of
+   candidate combos per call using per-asset VBA — cheap enough to brute-force a
+   40-asset pool, but the same single-sided approximation this app's real trade
+   verdict moved away from earlier (Vault.needAdjustedTradeValues): VBA has no
+   visibility into how many pieces are on the OTHER side, so it can systematically
+   under- or over-value a multi-piece combo relative to a single asset worth the
+   same raw dollars — exactly backwards from a real "% off" reading, and visibly so
+   once a combo's raw sum sits $1,000+ from the target while still reading "0% off".
+   This recomputes the FINAL, DISPLAYED percentage for whichever combo the search
+   already picked using the real two-sided KTC consolidation (Vault.tradeSideValues)
+   plus need-weighting — the same standard the trade bar and verdict use — so the
+   number shown next to a result can't contradict its own raw dollar sum. Only run
+   once per result (not per candidate during the search), so it doesn't reintroduce
+   the performance concern that ruled out using it for the search itself. */
+function realPctOff(targetValueRaw, combo, profile) {
+  const { valueA, valueB } = Vault.tradeSideValues([{ value: targetValueRaw }], combo);
+  const comboNeedAdj = profile
+    ? Vault.distributeAdjustedValue(combo, valueB).reduce((s, x) => s + Vault.needAdjustedValue(x.distAdjValue, x.pos, profile), 0)
+    : valueB;
+  const avg = (valueA + comboNeedAdj) / 2 || 1;
+  return Math.abs(comboNeedAdj - valueA) / avg * 100;
+}
+
 function bestCombos(pool, targetValueRaw, n, profile) {
   const targetAdj = Vault.adjustedValue(targetValueRaw);
   return comboSearchTopN(pool, targetAdj, n, profile).map(r => {
     const sum = r.combo.reduce((s, a) => s + a.value, 0);
-    return { combo: r.combo, sum, diff: r.diff, pctOff: targetAdj ? r.diff / targetAdj * 100 : 0 };
+    return { combo: r.combo, sum, diff: r.diff, pctOff: realPctOff(targetValueRaw, r.combo, profile) };
   });
 }
 
@@ -864,7 +887,7 @@ function bestCombo(pool, targetValueRaw, profile) {
   const best = comboSearchAdj(pool, targetAdj, profile);
   if (!best) return null;
   const sum = best.combo.reduce((s, a) => s + a.value, 0);
-  return { combo: best.combo, sum, diff: best.diff, pctOff: targetAdj ? best.diff / targetAdj * 100 : 0 };
+  return { combo: best.combo, sum, diff: best.diff, pctOff: realPctOff(targetValueRaw, best.combo, profile) };
 }
 
 /* Like bestCombo, but requires the combo to include one asset matching `posFilter`
@@ -886,7 +909,7 @@ function anchoredCombo(pool, targetValueRaw, posFilter, profile) {
   const combo = filler ? [anchor, ...filler.combo] : [anchor];
   const sum = combo.reduce((s, a) => s + a.value, 0);
   const diff = Math.abs(comboValue(combo, profile) - targetAdj);
-  return { combo, sum, diff, pctOff: targetAdj ? diff / targetAdj * 100 : 0 };
+  return { combo, sum, diff, pctOff: realPctOff(targetValueRaw, combo, profile) };
 }
 
 // Why might `partner` realistically part with `givingAssets`? Reuses the same
