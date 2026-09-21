@@ -125,7 +125,7 @@
   <!-- Trade-wide verdict + archetype (applies to both sides, so spans full width) -->
   <div id="analysisHeader" class="hidden mb-6">
     <h2 class="display text-[24px] gold-text mb-3">Trade Analysis</h2>
-    <div id="tradeVerdict" class="card rounded-2xl p-5 mb-4"></div>
+    <div id="tradeVerdict" class="card rounded-2xl p-6 mb-4 border"></div>
     <div id="tradeArchetype" class="card rounded-2xl p-4"></div>
   </div>
 
@@ -202,6 +202,14 @@ const POS_FILTERS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'PICK'];
 
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
+// The verdict card's whole point is to be the one thing on this page you can't
+// miss — a tinted border/background per tone gives it a banner presence the plain
+// "card" background can't, at a glance, before reading a word of it.
+const TONE_BANNER = {
+  good: 'bg-emerald-500/[0.06] border-emerald-500/25',
+  bad: 'bg-rose-500/[0.06] border-rose-500/25',
+  neutral: 'bg-amber-500/[0.06] border-amber-500/25'
+};
 const TIER_COLOR = { early: 'text-emerald-400', mid: 'text-amber-300', late: 'text-rose-400' };
 
 function assetsFor(team) {
@@ -1819,14 +1827,16 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
       </div>`;
   });
 
-  document.getElementById('tradeVerdict').innerHTML = `
-    <div class="flex items-center gap-2 mb-1.5">
-      <span class="size-2.5 rounded-full ${TONE_DOT[displayVerdict.tone]}"></span>
-      <div class="text-[19px] font-semibold ${TONE[displayVerdict.tone]}">${displayVerdict.label}</div>
+  const verdictEl = document.getElementById('tradeVerdict');
+  verdictEl.className = `card rounded-2xl p-6 mb-4 border ${TONE_BANNER[displayVerdict.tone]}`;
+  verdictEl.innerHTML = `
+    <div class="flex items-center gap-3 mb-2">
+      <span class="size-3.5 rounded-full shrink-0 ${TONE_DOT[displayVerdict.tone]}"></span>
+      <div class="text-[28px] font-semibold leading-tight ${TONE[displayVerdict.tone]}">${displayVerdict.label}</div>
     </div>
-    <div class="text-[13px] font-bold ${TONE[displayVerdict.tone]} truncate">${displayVerdict.text}</div>
-    <div class="max-w-xs mt-2">${fairnessBarHtml(pctDiffNeed, bandPct)}</div>
-    <div class="text-[11px] text-zinc-600 mt-1">${confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiffNeed, bandPct)}</div>`;
+    <div class="text-[17px] font-medium leading-snug ${TONE[displayVerdict.tone]}">${displayVerdict.text}</div>
+    <div class="max-w-sm mt-3">${fairnessBarHtml(pctDiffNeed, bandPct)}</div>
+    <div class="text-[11px] text-zinc-600 mt-1.5">${confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiffNeed, bandPct)}</div>`;
 }
 
 init();
