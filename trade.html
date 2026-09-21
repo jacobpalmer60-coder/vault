@@ -400,26 +400,34 @@ function assetRow(side, a, isSelected, extra) {
   const matchTitle = side === 'A' ? 'Build a package from the other side to match this' : 'Show players of similar value throughout the league';
   const findAction = side === 'A' ? `openFinder('A','${a.key}')` : `openAcquireFinder('A','${a.key}',${teamOf('B').rosterId})`;
   const findTitle = side === 'A' ? 'Shop this against every team in the league' : 'Put together a package from your roster to go get this';
+  // Two fixed lines instead of one shared row everything competed for space on —
+  // name/value/checkbox (the "what is this and is it selected" identity) always on
+  // line 1, badges/trend/actions (secondary metadata) always on line 2. Each piece
+  // of text now lives in its own section that nothing else can crowd into, rather
+  // than a single flex-wrap row where a pick's tier+volatile badges could still
+  // collide with a long player's name depending on exactly how much room was left.
   return `
     <div class="group/item ${extra || ''}">
-      <div onclick="toggle('${side}','${a.key}')" class="flex items-center gap-3 px-3 py-1.5 mx-1 my-0.5 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
-        <div class="flex-1 min-w-0">
-          <div class="flex items-baseline gap-2">
-            <span class="text-[14px] truncate min-w-[56px] ${isSelected ? 'text-white' : 'text-zinc-100 group-hover/item:text-white'}" title="${Vault.escapeHtml(a.name)}">${Vault.escapeHtml(a.name)}</span>
+      <div onclick="toggle('${side}','${a.key}')" class="px-3 py-2 mx-1 my-0.5 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
+        <div class="flex items-center gap-2">
+          <span class="text-[14px] truncate flex-1 min-w-0 ${isSelected ? 'text-white' : 'text-zinc-100 group-hover/item:text-white'}" title="${Vault.escapeHtml(a.name)}">${Vault.escapeHtml(a.name)}</span>
+          <div class="text-[13px] mono font-medium shrink-0 ${isSelected ? 'text-white' : 'text-zinc-400'}">${Math.round(a.value).toLocaleString()}</div>
+          <div class="w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-amber-400 border-amber-400' : 'border-white/10 group-hover/item:border-amber-500/40'}">
+            ${isSelected ? '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 6l2 2 4-4" stroke="black" stroke-width="2" stroke-linecap="round"/></svg>' : ''}
+          </div>
+        </div>
+        <div class="flex items-center justify-between gap-2 mt-1">
+          <div class="flex items-center gap-1.5 flex-wrap min-w-0">
             ${sub}
             ${volBadge}
           </div>
-        </div>
-        <div class="text-right">
-          <div class="text-[13px] mono font-medium ${isSelected ? 'text-white' : 'text-zinc-400'}">${Math.round(a.value).toLocaleString()}</div>
-          ${a.trend != null ? `<div class="text-[10px] mono ${a.trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Value change over the last ${TREND_WINDOW_DAYS} days">${a.trend >= 0 ? '+' : ''}${Math.round(a.trend).toLocaleString()}</div>` : ''}
-        </div>
-        <div class="flex gap-1.5 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
-          <button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
-          <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
-        </div>
-        <div class="w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-amber-400 border-amber-400' : 'border-white/10 group-hover/item:border-amber-500/40'}">
-          ${isSelected ? '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 6l2 2 4-4" stroke="black" stroke-width="2" stroke-linecap="round"/></svg>' : ''}
+          <div class="flex items-center gap-2 shrink-0">
+            ${a.trend != null ? `<div class="text-[10px] mono ${a.trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Value change over the last ${TREND_WINDOW_DAYS} days">${a.trend >= 0 ? '+' : ''}${Math.round(a.trend).toLocaleString()}</div>` : ''}
+            <div class="flex gap-1.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
+              <button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
+              <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
+            </div>
+          </div>
         </div>
       </div>
       ${isSelected ? similarRow(side, a) : ''}
