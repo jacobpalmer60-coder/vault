@@ -124,6 +124,19 @@ function noMoreUpside(pid) {
   return state == null || state === 'post';
 }
 
+// How much of a still-active player's remaining projected upside to credit right
+// now. weekProgress() measures how far through the CALENDAR week we are, not how
+// far through THIS player's own game — fine as a proxy for someone whose game is
+// actually in progress, but wrong for a player whose game hasn't started yet
+// (state 'pre'): they have 0% of their own game in the books, so docking their
+// upside for "it's already Sunday night" wrongly punishes anyone on a Monday
+// night team. Those players get full credit for their remaining projection
+// instead, undecayed.
+function upsideMultiplier(pid, progress) {
+  const state = teamGameState.get(normTeam(playersDb[pid]?.team));
+  return state === 'pre' ? 1 : (1 - progress);
+}
+
 function simulateFinal(starters, startersPoints, progress) {
   let total = 0;
   (starters || []).forEach((pid, i) => {
@@ -131,8 +144,9 @@ function simulateFinal(starters, startersPoints, progress) {
     const live = startersPoints?.[i] ?? 0;
     if (noMoreUpside(pid)) { total += live; return; }
     const proj = projPpgMap.get(pid) || 0;
-    const remainingExpected = Math.max(0, proj - live) * (1 - progress);
-    const noise = gaussianRandom() * REMAINING_SIGMA * (1 - progress);
+    const mult = upsideMultiplier(pid, progress);
+    const remainingExpected = Math.max(0, proj - live) * mult;
+    const noise = gaussianRandom() * REMAINING_SIGMA * mult;
     total += live + Math.max(0, remainingExpected + noise);
   });
   return total;
@@ -151,9 +165,11 @@ function simulateFinal(starters, startersPoints, progress) {
 // correctly zeroes out anyone whose specific game has already ended (closes the
 // gap exactly — Sleeper shows projected === live, to the decimal, for a team once
 // every starter's real game is over, which weekProgress alone can't know), and
-// the weekProgress() decay on top of that for anyone still mid-game or not yet
-// started closed a ~28-point overshoot on a still-live matchup down to about half
-// a point.
+// upsideMultiplier() on top of that gives anyone still mid-game the weekProgress
+// decay (closed a ~28-point overshoot on a still-live matchup down to about half
+// a point) while giving anyone whose game hasn't started yet (e.g. a Monday
+// night starter, checked on Sunday night) their full remaining projection
+// instead of wrongly docking it for how far the calendar week has gotten.
 function projectedFinal(m) {
   const progress = weekProgress();
   let total = 0;
@@ -162,7 +178,7 @@ function projectedFinal(m) {
     const live = m.starters_points?.[i] ?? 0;
     if (noMoreUpside(pid)) { total += live; return; }
     const proj = projPpgMap.get(pid) || 0;
-    total += live + Math.max(0, proj - live) * (1 - progress);
+    total += live + Math.max(0, proj - live) * upsideMultiplier(pid, progress);
   });
   return total;
 }
