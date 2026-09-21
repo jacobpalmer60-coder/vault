@@ -16,9 +16,9 @@
 <div class="max-w-[1100px] mx-auto p-6 lg:p-8">
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Trade Database</h1>
-    <p id="status" class="text-[13px] text-zinc-500 mt-1">Loading…</p>
+    <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
   </div>
-  <p class="text-[12px] text-zinc-500 max-w-[720px] mb-5 leading-relaxed">
+  <p class="text-[12px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
     Real trades from other KeepTradeCut-tracked leagues, filtered to match
     <span class="text-zinc-400">this league's own format</span> — team count, QB slots,
     PPR, and TE premium — so what you're seeing actually happened under rules like yours.
@@ -31,15 +31,15 @@
   <div class="flex items-center gap-3 mb-5">
     <input id="searchSideA" type="text" autocomplete="off" placeholder="e.g. Justin Herbert"
       class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
-    <span class="text-[11px] text-zinc-500 uppercase tracking-wider shrink-0">for</span>
+    <span class="text-[11px] text-zinc-400 uppercase tracking-wider shrink-0">for</span>
     <input id="searchSideB" type="text" autocomplete="off" placeholder="e.g. Brock Purdy"
       class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
-    <button id="searchClear" class="hidden shrink-0 text-[11px] text-zinc-500 hover:text-white px-2">Clear</button>
+    <button id="searchClear" class="hidden shrink-0 text-[11px] text-zinc-400 hover:text-white px-2">Clear</button>
   </div>
 
-  <div id="resultCount" class="text-[11px] text-zinc-500 mb-3"></div>
+  <div id="resultCount" class="text-[11px] text-zinc-400 mb-3"></div>
   <div id="list" class="space-y-4"></div>
-  <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+  <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
 <script src="vault-core.js"></script>
@@ -77,10 +77,10 @@ function assetLabel(id, playerMap, pickMap) {
 }
 
 function assetChips(ids, playerMap, pickMap) {
-  if (!ids.length) return '<span class="text-zinc-600">Nothing</span>';
+  if (!ids.length) return '<span class="text-zinc-400">Nothing</span>';
   return ids.map(id => {
     const a = assetLabel(id, playerMap, pickMap);
-    return `<span class="inline-flex items-center gap-1.5 mr-3 mb-1"><span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span>${a.value > 0 ? `<span class="text-zinc-500 text-[12px] mono">${Math.round(a.value).toLocaleString()}</span>` : ''}</span>`;
+    return `<span class="inline-flex items-center gap-1.5 mr-3 mb-1"><span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span>${a.value > 0 ? `<span class="text-zinc-400 text-[12px] mono">${Math.round(a.value).toLocaleString()}</span>` : ''}</span>`;
   }).join('');
 }
 
@@ -88,14 +88,14 @@ function renderCard(t, playerMap, pickMap) {
   const date = new Date(t.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   return `
     <div class="card rounded-vault-sm p-5">
-      <div class="text-[12px] text-zinc-500 mono mb-3">${date}</div>
+      <div class="text-[12px] text-zinc-400 mono mb-3">${date}</div>
       <div class="grid md:grid-cols-2 gap-4">
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team 1 received</div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">Team 1 received</div>
           <div class="text-[13px]">${assetChips(t.t1, playerMap, pickMap)}</div>
         </div>
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team 2 received</div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">Team 2 received</div>
           <div class="text-[13px]">${assetChips(t.t2, playerMap, pickMap)}</div>
         </div>
       </div>
@@ -167,7 +167,7 @@ async function init() {
           <div class="text-[13px] font-medium text-zinc-200">${sig.teams}-team, ${isSF ? 'Superflex' : '1QB'}, ${pprLabel(sig.ppr)}, ${tepLabel(sig.tep)}, ${sig.starters} starters</div>
           <div class="text-[11px] text-amber-300/70 mt-1">${TIER_LABEL[tier]}</div>
         </div>
-        <div class="text-[12px] text-zinc-500 shrink-0">${pool.length.toLocaleString()} matching trade${pool.length === 1 ? '' : 's'} found</div>
+        <div class="text-[12px] text-zinc-400 shrink-0">${pool.length.toLocaleString()} matching trade${pool.length === 1 ? '' : 's'} found</div>
       </div>`;
 
     status.textContent = `${tradesData.count.toLocaleString()} trades in database • updated ${new Date(tradesData.updated).toLocaleDateString()}`;

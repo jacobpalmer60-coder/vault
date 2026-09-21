@@ -16,9 +16,9 @@
 <div class="max-w-[1100px] mx-auto p-6 lg:p-8">
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Trade Grades</h1>
-    <p id="status" class="text-[13px] text-zinc-500 mt-1">Loading league…</p>
+    <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
   </div>
-  <p class="text-[12px] text-zinc-500 max-w-[720px] mb-6 leading-relaxed">
+  <p class="text-[12px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
     Every completed trade this season, graded with the same reasoning as the Trade
     Calculator — value fairness, positional need, and whether the specific assets
     (picks and youth vs. proven veterans) actually fit each team's rebuild/contend
@@ -33,13 +33,13 @@
   <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
     <div id="posFilter" class="flex gap-1.5 flex-wrap"></div>
     <div class="flex items-center gap-1.5">
-      <span class="text-[11px] text-zinc-500 uppercase tracking-wider mr-1">Sort</span>
+      <span class="text-[11px] text-zinc-400 uppercase tracking-wider mr-1">Sort</span>
       <div id="sortToggle" class="flex gap-1.5"></div>
     </div>
   </div>
 
   <div id="list" class="space-y-4"></div>
-  <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+  <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
 <script src="vault-core.js"></script>
@@ -58,7 +58,7 @@ function fairBucket(pctDiff) {
   return pctDiff < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided';
 }
 function fairColor(pctDiff) {
-  return pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-500';
+  return pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-400';
 }
 // "% off" is a ratio against the average side value, not a bounded percentage — it
 // can mathematically clear 100 for a real one-sided "gift" trade. Display-only cap
@@ -94,7 +94,7 @@ function confidenceBandText(g) {
   const text = bucketLo === bucketHi
     ? `±${g.bandPct.toFixed(0)}pp based on price swings in the less-established pieces here`
     : `±${g.bandPct.toFixed(0)}pp — could have read anywhere from ${bucketLo} to ${bucketHi} depending on how the rookies/far-future picks here were valued at the time`;
-  return `<div class="text-[10px] text-zinc-600 mt-0.5">${text}</div>`;
+  return `<div class="text-[10px] text-zinc-400 mt-0.5">${text}</div>`;
 }
 // The synopsis headline gets a bolder version of the same tiers — Lopsided reads as
 // an actual warning (red) here, unlike the muted badge above which intentionally
@@ -140,14 +140,14 @@ function renderTeamSummary(graded, teams) {
   box.classList.remove('hidden');
   box.innerHTML = `
     <div class="flex items-center justify-between gap-3 mb-2">
-      <div class="text-[11px] text-zinc-500 uppercase tracking-wider">League Trade Summary</div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider">League Trade Summary</div>
       <a href="${Vault.linkTo('managers.html')}" class="text-[11px] text-amber-400/80 hover:text-amber-300">Full Manager Report →</a>
     </div>
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-[13px]">
           <thead class="bg-black/40 border-b border-white/5">
-            <tr class="text-[11px] uppercase tracking-wider text-zinc-500">
+            <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
               <th class="text-left px-4 py-2.5">Team</th>
               <th class="text-right px-3 py-2.5">Trades</th>
               <th class="text-right px-3 py-2.5" title="Trades where they gained value vs. lost it">W-L</th>
@@ -162,7 +162,7 @@ function renderTeamSummary(graded, teams) {
                 <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.trades}</td>
                 <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.won}-${s.lost}</td>
                 <td class="px-3 py-2.5 text-right"><div class="mono font-medium ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</div>${divergingBar(s.netValue, maxAbsNet)}</td>
-                <td class="px-4 py-2.5 text-right"><div class="mono ${s.fitSum > 0.5 ? 'text-emerald-400/80' : s.fitSum < -0.5 ? 'text-rose-400/80' : 'text-zinc-500'}">${fmtSigned(s.fitSum, 1)}</div>${divergingBar(s.fitSum, maxAbsFit)}</td>
+                <td class="px-4 py-2.5 text-right"><div class="mono ${s.fitSum > 0.5 ? 'text-emerald-400/80' : s.fitSum < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.fitSum, 1)}</div>${divergingBar(s.fitSum, maxAbsFit)}</td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -172,8 +172,8 @@ function renderTeamSummary(graded, teams) {
 function fmtSigned(n, decimals = 0) { return (n >= 0 ? '+' : '') + n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
 
 function assetChips(list) {
-  if (!list.length) return '<span class="text-zinc-600">Nothing</span>';
-  return list.map(a => `<span class="inline-flex items-center gap-1.5 mr-3 mb-1"><span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span><span class="text-zinc-500 text-[12px] mono">${a.value > 0 ? Math.round(a.value).toLocaleString() : '—'}</span></span>`).join('');
+  if (!list.length) return '<span class="text-zinc-400">Nothing</span>';
+  return list.map(a => `<span class="inline-flex items-center gap-1.5 mr-3 mb-1"><span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span><span class="text-zinc-400 text-[12px] mono">${a.value > 0 ? Math.round(a.value).toLocaleString() : '—'}</span></span>`).join('');
 }
 
 function optDeltaHtml(dOpt) {
@@ -206,7 +206,7 @@ function renderCard(g) {
   return `
     <div class="card rounded-vault-sm p-5">
       <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <div class="text-[12px] text-zinc-500 mono">${date}</div>
+        <div class="text-[12px] text-zinc-400 mono">${date}</div>
         <div class="flex items-center gap-2">
           <span class="size-2 rounded-full ${TONE_DOT[g.verdict.tone]}"></span>
           <span class="text-[13px] font-medium ${TONE[g.verdict.tone]}">${g.verdict.label}</span>
@@ -214,27 +214,27 @@ function renderCard(g) {
       </div>
       <div class="grid md:grid-cols-2 gap-4 mb-4">
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team A · ${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}${optDeltaHtml(g.dOptA)}${vorpDeltaHtml(g.dVorpA)}</span></div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">Team A · ${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}${optDeltaHtml(g.dOptA)}${vorpDeltaHtml(g.dVorpA)}</span></div>
           <div class="text-[13px]">${assetChips(g.toA)}</div>
         </div>
         <div>
-          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1.5">Team B · ${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-600 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}${optDeltaHtml(g.dOptB)}${vorpDeltaHtml(g.dVorpB)}</span></div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">Team B · ${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}${optDeltaHtml(g.dOptB)}${vorpDeltaHtml(g.dVorpB)}</span></div>
           <div class="text-[13px]">${assetChips(g.toB)}</div>
         </div>
       </div>
       <div class="pt-3 border-t border-white/5">
-        <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiffNeed)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-500 font-normal">(some asset values unavailable)</span>' : ''}</p>
+        <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiffNeed)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-400 font-normal">(some asset values unavailable)</span>' : ''}</p>
         <div class="text-[11px] ${fairColor(g.pctDiffNeed)} mt-1" title="Need-adjusted — weights each side by what it was actually worth to the team that received it. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. By value alone (KTC's own consolidation adjustment, before need), this trade was ${capPct(g.pctDiff).toFixed(0)}% off.">${bucket} · ${capPct(g.pctDiffNeed).toFixed(0)}% off</div>
         <div class="max-w-[200px] mt-1.5">${fairnessBarHtml(g.pctDiffNeed, g.bandPct)}</div>
         ${confidenceBandText(g)}
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
-        <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
+        <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
           <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
           <span>Full breakdown (${notes.length})</span>
         </summary>
         <div class="space-y-1.5 mt-3">
-          ${notes.map(n => `<div class="flex gap-2 text-[12px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="text-zinc-500">${Vault.escapeHtml(n.who)}:</span> <span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
+          ${notes.map(n => `<div class="flex gap-2 text-[12px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="text-zinc-400">${Vault.escapeHtml(n.who)}:</span> <span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
         </div>
       </details>` : ''}
     </div>`;

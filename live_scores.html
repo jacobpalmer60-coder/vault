@@ -22,7 +22,7 @@
       <button id="weekNext" class="size-8 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-colors">›</button>
     </div>
   </div>
-  <p id="status" class="text-[13px] text-zinc-500 mb-6">Loading…</p>
+  <p id="status" class="text-[13px] text-zinc-400 mb-6">Loading…</p>
 
   <!-- My Matchups now spans the full width across the top — a wide grid that packs
        as many matchup cards per row as fit, wrapping only when it has to, instead
@@ -30,7 +30,7 @@
   <div class="mb-6">
     <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-3">My Matchups</div>
     <div id="grid" class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(240px,1fr))]"></div>
-    <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+    <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5 items-start">
@@ -43,7 +43,7 @@
     <aside class="card rounded-vault-sm p-4 lg:sticky lg:top-4">
       <div class="flex items-center justify-between mb-1">
         <div class="text-[11px] uppercase tracking-widest text-zinc-400">Weekly Leaders</div>
-        <span class="text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-zinc-500" title="Every number here is already scored to this league's own real settings (PPR, TE premium, Superflex, etc.) — Sleeper computes it that way, nothing here re-derives or guesses at format.">AUTO</span>
+        <span class="text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-zinc-400" title="Every number here is already scored to this league's own real settings (PPR, TE premium, Superflex, etc.) — Sleeper computes it that way, nothing here re-derives or guesses at format.">AUTO</span>
       </div>
       <div id="leadersCount" class="flex gap-1.5 mb-3"></div>
       <div id="leadersPanel"></div>
@@ -55,7 +55,7 @@
     <main class="card rounded-vault-sm p-4">
       <div class="flex items-center justify-between mb-3">
         <div class="text-[11px] uppercase tracking-widest text-zinc-400">Live Feed</div>
-        <span class="inline-flex items-center gap-1.5 text-[10px] text-zinc-500"><span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Live</span>
+        <span class="inline-flex items-center gap-1.5 text-[10px] text-zinc-400"><span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Live</span>
       </div>
       <div id="feedPanel" class="max-h-[70vh] overflow-y-auto scrollbar pr-1"></div>
     </main>
@@ -310,7 +310,7 @@ function setLeadersCount(n) {
 
 function renderLeadersCountToggle() {
   document.getElementById('leadersCount').innerHTML = [5, 10, 20].map(n => `
-    <button onclick="setLeadersCount(${n})" class="text-[10px] px-2 py-1 rounded-lg border transition-colors ${leadersCount === n ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-500 hover:text-white hover:border-white/20'}">Top ${n}</button>
+    <button onclick="setLeadersCount(${n})" class="text-[10px] px-2 py-1 rounded-lg border transition-colors ${leadersCount === n ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">Top ${n}</button>
   `).join('');
 }
 
@@ -326,14 +326,14 @@ function renderWeeklyLeaders(rosterMap, userMap) {
         <div class="text-[10px] uppercase tracking-widest text-amber-300/50 mb-1.5">${pos}</div>
         <div class="space-y-1">
           ${top.map((c, i) => `<div class="flex items-center gap-2 text-[12px]">
-            <span class="text-zinc-600 w-5 shrink-0">${i + 1}</span>
+            <span class="text-zinc-400 w-5 shrink-0">${i + 1}</span>
             <span class="text-zinc-200 truncate flex-1 min-w-0" title="${Vault.escapeHtml(c.teamName)}">${Vault.escapeHtml(c.name)}</span>
             <span class="mono text-zinc-400 shrink-0">${c.pts.toFixed(1)}</span>
           </div>`).join('')}
         </div>
       </div>`;
   }).join('');
-  document.getElementById('leadersPanel').innerHTML = sections || '<div class="text-zinc-600 text-[12px] py-4 text-center">No scoring yet this week.</div>';
+  document.getElementById('leadersPanel').innerHTML = sections || '<div class="text-zinc-400 text-[12px] py-4 text-center">No scoring yet this week.</div>';
 }
 
 // Global feed — every live play mentioning ANY of this league's rostered players,
@@ -351,16 +351,16 @@ function renderLiveFeed(rosterMap, userMap) {
   const recent = found.slice(-25).reverse();
   const panel = document.getElementById('feedPanel');
   if (!recent.length) {
-    panel.innerHTML = `<div class="text-zinc-600 text-[12px] py-10 text-center">${espnGames.size ? 'No plays yet involving your rostered players.' : 'No games in progress right now.'}</div>`;
+    panel.innerHTML = `<div class="text-zinc-400 text-[12px] py-10 text-center">${espnGames.size ? 'No plays yet involving your rostered players.' : 'No games in progress right now.'}</div>`;
     return;
   }
   panel.innerHTML = recent.map(p => `
     <div class="py-2 border-b border-white/5 last:border-0">
       <div class="flex items-center gap-2 mb-0.5">
         <span class="text-[12px] font-medium text-zinc-100">${Vault.escapeHtml(p.player)}</span>
-        <span class="text-[10px] text-zinc-600">${Vault.escapeHtml(p.teamName)}</span>
+        <span class="text-[10px] text-zinc-400">${Vault.escapeHtml(p.teamName)}</span>
       </div>
-      <div class="text-[11px] text-zinc-500 leading-snug">${Vault.escapeHtml(p.text)}</div>
+      <div class="text-[11px] text-zinc-400 leading-snug">${Vault.escapeHtml(p.text)}</div>
     </div>`).join('');
 }
 
@@ -381,15 +381,15 @@ function playerLine(pid, pts, slotLabel) {
   const isStarter = !!slotLabel;
   return `<div class="flex items-center justify-between text-[12px] py-1">
     <div class="flex items-center gap-2 min-w-0">
-      <span class="${isStarter ? 'text-amber-300/50' : 'text-zinc-600'} w-9 shrink-0 uppercase text-[10px]">${leftLabel}</span>
-      <span class="truncate ${isStarter ? 'text-zinc-200' : 'text-zinc-500'}">${Vault.escapeHtml(name)}</span>
+      <span class="${isStarter ? 'text-amber-300/50' : 'text-zinc-400'} w-9 shrink-0 uppercase text-[10px]">${leftLabel}</span>
+      <span class="truncate ${isStarter ? 'text-zinc-200' : 'text-zinc-400'}">${Vault.escapeHtml(name)}</span>
     </div>
-    <span class="mono ${isStarter ? 'text-zinc-200' : 'text-zinc-500'} shrink-0">${pts.toFixed(1)}</span>
+    <span class="mono ${isStarter ? 'text-zinc-200' : 'text-zinc-400'} shrink-0">${pts.toFixed(1)}</span>
   </div>`;
 }
 
 function rosterBreakdown(m) {
-  if (!m) return '<div class="text-zinc-600 text-[12px] py-2">No lineup data yet.</div>';
+  if (!m) return '<div class="text-zinc-400 text-[12px] py-2">No lineup data yet.</div>';
   const startersHtml = (m.starters || []).map((pid, i) => {
     const slot = SLOT_LABEL[slots[i]] || slots[i] || '';
     const pts = m.starters_points?.[i] ?? 0;
@@ -399,12 +399,12 @@ function rosterBreakdown(m) {
   const bench = Object.keys(m.players_points || {}).filter(pid => !starterSet.has(pid));
   const benchHtml = bench.length
     ? bench.map(pid => playerLine(pid, m.players_points[pid] || 0, null)).join('')
-    : '<div class="text-zinc-700 text-[11px] py-1">Empty bench</div>';
+    : '<div class="text-zinc-400 text-[11px] py-1">Empty bench</div>';
   return `
     <div class="pt-3 mt-3 border-t border-white/5">
       <div class="text-[10px] uppercase tracking-widest text-amber-300/50 mb-1">Starters</div>
       ${startersHtml}
-      <div class="text-[10px] uppercase tracking-widest text-zinc-600 mt-3 mb-1">Bench</div>
+      <div class="text-[10px] uppercase tracking-widest text-zinc-400 mt-3 mb-1">Bench</div>
       ${benchHtml}
     </div>`;
 }
@@ -487,10 +487,10 @@ function matchupCard(key, a, b, rosterMap, userMap) {
       <div class="flex items-center gap-2 mb-1">
         <div class="size-6 rounded-lg ${color} flex items-center justify-center text-[11px] font-semibold text-black shrink-0">${letter}</div>
         <div class="text-[13px] font-medium truncate ${leads ? 'text-white' : 'text-zinc-400'}">${Vault.escapeHtml(name)}</div>
-        <span class="text-[10px] mono text-zinc-600 shrink-0" title="Record going into this week">${record}</span>
+        <span class="text-[10px] mono text-zinc-400 shrink-0" title="Record going into this week">${record}</span>
       </div>
       <div class="text-[26px] font-mono font-semibold ${leads ? 'text-emerald-400' : 'text-zinc-200'}">${score.toFixed(1)}</div>
-      ${proj != null ? `<div class="text-[11px] text-zinc-500" title="Live points plus each remaining starter's projected upside, scaled down as their real game finishes">Proj <span class="mono text-zinc-400">${proj.toFixed(1)}</span></div>` : ''}
+      ${proj != null ? `<div class="text-[11px] text-zinc-400" title="Live points plus each remaining starter's projected upside, scaled down as their real game finishes">Proj <span class="mono text-zinc-400">${proj.toFixed(1)}</span></div>` : ''}
     </div>`;
 
   const aName = teamNameFor(a?.rosterId, rosterMap, userMap);
@@ -504,13 +504,13 @@ function matchupCard(key, a, b, rosterMap, userMap) {
     <div class="card rounded-vault-sm p-4 ${b ? 'cursor-pointer card-hover' : ''}" ${b ? `onclick="toggleExpand('${key}')"` : ''}>
       <div class="flex items-center gap-4">
         ${side(a?.rosterId, aScore, aLeads, 'A', 'bg-gradient-to-br from-amber-400 to-yellow-600', aName, aProj, aRecord)}
-        ${b ? `<div class="text-zinc-700 text-[11px] uppercase tracking-widest shrink-0">vs</div>${side(b.rosterId, bScore, bLeads, 'B', 'bg-gradient-to-br from-sky-500 to-cyan-600', bName, bProj, bRecord)}` : `<div class="text-[12px] text-zinc-500 shrink-0 px-2">Bye week</div>`}
+        ${b ? `<div class="text-zinc-400 text-[11px] uppercase tracking-widest shrink-0">vs</div>${side(b.rosterId, bScore, bLeads, 'B', 'bg-gradient-to-br from-sky-500 to-cyan-600', bName, bProj, bRecord)}` : `<div class="text-[12px] text-zinc-400 shrink-0 px-2">Bye week</div>`}
       </div>
       ${b ? `<div class="mt-3 h-1.5 rounded-full bg-white/[0.06] overflow-hidden flex" title="Share of combined live points">
         <div class="h-full bg-emerald-400/70" style="width:${aPct}%"></div>
         <div class="h-full bg-sky-400/70" style="width:${100 - aPct}%"></div>
       </div>` : ''}
-      ${b ? `<div class="flex items-center justify-between text-[10px] text-zinc-500 mt-2" title="Estimated from live points + a modeled remaining-output variance — not real game-clock state, since that isn't available from this data source">
+      ${b ? `<div class="flex items-center justify-between text-[10px] text-zinc-400 mt-2" title="Estimated from live points + a modeled remaining-output variance — not real game-clock state, since that isn't available from this data source">
         <span>Win% <span class="mono ${aWinPct >= 50 ? 'text-emerald-400/90' : 'text-zinc-400'}">${aWinPct.toFixed(0)}%</span></span>
         <span class="uppercase tracking-widest">Estimate</span>
         <span><span class="mono ${aWinPct < 50 ? 'text-sky-400/90' : 'text-zinc-400'}">${(100 - aWinPct).toFixed(0)}%</span> Win%</span>
@@ -530,7 +530,7 @@ function matchupCard(key, a, b, rosterMap, userMap) {
 function updateStatus() {
   const status = document.getElementById('status');
   const secs = lastUpdated ? Math.round((Date.now() - lastUpdated) / 1000) : null;
-  const liveNote = week === currentWeek ? `<span class="inline-flex items-center gap-1.5"><span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Auto-refreshing every 30s</span>` : `<span class="text-zinc-600">Not the current week — scores are final</span>`;
+  const liveNote = week === currentWeek ? `<span class="inline-flex items-center gap-1.5"><span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Auto-refreshing every 30s</span>` : `<span class="text-zinc-400">Not the current week — scores are final</span>`;
   status.innerHTML = `${league?.name || ''} • ${liveNote}${secs != null ? ` • updated ${secs}s ago` : ''}`;
 }
 

@@ -34,7 +34,7 @@
   <!-- Stats Bar -->
   <div class="grid grid-cols-2 gap-3 mb-6">
     <div class="stat-tile"><div class="stat-label">Players</div><div id="statPlayers" class="stat-value mono">—</div></div>
-    <div class="stat-tile"><div class="stat-label">Format</div><div id="statFormat" class="stat-value mono">—</div><div id="statFormatDetail" class="text-[11px] text-zinc-500 mt-1"></div></div>
+    <div class="stat-tile"><div class="stat-label">Format</div><div id="statFormat" class="stat-value mono">—</div><div id="statFormatDetail" class="text-[11px] text-zinc-400 mt-1"></div></div>
   </div>
 
   <!-- Controls -->
@@ -42,7 +42,7 @@
     <div class="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
       <div class="flex items-center gap-2 flex-wrap">
         <div class="relative">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           <input id="search" placeholder="Search player, team…" class="w-[260px] bg-black/40 border border-white/8 rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-amber-500/60" />
         </div>
         <div class="flex items-center bg-black/40 border border-white/8 rounded-xl p-1">
@@ -54,11 +54,11 @@
           <button data-pos="FLEX" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">FLEX</button>
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="text-xs text-zinc-500">Trend:</span>
+          <span class="text-xs text-zinc-400">Trend:</span>
           <div id="trendWindowToggle" class="flex items-center bg-black/40 border border-white/8 rounded-xl p-1"></div>
         </div>
       </div>
-      <div class="flex items-center gap-3 text-xs text-zinc-500">
+      <div class="flex items-center gap-3 text-xs text-zinc-400">
         <span class="hidden sm:inline">Sort by clicking headers</span>
         <button id="resetFilters" class="px-3 py-1.5 rounded-lg border border-white/8 hover:bg-white/5">Reset</button>
       </div>
@@ -85,7 +85,7 @@
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.06]">
-          <tr><td colspan="11" class="px-4 py-16 text-center text-zinc-500">Loading data…</td></tr>
+          <tr><td colspan="11" class="px-4 py-16 text-center text-zinc-400">Loading data…</td></tr>
         </tbody>
       </table>
     </div>
@@ -96,7 +96,7 @@
     <div class="glass p-4 lg:col-span-2">
       <div class="flex items-center justify-between mb-2">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400">Status Log</h2>
-        <button id="clearLog" class="text-xs text-zinc-500 hover:text-white">Clear</button>
+        <button id="clearLog" class="text-xs text-zinc-400 hover:text-white">Clear</button>
       </div>
       <div id="log" class="h-32 overflow-y-auto scrollbar mono text-xs text-zinc-400 space-y-1 bg-black/30 rounded-xl p-3 border border-white/5"></div>
     </div>
@@ -111,7 +111,7 @@
     </div>
   </div>
 
-  <footer class="mt-10 text-center text-xs text-zinc-600">
+  <footer class="mt-10 text-center text-xs text-zinc-400">
     Built for dynasty managers. Data © KeepTradeCut & Sleeper API.
   </footer>
 </div>
@@ -151,7 +151,7 @@
 
   function log(msg, type = 'info') {
     const time = new Date().toLocaleTimeString();
-    const color = type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-amber-400' : 'text-zinc-500';
+    const color = type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-amber-400' : 'text-zinc-400';
     const line = document.createElement('div');
     line.innerHTML = `<span class="${color}">[${time}]</span> ${msg}`;
     logEl.appendChild(line);
@@ -306,7 +306,7 @@
     // that actually HAVE it, not the raw shared date grid — a hole doesn't
     // corrupt the whole scale into NaN.
     const series = rawSeries.filter(p => Number.isFinite(p[field]));
-    if (series.length < 1) return `<div class="text-[12px] text-zinc-500 py-6 text-center">Not enough data yet.</div>`;
+    if (series.length < 1) return `<div class="text-[12px] text-zinc-400 py-6 text-center">Not enough data yet.</div>`;
     const vals = series.map(p => p[field]);
     const minV = Math.min(...vals), maxV = Math.max(...vals);
     const pad = (maxV - minV) * 0.1 || maxV * 0.1 || (decimals ? 1 : 100);
@@ -327,10 +327,10 @@
     const gridLines = [0, 0.5, 1].map(f => {
       const v = yMin + (yMax - yMin) * f, yy = y(v);
       return `<line x1="${ML}" y1="${yy}" x2="${W - MR}" y2="${yy}" stroke="currentColor" class="text-white/5"/>
-        <text x="${ML - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="currentColor" class="text-zinc-500">${fmt(v)}</text>`;
+        <text x="${ML - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="currentColor" class="text-zinc-400">${fmt(v)}</text>`;
     }).join('');
     const dateTicks = (series.length === 1 ? [0] : [0, series.length - 1]).map(i =>
-      `<text x="${x(i)}" y="${H - 6}" text-anchor="${series.length === 1 ? 'middle' : i === 0 ? 'start' : 'end'}" font-size="9" fill="currentColor" class="text-zinc-500">${series[i].date}</text>`
+      `<text x="${x(i)}" y="${H - 6}" text-anchor="${series.length === 1 ? 'middle' : i === 0 ? 'start' : 'end'}" font-size="9" fill="currentColor" class="text-zinc-400">${series[i].date}</text>`
     ).join('');
     const up = vals[vals.length - 1] >= vals[0];
 
@@ -394,7 +394,7 @@
 
   function renderPlayerCard(r) {
     const tm = teamMeta(r.team);
-    const noHistory = `<div class="text-[12px] text-zinc-500 py-6 text-center">No price history yet for this player.</div>`;
+    const noHistory = `<div class="text-[12px] text-zinc-400 py-6 text-center">No price history yet for this player.</div>`;
     const valueChart = r.windowedSeries.length >= 1 ? playerChart(r.windowedSeries, 'value', 0) : noHistory;
     const ppgChart = r.windowedSeries.length >= 1 ? playerChart(r.windowedSeries, 'ppg', 1) : noHistory;
 
@@ -409,14 +409,14 @@
           <td class="py-1.5 text-right mono text-zinc-400">${fmtFloat(s.ppg, 1)}</td>
           <td class="py-1.5 text-right mono text-zinc-400">${s.gp}</td>
           <td class="py-1.5 text-right mono text-zinc-300">#${s.posRank}</td>
-          <td class="py-1.5 text-right mono text-zinc-500">#${s.overallRank}</td>
+          <td class="py-1.5 text-right mono text-zinc-400">#${s.overallRank}</td>
         </tr>`;
       }).join('');
     }
     const historySection = seasonRows ? `
-      <div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-4 mb-2">Season History <span class="text-zinc-600 normal-case">— scored to your league's settings</span></div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">Season History <span class="text-zinc-400 normal-case">— scored to your league's settings</span></div>
       <table class="w-full text-[12px]">
-        <thead><tr class="text-[10px] text-zinc-500 uppercase tracking-wider">
+        <thead><tr class="text-[10px] text-zinc-400 uppercase tracking-wider">
           <th class="text-left font-medium pb-1">Season</th>
           <th class="text-right font-medium pb-1">Points</th>
           <th class="text-right font-medium pb-1">PPG</th>
@@ -446,14 +446,14 @@
         <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 ${posColor(r.pos)}">${r.pos || '—'}</span>
       </div>
       <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">
-        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">Value</div></div>
-        <div><div class="mono text-[15px] text-zinc-100">${r.posRank ? '#' + r.posRank + ' of ' + r.posCount : '—'}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">${r.pos || 'Pos'} Rank</div></div>
-        <div><div class="mono text-[15px] text-zinc-100">${fmtFloat(r.ppg, 2)}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">PPG</div></div>
-        <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}" title="Points per game above the best player at ${r.pos || 'this position'} who wouldn't start anywhere in your league">${fmtSigned(r.vorp)}</div><div class="text-[10px] text-zinc-500 uppercase tracking-wider mt-0.5">VORP</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[10px] text-zinc-400 uppercase tracking-wider mt-0.5">Value</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">${r.posRank ? '#' + r.posRank + ' of ' + r.posCount : '—'}</div><div class="text-[10px] text-zinc-400 uppercase tracking-wider mt-0.5">${r.pos || 'Pos'} Rank</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">${fmtFloat(r.ppg, 2)}</div><div class="text-[10px] text-zinc-400 uppercase tracking-wider mt-0.5">PPG</div></div>
+        <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}" title="Points per game above the best player at ${r.pos || 'this position'} who wouldn't start anywhere in your league">${fmtSigned(r.vorp)}</div><div class="text-[10px] text-zinc-400 uppercase tracking-wider mt-0.5">VORP</div></div>
       </div>
-      <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">Value Over Time</div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time</div>
       ${valueChart}
-      <div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-4 mb-2">PPG Over Time</div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time</div>
       ${ppgChart}
       ${historySection}
     `;
@@ -628,7 +628,7 @@
 
   function renderTable() {
     if (filteredRows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-16 text-center text-zinc-500">No players match filters</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-16 text-center text-zinc-400">No players match filters</td></tr>`;
       return;
     }
     const frag = document.createDocumentFragment();
@@ -638,7 +638,7 @@
       tr.title = 'View player card';
       tr.addEventListener('click', () => openPlayerModal(r.norm));
       tr.innerHTML = `
-        <td class="px-4 py-3 text-zinc-500 mono text-xs">${i + 1}</td>
+        <td class="px-4 py-3 text-zinc-400 mono text-xs">${i + 1}</td>
         <td class="px-4 py-3 font-medium text-zinc-100">${Vault.escapeHtml(r.player)}</td>
         <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${posColor(r.pos)}">${r.pos || '—'}</span></td>
         <td class="px-4 py-3 text-zinc-400 mono text-xs">${Vault.escapeHtml(r.team) || '—'}</td>
@@ -647,7 +647,7 @@
         <td class="px-4 py-3 text-right">
           ${r.trendDelta != null
             ? `<div class="flex items-center justify-end gap-2">${sparkline(r.trendValues)}<span class="mono text-xs ${r.trendDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.trendDelta >= 0 ? '+' : ''}${fmtInt(r.trendDelta)}</span></div>`
-            : '<span class="text-zinc-600 text-xs">—</span>'}
+            : '<span class="text-zinc-400 text-xs">—</span>'}
         </td>
         <td class="px-4 py-3 text-right mono text-zinc-400">${fmtFloat(r.ppg, 2)}</td>
         <td class="px-4 py-3 text-right mono ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-400'}">${r.vorp != null ? fmtSigned(r.vorp) : '—'}</td>
