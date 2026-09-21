@@ -32,10 +32,11 @@
          league's real scoring_settings, so this is auto-scored to your format
          (PPR/TE premium/Superflex/whatever it is) with nothing to configure. -->
     <aside class="card rounded-vault-sm p-4 lg:sticky lg:top-4">
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center justify-between mb-1">
         <div class="text-[11px] uppercase tracking-widest text-zinc-400">Weekly Leaders</div>
         <span class="text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-zinc-500" title="Every number here is already scored to this league's own real settings (PPR, TE premium, Superflex, etc.) — Sleeper computes it that way, nothing here re-derives or guesses at format.">AUTO</span>
       </div>
+      <div id="leadersCount" class="flex gap-1.5 mb-3"></div>
       <div id="leadersPanel"></div>
     </aside>
 
@@ -245,18 +246,31 @@ function allRosteredCandidates(rosterMap, userMap) {
   return list;
 }
 
+let leadersCount = 5;
+function setLeadersCount(n) {
+  leadersCount = n;
+  render();
+}
+
+function renderLeadersCountToggle() {
+  document.getElementById('leadersCount').innerHTML = [5, 10, 20].map(n => `
+    <button onclick="setLeadersCount(${n})" class="text-[10px] px-2 py-1 rounded-lg border transition-colors ${leadersCount === n ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-500 hover:text-white hover:border-white/20'}">Top ${n}</button>
+  `).join('');
+}
+
 function renderWeeklyLeaders(rosterMap, userMap) {
+  renderLeadersCountToggle();
   const candidates = allRosteredCandidates(rosterMap, userMap);
   const positions = ['QB', 'RB', 'WR', 'TE'];
   const sections = positions.map(pos => {
-    const top = candidates.filter(c => c.pos === pos).sort((a, b) => b.pts - a.pts).slice(0, 5);
+    const top = candidates.filter(c => c.pos === pos).sort((a, b) => b.pts - a.pts).slice(0, leadersCount);
     if (!top.length) return '';
     return `
       <div class="mb-4 last:mb-0">
         <div class="text-[10px] uppercase tracking-widest text-amber-300/50 mb-1.5">${pos}</div>
         <div class="space-y-1">
           ${top.map((c, i) => `<div class="flex items-center gap-2 text-[12px]">
-            <span class="text-zinc-600 w-3 shrink-0">${i + 1}</span>
+            <span class="text-zinc-600 w-5 shrink-0">${i + 1}</span>
             <span class="text-zinc-200 truncate flex-1 min-w-0" title="${Vault.escapeHtml(c.teamName)}">${Vault.escapeHtml(c.name)}</span>
             <span class="mono text-zinc-400 shrink-0">${c.pts.toFixed(1)}</span>
           </div>`).join('')}
