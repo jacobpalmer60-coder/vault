@@ -66,18 +66,12 @@
     <div class="flex items-center justify-between flex-wrap gap-4">
       <div class="flex items-center gap-6 flex-wrap">
         <div>
-          <div class="flex items-center gap-2 mb-1">
-            <div class="text-[11px] text-zinc-500 uppercase tracking-wider">Team A gives</div>
-            <span id="balanceBtnA"></span>
-          </div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Team A gives</div>
           <div id="giveA" class="text-[16px] font-medium"></div>
         </div>
         <div class="text-zinc-600">⇄</div>
         <div>
-          <div class="flex items-center gap-2 mb-1">
-            <div class="text-[11px] text-zinc-500 uppercase tracking-wider">Team B gives</div>
-            <span id="balanceBtnB"></span>
-          </div>
+          <div class="text-[11px] text-zinc-500 uppercase tracking-wider mb-1">Team B gives</div>
           <div id="giveB" class="text-[16px] font-medium"></div>
         </div>
       </div>
@@ -89,6 +83,7 @@
           <div id="diffBar" class="w-36 ml-auto"></div>
           <div id="diffConfidence" class="text-[10px] text-zinc-600 mt-0.5"></div>
         </div>
+        <span id="balanceBtn"></span>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
@@ -1773,17 +1768,22 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
     <div class="text-[16px] font-medium gold-text mb-1">${trade.label}</div>
     <div class="text-[13px] text-zinc-300">${trade.desc}</div>`;
 
+  // One button, not one per side — it always rebuilds whichever side is currently
+  // LOSING this trade (the lower dValueAdj), so the user never has to guess which
+  // of two buttons to click. Lives above the trade itself (next to Reset in the
+  // Trade Bar), not buried in either side's analysis card, since it acts on the
+  // trade you're building — gated on the OVERALL verdict rather than either side's
+  // own tone, since a side can read "good" simply for getting the better end of a
+  // lopsided deal.
+  const loseSide = dValueAdjA <= dValueAdjB ? 'A' : 'B';
+  const loseTeamName = loseSide === 'A' ? teamA.teamName : teamB.teamName;
+  document.getElementById('balanceBtn').innerHTML = verdict.tone !== 'good'
+    ? `<button onclick="balanceSide('${loseSide}', this)" title="Keep Team ${loseSide === 'A' ? 'B' : 'A'}'s side exactly as selected, and look for a different ${Vault.escapeHtml(loseTeamName)} package that reads as a better fit" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">⚖️ Balance ${Vault.escapeHtml(loseTeamName)}</button>`
+    : '';
+
   [['A', before.A, after.A, resA, dValueAdjA], ['B', before.B, after.B, resB, dValueAdjB]].forEach(([side, bef, aft, res, dValueAdj]) => {
     const head = heads[side];
     const win = wins[side];
-
-    // Lives above the trade itself (next to "Team X gives" in the Trade Bar), not
-    // buried in this analysis card, since it acts on the trade you're building —
-    // gated on the OVERALL verdict rather than this side's own tone, since a side
-    // can read "good" simply for getting the better end of a lopsided deal.
-    document.getElementById(`balanceBtn${side}`).innerHTML = verdict.tone !== 'good'
-      ? `<button onclick="balanceSide('${side}', this)" title="Keep Team ${side === 'A' ? 'B' : 'A'}'s side exactly as selected, and look for a different ${Vault.escapeHtml(bef.teamName)} package that reads as a better fit" class="text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">⚖️ Balance</button>`
-      : '';
 
     document.getElementById(`analysis${side}`).innerHTML = `
       <div class="card rounded-vault-sm p-4 min-w-0">
