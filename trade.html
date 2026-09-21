@@ -892,7 +892,7 @@ function bestCombos(pool, targetValueRaw, n, profile) {
 
 function bestCombo(pool, targetValueRaw, profile) {
   const targetAdj = Vault.adjustedValue(targetValueRaw);
-  const best = comboSearchAdj(pool, targetAdj, profile);
+  const best = bestFit(pool, targetAdj, targetAdj, profile);
   if (!best) return null;
   const sum = best.combo.reduce((s, a) => s + a.value, 0);
   return { combo: best.combo, sum, diff: best.diff, pctOff: realPctOff(targetValueRaw, best.combo, profile) };
@@ -913,11 +913,34 @@ function anchoredCombo(pool, targetValueRaw, posFilter, profile) {
   )[0];
   const remainingAdj = targetAdj - comboValue([anchor], profile);
   const fillerPool = pool.filter(a => a.key !== anchor.key);
-  const filler = Math.abs(remainingAdj) > targetAdj * 0.06 ? comboSearchAdj(fillerPool, remainingAdj, profile) : null;
+  const filler = Math.abs(remainingAdj) > targetAdj * 0.06 ? bestFit(fillerPool, remainingAdj, targetAdj, profile) : null;
   const combo = filler ? [anchor, ...filler.combo] : [anchor];
   const sum = combo.reduce((s, a) => s + a.value, 0);
   const diff = Math.abs(comboValue(combo, profile) - targetAdj);
   return { combo, sum, diff, pctOff: realPctOff(targetValueRaw, combo, profile) };
+}
+
+// Searches `pool` for the closest match to `searchTargetAdj`, preferring a combo
+// built from a position the RECEIVING team (profile) actually needs over one that
+// piles onto an already-deep position — a piece that happens to match the dollar
+// amount but adds to a surplus isn't one either side has real reason to want,
+// even priced "fairly". Only falls back to the plain closest-value search
+// (which can include surplus positions) when nothing at a needed position gets
+// close enough to be worth proposing on its own — judged against the OVERALL
+// trade's target value (`overallTargetAdj`, same as `searchTargetAdj` for a
+// direct match, but the whole trade's total rather than just the remaining gap
+// when this is filling in behind an anchor) so "close enough" means "wouldn't
+// already read as Lopsided by itself".
+function bestFit(pool, searchTargetAdj, overallTargetAdj, profile) {
+  const generic = comboSearchAdj(pool, searchTargetAdj, profile);
+  const needs = profile?.needs || [];
+  if (!needs.length) return generic;
+  const needPool = pool.filter(a => a.type === 'pick' || needs.includes((a.pos || '').toLowerCase()));
+  if (!needPool.length) return generic;
+  const needFit = comboSearchAdj(needPool, searchTargetAdj, profile);
+  if (!needFit) return generic;
+  const needFitPct = overallTargetAdj ? needFit.diff / overallTargetAdj * 100 : 0;
+  return needFitPct <= VAULT_CONFIG.LOPSIDED_PCT ? needFit : generic;
 }
 
 // Why might `partner` realistically part with `givingAssets`? Reuses the same
