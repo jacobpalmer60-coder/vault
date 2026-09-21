@@ -2480,19 +2480,51 @@ const Vault = {
     return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, bandPct, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
   },
 
+  // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
+  // each season's own league_id (fetchLeagueHistory discards it after pulling
+  // rosters) — fetchAndGradeAllTrades needs it to fetch each season's real
+  // transactions, not just that season's final records. Same "0" (a first
+  // season's previous_league_id, truthy as a string) guard and 25-season runaway
+  // cap as fetchLeagueHistory.
+  async fetchSeasonChain(leagueId, league) {
+    const seasons = [{ leagueId, season: league.season }];
+    let prevId = league.previous_league_id;
+    if (prevId === '0') prevId = null;
+    let guard = 0;
+    while (prevId && guard < 25) {
+      guard++;
+      let lg;
+      try { lg = await fetch(`https://api.sleeper.app/v1/league/${prevId}`).then(r => r.json()); } catch { break; }
+      if (!lg || lg.error) break;
+      seasons.push({ leagueId: prevId, season: lg.season });
+      prevId = lg.previous_league_id === '0' ? null : lg.previous_league_id;
+    }
+    return seasons;
+  },
+
   /* Full fetch-build-grade pipeline for a league's real trade history — shared by
      Trade Grades and the Manager page so both read the exact same graded trades
-     instead of running two copies of this fetch that could drift apart. */
+     instead of running two copies of this fetch that could drift apart. Covers
+     every season in the league's real history (previous_league_id chain), not
+     just the current one — a manager's roster_id gets reshuffled/recreated each
+     season the same way it does for career records (see fetchLeagueHistory), so
+     each season's trades are translated from THAT season's roster numbering into
+     today's via the one thing that stays stable across a whole dynasty league's
+     history: a manager's owner_id. A trade involving someone no longer in the
+     league today has no current roster to grade against, so it naturally drops
+     out once translation can't resolve their side — gradeTrade already returns
+     null for any unresolved roster_id, nothing extra to filter here. */
   async fetchAndGradeAllTrades(leagueId) {
     const { league, isSF, teams, slots, replacementLevels } = await Vault.buildLeagueTeams(leagueId);
-    const [playersDb, ktcData, projData, rosters, traded, playerHist, ...weeks] = await Promise.all([
+    const seasonChain = await Vault.fetchSeasonChain(leagueId, league);
+
+    const [playersDb, ktcData, projData, rosters, traded, playerHist] = await Promise.all([
       fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
       Vault.fetchKtcValues(),
       Vault.fetchProjections(),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json()),
-      Vault.fetchPlayerValueHistory(),
-      ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
+      Vault.fetchPlayerValueHistory()
     ]);
     const valMap = Vault.buildKtcValueMap(ktcData, isSF, league.scoring_settings?.bonus_rec_te);
     const ppgMap = Vault.buildProjectedPpgMapById(projData, league.scoring_settings);
@@ -2503,9 +2535,35 @@ const Vault = {
     const playerVolatility = Vault.buildPlayerVolatilityMap(playerHist.snapshots, isSF, bonusRecTe);
 
     const teamById = new Map(teams.map(t => [t.rosterId, t]));
+    const currentRosterIdForOwner = new Map(teams.map(t => [t.ownerId, t.rosterId]));
+
+    // Every season's own rosters (for that season's roster_id -> owner_id map) and
+    // transactions, fetched in parallel across seasons — each season already fans
+    // out its own 18 weeks in parallel too, same pattern the single-season fetch
+    // used before.
+    const seasonTrades = await Promise.all(seasonChain.map(async s => {
+      const [seasonRosters, ...weeks] = await Promise.all([
+        s.leagueId === leagueId ? Promise.resolve(rosters) : fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/rosters`).then(r => r.json()).catch(() => []),
+        ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
+      ]);
+      const ownerByOldRoster = new Map((seasonRosters || []).map(ro => [ro.roster_id, ro.owner_id]));
+      const translateRoster = oldRid => currentRosterIdForOwner.get(ownerByOldRoster.get(oldRid));
+      const rawTrades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2);
+      return rawTrades.map(tx => ({
+        ...tx,
+        roster_ids: tx.roster_ids.map(translateRoster),
+        adds: Object.fromEntries(Object.entries(tx.adds || {}).map(([pid, rid]) => [pid, translateRoster(rid)])),
+        draft_picks: (tx.draft_picks || []).map(pk => ({
+          ...pk,
+          roster_id: translateRoster(pk.roster_id),
+          owner_id: translateRoster(pk.owner_id),
+          previous_owner_id: pk.previous_owner_id != null ? translateRoster(pk.previous_owner_id) : pk.previous_owner_id
+        }))
+      }));
+    }));
 
     const seen = new Set();
-    const trades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2 && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
+    const trades = seasonTrades.flat().filter(t => t && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
 
     // teams[].picks only covers the LIVE future-tradeable window (Vault.futurePickYears)
     // — a completed draft correctly drops that year from it entirely, since it's no
