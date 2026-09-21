@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Game Day — The Vault</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[1200px] mx-auto p-6 lg:p-8">
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-1">
+    <h1 class="display text-[28px] font-semibold gold-text">Game Day</h1>
+    <div class="flex items-center gap-2">
+      <button id="weekPrev" class="size-8 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-colors">‹</button>
+      <div id="weekLabel" class="text-[13px] text-zinc-300 mono px-2 min-w-[64px] text-center">Week —</div>
+      <button id="weekNext" class="size-8 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-colors">›</button>
+    </div>
+  </div>
+  <p id="status" class="text-[13px] text-zinc-500 mb-6">Loading…</p>
+
+  <div id="grid" class="grid md:grid-cols-2 gap-5"></div>
+  <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+</div>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+const SLOT_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T', SUPER_FLEX: 'SFLX', K: 'K', DEF: 'DEF' };
+const REFRESH_MS = 30000;
+
+let league = null, users = null, rosters = null, playersDb = null, slots = [];
+let week = null, currentWeek = null;
+let expanded = new Set();
+let refreshTimer = null;
+let lastUpdated = null;
+
+function teamNameFor(rosterId, rosterMap, userMap) {
+  const r = rosterMap.get(rosterId);
+  if (!r) return `Roster ${rosterId}`;
+  const u = userMap.get(r.owner_id);
+  return u?.metadata?.team_name || u?.display_name || `Roster ${rosterId}`;
+}
+
+// slotLabel is only passed for a starter row (fixed lineup-slot order); a bench
+// player has no slot, just their real position, so the two rows read differently
+// on purpose (STARTER slot vs POS) rather than forcing one shared column.
+function playerLine(pid, pts, slotLabel) {
+  const p = playersDb[pid] || {};
+  const name = pid && pid !== '0' ? (`${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`) : 'Empty';
+  const leftLabel = slotLabel || p.position || '';
+  const isStarter = !!slotLabel;
+  return `<div class="flex items-center justify-between text-[12px] py-1">
+    <div class="flex items-center gap-2 min-w-0">
+      <span class="${isStarter ? 'text-amber-300/50' : 'text-zinc-600'} w-9 shrink-0 uppercase text-[10px]">${leftLabel}</span>
+      <span class="truncate ${isStarter ? 'text-zinc-200' : 'text-zinc-500'}">${Vault.escapeHtml(name)}</span>
+    </div>
+    <span class="mono ${isStarter ? 'text-zinc-200' : 'text-zinc-500'} shrink-0">${pts.toFixed(1)}</span>
+  </div>`;
+}
+
+function rosterBreakdown(m) {
+  if (!m) return '<div class="text-zinc-600 text-[12px] py-2">No lineup data yet.</div>';
+  const startersHtml = (m.starters || []).map((pid, i) => {
+    const slot = SLOT_LABEL[slots[i]] || slots[i] || '';
+    const pts = m.starters_points?.[i] ?? 0;
+    return playerLine(pid, pts, slot);
+  }).join('');
+  const starterSet = new Set(m.starters || []);
+  const bench = Object.keys(m.players_points || {}).filter(pid => !starterSet.has(pid));
+  const benchHtml = bench.length
+    ? bench.map(pid => playerLine(pid, m.players_points[pid] || 0, null)).join('')
+    : '<div class="text-zinc-700 text-[11px] py-1">Empty bench</div>';
+  return `
+    <div class="pt-3 mt-3 border-t border-white/5">
+      <div class="text-[10px] uppercase tracking-widest text-amber-300/50 mb-1">Starters</div>
+      ${startersHtml}
+      <div class="text-[10px] uppercase tracking-widest text-zinc-600 mt-3 mb-1">Bench</div>
+      ${benchHtml}
+    </div>`;
+}
+
+function toggleExpand(key) {
+  if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+  render();
+}
+
+// Groups this week's per-roster rows (Sleeper's raw matchups response, one row
+// per roster) into head-to-head pairs by matchup_id — two rosters sharing an id
+// are opponents. A roster with no partner (an odd team count, or a bye built into
+// the schedule) renders as its own "bye week" card instead of being dropped.
+let lastMatchups = [];
+function buildPairs() {
+  const byMatchup = new Map();
+  lastMatchups.forEach(m => {
+    if (!byMatchup.has(m.matchup_id)) byMatchup.set(m.matchup_id, []);
+    byMatchup.get(m.matchup_id).push(m);
+  });
+  const pairs = [];
+  byMatchup.forEach((ms, matchupId) => {
+    if (matchupId == null) { ms.forEach(m => pairs.push({ key: `bye-${m.roster_id}`, a: { rosterId: m.roster_id, m }, b: null })); return; }
+    const [m1, m2] = ms;
+    pairs.push({ key: `m-${matchupId}`, a: { rosterId: m1.roster_id, m: m1 }, b: m2 ? { rosterId: m2.roster_id, m: m2 } : null });
+  });
+  // Highest combined score first — the closest, highest-scoring games are usually
+  // the ones actually worth looking at first on game day.
+  pairs.sort((x, y) => {
+    const xTot = (x.a.m.points || 0) + (x.b ? (x.b.m.points || 0) : 0);
+    const yTot = (y.a.m.points || 0) + (y.b ? (y.b.m.points || 0) : 0);
+    return yTot - xTot;
+  });
+  return pairs;
+}
+
+function render() {
+  const rosterMap = new Map(rosters.map(r => [r.roster_id, r]));
+  const userMap = new Map(users.map(u => [u.user_id, u]));
+  const pairs = buildPairs();
+
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+  if (!pairs.length) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    empty.textContent = 'No matchups found for this week.';
+    return;
+  }
+  empty.classList.add('hidden');
+  grid.innerHTML = pairs.map(p => matchupCard(p.key, p.a, p.b, rosterMap, userMap)).join('');
+}
+
+function matchupCard(key, a, b, rosterMap, userMap) {
+  const aScore = a?.m.points || 0, bScore = b ? (b.m.points || 0) : 0;
+  const total = aScore + bScore;
+  const aPct = total > 0 ? Math.max(4, Math.min(96, aScore / total * 100)) : 50;
+  const aLeads = b ? aScore > bScore : false, bLeads = b ? bScore > aScore : false;
+  const isExpanded = expanded.has(key);
+
+  const side = (rosterId, score, leads, letter, color, name) => `
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 mb-1">
+        <div class="size-6 rounded-lg ${color} flex items-center justify-center text-[11px] font-semibold text-black shrink-0">${letter}</div>
+        <div class="text-[13px] font-medium truncate ${leads ? 'text-white' : 'text-zinc-400'}">${Vault.escapeHtml(name)}</div>
+      </div>
+      <div class="text-[26px] font-mono font-semibold ${leads ? 'text-emerald-400' : 'text-zinc-200'}">${score.toFixed(1)}</div>
+    </div>`;
+
+  const aName = teamNameFor(a?.rosterId, rosterMap, userMap);
+  const bName = b ? teamNameFor(b.rosterId, rosterMap, userMap) : null;
+
+  return `
+    <div class="card rounded-vault-sm p-4 ${b ? 'cursor-pointer card-hover' : ''}" ${b ? `onclick="toggleExpand('${key}')"` : ''}>
+      <div class="flex items-center gap-4">
+        ${side(a?.rosterId, aScore, aLeads, 'A', 'bg-gradient-to-br from-amber-400 to-yellow-600', aName)}
+        ${b ? `<div class="text-zinc-700 text-[11px] uppercase tracking-widest shrink-0">vs</div>${side(b.rosterId, bScore, bLeads, 'B', 'bg-gradient-to-br from-sky-500 to-cyan-600', bName)}` : `<div class="text-[12px] text-zinc-500 shrink-0 px-2">Bye week</div>`}
+      </div>
+      ${b ? `<div class="mt-3 h-1.5 rounded-full bg-white/[0.06] overflow-hidden flex">
+        <div class="h-full bg-emerald-400/70" style="width:${aPct}%"></div>
+        <div class="h-full bg-sky-400/70" style="width:${100 - aPct}%"></div>
+      </div>` : ''}
+      ${isExpanded && b ? `
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>${rosterBreakdown(a?.m)}</div>
+          <div>${rosterBreakdown(b?.m)}</div>
+        </div>` : ''}
+    </div>`;
+}
+
+function updateStatus() {
+  const status = document.getElementById('status');
+  const secs = lastUpdated ? Math.round((Date.now() - lastUpdated) / 1000) : null;
+  const liveNote = week === currentWeek ? `<span class="inline-flex items-center gap-1.5"><span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Auto-refreshing every 30s</span>` : `<span class="text-zinc-600">Not the current week — scores are final</span>`;
+  status.innerHTML = `${league?.name || ''} • ${liveNote}${secs != null ? ` • updated ${secs}s ago` : ''}`;
+}
+
+async function fetchWeek(w) {
+  const matchups = await fetch(`https://api.sleeper.app/v1/league/${Vault.getLeagueId()}/matchups/${w}`).then(r => r.json());
+  lastMatchups = matchups || [];
+  lastUpdated = Date.now();
+  render();
+  updateStatus();
+}
+
+function setWeek(w) {
+  week = Math.max(1, Math.min(18, w));
+  document.getElementById('weekLabel').textContent = `Week ${week}`;
+  expanded.clear();
+  fetchWeek(week);
+}
+
+function startPolling() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    if (document.visibilityState === 'visible' && week === currentWeek) fetchWeek(week);
+    else if (document.visibilityState === 'visible') updateStatus();
+  }, REFRESH_MS);
+  setInterval(updateStatus, 1000);
+}
+
+async function init() {
+  const status = document.getElementById('status');
+  try {
+    const leagueId = Vault.getLeagueId();
+    const [core, state] = await Promise.all([
+      Vault.fetchSleeperCore(leagueId),
+      fetch('https://api.sleeper.app/v1/state/nfl').then(r => r.json())
+    ]);
+    league = core.league; users = core.users; rosters = core.rosters; playersDb = core.players;
+    slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
+    currentWeek = state.week || 1;
+    setWeek(currentWeek);
+    startPolling();
+  } catch (e) {
+    console.error(e);
+    status.textContent = e.message || 'Failed to load';
+    status.className = 'text-[13px] text-rose-400 mb-6';
+  }
+}
+
+document.getElementById('weekPrev').onclick = () => setWeek(week - 1);
+document.getElementById('weekNext').onclick = () => setWeek(week + 1);
+
+init();
+</script>
+</body>
+</html>
