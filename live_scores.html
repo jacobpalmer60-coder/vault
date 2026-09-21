@@ -35,10 +35,168 @@ const SLOT_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', WRRB_
 const REFRESH_MS = 30000;
 
 let league = null, users = null, rosters = null, playersDb = null, slots = [];
-let week = null, currentWeek = null;
+let week = null, currentWeek = null, nflState = null;
 let expanded = new Set();
 let refreshTimer = null;
 let lastUpdated = null;
+let projPpgMap = new Map(); // pid -> projected PPG, this league's real scoring
+
+/* ---------- Win probability (an estimate, not real game state) ----------
+   Sleeper's matchups endpoint gives live points but never says whether a given
+   player's real game has actually finished, so there's no way to know exactly how
+   much "remaining variance" is left for any one player. This models it anyway,
+   honestly labeled as an estimate: each starter's live score is a hard FLOOR
+   (points only go up during a game), topped up with a random "remaining output"
+   that shrinks as the real NFL week (Thursday kickoff through Tuesday) progresses
+   and as a player's live points already cover more of their own projection. */
+const SIM_TRIALS = 3000;
+const REMAINING_SIGMA = 5.5; // a starter's typical remaining-output spread, in points
+
+function weekProgress() {
+  if (!nflState?.season_start_date || !week) return 0.5;
+  // Anchored at noon UTC specifically so this can't drift a day depending on the
+  // viewer's own timezone (a date-only string like "2026-09-09" parses as UTC
+  // midnight, and .setDate()/local-midnight arithmetic on that can shift the
+  // whole window by several hours — enough to wrongly read "week over" mid-Sunday
+  // with Monday Night Football still ahead, which is exactly what happened here).
+  // Window is the full week-to-week cycle (7 days), not a guessed Thu-to-Tue
+  // sub-span — a real NFL week doesn't reliably end early just because most games
+  // are done; Sunday/Monday-night games (and Tuesday international games) still
+  // count.
+  const weekStart = new Date(nflState.season_start_date + 'T12:00:00Z');
+  weekStart.setUTCDate(weekStart.getUTCDate() + (week - 1) * 7);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+  const now = Date.now();
+  if (now <= weekStart.getTime()) return 0;
+  if (now >= weekEnd.getTime()) return 1;
+  return (now - weekStart.getTime()) / (weekEnd.getTime() - weekStart.getTime());
+}
+
+function gaussianRandom() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function simulateFinal(starters, startersPoints, progress) {
+  let total = 0;
+  (starters || []).forEach((pid, i) => {
+    if (!pid || pid === '0') return;
+    const live = startersPoints?.[i] ?? 0;
+    const proj = projPpgMap.get(pid) || 0;
+    const remainingExpected = Math.max(0, proj - live) * (1 - progress);
+    const noise = gaussianRandom() * REMAINING_SIGMA * (1 - progress);
+    total += live + Math.max(0, remainingExpected + noise);
+  });
+  return total;
+}
+
+// Once the real scoring window is effectively over, there's no meaningful
+// variance left to simulate — just compare the (now final) live totals directly
+// rather than let simulation noise report anything other than ~100%/0%.
+function winProbability(aMatchup, bMatchup) {
+  const progress = weekProgress();
+  if (progress >= 0.999) {
+    const aFinal = aMatchup.points || 0, bFinal = bMatchup.points || 0;
+    if (aFinal === bFinal) return 50;
+    return aFinal > bFinal ? 100 : 0;
+  }
+  let aWins = 0;
+  for (let i = 0; i < SIM_TRIALS; i++) {
+    const aFinal = simulateFinal(aMatchup.starters, aMatchup.starters_points, progress);
+    const bFinal = simulateFinal(bMatchup.starters, bMatchup.starters_points, progress);
+    if (aFinal > bFinal) aWins++; else if (aFinal === bFinal) aWins += 0.5;
+  }
+  return aWins / SIM_TRIALS * 100;
+}
+
+/* ---------- Live play-by-play feed ----------
+   Sleeper has no play-by-play of its own — only ESPN's public (undocumented, but
+   free and keyless) scoreboard/summary endpoints carry real play text. Best-effort
+   by design: matching "which of MY players is this play about" means pattern-
+   matching play text like " J.Taylor rushed up the middle..." against each
+   roster's players (first-initial + last name, cross-checked against that
+   player's real NFL team so common surnames don't false-match), not a clean
+   structured field ESPN hands us. A play that doesn't match anything simply
+   doesn't show up — this never tries to compute a point value per play, since
+   reconstructing that from raw stats through this league's own scoring settings
+   per play would be far more fragile than it's worth. */
+const ESPN_TEAM_ALIAS = { WSH: 'WAS', JAC: 'JAX', LA: 'LAR' }; // known Sleeper/ESPN abbreviation mismatches
+let espnGames = new Map(); // gameId -> { teams: [abbr,abbr], plays: [{text, teamAbbr}] }
+let lastEspnFetch = 0;
+
+function normTeam(abbr) { return ESPN_TEAM_ALIAS[abbr] || abbr; }
+
+// "J.Taylor" style pattern for a player — ESPN's play text convention.
+function playPattern(p) {
+  if (!p?.first_name || !p?.last_name) return null;
+  return `${p.first_name[0]}.${p.last_name}`;
+}
+
+async function fetchEspnLive() {
+  try {
+    const sb = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard').then(r => r.json());
+    const inProgress = (sb.events || []).filter(e => e.status?.type?.state === 'in');
+    await Promise.all(inProgress.map(async ev => {
+      const teams = (ev.competitions?.[0]?.competitors || []).map(c => normTeam(c.team?.abbreviation));
+      try {
+        const sum = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=${ev.id}`).then(r => r.json());
+        const drives = [...(sum.drives?.previous || [])];
+        if (sum.drives?.current) drives.push(sum.drives.current);
+        const plays = [];
+        drives.forEach(d => {
+          const teamAbbr = normTeam(d.team?.abbreviation);
+          (d.plays || []).forEach(p => { if (p.text) plays.push({ text: p.text.trim(), teamAbbr }); });
+        });
+        espnGames.set(ev.id, { teams, plays: plays.slice(-15) });
+      } catch { /* one game's summary failing shouldn't drop the rest */ }
+    }));
+    // Drop games no longer in progress so a finished game's plays stop being
+    // rescanned every cycle once nothing new can appear in it.
+    const liveIds = new Set(inProgress.map(e => e.id));
+    [...espnGames.keys()].forEach(id => { if (!liveIds.has(id)) espnGames.delete(id); });
+    lastEspnFetch = Date.now();
+  } catch (e) { console.error('ESPN live fetch failed', e); }
+}
+
+// Every play from every currently-live game, most recent last (drive order).
+function allLivePlays() {
+  return [...espnGames.values()].flatMap(g => g.plays);
+}
+
+// Scans live plays for anything mentioning one of this roster's players — checked
+// against the player's own real NFL team so "J.Jackson" on the Ravens doesn't
+// match a play about a different J.Jackson on another team.
+function matchupPlays(m) {
+  if (!m) return [];
+  const candidates = Object.keys(m.players_points || {}).map(pid => {
+    const p = playersDb[pid];
+    const pattern = playPattern(p);
+    return pattern ? { pid, pattern, team: normTeam(p.team), name: `${p.first_name} ${p.last_name}` } : null;
+  }).filter(Boolean);
+  if (!candidates.length) return [];
+  const found = [];
+  allLivePlays().forEach(play => {
+    candidates.forEach(c => {
+      if (play.teamAbbr === c.team && play.text.includes(c.pattern)) found.push({ ...play, player: c.name });
+    });
+  });
+  return found.slice(-6).reverse();
+}
+
+function playFeedHtml(m) {
+  const plays = matchupPlays(m);
+  if (!plays.length) return '';
+  return `
+    <div class="pt-3 mt-3 border-t border-white/5">
+      <div class="text-[10px] uppercase tracking-widest text-sky-300/50 mb-1.5">Live Plays</div>
+      <div class="space-y-1.5">
+        ${plays.map(p => `<div class="text-[11px] leading-snug"><span class="text-zinc-200 font-medium">${Vault.escapeHtml(p.player)}</span> <span class="text-zinc-500">${Vault.escapeHtml(p.text)}</span></div>`).join('')}
+      </div>
+    </div>`;
+}
 
 function teamNameFor(rosterId, rosterMap, userMap) {
   const r = rosterMap.get(rosterId);
@@ -82,7 +240,8 @@ function rosterBreakdown(m) {
       ${startersHtml}
       <div class="text-[10px] uppercase tracking-widest text-zinc-600 mt-3 mb-1">Bench</div>
       ${benchHtml}
-    </div>`;
+    </div>
+    ${playFeedHtml(m)}`;
 }
 
 function toggleExpand(key) {
@@ -140,6 +299,10 @@ function matchupCard(key, a, b, rosterMap, userMap) {
   const aPct = total > 0 ? Math.max(4, Math.min(96, aScore / total * 100)) : 50;
   const aLeads = b ? aScore > bScore : false, bLeads = b ? bScore > aScore : false;
   const isExpanded = expanded.has(key);
+  // Clamped display-side, never at the raw simulated value — this is a modeled
+  // estimate, not certainty, so it should never claim a literal, unbeatable 100%
+  // even when the simulation itself came back essentially there.
+  const aWinPct = b ? Math.max(1, Math.min(99, winProbability(a.m, b.m))) : null;
 
   const side = (rosterId, score, leads, letter, color, name) => `
     <div class="flex-1 min-w-0">
@@ -159,9 +322,18 @@ function matchupCard(key, a, b, rosterMap, userMap) {
         ${side(a?.rosterId, aScore, aLeads, 'A', 'bg-gradient-to-br from-amber-400 to-yellow-600', aName)}
         ${b ? `<div class="text-zinc-700 text-[11px] uppercase tracking-widest shrink-0">vs</div>${side(b.rosterId, bScore, bLeads, 'B', 'bg-gradient-to-br from-sky-500 to-cyan-600', bName)}` : `<div class="text-[12px] text-zinc-500 shrink-0 px-2">Bye week</div>`}
       </div>
-      ${b ? `<div class="mt-3 h-1.5 rounded-full bg-white/[0.06] overflow-hidden flex">
+      ${b ? `<div class="mt-3 h-1.5 rounded-full bg-white/[0.06] overflow-hidden flex" title="Share of combined live points">
         <div class="h-full bg-emerald-400/70" style="width:${aPct}%"></div>
         <div class="h-full bg-sky-400/70" style="width:${100 - aPct}%"></div>
+      </div>` : ''}
+      ${b ? `<div class="flex items-center justify-between text-[10px] text-zinc-500 mt-2" title="Estimated from live points + a modeled remaining-output variance — not real game-clock state, since that isn't available from this data source">
+        <span>Win% <span class="mono ${aWinPct >= 50 ? 'text-emerald-400/90' : 'text-zinc-400'}">${aWinPct.toFixed(0)}%</span></span>
+        <span class="uppercase tracking-widest">Estimate</span>
+        <span><span class="mono ${aWinPct < 50 ? 'text-sky-400/90' : 'text-zinc-400'}">${(100 - aWinPct).toFixed(0)}%</span> Win%</span>
+      </div>
+      <div class="h-1 rounded-full bg-white/[0.06] overflow-hidden flex mt-1">
+        <div class="h-full bg-emerald-400/40" style="width:${Math.max(2, Math.min(98, aWinPct))}%"></div>
+        <div class="h-full bg-sky-400/40" style="width:${Math.max(2, Math.min(98, 100 - aWinPct))}%"></div>
       </div>` : ''}
       ${isExpanded && b ? `
         <div class="grid sm:grid-cols-2 gap-4">
@@ -184,6 +356,10 @@ async function fetchWeek(w) {
   lastUpdated = Date.now();
   render();
   updateStatus();
+  // Live plays only mean anything for the week actually being played right now —
+  // fired after the score render, not blocking it, since a few ESPN summary
+  // fetches take noticeably longer than the one small Sleeper matchups call.
+  if (w === currentWeek) fetchEspnLive().then(render);
 }
 
 function setWeek(w) {
@@ -206,13 +382,16 @@ async function init() {
   const status = document.getElementById('status');
   try {
     const leagueId = Vault.getLeagueId();
-    const [core, state] = await Promise.all([
+    const [core, state, projData] = await Promise.all([
       Vault.fetchSleeperCore(leagueId),
-      fetch('https://api.sleeper.app/v1/state/nfl').then(r => r.json())
+      fetch('https://api.sleeper.app/v1/state/nfl').then(r => r.json()),
+      Vault.fetchProjections()
     ]);
     league = core.league; users = core.users; rosters = core.rosters; playersDb = core.players;
     slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
+    nflState = state;
     currentWeek = state.week || 1;
+    projPpgMap = Vault.buildProjectedPpgMapById(projData, league.scoring_settings);
     setWeek(currentWeek);
     startPolling();
   } catch (e) {
