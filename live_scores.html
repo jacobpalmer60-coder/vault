@@ -113,11 +113,22 @@ function gaussianRandom() {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
+// True once a player has zero chance of adding anything beyond their current live
+// points — either their real team has no game this week (a bye), or that specific
+// game has already finished. Empty teamGameState (before the first real fetch
+// lands) never counts as either, so nothing gets wrongly zeroed out too early.
+function noMoreUpside(pid) {
+  if (!teamGameState.size) return false;
+  const state = teamGameState.get(normTeam(playersDb[pid]?.team));
+  return state == null || state === 'post';
+}
+
 function simulateFinal(starters, startersPoints, progress) {
   let total = 0;
   (starters || []).forEach((pid, i) => {
     if (!pid || pid === '0') return;
     const live = startersPoints?.[i] ?? 0;
+    if (noMoreUpside(pid)) { total += live; return; }
     const proj = projPpgMap.get(pid) || 0;
     const remainingExpected = Math.max(0, proj - live) * (1 - progress);
     const noise = gaussianRandom() * REMAINING_SIGMA * (1 - progress);
@@ -126,21 +137,31 @@ function simulateFinal(starters, startersPoints, progress) {
   return total;
 }
 
-// A separate, deterministic companion to the win-probability simulation above —
-// win% needs real variance to produce a spread of outcomes, but "what's this
-// team's likely final score" doesn't, and forcing it through the same randomized
-// model would make the number jitter between polls for no real reason. Standard
-// convention: whichever is higher, what a starter has already scored or their own
-// normal per-game projection — a player already above their usual output keeps
-// their live total as the projection, one who hasn't gotten going yet (or whose
-// game hasn't started) gets bumped up to what they'd normally be expected to do.
+// A deterministic companion to the win-probability simulation above (no random
+// noise, since a projected TOTAL doesn't need a spread of outcomes the way a win%
+// does — it would just make the number jitter between polls for no real reason).
+// Originally a plain max(live, projection) — whichever was higher — but checking
+// this against Sleeper's own real "projected" number for a live matchup showed
+// that badly overshoots: it credited every underperforming starter with their
+// FULL season-average upside regardless of how far into the real week we already
+// are, so a player whose actual game was long over but who'd had a quiet day
+// still got bumped all the way up to their normal output. Two real fixes, both
+// verified against Sleeper's own numbers for actual live matchups: noMoreUpside()
+// correctly zeroes out anyone whose specific game has already ended (closes the
+// gap exactly — Sleeper shows projected === live, to the decimal, for a team once
+// every starter's real game is over, which weekProgress alone can't know), and
+// the weekProgress() decay on top of that for anyone still mid-game or not yet
+// started closed a ~28-point overshoot on a still-live matchup down to about half
+// a point.
 function projectedFinal(m) {
+  const progress = weekProgress();
   let total = 0;
   (m.starters || []).forEach((pid, i) => {
     if (!pid || pid === '0') return;
     const live = m.starters_points?.[i] ?? 0;
+    if (noMoreUpside(pid)) { total += live; return; }
     const proj = projPpgMap.get(pid) || 0;
-    total += Math.max(live, proj);
+    total += live + Math.max(0, proj - live) * (1 - progress);
   });
   return total;
 }
@@ -187,9 +208,27 @@ function playPattern(p) {
   return `${p.first_name[0]}.${p.last_name}`;
 }
 
+// Every team's real game STATE this week ('pre'/'in'/'post'), from the same
+// scoreboard fetch below (every scheduled game, not just the in-progress
+// subset) — a team missing entirely is this week's bye. This is what actually
+// closes the gap a single league-wide weekProgress can't: two teams can be at
+// wildly different real points in their OWN schedule (one team's whole lineup
+// already in early-window games that are over, another's still got a Monday
+// night player) even though the LEAGUE-wide week is at the same overall
+// progress for both — verified against Sleeper's own real projections, which
+// show projected === live (exactly, to the decimal) for a team once every
+// one of its starters' games has actually ended, something weekProgress alone
+// has no way to know. Starts empty until the first real fetch lands, so
+// nothing gets wrongly treated as "on bye" or "done" before that.
+let teamGameState = new Map();
+let teamsPlayingThisWeek = new Set();
+
 async function fetchEspnLive() {
   try {
     const sb = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard').then(r => r.json());
+    teamGameState = new Map((sb.events || []).flatMap(e =>
+      (e.competitions?.[0]?.competitors || []).map(c => [normTeam(c.team?.abbreviation), e.status?.type?.state || 'pre'])));
+    teamsPlayingThisWeek = new Set(teamGameState.keys());
     const inProgress = (sb.events || []).filter(e => e.status?.type?.state === 'in');
     await Promise.all(inProgress.map(async ev => {
       const teams = (ev.competitions?.[0]?.competitors || []).map(c => normTeam(c.team?.abbreviation));
@@ -423,7 +462,7 @@ function matchupCard(key, a, b, rosterMap, userMap) {
         <div class="text-[13px] font-medium truncate ${leads ? 'text-white' : 'text-zinc-400'}">${Vault.escapeHtml(name)}</div>
       </div>
       <div class="text-[26px] font-mono font-semibold ${leads ? 'text-emerald-400' : 'text-zinc-200'}">${score.toFixed(1)}</div>
-      ${proj != null ? `<div class="text-[11px] text-zinc-500" title="Whichever is higher for each starter: what they've already scored, or their own normal per-game projection">Proj <span class="mono text-zinc-400">${proj.toFixed(1)}</span></div>` : ''}
+      ${proj != null ? `<div class="text-[11px] text-zinc-500" title="Live points plus each remaining starter's projected upside, scaled down as their real game finishes">Proj <span class="mono text-zinc-400">${proj.toFixed(1)}</span></div>` : ''}
     </div>`;
 
   const aName = teamNameFor(a?.rosterId, rosterMap, userMap);
