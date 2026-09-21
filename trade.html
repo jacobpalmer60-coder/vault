@@ -943,6 +943,57 @@ function bestFit(pool, searchTargetAdj, overallTargetAdj, profile) {
   return needFitPct <= VAULT_CONFIG.LOPSIDED_PCT ? needFit : generic;
 }
 
+// A real trade is closer to "my piece (plus maybe a small sweetener) for their
+// best matching piece (plus maybe a small sweetener from them)" than "my one piece
+// for a pile of their scraps" — bestFit alone still only ever adds MORE pieces to
+// the partner's side to hit the target, which is how a single good need-fit asset
+// (worth more than the core alone) gets buried under 2-3 mediocre ones instead of
+// just being the return, with a small throw-in from OUR side closing the gap
+// instead. Picks the partner's single BEST asset at the requested position (or, for
+// ANY, their best asset at one of our own needs, falling back to their best asset
+// overall) — a real partner offers their strongest chip there, not their weakest —
+// then closes whatever value gap is left with a small filler from whichever side
+// is short, priced by what the RECEIVING side of that filler would actually want.
+// Returns null if the gap is too large for a small sweetener to bridge credibly
+// (BALANCED_OFFER_MAX_STRETCH), since that anchor just isn't a realistic single
+// centerpiece for this trade.
+const BALANCED_OFFER_SWAP_TOLERANCE_PCT = 0.12;
+const BALANCED_OFFER_MAX_STRETCH = 0.35;
+function buildBalancedOffer(myAssets, partnerAssets, core, posFilter, myProfile, partnerProfile) {
+  let anchorPool = partnerAssets;
+  if (posFilter && posFilter !== 'ANY') {
+    anchorPool = partnerAssets.filter(a => posFilter === 'PICK' ? a.type === 'pick' : a.pos === posFilter);
+  } else if (myProfile.needs.length) {
+    const needPool = partnerAssets.filter(a => myProfile.needs.includes((a.pos || '').toLowerCase()));
+    if (needPool.length) anchorPool = needPool;
+  }
+  if (!anchorPool.length) return null;
+  const anchor = [...anchorPool].sort((a, b) => b.value - a.value)[0];
+  const coreAdj = Vault.adjustedValue(core.value);
+  const anchorAdj = Vault.adjustedValue(anchor.value);
+  const gapAdj = anchorAdj - coreAdj;
+  const tolerance = Math.max(coreAdj, anchorAdj) * BALANCED_OFFER_SWAP_TOLERANCE_PCT;
+
+  if (Math.abs(gapAdj) <= tolerance) {
+    return { ours: [core], theirs: [anchor], pctOff: realPctOff(core.value, [anchor], myProfile) };
+  }
+  if (gapAdj > 0) {
+    // Their chip is worth more — we sweeten our side, priced by what THEY'D
+    // actually want (need-weighted against the partner, not us).
+    const myPool = myAssets.filter(a => a.key !== core.key);
+    const filler = bestFit(myPool, gapAdj, anchorAdj, partnerProfile);
+    if (!filler || filler.diff > anchorAdj * BALANCED_OFFER_MAX_STRETCH) return null;
+    const ours = [core, ...filler.combo];
+    return { ours, theirs: [anchor], pctOff: realPctOff(anchor.value, ours, partnerProfile) };
+  }
+  // Their chip alone falls short — they sweeten with a small extra, priced by what
+  // WE'D actually want, same convention as the original single-sided search.
+  const partnerPool = partnerAssets.filter(a => a.key !== anchor.key);
+  const filler = bestFit(partnerPool, -gapAdj, coreAdj, myProfile);
+  const theirs = filler ? [anchor, ...filler.combo] : [anchor];
+  return { ours: [core], theirs, pctOff: realPctOff(core.value, theirs, myProfile) };
+}
+
 // Why might `partner` realistically part with `givingAssets`? Reuses the same
 // positional-surplus idea as Team Analyzer's trade-partner suggestions.
 function partnerRationale(partner, givingAssets) {
@@ -1179,13 +1230,17 @@ function renderFinder() {
   ).join('');
 
   const partners = teams.filter(t => t.rosterId !== team.rosterId);
-  // Every partner's package would flow to `team` (whoever's shopping `asset` out),
-  // so it's searched against `team`'s own needs, computed once for every partner.
+  // Every partner's return would flow to `team` (whoever's shopping `asset` out),
+  // so the anchor's need-fit is judged against `team`'s own needs, computed once
+  // for every partner. buildBalancedOffer can still ask `team` to sweeten its own
+  // side (see its own comment) — that's judged against each partner's needs
+  // instead, computed per-partner below.
   const teamProfile = Vault.positionalProfile(team, teams);
   const results = partners.map(partner => {
-    const combo = anchoredCombo(partner.assets, asset.value, position, teamProfile);
-    if (!combo) return null;
-    return { partner, combo, pctOff: combo.pctOff, rationale: partnerRationale(partner, combo.combo) };
+    const partnerProfile = Vault.positionalProfile(partner, teams);
+    const offer = buildBalancedOffer(team.assets, partner.assets, asset, position, teamProfile, partnerProfile);
+    if (!offer) return null;
+    return { partner, offer, pctOff: offer.pctOff, rationale: partnerRationale(partner, offer.theirs) };
   }).filter(Boolean).sort((a, b) => a.pctOff - b.pctOff).slice(0, 5);
 
   const resultsEl = document.getElementById('finderResults');
@@ -1193,11 +1248,15 @@ function renderFinder() {
     resultsEl.innerHTML = `<div class="text-[12px] text-zinc-500 py-2">No team has a ${position} package close to this value.</div>`;
     return;
   }
-  resultsEl.innerHTML = results.map(r => `
+  resultsEl.innerHTML = results.map(r => {
+    const sum = r.offer.theirs.reduce((s, a) => s + a.value, 0);
+    const extraOurs = r.offer.ours.filter(a => a.key !== key);
+    return `
     <div class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 flex-wrap">
       <div class="min-w-0">
         <div class="text-[13px] font-medium">${Vault.escapeHtml(r.partner.teamName)} <span class="text-[11px] text-zinc-500">(${r.partner.arch})</span></div>
-        <div class="text-[12px] text-zinc-300 mt-0.5">${r.combo.combo.map(a => Vault.escapeHtml(a.name)).join(' + ')} <span class="mono text-zinc-500">${Math.round(r.combo.sum).toLocaleString()}</span></div>
+        <div class="text-[12px] text-zinc-300 mt-0.5">${r.offer.theirs.map(a => Vault.escapeHtml(a.name)).join(' + ')} <span class="mono text-zinc-500">${Math.round(sum).toLocaleString()}</span></div>
+        ${extraOurs.length ? `<div class="text-[11px] text-amber-300/70 mt-1">You'd also send: ${extraOurs.map(a => Vault.escapeHtml(a.name)).join(' + ')}</div>` : ''}
         <div class="text-[11px] text-sky-300/70 mt-1">${r.rationale.join(' · ')}</div>
       </div>
       <div class="flex items-center gap-3 shrink-0">
@@ -1206,7 +1265,8 @@ function renderFinder() {
         </div>
         <button onclick="proposeFromFinder('${r.partner.rosterId}')" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function proposeFromFinder(partnerId) {
@@ -1219,8 +1279,11 @@ function proposeFromFinder(partnerId) {
   const team = teamOf(side);
   const asset = team.assets.find(a => a.key === key);
   const partner = teamOf(other);
-  const combo = anchoredCombo(partner.assets, asset.value, finderState.position, Vault.positionalProfile(team, teams));
-  if (combo) combo.combo.forEach(a => (other === 'A' ? selectedA : selectedB).add(a.key));
+  const offer = buildBalancedOffer(team.assets, partner.assets, asset, finderState.position, Vault.positionalProfile(team, teams), Vault.positionalProfile(partner, teams));
+  if (offer) {
+    offer.theirs.forEach(a => (other === 'A' ? selectedA : selectedB).add(a.key));
+    offer.ours.forEach(a => (side === 'A' ? selectedA : selectedB).add(a.key));
+  }
 
   closeFinder();
   render('A'); render('B');
