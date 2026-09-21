@@ -461,6 +461,16 @@ function render() {
   grid.innerHTML = pairs.map(p => matchupCard(p.key, p.a, p.b, rosterMap, userMap)).join('');
 }
 
+// Season record going into this week — Sleeper tracks wins/losses/ties directly
+// on the roster once a week's matchups finalize, so this is the real standings
+// record (not derived from anything computed here), same as what Sleeper's own
+// matchups view shows next to each team name.
+function recordFor(rosterId, rosterMap) {
+  const rs = rosterMap.get(rosterId)?.settings || {};
+  const wins = rs.wins || 0, losses = rs.losses || 0, ties = rs.ties || 0;
+  return ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
+}
+
 function matchupCard(key, a, b, rosterMap, userMap) {
   const aScore = a?.m.points || 0, bScore = b ? (b.m.points || 0) : 0;
   const total = aScore + bScore;
@@ -472,11 +482,12 @@ function matchupCard(key, a, b, rosterMap, userMap) {
   // even when the simulation itself came back essentially there.
   const aWinPct = b ? Math.max(1, Math.min(99, winProbability(a.m, b.m))) : null;
 
-  const side = (rosterId, score, leads, letter, color, name, proj) => `
+  const side = (rosterId, score, leads, letter, color, name, proj, record) => `
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 mb-1">
         <div class="size-6 rounded-lg ${color} flex items-center justify-center text-[11px] font-semibold text-black shrink-0">${letter}</div>
         <div class="text-[13px] font-medium truncate ${leads ? 'text-white' : 'text-zinc-400'}">${Vault.escapeHtml(name)}</div>
+        <span class="text-[10px] mono text-zinc-600 shrink-0" title="Record going into this week">${record}</span>
       </div>
       <div class="text-[26px] font-mono font-semibold ${leads ? 'text-emerald-400' : 'text-zinc-200'}">${score.toFixed(1)}</div>
       ${proj != null ? `<div class="text-[11px] text-zinc-500" title="Live points plus each remaining starter's projected upside, scaled down as their real game finishes">Proj <span class="mono text-zinc-400">${proj.toFixed(1)}</span></div>` : ''}
@@ -486,12 +497,14 @@ function matchupCard(key, a, b, rosterMap, userMap) {
   const bName = b ? teamNameFor(b.rosterId, rosterMap, userMap) : null;
   const aProj = a ? projectedFinal(a.m) : null;
   const bProj = b ? projectedFinal(b.m) : null;
+  const aRecord = a ? recordFor(a.rosterId, rosterMap) : null;
+  const bRecord = b ? recordFor(b.rosterId, rosterMap) : null;
 
   return `
     <div class="card rounded-vault-sm p-4 ${b ? 'cursor-pointer card-hover' : ''}" ${b ? `onclick="toggleExpand('${key}')"` : ''}>
       <div class="flex items-center gap-4">
-        ${side(a?.rosterId, aScore, aLeads, 'A', 'bg-gradient-to-br from-amber-400 to-yellow-600', aName, aProj)}
-        ${b ? `<div class="text-zinc-700 text-[11px] uppercase tracking-widest shrink-0">vs</div>${side(b.rosterId, bScore, bLeads, 'B', 'bg-gradient-to-br from-sky-500 to-cyan-600', bName, bProj)}` : `<div class="text-[12px] text-zinc-500 shrink-0 px-2">Bye week</div>`}
+        ${side(a?.rosterId, aScore, aLeads, 'A', 'bg-gradient-to-br from-amber-400 to-yellow-600', aName, aProj, aRecord)}
+        ${b ? `<div class="text-zinc-700 text-[11px] uppercase tracking-widest shrink-0">vs</div>${side(b.rosterId, bScore, bLeads, 'B', 'bg-gradient-to-br from-sky-500 to-cyan-600', bName, bProj, bRecord)}` : `<div class="text-[12px] text-zinc-500 shrink-0 px-2">Bye week</div>`}
       </div>
       ${b ? `<div class="mt-3 h-1.5 rounded-full bg-white/[0.06] overflow-hidden flex" title="Share of combined live points">
         <div class="h-full bg-emerald-400/70" style="width:${aPct}%"></div>
