@@ -125,6 +125,25 @@ function simulateFinal(starters, startersPoints, progress) {
   return total;
 }
 
+// A separate, deterministic companion to the win-probability simulation above —
+// win% needs real variance to produce a spread of outcomes, but "what's this
+// team's likely final score" doesn't, and forcing it through the same randomized
+// model would make the number jitter between polls for no real reason. Standard
+// convention: whichever is higher, what a starter has already scored or their own
+// normal per-game projection — a player already above their usual output keeps
+// their live total as the projection, one who hasn't gotten going yet (or whose
+// game hasn't started) gets bumped up to what they'd normally be expected to do.
+function projectedFinal(m) {
+  let total = 0;
+  (m.starters || []).forEach((pid, i) => {
+    if (!pid || pid === '0') return;
+    const live = m.starters_points?.[i] ?? 0;
+    const proj = projPpgMap.get(pid) || 0;
+    total += Math.max(live, proj);
+  });
+  return total;
+}
+
 // Once the real scoring window is effectively over, there's no meaningful
 // variance left to simulate — just compare the (now final) live totals directly
 // rather than let simulation noise report anything other than ~100%/0%.
@@ -383,23 +402,26 @@ function matchupCard(key, a, b, rosterMap, userMap) {
   // even when the simulation itself came back essentially there.
   const aWinPct = b ? Math.max(1, Math.min(99, winProbability(a.m, b.m))) : null;
 
-  const side = (rosterId, score, leads, letter, color, name) => `
+  const side = (rosterId, score, leads, letter, color, name, proj) => `
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 mb-1">
         <div class="size-6 rounded-lg ${color} flex items-center justify-center text-[11px] font-semibold text-black shrink-0">${letter}</div>
         <div class="text-[13px] font-medium truncate ${leads ? 'text-white' : 'text-zinc-400'}">${Vault.escapeHtml(name)}</div>
       </div>
       <div class="text-[26px] font-mono font-semibold ${leads ? 'text-emerald-400' : 'text-zinc-200'}">${score.toFixed(1)}</div>
+      ${proj != null ? `<div class="text-[11px] text-zinc-500" title="Whichever is higher for each starter: what they've already scored, or their own normal per-game projection">Proj <span class="mono text-zinc-400">${proj.toFixed(1)}</span></div>` : ''}
     </div>`;
 
   const aName = teamNameFor(a?.rosterId, rosterMap, userMap);
   const bName = b ? teamNameFor(b.rosterId, rosterMap, userMap) : null;
+  const aProj = a ? projectedFinal(a.m) : null;
+  const bProj = b ? projectedFinal(b.m) : null;
 
   return `
     <div class="card rounded-vault-sm p-4 ${b ? 'cursor-pointer card-hover' : ''}" ${b ? `onclick="toggleExpand('${key}')"` : ''}>
       <div class="flex items-center gap-4">
-        ${side(a?.rosterId, aScore, aLeads, 'A', 'bg-gradient-to-br from-amber-400 to-yellow-600', aName)}
-        ${b ? `<div class="text-zinc-700 text-[11px] uppercase tracking-widest shrink-0">vs</div>${side(b.rosterId, bScore, bLeads, 'B', 'bg-gradient-to-br from-sky-500 to-cyan-600', bName)}` : `<div class="text-[12px] text-zinc-500 shrink-0 px-2">Bye week</div>`}
+        ${side(a?.rosterId, aScore, aLeads, 'A', 'bg-gradient-to-br from-amber-400 to-yellow-600', aName, aProj)}
+        ${b ? `<div class="text-zinc-700 text-[11px] uppercase tracking-widest shrink-0">vs</div>${side(b.rosterId, bScore, bLeads, 'B', 'bg-gradient-to-br from-sky-500 to-cyan-600', bName, bProj)}` : `<div class="text-[12px] text-zinc-500 shrink-0 px-2">Bye week</div>`}
       </div>
       ${b ? `<div class="mt-3 h-1.5 rounded-full bg-white/[0.06] overflow-hidden flex" title="Share of combined live points">
         <div class="h-full bg-emerald-400/70" style="width:${aPct}%"></div>
