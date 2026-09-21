@@ -24,7 +24,16 @@
   </div>
   <p id="status" class="text-[13px] text-zinc-500 mb-6">Loading…</p>
 
-  <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr_300px] gap-5 items-start">
+  <!-- My Matchups now spans the full width across the top — a wide grid that packs
+       as many matchup cards per row as fit, wrapping only when it has to, instead
+       of being squeezed into a narrow sidebar column. -->
+  <div class="mb-6">
+    <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-3">My Matchups</div>
+    <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4"></div>
+    <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5 items-start">
     <!-- Weekly Leaders: top scorers by position among YOUR league's own rostered
          players this week — not NFL-wide, since that's not what a manager here is
          actually trying to decide anything from. Every number already comes from
@@ -50,14 +59,6 @@
       </div>
       <div id="feedPanel" class="max-h-[70vh] overflow-y-auto scrollbar pr-1"></div>
     </main>
-
-    <!-- My Matchups keeps the full detail (roster breakdown per side, on expand) —
-         this sidebar slot is just narrower, not stripped down. -->
-    <div>
-      <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-3">My Matchups</div>
-      <div id="grid" class="space-y-5"></div>
-      <div id="empty" class="hidden text-center text-[13px] text-zinc-500 py-16"></div>
-    </div>
   </div>
 </div>
 
