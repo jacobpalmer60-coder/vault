@@ -1683,23 +1683,21 @@ const Vault = {
     return { aValAdjNeed, bValAdjNeed };
   },
 
-  // Need-weighting is meant to refine a close call, not launder a genuinely
-  // lopsided trade into reading as fair. Real case that surfaced this: a team
-  // receiving one elite piece for two lesser ones (a real ~30% sticker-value gap,
-  // matching KeepTradeCut's own read) need-adjusted all the way down to ~0%
-  // because the exact positions involved happened to be a mirror-image need/
-  // surplus match on both sides — the ±15% multipliers (POS_NEED_MULTIPLIER /
-  // POS_SURPLUS_MULTIPLIER) can each swing a side by 15%, so a trade where both
-  // sides get the full push in the same direction can move by ~35% relative,
-  // enough to fully erase or even invert a real mismatch. This floors how far
-  // need-weighting can pull the reading toward "more fair" than the raw sticker
-  // number — it can still cut a bad number substantially (up to half), just never
-  // launder it away entirely. Never floors the other direction (need revealing a
-  // trade is WORSE than sticker price suggests, i.e. pctDiffNeed > pctDiff) —
-  // only "looks fairer than it should" is the trust problem here.
-  NEED_ADJUSTMENT_FLOOR_RATIO: 0.5,
-  clampNeedAdjustedPct(pctDiff, pctDiffNeed) {
-    return Math.max(pctDiffNeed, pctDiff * Vault.NEED_ADJUSTMENT_FLOOR_RATIO);
+  // Need-weighting is meant to refine a close call, not decide the verdict —
+  // the trade's real dollar value has to stay the dominant signal. Original
+  // design only floored the "looks fairer" direction (up to a 50% cut), which
+  // left need able to swing the reading by up to ~35% relative on its own (the
+  // ±15% multipliers, POS_NEED_MULTIPLIER / POS_SURPLUS_MULTIPLIER, compounding
+  // across both sides) — real case that surfaced this: a genuine ~30% sticker-
+  // value gap (matching KeepTradeCut's own read) need-adjusted down to ~0%
+  // because the positions involved were a mirror-image need/surplus match on
+  // both sides. Rather than cap just one direction, blend raw sticker % and
+  // need-adjusted % at a fixed 90/10 weight — value stays the dominant input
+  // everywhere, need can only nudge the reading a little either way, and it can
+  // never fully launder (or fully manufacture) a lopsided verdict.
+  VALUE_WEIGHT: 0.9,
+  blendNeedAdjustedPct(pctDiff, pctDiffNeed) {
+    return pctDiff * Vault.VALUE_WEIGHT + pctDiffNeed * (1 - Vault.VALUE_WEIGHT);
   },
 
   /* ---------- Value confidence / uncertainty ----------
@@ -2491,9 +2489,9 @@ const Vault = {
     const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toB, toA);
     const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
     const rawSignedPctDiffNeed = (aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100;
-    // Floored against the raw sticker % — need-weighting can soften a bad number,
-    // never launder it away entirely. See Vault.clampNeedAdjustedPct.
-    const pctDiffNeed = Vault.clampNeedAdjustedPct(pctDiff, Math.abs(rawSignedPctDiffNeed));
+    // Blended 90/10 against the raw sticker % — need-weighting nudges, value still
+    // decides. See Vault.blendNeedAdjustedPct.
+    const pctDiffNeed = Vault.blendNeedAdjustedPct(pctDiff, Math.abs(rawSignedPctDiffNeed));
     const signedPctDiffNeed = Math.sign(rawSignedPctDiffNeed || 1) * pctDiffNeed;
     // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand) — for a
     // completed trade this reads less like "how sure are we" and more like "how much
