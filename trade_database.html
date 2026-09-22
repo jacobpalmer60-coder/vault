@@ -68,19 +68,23 @@ function pprLabel(code) { return { 1: '0 PPR', 2: '0.5 PPR', 3: '1 PPR', 4: 'Tie
 function tepLabel(code) { return { 0: 'No TE Premium', 1: 'TE+', 2: 'TE++', 3: 'TE+++' }[code] || '—'; }
 
 function assetLabel(id, playerMap, pickMap) {
-  if (!/^\d+$/.test(id)) return { name: id, value: 0 }; // "2027 Round 2" / "2026 Pick 1.06" style labels
+  if (!/^\d+$/.test(id)) return { name: id, value: 0, pos: null }; // "2027 Round 2" / "2026 Pick 1.06" style labels
   const p = playerMap.get(+id);
-  if (p) return { name: p.name, value: p.value };
+  if (p) return { name: p.name, value: p.value, pos: p.pos };
   const pk = pickMap.get(+id);
-  if (pk) return { name: pk.label, value: pk.value };
-  return { name: `Unknown asset #${id}`, value: 0 };
+  if (pk) return { name: pk.label, value: pk.value, pos: null };
+  return { name: `Unknown asset #${id}`, value: 0, pos: null };
 }
 
+// Same colored position pill used elsewhere on the site (vault.css's
+// .pos-badge-*) — a bare player name with no position shown means a reader
+// can't tell what they're looking at without already knowing every player.
+const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
 function assetChips(ids, playerMap, pickMap) {
   if (!ids.length) return '<span class="text-zinc-400">Nothing</span>';
   return ids.map(id => {
     const a = assetLabel(id, playerMap, pickMap);
-    return `<span class="inline-flex items-center gap-1.5 mr-3 mb-1"><span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span>${a.value > 0 ? `<span class="text-zinc-400 text-[12px] mono">${Math.round(a.value).toLocaleString()}</span>` : ''}</span>`;
+    return `<span class="inline-flex items-center gap-1.5 mr-3 mb-1">${a.pos ? `<span class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span>` : ''}<span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span>${a.value > 0 ? `<span class="text-zinc-400 text-[12px] mono">${Math.round(a.value).toLocaleString()}</span>` : ''}</span>`;
   }).join('');
 }
 
@@ -143,7 +147,7 @@ async function init() {
     const valueField = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(league.scoring_settings?.bonus_rec_te);
     const playerMap = new Map();
     (ktcData.players || []).forEach(p => {
-      if (p.ktcId != null) playerMap.set(p.ktcId, { name: p.name, value: p[valueField] });
+      if (p.ktcId != null) playerMap.set(p.ktcId, { name: p.name, value: p[valueField], pos: p.pos });
     });
     const pickMap = new Map();
     (ktcData.picks || []).forEach(p => {
