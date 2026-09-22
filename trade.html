@@ -563,15 +563,26 @@ function runSuggestTradeSearch() {
     // matching package (mirrors the "Find" shop-out flow, run automatically). The
     // package flows to ME, so it's searched against MY profile — a package that
     // actually fills my need can settle for less sticker value and still get found.
+    // When the anchor itself is a pick, the return pool excludes the partner's own
+    // picks — picks are cheap and plentiful, so "closest value match" very often
+    // finds another similarly-priced pick, producing a pick-for-pick "trade" that
+    // changes nothing about either roster this year (or ever, really) and just
+    // clutters the list with technically-fair, actually-pointless suggestions. A
+    // player anchor still searches the partner's full pool, including picks —
+    // selling a player for future capital is a real, common trade type.
     myAnchors.forEach(mine => {
-      const combo = bestCombo(partner.assets, mine.value, myProfile);
+      const pool = mine.type === 'pick' ? partner.assets.filter(a => a.type !== 'pick') : partner.assets;
+      const combo = bestCombo(pool, mine.value, myProfile);
       if (combo) consider(partner, [mine], combo.combo);
     });
     // Direction 2: Team A acquires one of the partner's meaningful assets, sending
     // its own best matching package (mirrors the Finder's acquire-mode flow) — this
-    // package flows to THEM, so it's searched against their profile instead.
+    // package flows to THEM, so it's searched against their profile instead. Same
+    // pick-anchor guard, mirrored: acquiring one of their picks searches only my
+    // own players to send back, not my picks.
     tradeableAssets(partner).forEach(theirs => {
-      const combo = bestCombo(myTeam.assets, theirs.value, partnerProfile);
+      const pool = theirs.type === 'pick' ? myTeam.assets.filter(a => a.type !== 'pick') : myTeam.assets;
+      const combo = bestCombo(pool, theirs.value, partnerProfile);
       if (combo) consider(partner, combo.combo, [theirs]);
     });
   });
