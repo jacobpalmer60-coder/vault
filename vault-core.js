@@ -123,6 +123,25 @@ const VAULT_CONFIG = {
 
 /* ---------- League ID handling (shared across every page) ---------- */
 const Vault = {
+  // Red-yellow-green, same colors as the Trade Calculator/Trade Grades fairness bar
+  // — a solid color picked by where a value falls in the OBSERVED min-max range for
+  // its column/stat (like a spreadsheet's color-scale conditional formatting), not
+  // a fixed gradient. A fixed gradient looks almost the same color on every row
+  // whenever real values cluster tightly near the top (the normal case), since the
+  // visible sliver is always just its yellow-green tail end. Takes `t` already
+  // normalized 0-1 by the caller (this team's value mapped into the observed
+  // min-max range for whatever stat is being colored) — shared by League Overview
+  // and Team Analyzer so both read the same standing the same way.
+  heatColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    const stops = [[251, 113, 133], [251, 191, 36], [52, 211, 153]]; // rose-400, amber-400, emerald-400
+    const seg = t < 0.5 ? 0 : 1;
+    const local = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
+    const [r1, g1, b1] = stops[seg], [r2, g2, b2] = stops[seg + 1];
+    const mix = (a, b) => Math.round(a + (b - a) * local);
+    return `rgb(${mix(r1, r2)},${mix(g1, g2)},${mix(b1, b2)})`;
+  },
+
   getLeagueId() {
     const fromUrl = new URLSearchParams(location.search).get('league_id');
     if (fromUrl) {

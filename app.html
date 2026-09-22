@@ -134,31 +134,16 @@ function projectedText(t) {
   return { rec, playoffPct: p.playoffPct, championshipPct: p.championshipPct };
 }
 
-// Red-yellow-green, same colors as the Trade Calculator/Trade Grades fairness bar —
-// but as a solid color picked by where a team falls in the OBSERVED range for this
-// column (like a spreadsheet's color-scale conditional formatting), not a fixed
-// gradient truncated by a 0-to-max fill length. A fixed gradient looked almost the
-// same color on every row whenever a column's real values cluster tightly near the
-// top (the normal case — QB/RB/WR/TE/Overall for a set of real rosters rarely spans
-// anywhere close to 0), since the visible sliver of the gradient was always just
-// its yellow-green tail end. Normalizing to THIS column's own min-max spreads the
-// full red-to-green range across whatever variation actually exists, so the worst
-// team in view reads clearly red and the best clearly green regardless of how
-// bunched the raw numbers are — and the bar's length now encodes the same relative
-// standing as its color, instead of two signals telling slightly different stories.
-function heatColor(t) {
-  t = Math.max(0, Math.min(1, t));
-  const stops = [[251, 113, 133], [251, 191, 36], [52, 211, 153]]; // rose-400, amber-400, emerald-400
-  const seg = t < 0.5 ? 0 : 1;
-  const local = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
-  const [r1, g1, b1] = stops[seg], [r2, g2, b2] = stops[seg + 1];
-  const mix = (a, b) => Math.round(a + (b - a) * local);
-  return `rgb(${mix(r1, r2)},${mix(g1, g2)},${mix(b1, b2)})`;
-}
+// Normalizing to THIS column's own min-max (via the shared Vault.heatColor)
+// spreads the full red-to-green range across whatever variation actually exists,
+// so the worst team in view reads clearly red and the best clearly green
+// regardless of how bunched the raw numbers are — and the bar's length now
+// encodes the same relative standing as its color, instead of two signals
+// telling slightly different stories.
 function microBar(val, min, max) {
   const t = max > min ? (val - min) / (max - min) : 0.5;
   const pct = Math.max(3, Math.min(100, t * 100));
-  return `<div class="mt-1.5 h-[4px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%; background:${heatColor(t)}"></div></div>`;
+  return `<div class="mt-1.5 h-[4px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%; background:${Vault.heatColor(t)}"></div></div>`;
 }
 
 const POS_TEXT = { QB: 'text-fuchsia-300/80', RB: 'text-emerald-300/80', WR: 'text-sky-300/80', TE: 'text-amber-300/80' };
