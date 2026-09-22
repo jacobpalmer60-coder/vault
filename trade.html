@@ -1372,22 +1372,31 @@ function capPct(pct) { return Math.sign(pct) * Math.min(100, Math.abs(pct)); }
 // territory where showing the marker even further right stops adding information.
 const FAIRNESS_BAR_MAX = 60;
 
-// A green-to-amber-to-red gradient track standing in for the Fair/Borderline/
-// Lopsided badge — the gradient's own color stops sit exactly at FAIR_PCT/
-// LOPSIDED_PCT, so the bar and the text badge are always reading the same
-// thresholds, never two numbers that could quietly drift apart. The white dot
-// marks the point estimate (pctDiffNeed); the translucent band around it (when
-// there's enough price history to say anything — see Vault.tradeConfidenceBand)
-// is the same ± range as the text callout below it, just made visible at a glance.
-function fairnessBarHtml(pctDiffNeed, bandPct) {
-  const pos = p => Math.min(100, Math.max(0, p / FAIRNESS_BAR_MAX * 100));
-  const marker = pos(pctDiffNeed);
-  const fairStop = pos(VAULT_CONFIG.FAIR_PCT);
-  const lopStop = pos(VAULT_CONFIG.LOPSIDED_PCT);
-  const band = bandPct >= 1 ? { lo: pos(Math.max(0, pctDiffNeed - bandPct)), hi: pos(pctDiffNeed + bandPct) } : null;
+// Symmetric, center-out layout: 0% (perfectly even) sits in the MIDDLE, widening
+// through Borderline into Lopsided as the trade favors either side more — matches
+// how fairness actually works (favoring EITHER side by a lot is equally lopsided),
+// instead of a single left-to-right scale with no sense of which direction. The
+// background bands are fixed reference zones (same FAIR_PCT/LOPSIDED_PCT
+// thresholds as the text badge, mirrored on both sides of center); the white dot
+// is the one thing that actually moves, showing both how far off AND which side
+// is ahead. The translucent band around it (when there's enough price history to
+// say anything — see Vault.tradeConfidenceBand) is the same ± range as the text
+// callout below it, just made visible at a glance.
+function fairnessBarHtml(signedPctDiffNeed, bandPct) {
+  const half = FAIRNESS_BAR_MAX;
+  const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
+  const fairHi = toX(VAULT_CONFIG.FAIR_PCT), fairLo = toX(-VAULT_CONFIG.FAIR_PCT);
+  const lopHi = toX(VAULT_CONFIG.LOPSIDED_PCT), lopLo = toX(-VAULT_CONFIG.LOPSIDED_PCT);
+  const marker = toX(signedPctDiffNeed);
+  const band = bandPct >= 1 ? { lo: toX(signedPctDiffNeed - bandPct), hi: toX(signedPctDiffNeed + bandPct) } : null;
   return `
-    <div class="relative h-1.5 rounded-full overflow-hidden" style="background: linear-gradient(to right, #34d399 0%, #34d399 ${fairStop}%, #fbbf24 ${fairStop}%, #fbbf24 ${lopStop}%, #fb7185 ${lopStop}%, #fb7185 100%);">
-      ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${band.lo}%; width:${Math.max(0.75, band.hi - band.lo)}%;"></div>` : ''}
+    <div class="relative h-1.5 rounded-full overflow-hidden" style="background: linear-gradient(to right,
+      #fb7185 0%, #fb7185 ${lopLo}%,
+      #fbbf24 ${lopLo}%, #fbbf24 ${fairLo}%,
+      #34d399 ${fairLo}%, #34d399 ${fairHi}%,
+      #fbbf24 ${fairHi}%, #fbbf24 ${lopHi}%,
+      #fb7185 ${lopHi}%, #fb7185 100%);">
+      ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${Math.min(band.lo, band.hi)}%; width:${Math.max(0.75, Math.abs(band.hi - band.lo))}%;"></div>` : ''}
       <div class="absolute top-1/2 size-2.5 rounded-full bg-white ring-2 ring-black/50" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
     </div>`;
 }
@@ -1461,7 +1470,8 @@ function updateTrade() {
   // checkable fact); the label/color below is what changed.
   const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
   const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
-  const pctDiffNeed = Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100;
+  const signedPctDiffNeed = (aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100;
+  const pctDiffNeed = Math.abs(signedPctDiffNeed);
   const diffEl = document.getElementById('diff');
   diffEl.textContent = Math.round(diffAdj).toLocaleString();
   diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400');
@@ -1472,7 +1482,7 @@ function updateTrade() {
   diffLabelEl.title = `Need-adjusted — weights each side by what the RECEIVING team actually needs there. By value alone (KTC's own consolidation adjustment, before need), this trade is ${capPct(pctDiff).toFixed(0)}% off.`;
   diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-400');
   const { bandPct: diffBandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed);
-  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(pctDiffNeed, diffBandPct) : '';
+  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(signedPctDiffNeed, diffBandPct) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdjNeed, bValAdjNeed, pctDiffNeed, diffBandPct);
 
   // Gap-closer suggestion
@@ -1703,7 +1713,8 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   // worth keeping, just not the one that should gate the fairness label.
   const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
   const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
-  const pctDiffNeed = avgSideAdjNeed ? Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
+  const signedPctDiffNeed = avgSideAdjNeed ? (aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
+  const pctDiffNeed = Math.abs(signedPctDiffNeed);
   const { bandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed);
 
   const resA = analyzeSide(before.A, after.A);
@@ -1742,7 +1753,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
   const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiffNeed, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
 
-  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, bandPct, verdict };
+  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiffNeed, bandPct, verdict };
 }
 
 function toggleOfferedBy(side) {
@@ -1767,7 +1778,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   document.getElementById('analysisA').classList.remove('hidden');
   document.getElementById('analysisB').classList.remove('hidden');
 
-  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiffNeed, bandPct, verdict } =
+  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiffNeed, signedPctDiffNeed, bandPct, verdict } =
     computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
   const displayVerdict = offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
 
@@ -1835,7 +1846,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
       <div class="text-[28px] font-semibold leading-tight ${TONE[displayVerdict.tone]}">${displayVerdict.label}</div>
     </div>
     <div class="text-[17px] font-medium leading-snug ${TONE[displayVerdict.tone]}">${displayVerdict.text}</div>
-    <div class="max-w-sm mt-3">${fairnessBarHtml(pctDiffNeed, bandPct)}</div>
+    <div class="max-w-sm mt-3">${fairnessBarHtml(signedPctDiffNeed, bandPct)}</div>
     <div class="text-[11px] text-zinc-400 mt-1.5">${confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiffNeed, bandPct)}</div>`;
 }
 

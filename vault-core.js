@@ -2452,7 +2452,8 @@ const Vault = {
     // sticker-price version, kept for the recap text and as a tooltip detail.
     const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toB, toA);
     const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
-    const pctDiffNeed = Math.abs(aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100;
+    const signedPctDiffNeed = (aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100;
+    const pctDiffNeed = Math.abs(signedPctDiffNeed);
     // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand) — for a
     // completed trade this reads less like "how sure are we" and more like "how much
     // of this verdict rode on pieces that were genuinely unproven at the time," since
@@ -2477,7 +2478,7 @@ const Vault = {
     const verdict = Vault.historyVerdict(pctDiffNeed, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, bandPct, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiffNeed, bandPct, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
   },
 
   // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
