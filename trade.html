@@ -13,15 +13,15 @@
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1400px] mx-auto p-6 lg:p-8">
-  <div class="flex items-center justify-between mb-6">
+<div class="max-w-[1400px] mx-auto p-6 lg:p-10">
+  <div class="flex items-center justify-between mb-8">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Trade Calculator</h1>
-      <p id="status" class="text-[13px] text-zinc-400 mt-1">Connecting...</p>
+      <p id="status" class="text-[13px] text-zinc-400 mt-1.5">Connecting...</p>
     </div>
     <div class="flex items-center gap-2 flex-wrap justify-end">
-      <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-emerald-500/25 text-[12px] text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">✨ Suggest a Trade</button>
-      <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-sky-500/25 text-[12px] text-sky-300/80 hover:text-sky-200 hover:border-sky-500/50 hover:bg-sky-500/5 transition-colors">🔍 Find a Trade</button>
+      <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-emerald-500/25 text-[12px] text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3 11 7l4 1.5L11 10l-1.5 4L8 10l-4-1.5L8 7z"/><path d="M18 13l.9 2.1L21 16l-2.1.9L18 19l-.9-2.1L15 16l2.1-.9z"/></svg>Suggest a Trade</button>
+      <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-sky-500/25 text-[12px] text-sky-300/80 hover:text-sky-200 hover:border-sky-500/50 hover:bg-sky-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find a Trade</button>
       <div class="h-8 px-3 rounded-lg bg-black/40 border border-white/8 flex items-center gap-2 text-[12px] text-zinc-400">
         <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
         Live Values
@@ -382,8 +382,12 @@ function backToSetup() {
 function teamOf(side) { return teams.find(t => t.rosterId == document.getElementById(`team${side}`).value); }
 function otherSide(side) { return side === 'A' ? 'B' : 'A'; }
 
+// Same colored position pill Player Rankings already uses (vault.css's
+// .pos-badge-*), instead of plain grey position text — one consistent color
+// system across the site instead of one page having it and the rest not.
+const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
 function assetRow(side, a, isSelected, extra) {
-  const sub = a.type === 'pick' ? `<span class="text-[11px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="text-[11px] text-zinc-400">${a.pos}</span><span class="text-[11px] text-zinc-400">${a.team || ''}</span>`;
+  const sub = a.type === 'pick' ? `<span class="text-[11px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[11px] text-zinc-400">${a.team || ''}</span>`;
   // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
   // enough to actually mean something, not turn into visual noise on half the roster.
   // Picks use their own thresholds (Vault.pickVolatilityLabel) — reusing the
@@ -411,7 +415,7 @@ function assetRow(side, a, isSelected, extra) {
   // collide with a long player's name depending on exactly how much room was left.
   return `
     <div class="group/item ${extra || ''}">
-      <div onclick="toggle('${side}','${a.key}')" class="px-3 py-2 mx-1 my-0.5 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
+      <div onclick="toggle('${side}','${a.key}')" class="px-3 py-2.5 mx-1 my-0.5 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
         <div class="flex items-center gap-2">
           <span class="text-[14px] truncate flex-1 min-w-0 ${isSelected ? 'text-white' : 'text-zinc-100 group-hover/item:text-white'}" title="${Vault.escapeHtml(a.name)}">${Vault.escapeHtml(a.name)}</span>
           <div class="text-[13px] mono font-medium shrink-0 ${isSelected ? 'text-white' : 'text-zinc-400'}">${Math.round(a.value).toLocaleString()}</div>
@@ -1797,7 +1801,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   const loseSide = dValueAdjA <= dValueAdjB ? 'A' : 'B';
   const loseTeamName = loseSide === 'A' ? teamA.teamName : teamB.teamName;
   document.getElementById('balanceBtn').innerHTML = verdict.tone !== 'good'
-    ? `<button onclick="balanceSide('${loseSide}', this)" title="Keep Team ${loseSide === 'A' ? 'B' : 'A'}'s side exactly as selected, and look for a different ${Vault.escapeHtml(loseTeamName)} package that reads as a better fit" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors">⚖️ Balance ${Vault.escapeHtml(loseTeamName)}</button>`
+    ? `<button onclick="balanceSide('${loseSide}', this)" title="Keep Team ${loseSide === 'A' ? 'B' : 'A'}'s side exactly as selected, and look for a different ${Vault.escapeHtml(loseTeamName)} package that reads as a better fit" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l-3 6a4 4 0 0 0 6 0zM19 8l-3 6a4 4 0 0 0 6 0zM5 8h14M9 3h6"/></svg>Balance ${Vault.escapeHtml(loseTeamName)}</button>`
     : '';
 
   [['A', before.A, after.A, resA, dValueAdjA], ['B', before.B, after.B, resB, dValueAdjB]].forEach(([side, bef, aft, res, dValueAdj]) => {
