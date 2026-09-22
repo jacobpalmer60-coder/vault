@@ -84,7 +84,7 @@ function renderCard(s, rank, maxAbsNet) {
         <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[11px] text-zinc-400">Trades</div></div>
         <div><div class="text-[14px] mono">${s.won}-${s.lost}</div><div class="text-[11px] text-zinc-400" title="Trades that came out ahead vs. behind on value">Trade W-L</div></div>
         <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.avgFit, 1)}</div><div class="text-[11px] text-zinc-400">Avg Fit</div></div>
-        <div><div class="text-[14px] mono">${s.fair}/${s.borderline}/${s.lopsided}</div><div class="text-[11px] text-zinc-400" title="Fair / Borderline / Lopsided">F/B/L</div></div>
+        <div><div class="text-[14px] mono">${s.fair}/${s.lopsided}/${s.unfair}</div><div class="text-[11px] text-zinc-400" title="Fair / Lopsided / Unfair">F/L/U</div></div>
       </div>
 
       <div class="space-y-2 mb-4">

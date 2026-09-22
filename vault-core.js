@@ -78,7 +78,7 @@ const VAULT_CONFIG = {
     TE: { young: 24, veteran: 28 }
   },
   ARCH_AGE_BAND_DEFAULT: { young: 24, veteran: 28 },
-  // Fair/Borderline/Lopsided cutoffs for the value-diff %, shared by the Trade
+  // Fair/Lopsided/Unfair cutoffs for the value-diff %, shared by the Trade
   // Calculator and Trade Grades. Originally 6/15 (picked by feel), then 10/35 —
   // both calibrated against the same ~25,000 real completed trades pulled from
   // KeepTradeCut's trade database (data/ktc-trades.json), resolved via whatever
@@ -102,10 +102,10 @@ const VAULT_CONFIG = {
   FAIR_PCT: 14,
   LOPSIDED_PCT: 41,
   // Fit score (see analyzeSide's res.fit / gradeTrade's combinedFit) a side needs
-  // to clear before a trade that's already Fair-by-value gets called out as a
-  // fourth, better tier — "Good Trade" — instead of plain "Fair". Same threshold
-  // headline()/historyVerdict() already used for their own good()/bad() reads,
-  // just centralized so Vault.fairnessBucket can share it.
+  // to clear before a trade that's already Fair-by-value gets called out as
+  // "Great" (both sides clear it) or "Good" (one side does) instead of plain
+  // "Fair". Same threshold headline()/historyVerdict() already used for their own
+  // good()/bad() reads, just centralized so Vault.fairnessBucket can share it.
   GOOD_FIT_THRESHOLD: 2,
   // How many percentile points apart a player's value-rank and PPG-rank at their own
   // position (see buildLeagueTeams' valueRiskGap) have to be before it's worth
@@ -1658,7 +1658,7 @@ const Vault = {
   },
 
   /* What each side of a proposed trade is really worth to the team RECEIVING it —
-     this is what drives the Fair/Borderline/Lopsided verdict and the Suggest-a-
+     this is what drives the Fair/Lopsided/Unfair verdict and the Suggest-a-
      Trade "not bad" filter, so it needs to start from the real, two-sided
      consolidation math (Vault.tradeSideValues) that the raw dollar number already
      uses, not each asset's isolated VBA score (the old needAdjustedTradeValue).
@@ -1689,13 +1689,13 @@ const Vault = {
     return { aValAdjNeed, bValAdjNeed };
   },
 
-  // Fair/Borderline/Lopsided has to be a number a manager can independently check —
+  // Fair/Lopsided/Unfair has to be a number a manager can independently check —
   // that's what makes a verdict feel trustworthy instead of arbitrary, and the one
   // number every manager already has an outside reference for is raw KTC-style
   // sticker value (KeepTradeCut's own consolidation-adjusted price, Vault.tradeSideValues).
   // Need-adjustment (below) blending into that number, even partially, means the
   // app's verdict can no longer be checked against KTC's own calculator — a
-  // manager on the losing end of a real gap sees "Fair" from us and "Lopsided"
+  // manager on the losing end of a real gap sees "Fair" from us and "Unfair"
   // from KTC and has no way to tell which one is right. So need-adjustment plays
   // no part in the fairness verdict, color, sort order, or Balance's scoring
   // anywhere in this file — every one of those is gated on the plain raw pctDiff.
@@ -1704,20 +1704,22 @@ const Vault = {
   // partner-match text, and Balance's needBias tie-break among comparably-fair
   // options — informational framing, never the fairness number itself.
 
-  // Single source of truth for the four-tier fairness label shown everywhere a
+  // Single source of truth for the five-tier fairness label shown everywhere a
   // trade gets graded (the Trade Calculator's bar and verdict, Suggested Trades,
-  // Trade Grades, Managers). Borderline/Lopsided stay gated on pctDiff ALONE —
-  // those are the "something's off, go check the numbers" tiers, and diluting them
-  // with fit would undercut the whole point of gating fairness on raw, KTC-
-  // checkable value. Good Trade only exists to add richness at the GOOD end: once
-  // a trade already clears Fair on value, calling out that it's ALSO a strong fit
-  // for both sides (not just even in dollars) is a bonus signal, not a discount —
-  // a trade can never climb out of Borderline/Lopsided by having great fit, only
-  // move from Fair up to Good Trade.
+  // Trade Grades, Managers): Great, Good, Fair, Lopsided, Unfair. Lopsided/Unfair
+  // stay gated on pctDiff ALONE — those are the "something's off, go check the
+  // numbers" tiers, and diluting them with fit would undercut the whole point of
+  // gating fairness on raw, KTC-checkable value. Great/Good only exist to add
+  // richness at the GOOD end: once a trade already clears Fair on value, calling
+  // out that it's ALSO a strong fit — for both sides (Great) or just one (Good) —
+  // is a bonus signal, not a discount. A trade can never climb out of
+  // Lopsided/Unfair by having great fit, only move from Fair up to Good or Great.
   fairnessBucket(pctDiff, fitA, fitB) {
-    if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) return 'Lopsided';
-    if (pctDiff >= VAULT_CONFIG.FAIR_PCT) return 'Borderline';
-    if (fitA >= VAULT_CONFIG.GOOD_FIT_THRESHOLD && fitB >= VAULT_CONFIG.GOOD_FIT_THRESHOLD) return 'Good Trade';
+    if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) return 'Unfair';
+    if (pctDiff >= VAULT_CONFIG.FAIR_PCT) return 'Lopsided';
+    const goodA = fitA >= VAULT_CONFIG.GOOD_FIT_THRESHOLD, goodB = fitB >= VAULT_CONFIG.GOOD_FIT_THRESHOLD;
+    if (goodA && goodB) return 'Great';
+    if (goodA || goodB) return 'Good';
     return 'Fair';
   },
 
@@ -1845,7 +1847,7 @@ const Vault = {
   /* Turns each side's combined volatility into a ± band (percentage points) around
      the trade's raw fairness reading (pctDiff), the same way a poll reports a
      margin alongside the topline number. Propagates uncertainty
-     through the DIFFERENCE that actually drives Fair/Borderline/Lopsided: treating
+     through the DIFFERENCE that actually drives Fair/Lopsided/Unfair: treating
      each side's dollar uncertainty as independent, Var(diff) = Var(A) + Var(B), so
      the combined band is sqrt of the two sides' own dollar-uncertainty (value times
      its own relative volatility) squared and summed — not a raw average of the two
@@ -2430,7 +2432,7 @@ const Vault = {
     return assets;
   },
 
-  // Value fairness is gated first (Fair/Borderline/Lopsided), then each side's
+  // Value fairness is gated first (Fair/Lopsided/Unfair), then each side's
   // combined fit (positional need/surplus + rebuild/contend timeline + archetype +
   // optimal-lineup swing) decides the sub-label. Below the Lopsided cutoff a real
   // dollar tilt is the norm for an actual trade, not a finding worth naming — the
@@ -2502,7 +2504,7 @@ const Vault = {
     // received it (Vault.needAdjustedTradeValues), judged against the recipient's
     // reconstructed PRE-trade roster (sim.after, despite the name — see above).
     // Informational only — see the note above Vault.needAdjustedTradeValue: the
-    // Fair/Borderline/Lopsided badge is gated on raw pctDiff alone, so a manager can
+    // Fair/Lopsided/Unfair badge is gated on raw pctDiff alone, so a manager can
     // check it against KTC's own calculator. pctDiffNeed is kept as a "here's how
     // need-weighting reads it instead" tooltip detail (Trade Grades).
     const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toB, toA);
@@ -2678,7 +2680,7 @@ const Vault = {
         teamName: team.teamName, rosterId: team.rosterId, record: team.record,
         trades: 0, won: 0, lost: 0, netValue: 0, fitSum: 0,
         netPicks: 0, ageDeltaSum: 0,
-        fair: 0, borderline: 0, lopsided: 0, lopsidedFor: 0, lopsidedAgainst: 0,
+        fair: 0, lopsided: 0, unfair: 0, unfairFor: 0, unfairAgainst: 0,
         best: null, worst: null,
         posNet: { QB: 0, RB: 0, WR: 0, TE: 0 },
         youthIn: 0, youthOut: 0, veteranIn: 0, veteranOut: 0,
@@ -2715,9 +2717,9 @@ const Vault = {
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
         if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
         if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
-        const bucket = g.pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'lopsided' : g.pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'borderline' : 'fair';
+        const bucket = g.pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'unfair' : g.pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'lopsided' : 'fair';
         s[bucket]++;
-        if (bucket === 'lopsided') { if (dVal > 0) s.lopsidedFor++; else s.lopsidedAgainst++; }
+        if (bucket === 'unfair') { if (dVal > 0) s.unfairFor++; else s.unfairAgainst++; }
         const rec = { opp, dVal, pctDiff: g.pctDiff, created: g.tx.created };
         if (!s.best || dVal > s.best.dVal) s.best = rec;
         if (!s.worst || dVal < s.worst.dVal) s.worst = rec;
@@ -2801,9 +2803,9 @@ const Vault = {
         if (count >= 3) notes.push({ tone: 'neutral', text: `Has acquired ${count} players from ${team} across trades — a real cluster.` });
       }
     }
-    if (s.lopsided >= 2) {
-      if (s.lopsidedFor > s.lopsidedAgainst) notes.push({ tone: 'good', text: `Has come out ahead in most of their own lopsided trades (${s.lopsidedFor} of ${s.lopsided}).` });
-      else if (s.lopsidedAgainst > s.lopsidedFor) notes.push({ tone: 'bad', text: `Has been on the losing end of most of their own lopsided trades (${s.lopsidedAgainst} of ${s.lopsided}).` });
+    if (s.unfair >= 2) {
+      if (s.unfairFor > s.unfairAgainst) notes.push({ tone: 'good', text: `Has come out ahead in most of their own unfair trades (${s.unfairFor} of ${s.unfair}).` });
+      else if (s.unfairAgainst > s.unfairFor) notes.push({ tone: 'bad', text: `Has been on the losing end of most of their own unfair trades (${s.unfairAgainst} of ${s.unfair}).` });
     }
     if (!notes.length) notes.push({ tone: 'neutral', text: 'Not enough trade history yet for a clear read.' });
     return notes;
