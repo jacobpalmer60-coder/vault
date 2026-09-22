@@ -169,10 +169,15 @@ const POS_TEXT = { QB: 'text-fuchsia-300/80', RB: 'text-emerald-300/80', WR: 'te
 const SLOT_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T', SUPER_FLEX: 'SFLX', K: 'K', DEF: 'DEF' };
 const SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'WRRB_FLEX', 'REC_FLEX', 'SUPER_FLEX', 'K', 'DEF'];
 
+// Same colored position system as the rest of the site (vault.css's
+// .pos-badge-*) — colored by the player's REAL position, not the roster slot
+// label shown as the badge's text, since a FLEX/SFLX slot can hold any of
+// several positions and "FLEX" alone doesn't say which one is actually starting.
+const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
 function bestLineupPanel(t) {
   const rows = [...t.lineup].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot));
   const lines = rows.map(s => `<div class="flex justify-between text-[12px]">
-    <span class="text-zinc-400 w-9 shrink-0">${SLOT_LABEL[s.slot] || s.slot}</span>
+    <span class="inline-flex items-center justify-center w-9 shrink-0 px-1 py-px rounded text-[9px] font-semibold border uppercase ${POS_BADGE(s.pos || '')}">${SLOT_LABEL[s.slot] || s.slot}</span>
     <span class="text-zinc-300 truncate flex-1 mr-2">${Vault.escapeHtml(s.name) || '—'}</span>
     <span class="font-mono text-zinc-400">${s.name ? s.ppg.toFixed(1) : '—'}</span>
   </div>`).join('');
