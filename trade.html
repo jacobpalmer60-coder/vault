@@ -126,7 +126,7 @@
   <div id="analysisHeader" class="hidden mb-6">
     <h2 class="display text-[24px] gold-text mb-3">Trade Analysis</h2>
     <div id="tradeVerdict" class="card rounded-2xl p-6 mb-4 border"></div>
-    <div id="tradeArchetype" class="card rounded-2xl p-4"></div>
+    <div id="tradeArchetype" class="card rounded-2xl p-5"></div>
   </div>
 
   <!-- Four-up: each roster sits next to its own analysis, so picking an asset and
@@ -1787,9 +1787,12 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   const displayVerdict = offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
 
   document.getElementById('tradeArchetype').innerHTML = `
-    <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">Trade Archetype</div>
-    <div class="text-[16px] font-medium gold-text mb-1">${trade.label}</div>
-    <div class="text-[13px] text-zinc-300">${trade.desc}</div>`;
+    <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">Trade Archetype</div>
+    <div class="flex items-center gap-2 mb-1.5">
+      <svg class="size-4 shrink-0 text-amber-400/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5-5 18-3-8z"/></svg>
+      <div class="text-[18px] font-semibold gold-text">${trade.label}</div>
+    </div>
+    <div class="text-[13px] text-zinc-300 leading-relaxed">${trade.desc}</div>`;
 
   // One button, not one per side — it always rebuilds whichever side is currently
   // LOSING this trade (the lower dValueAdj), so the user never has to guess which
