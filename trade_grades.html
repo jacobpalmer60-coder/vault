@@ -78,13 +78,13 @@ const FAIRNESS_BAR_MAX = 60;
 // mirrored on both sides of center); the white dot is the one thing that actually
 // moves. The translucent band around it mirrors confidenceBandText's ± range, so
 // both are showing the same uncertainty, just in two forms.
-function fairnessBarHtml(signedPctDiffNeed, bandPct) {
+function fairnessBarHtml(signedPctDiff, bandPct) {
   const half = FAIRNESS_BAR_MAX;
   const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
   const fairHi = toX(VAULT_CONFIG.FAIR_PCT), fairLo = toX(-VAULT_CONFIG.FAIR_PCT);
   const lopHi = toX(VAULT_CONFIG.LOPSIDED_PCT), lopLo = toX(-VAULT_CONFIG.LOPSIDED_PCT);
-  const marker = toX(signedPctDiffNeed);
-  const band = bandPct >= 1 ? { lo: toX(signedPctDiffNeed - bandPct), hi: toX(signedPctDiffNeed + bandPct) } : null;
+  const marker = toX(signedPctDiff);
+  const band = bandPct >= 1 ? { lo: toX(signedPctDiff - bandPct), hi: toX(signedPctDiff + bandPct) } : null;
   return `
     <div class="relative h-1.5 rounded-full overflow-hidden" style="background: linear-gradient(to right,
       #fb7185 0%, #fb7185 ${lopLo}%,
@@ -99,7 +99,7 @@ function fairnessBarHtml(signedPctDiffNeed, bandPct) {
 
 function confidenceBandText(g) {
   if (!g.bandPct || g.bandPct < 1) return '';
-  const lo = Math.max(0, g.pctDiffNeed - g.bandPct), hi = g.pctDiffNeed + g.bandPct;
+  const lo = Math.max(0, g.pctDiff - g.bandPct), hi = g.pctDiff + g.bandPct;
   const bucketLo = fairBucket(lo), bucketHi = fairBucket(hi);
   const text = bucketLo === bucketHi
     ? `±${g.bandPct.toFixed(0)}pp based on price swings in the less-established pieces here`
@@ -204,7 +204,7 @@ function vorpDeltaHtml(dVorp) {
 
 function renderCard(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  const bucket = fairBucket(g.pctDiffNeed);
+  const bucket = fairBucket(g.pctDiff);
   const notes = [
     ...Vault.mergeAssetNotes(g.archA.notes, g.fitA.notes).map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.timelineA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
@@ -237,9 +237,9 @@ function renderCard(g) {
         </div>
       </div>
       <div class="pt-3 border-t border-white/5">
-        <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiffNeed)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-400 font-normal">(some asset values unavailable)</span>' : ''}</p>
-        <div class="text-[11px] ${fairColor(g.pctDiffNeed)} mt-1" title="Need-adjusted — weights each side by what it was actually worth to the team that received it. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. By value alone (KTC's own consolidation adjustment, before need), this trade was ${capPct(g.pctDiff).toFixed(0)}% off.">${bucket} · ${capPct(g.pctDiffNeed).toFixed(0)}% off</div>
-        <div class="max-w-[200px] mt-1.5">${fairnessBarHtml(g.signedPctDiffNeed, g.bandPct)}</div>
+        <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiff)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-400 font-normal">(some asset values unavailable)</span>' : ''}</p>
+        <div class="text-[11px] ${fairColor(g.pctDiff)} mt-1" title="KTC's own consolidation-adjusted value, before need — the number a manager can check against KTC's own calculator. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. Weighted by both teams' roster needs instead, this trade reads as ${capPct(g.pctDiffNeed).toFixed(0)}% off.">${bucket} · ${capPct(g.pctDiff).toFixed(0)}% off</div>
+        <div class="max-w-[200px] mt-1.5">${fairnessBarHtml(g.signedPctDiff, g.bandPct)}</div>
         ${confidenceBandText(g)}
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
@@ -256,7 +256,7 @@ function renderCard(g) {
 
 const FAIR_FILTER_TITLE = {
   All: 'Every completed trade, any value gap.',
-  Fair: `Under ${VAULT_CONFIG.FAIR_PCT}% off in need-adjusted value.`,
+  Fair: `Under ${VAULT_CONFIG.FAIR_PCT}% off in raw value.`,
   Borderline: `${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% off — a real tilt, but within normal give-and-take.`,
   Lopsided: `${VAULT_CONFIG.LOPSIDED_PCT}%+ off — one side clearly came out ahead on real value.`
 };
@@ -274,8 +274,8 @@ function setFairFilter(f) { fairFilter = f; renderFilters(); renderList(); }
 function setSort(k) { sortKey = k; renderFilters(); renderList(); }
 
 function renderList() {
-  let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => fairBucket(g.pctDiffNeed) === fairFilter);
-  items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.pctDiffNeed - a.pctDiffNeed : b.created - a.created);
+  let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => fairBucket(g.pctDiff) === fairFilter);
+  items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.pctDiff - a.pctDiff : b.created - a.created);
 
   const list = document.getElementById('list');
   const empty = document.getElementById('empty');

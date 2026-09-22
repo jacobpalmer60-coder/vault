@@ -587,8 +587,9 @@ function runSuggestTradeSearch() {
     return true;
   });
 
-  // Ranked purely by fairness (need-weighted value-diff % — see
-  // computeTradeAnalysis's pctDiffNeed) — most fair first. Every candidate here
+  // Ranked purely by fairness (raw value-diff % — see computeTradeAnalysis's
+  // pctDiff, the same number that gates the Fair/Borderline/Lopsided verdict) —
+  // most fair first. Every candidate here
   // already cleared the "not bad" bar in consider() above, so this ordering is
   // specifically "which of these genuinely-viable trades is closest to even", not a
   // blend with fit/archetype scoring (that's still visible per-card via the verdict
@@ -602,7 +603,7 @@ function runSuggestTradeSearch() {
   deduped.sort((x, y) => {
     const px = isPickForPick(x) ? 1 : 0, py = isPickForPick(y) ? 1 : 0;
     if (px !== py) return px - py;
-    return x.result.pctDiffNeed - y.result.pctDiffNeed;
+    return x.result.pctDiff - y.result.pctDiff;
   });
 
   // Cap per-partner, not just overall — otherwise the pool fills up with
@@ -772,7 +773,7 @@ function balanceSide(mySide, btn) {
     const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB);
     const result = computeTradeAnalysis(teamOf('A'), teamOf('B'), giveA, giveB, aValAdj, bValAdj);
     const fit = mySide === 'A' ? result.resA.fit : result.resB.fit;
-    return fit + needBias(combo) - result.pctDiffNeed / 5;
+    return fit + needBias(combo) - result.pctDiff / 5;
   };
 
   // Real trade partners actually want (bestFit/buildBalancedOffer's whole point) —
@@ -1419,13 +1420,13 @@ const FAIRNESS_BAR_MAX = 60;
 // is ahead. The translucent band around it (when there's enough price history to
 // say anything — see Vault.tradeConfidenceBand) is the same ± range as the text
 // callout below it, just made visible at a glance.
-function fairnessBarHtml(signedPctDiffNeed, bandPct) {
+function fairnessBarHtml(signedPctDiff, bandPct) {
   const half = FAIRNESS_BAR_MAX;
   const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
   const fairHi = toX(VAULT_CONFIG.FAIR_PCT), fairLo = toX(-VAULT_CONFIG.FAIR_PCT);
   const lopHi = toX(VAULT_CONFIG.LOPSIDED_PCT), lopLo = toX(-VAULT_CONFIG.LOPSIDED_PCT);
-  const marker = toX(signedPctDiffNeed);
-  const band = bandPct >= 1 ? { lo: toX(signedPctDiffNeed - bandPct), hi: toX(signedPctDiffNeed + bandPct) } : null;
+  const marker = toX(signedPctDiff);
+  const band = bandPct >= 1 ? { lo: toX(signedPctDiff - bandPct), hi: toX(signedPctDiff + bandPct) } : null;
   return `
     <div class="relative h-1.5 rounded-full overflow-hidden" style="background: linear-gradient(to right,
       #fb7185 0%, #fb7185 ${lopLo}%,
@@ -1444,11 +1445,11 @@ function fairnessBarHtml(signedPctDiffNeed, bandPct) {
 // the low/high edges still read as the same bucket as the point estimate, and a
 // fuller callout when they don't — that's the case where showing only the point
 // estimate would genuinely mislead, not just add noise.
-function confidenceBandHtml(aAssets, bAssets, aValAdjNeed, bValAdjNeed, pctDiffNeed, bandPct) {
+function confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct) {
   if (!aAssets.length && !bAssets.length) return '';
-  if (bandPct == null) ({ bandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed));
+  if (bandPct == null) ({ bandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdj, bValAdj));
   if (!bandPct || bandPct < 1) return '';
-  const lo = Math.max(0, pctDiffNeed - bandPct), hi = pctDiffNeed + bandPct;
+  const lo = Math.max(0, pctDiff - bandPct), hi = pctDiff + bandPct;
   const bucketLo = fairnessBucket(lo), bucketHi = fairnessBucket(hi);
   if (bucketLo === bucketHi) return `±${bandPct.toFixed(0)}pp based on recent price swings in the less-established pieces here`;
   return `±${bandPct.toFixed(0)}pp — could read anywhere from ${bucketLo} to ${bucketHi} once the less-established pieces here (rookies, far-future picks) shake out`;
@@ -1499,34 +1500,27 @@ function updateTrade() {
   const diffAdj = Math.abs(aValAdj - bValAdj);
   const avgSideAdj = (aValAdj + bValAdj) / 2 || 1;
   const pctDiff = diffAdj / avgSideAdj * 100;
-  // Fair/Borderline/Lopsided is need-weighted (Vault.needAdjustedTradeValues): what
-  // each pile is actually worth to the team RECEIVING it, not just its sticker
-  // price — a pile that costs the same in raw dollars but lands on a real need for
-  // one side and a surplus for the other isn't actually fair just because the
-  // dollar totals matched. The big number stays the raw $ diff (still a real,
-  // checkable fact); the label/color below is what changed.
+  // Fair/Borderline/Lopsided is gated on raw sticker value alone (KTC's own
+  // consolidation math, Vault.tradeSideValues) — the one number a manager can check
+  // against KTC's own calculator. What each pile is actually worth to the RECEIVING
+  // team (Vault.needAdjustedTradeValues) is surfaced only as a secondary "reads as
+  // X% off by need" tooltip fact below, never the number that sets the color/label.
   const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
   const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
-  const rawSignedPctDiffNeed = (aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100;
-  // Blended 90/10 against the raw sticker % — need-weighting nudges, value still
-  // decides (see Vault.blendNeedAdjustedPct). pctDiffNeed stays unsigned (every
-  // downstream bucket comparison expects a magnitude); signedPctDiffNeed (the
-  // fairness bar's marker position) carries the same blended magnitude back out
-  // with its original direction.
-  const pctDiffNeed = Vault.blendNeedAdjustedPct(pctDiff, Math.abs(rawSignedPctDiffNeed));
-  const signedPctDiffNeed = Math.sign(rawSignedPctDiffNeed || 1) * pctDiffNeed;
+  const pctDiffNeed = avgSideAdjNeed ? Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
+  const signedPctDiff = Math.sign((aValAdj - bValAdj) || 1) * pctDiff;
   const diffEl = document.getElementById('diff');
   diffEl.textContent = Math.round(diffAdj).toLocaleString();
-  diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400');
+  diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400');
   // Fairness label spells out the same Fair/Lopsided thresholds the color already
   // encodes, since a raw dollar diff alone doesn't tell you what counts as fair.
   const diffLabelEl = document.getElementById('diffLabel');
-  diffLabelEl.textContent = (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${capPct(pctDiffNeed).toFixed(0)}% off`;
-  diffLabelEl.title = `Need-adjusted — weights each side by what the RECEIVING team actually needs there. By value alone (KTC's own consolidation adjustment, before need), this trade is ${capPct(pctDiff).toFixed(0)}% off.`;
-  diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-400');
-  const { bandPct: diffBandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed);
-  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(signedPctDiffNeed, diffBandPct) : '';
-  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdjNeed, bValAdjNeed, pctDiffNeed, diffBandPct);
+  diffLabelEl.textContent = (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${capPct(pctDiff).toFixed(0)}% off`;
+  diffLabelEl.title = `By value alone (KTC's own consolidation adjustment) — the number that decides Fair/Borderline/Lopsided. Weighted by both teams' roster needs instead, this trade reads as ${capPct(pctDiffNeed).toFixed(0)}% off.`;
+  diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-400');
+  const { bandPct: diffBandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdj, bValAdj);
+  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(signedPctDiff, diffBandPct) : '';
+  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, diffBandPct);
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
@@ -1628,11 +1622,11 @@ function windowShiftNote(befWin, aftWin) {
 
 // Synthesizes value fairness + timeline/production fit + positional need + window
 // shift into one top-level grade — gated on the actual value gap FIRST (pctDiff here
-// is need-weighted — see computeTradeAnalysis's pctDiffNeed — so it stays the exact
-// same number the Fair/Borderline/Lopsided badge on the trade bar uses; passing the
-// raw one would silently reintroduce the contradiction this was built to prevent:
-// previously fit alone drove the verdict, so a 29%-off trade could still read as
-// "Fair, No Real Winner" if timeline/positional fit happened to cancel out).
+// is the same raw, KTC-checkable number the Fair/Borderline/Lopsided badge on the
+// trade bar uses; passing a need-adjusted one would silently reintroduce the
+// contradiction this was built to prevent: previously fit alone drove the verdict,
+// so a 29%-off trade could still read as "Fair, No Real Winner" if timeline/
+// positional fit happened to cancel out).
 // Fit only decides the sub-label once value itself is close enough to call fair.
 // `text` is built from Vault.tradeHighlight — a concrete "Team A gave up X, but
 // added RB depth, while Team B got younger" recap — rather than a canned phrase per
@@ -1679,7 +1673,7 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
    the recipient's: should they take it? This reuses heads[receivingSide] — the
    exact same value+fit read already shown on that team's own analysis card, not a
    new number — so the reframed banner can't say something the rest of the page
-   doesn't already back up. Doesn't touch pctDiffNeed, the Fair/Borderline/Lopsided
+   doesn't already back up. Doesn't touch pctDiff, the Fair/Borderline/Lopsided
    badge, or the confidence band at all — those stay the same objective, calibrated
    read regardless of who's offering; only the top verdict banner's framing changes. */
 function acceptanceVerdict(side, heads, teamA, teamB) {
@@ -1747,25 +1741,19 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const dValueAdjA = bValAdj - aValAdj;
   const dValueAdjB = aValAdj - bValAdj;
 
-  // Need-weighted fairness — what each pile is actually worth to the team RECEIVING
-  // it (Vault.needAdjustedTradeValues), not just its raw sticker price. This is what
-  // decides Fair/Borderline/Lopsided below (pctDiffNeed), so two piles that cost the
-  // same in raw dollars but land on a need for one side and a surplus for the other
-  // don't get called "fair" just because the sticker prices matched. dValueAdjA/B
-  // above stay raw — that's a real, separate fact ("you gained $X in sticker value")
-  // worth keeping, just not the one that should gate the fairness label.
+  // Fair/Borderline/Lopsided is gated on raw sticker value (Vault.tradeSideValues,
+  // KTC's own consolidation math) alone — the one number a manager can check
+  // against KTC's own calculator. What each pile is actually worth to the team
+  // RECEIVING it (Vault.needAdjustedTradeValues) is kept as pctDiffNeed, an
+  // informational "here's how need-weighting reads it instead" detail, never the
+  // number that decides the verdict, color, or sort order — see the note above
+  // Vault.needAdjustedTradeValue for why.
   const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
   const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
-  const rawSignedPctDiffNeed = avgSideAdjNeed ? (aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
+  const pctDiffNeed = avgSideAdjNeed ? Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
   const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
-  // Blended 90/10 against the raw sticker % — need-weighting nudges, value still
-  // decides (see Vault.blendNeedAdjustedPct). pctDiffNeed stays unsigned (every
-  // downstream bucket comparison expects a magnitude); signedPctDiffNeed (the
-  // fairness bar's marker position) carries the same blended magnitude back out
-  // with its original direction.
-  const pctDiffNeed = Vault.blendNeedAdjustedPct(pctDiff, Math.abs(rawSignedPctDiffNeed));
-  const signedPctDiffNeed = Math.sign(rawSignedPctDiffNeed || 1) * pctDiffNeed;
-  const { bandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed);
+  const signedPctDiff = Math.sign((aValAdj - bValAdj) || 1) * pctDiff;
+  const { bandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdj, bValAdj);
 
   const resA = analyzeSide(before.A, after.A);
   const resB = analyzeSide(before.B, after.B);
@@ -1800,9 +1788,9 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     wins[side] = win;
   });
 
-  const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiffNeed, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
+  const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiff, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
 
-  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiffNeed, bandPct, verdict };
+  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict };
 }
 
 function toggleOfferedBy(side) {
@@ -1827,7 +1815,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   document.getElementById('analysisA').classList.remove('hidden');
   document.getElementById('analysisB').classList.remove('hidden');
 
-  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiffNeed, signedPctDiffNeed, bandPct, verdict } =
+  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict } =
     computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
   const displayVerdict = offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
 
@@ -1892,14 +1880,19 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
 
   const verdictEl = document.getElementById('tradeVerdict');
   verdictEl.className = `card rounded-2xl p-6 mb-4 border ${TONE_BANNER[displayVerdict.tone]}`;
+  const confidenceText = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct);
+  // Only worth a callout when it'd actually change how a manager reads the number —
+  // otherwise it's noise repeating the badge above in slightly different words.
+  const needNote = Math.abs(pctDiffNeed - pctDiff) >= 2
+    ? `<span title="Weighted by both teams' roster needs instead of raw sticker value" class="cursor-help">reads as ${capPct(pctDiffNeed).toFixed(0)}% off by need</span>` : '';
   verdictEl.innerHTML = `
     <div class="flex items-center gap-3 mb-2">
       <span class="size-3.5 rounded-full shrink-0 ${TONE_DOT[displayVerdict.tone]}"></span>
       <div class="text-[28px] font-semibold leading-tight ${TONE[displayVerdict.tone]}">${displayVerdict.label}</div>
     </div>
     <div class="text-[17px] font-medium leading-snug ${TONE[displayVerdict.tone]}">${displayVerdict.text}</div>
-    <div class="max-w-sm mt-3">${fairnessBarHtml(signedPctDiffNeed, bandPct)}</div>
-    <div class="text-[11px] text-zinc-400 mt-1.5">${confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiffNeed, bandPct)}</div>`;
+    <div class="max-w-sm mt-3">${fairnessBarHtml(signedPctDiff, bandPct)}</div>
+    <div class="text-[11px] text-zinc-400 mt-1.5">${[confidenceText, needNote].filter(Boolean).join(' · ')}</div>`;
 }
 
 init();

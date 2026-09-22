@@ -1683,22 +1683,20 @@ const Vault = {
     return { aValAdjNeed, bValAdjNeed };
   },
 
-  // Need-weighting is meant to refine a close call, not decide the verdict —
-  // the trade's real dollar value has to stay the dominant signal. Original
-  // design only floored the "looks fairer" direction (up to a 50% cut), which
-  // left need able to swing the reading by up to ~35% relative on its own (the
-  // ±15% multipliers, POS_NEED_MULTIPLIER / POS_SURPLUS_MULTIPLIER, compounding
-  // across both sides) — real case that surfaced this: a genuine ~30% sticker-
-  // value gap (matching KeepTradeCut's own read) need-adjusted down to ~0%
-  // because the positions involved were a mirror-image need/surplus match on
-  // both sides. Rather than cap just one direction, blend raw sticker % and
-  // need-adjusted % at a fixed 90/10 weight — value stays the dominant input
-  // everywhere, need can only nudge the reading a little either way, and it can
-  // never fully launder (or fully manufacture) a lopsided verdict.
-  VALUE_WEIGHT: 0.9,
-  blendNeedAdjustedPct(pctDiff, pctDiffNeed) {
-    return pctDiff * Vault.VALUE_WEIGHT + pctDiffNeed * (1 - Vault.VALUE_WEIGHT);
-  },
+  // Fair/Borderline/Lopsided has to be a number a manager can independently check —
+  // that's what makes a verdict feel trustworthy instead of arbitrary, and the one
+  // number every manager already has an outside reference for is raw KTC-style
+  // sticker value (KeepTradeCut's own consolidation-adjusted price, Vault.tradeSideValues).
+  // Need-adjustment (below) blending into that number, even partially, means the
+  // app's verdict can no longer be checked against KTC's own calculator — a
+  // manager on the losing end of a real gap sees "Fair" from us and "Lopsided"
+  // from KTC and has no way to tell which one is right. So need-adjustment plays
+  // no part in the fairness verdict, color, sort order, or Balance's scoring
+  // anywhere in this file — every one of those is gated on the plain raw pctDiff.
+  // needAdjustedTradeValues/needAdjustedValue still exist for what they're
+  // actually good at: fit narratives ("fills a real need"), Suggested Trades'
+  // partner-match text, and Balance's needBias tie-break among comparably-fair
+  // options — informational framing, never the fairness number itself.
 
   /* ---------- Value confidence / uncertainty ----------
      Every trade number in this app is a point estimate off today's KTC price, but
@@ -1822,21 +1820,21 @@ const Vault = {
   },
 
   /* Turns each side's combined volatility into a ± band (percentage points) around
-     the trade's need-weighted fairness reading (pctDiffNeed in trade.html), the same
-     way a poll reports a margin alongside the topline number. Propagates uncertainty
+     the trade's raw fairness reading (pctDiff), the same way a poll reports a
+     margin alongside the topline number. Propagates uncertainty
      through the DIFFERENCE that actually drives Fair/Borderline/Lopsided: treating
      each side's dollar uncertainty as independent, Var(diff) = Var(A) + Var(B), so
      the combined band is sqrt of the two sides' own dollar-uncertainty (value times
      its own relative volatility) squared and summed — not a raw average of the two
      percentages, which would understate how a big confident side and a small shaky
      side actually combine. */
-  tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed) {
+  tradeConfidenceBand(aAssets, bAssets, aValAdj, bValAdj) {
     const volA = Vault.combineSideVolatility(aAssets);
     const volB = Vault.combineSideVolatility(bAssets);
-    const sigmaDollarsA = aValAdjNeed * volA;
-    const sigmaDollarsB = bValAdjNeed * volB;
+    const sigmaDollarsA = aValAdj * volA;
+    const sigmaDollarsB = bValAdj * volB;
     const sigmaDiff = Math.sqrt(sigmaDollarsA ** 2 + sigmaDollarsB ** 2);
-    const avg = (aValAdjNeed + bValAdjNeed) / 2 || 1;
+    const avg = (aValAdj + bValAdj) / 2 || 1;
     return { bandPct: sigmaDiff / avg * 100, volA, volB };
   },
 
@@ -2477,27 +2475,22 @@ const Vault = {
     const dVorpA = sim.before.A.vorpTotal - sim.after.A.vorpTotal;
     const dVorpB = sim.before.B.vorpTotal - sim.after.B.vorpTotal;
 
-    // Need-weighted fairness — same reasoning as trade.html's computeTradeAnalysis
-    // (Vault.needAdjustedTradeValues), applied here to a completed trade instead of a
-    // live one: what each side gave up, valued by what it was actually worth to the
-    // team that received it, not just its sticker price. Judged against the
-    // recipient's reconstructed PRE-trade roster (sim.after, despite the name — see
-    // above) — "was this a real need for them AT THE TIME," not colored by whatever
-    // else has happened to their roster since. This is what drives the
-    // Fair/Borderline/Lopsided badge on Trade Grades; pctDiff above stays the raw
-    // sticker-price version, kept for the recap text and as a tooltip detail.
+    // What each side gave up, valued by what it was actually worth to the team that
+    // received it (Vault.needAdjustedTradeValues), judged against the recipient's
+    // reconstructed PRE-trade roster (sim.after, despite the name — see above).
+    // Informational only — see the note above Vault.needAdjustedTradeValue: the
+    // Fair/Borderline/Lopsided badge is gated on raw pctDiff alone, so a manager can
+    // check it against KTC's own calculator. pctDiffNeed is kept as a "here's how
+    // need-weighting reads it instead" tooltip detail (Trade Grades).
     const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toB, toA);
     const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
-    const rawSignedPctDiffNeed = (aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100;
-    // Blended 90/10 against the raw sticker % — need-weighting nudges, value still
-    // decides. See Vault.blendNeedAdjustedPct.
-    const pctDiffNeed = Vault.blendNeedAdjustedPct(pctDiff, Math.abs(rawSignedPctDiffNeed));
-    const signedPctDiffNeed = Math.sign(rawSignedPctDiffNeed || 1) * pctDiffNeed;
+    const pctDiffNeed = Math.abs((aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100);
+    const signedPctDiff = Math.sign((aGaveAdj - bGaveAdj) || 1) * pctDiff;
     // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand) — for a
     // completed trade this reads less like "how sure are we" and more like "how much
     // of this verdict rode on pieces that were genuinely unproven at the time," since
     // the picks/rookies involved have often resolved into real production by now.
-    const { bandPct } = Vault.tradeConfidenceBand(toB, toA, aGaveAdjNeed, bGaveAdjNeed);
+    const { bandPct } = Vault.tradeConfidenceBand(toB, toA, aGaveAdj, bGaveAdj);
 
     // positionalFitNotes needs both snapshots — see its own comment for why. What
     // each team received is judged against its pre-trade roster (sim.after, despite
@@ -2514,10 +2507,10 @@ const Vault = {
     const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0);
     const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0);
 
-    const verdict = Vault.historyVerdict(pctDiffNeed, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
+    const verdict = Vault.historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiffNeed, bandPct, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
   },
 
   // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
@@ -2698,10 +2691,10 @@ const Vault = {
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
         if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
         if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
-        const bucket = g.pctDiffNeed >= VAULT_CONFIG.LOPSIDED_PCT ? 'lopsided' : g.pctDiffNeed >= VAULT_CONFIG.FAIR_PCT ? 'borderline' : 'fair';
+        const bucket = g.pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'lopsided' : g.pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'borderline' : 'fair';
         s[bucket]++;
         if (bucket === 'lopsided') { if (dVal > 0) s.lopsidedFor++; else s.lopsidedAgainst++; }
-        const rec = { opp, dVal, pctDiffNeed: g.pctDiffNeed, created: g.tx.created };
+        const rec = { opp, dVal, pctDiff: g.pctDiff, created: g.tx.created };
         if (!s.best || dVal > s.best.dVal) s.best = rec;
         if (!s.worst || dVal < s.worst.dVal) s.worst = rec;
 
