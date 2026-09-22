@@ -101,6 +101,12 @@ const VAULT_CONFIG = {
   // target almost exactly (27.2%/42.4%/30.4%).
   FAIR_PCT: 14,
   LOPSIDED_PCT: 41,
+  // Fit score (see analyzeSide's res.fit / gradeTrade's combinedFit) a side needs
+  // to clear before a trade that's already Fair-by-value gets called out as a
+  // fourth, better tier — "Good Trade" — instead of plain "Fair". Same threshold
+  // headline()/historyVerdict() already used for their own good()/bad() reads,
+  // just centralized so Vault.fairnessBucket can share it.
+  GOOD_FIT_THRESHOLD: 2,
   // How many percentile points apart a player's value-rank and PPG-rank at their own
   // position (see buildLeagueTeams' valueRiskGap) have to be before it's worth
   // calling out as a real disagreement rather than the normal noise between two
@@ -1698,6 +1704,23 @@ const Vault = {
   // partner-match text, and Balance's needBias tie-break among comparably-fair
   // options — informational framing, never the fairness number itself.
 
+  // Single source of truth for the four-tier fairness label shown everywhere a
+  // trade gets graded (the Trade Calculator's bar and verdict, Suggested Trades,
+  // Trade Grades, Managers). Borderline/Lopsided stay gated on pctDiff ALONE —
+  // those are the "something's off, go check the numbers" tiers, and diluting them
+  // with fit would undercut the whole point of gating fairness on raw, KTC-
+  // checkable value. Good Trade only exists to add richness at the GOOD end: once
+  // a trade already clears Fair on value, calling out that it's ALSO a strong fit
+  // for both sides (not just even in dollars) is a bonus signal, not a discount —
+  // a trade can never climb out of Borderline/Lopsided by having great fit, only
+  // move from Fair up to Good Trade.
+  fairnessBucket(pctDiff, fitA, fitB) {
+    if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) return 'Lopsided';
+    if (pctDiff >= VAULT_CONFIG.FAIR_PCT) return 'Borderline';
+    if (fitA >= VAULT_CONFIG.GOOD_FIT_THRESHOLD && fitB >= VAULT_CONFIG.GOOD_FIT_THRESHOLD) return 'Good Trade';
+    return 'Fair';
+  },
+
   /* ---------- Value confidence / uncertainty ----------
      Every trade number in this app is a point estimate off today's KTC price, but
      that price itself is a real market's current best guess, not a fact — a rookie
@@ -2413,7 +2436,7 @@ const Vault = {
   // dollar tilt is the norm for an actual trade, not a finding worth naming — the
   // badge shown alongside this label already communicates the price gap.
   historyVerdict(pctDiff, dValueAdjA, fitA, fitB, teamAName, teamBName, avgSideAdj, posResultA, posResultB, timelineA, timelineB) {
-    const good = s => s >= 2, bad = s => s <= -2;
+    const good = s => s >= VAULT_CONFIG.GOOD_FIT_THRESHOLD, bad = s => s <= -VAULT_CONFIG.GOOD_FIT_THRESHOLD;
     const themeA = Vault.sideTheme(posResultA, timelineA.dAge, timelineA.dPicks, timelineA.mode);
     const themeB = Vault.sideTheme(posResultB, timelineB.dAge, timelineB.dPicks, timelineB.mode);
     const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
@@ -2508,9 +2531,10 @@ const Vault = {
     const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0);
 
     const verdict = Vault.historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
+    const bucket = Vault.fairnessBucket(pctDiff, combinedFitA, combinedFitB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
   },
 
   // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps

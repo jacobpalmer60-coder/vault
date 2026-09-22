@@ -47,18 +47,21 @@
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
-const FAIR_FILTERS = ['All', 'Fair', 'Borderline', 'Lopsided'];
+const FAIR_FILTERS = ['All', 'Good Trade', 'Fair', 'Borderline', 'Lopsided'];
 const SORTS = { recent: 'Most Recent', lopsided: 'Most Lopsided' };
 
 let allGraded = [];
 let fairFilter = 'All';
 let sortKey = 'recent';
 
-function fairBucket(pctDiff) {
-  return pctDiff < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided';
+// Vault.fairnessBucket is the shared four-tier read (Good Trade/Fair/Borderline/
+// Lopsided) — see its comment in vault-core.js for why Good Trade can only ever
+// promote a Fair trade, never rescue a Borderline/Lopsided one.
+function fairBucket(pctDiff, fitA, fitB) {
+  return Vault.fairnessBucket(pctDiff, fitA, fitB);
 }
-function fairColor(pctDiff) {
-  return pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-400';
+function fairColor(bucket) {
+  return bucket === 'Good Trade' ? 'text-emerald-300' : bucket === 'Fair' ? 'text-emerald-400/70' : bucket === 'Borderline' ? 'text-amber-400/70' : 'text-zinc-400';
 }
 // "% off" is a ratio against the average side value, not a bounded percentage — it
 // can mathematically clear 100 for a real one-sided "gift" trade. Display-only cap
@@ -100,7 +103,7 @@ function fairnessBarHtml(signedPctDiff, bandPct) {
 function confidenceBandText(g) {
   if (!g.bandPct || g.bandPct < 1) return '';
   const lo = Math.max(0, g.pctDiff - g.bandPct), hi = g.pctDiff + g.bandPct;
-  const bucketLo = fairBucket(lo), bucketHi = fairBucket(hi);
+  const bucketLo = fairBucket(lo, g.combinedFitA, g.combinedFitB), bucketHi = fairBucket(hi, g.combinedFitA, g.combinedFitB);
   const text = bucketLo === bucketHi
     ? `±${g.bandPct.toFixed(0)}pp based on price swings in the less-established pieces here`
     : `±${g.bandPct.toFixed(0)}pp — could have read anywhere from ${bucketLo} to ${bucketHi} depending on how the rookies/far-future picks here were valued at the time`;
@@ -109,8 +112,8 @@ function confidenceBandText(g) {
 // The synopsis headline gets a bolder version of the same tiers — Lopsided reads as
 // an actual warning (red) here, unlike the muted badge above which intentionally
 // dials it back so the page isn't drenched in red on a page full of real trades.
-function synopsisColor(pctDiff) {
-  return pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'text-rose-400' : pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'text-amber-400' : 'text-emerald-400';
+function synopsisColor(bucket) {
+  return bucket === 'Lopsided' ? 'text-rose-400' : bucket === 'Borderline' ? 'text-amber-400' : bucket === 'Good Trade' ? 'text-emerald-300' : 'text-emerald-400';
 }
 
 // resolveAssets/gradeTrade/historyVerdict now live in vault-core.js as
@@ -204,7 +207,7 @@ function vorpDeltaHtml(dVorp) {
 
 function renderCard(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  const bucket = fairBucket(g.pctDiff);
+  const bucket = g.bucket;
   const notes = [
     ...Vault.mergeAssetNotes(g.archA.notes, g.fitA.notes).map(n => ({ ...n, who: g.teamA.teamName })),
     ...g.timelineA.notes.map(n => ({ ...n, who: g.teamA.teamName })),
@@ -237,8 +240,8 @@ function renderCard(g) {
         </div>
       </div>
       <div class="pt-3 border-t border-white/5">
-        <p class="truncate text-[13px] font-bold ${synopsisColor(g.pctDiff)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-400 font-normal">(some asset values unavailable)</span>' : ''}</p>
-        <div class="text-[11px] ${fairColor(g.pctDiff)} mt-1" title="KTC's own consolidation-adjusted value, before need — the number a manager can check against KTC's own calculator. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. Weighted by both teams' roster needs instead, this trade reads as ${capPct(g.pctDiffNeed).toFixed(0)}% off.">${bucket} · ${capPct(g.pctDiff).toFixed(0)}% off</div>
+        <p class="truncate text-[13px] font-bold ${synopsisColor(bucket)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-400 font-normal">(some asset values unavailable)</span>' : ''}</p>
+        <div class="text-[11px] ${fairColor(bucket)} mt-1" title="KTC's own consolidation-adjusted value, before need — the number a manager can check against KTC's own calculator. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Borderline, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Lopsided — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. Good Trade means Fair-by-value AND a strong fit for both sides. Weighted by both teams' roster needs instead of raw value, this trade reads as ${capPct(g.pctDiffNeed).toFixed(0)}% off.">${bucket} · ${capPct(g.pctDiff).toFixed(0)}% off</div>
         <div class="max-w-[200px] mt-1.5">${fairnessBarHtml(g.signedPctDiff, g.bandPct)}</div>
         ${confidenceBandText(g)}
       </div>
@@ -256,6 +259,7 @@ function renderCard(g) {
 
 const FAIR_FILTER_TITLE = {
   All: 'Every completed trade, any value gap.',
+  'Good Trade': `Under ${VAULT_CONFIG.FAIR_PCT}% off in raw value, AND a strong fit for both sides.`,
   Fair: `Under ${VAULT_CONFIG.FAIR_PCT}% off in raw value.`,
   Borderline: `${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% off — a real tilt, but within normal give-and-take.`,
   Lopsided: `${VAULT_CONFIG.LOPSIDED_PCT}%+ off — one side clearly came out ahead on real value.`
@@ -274,7 +278,7 @@ function setFairFilter(f) { fairFilter = f; renderFilters(); renderList(); }
 function setSort(k) { sortKey = k; renderFilters(); renderList(); }
 
 function renderList() {
-  let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => fairBucket(g.pctDiff) === fairFilter);
+  let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => g.bucket === fairFilter);
   items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.pctDiff - a.pctDiff : b.created - a.created);
 
   const list = document.getElementById('list');
@@ -282,7 +286,7 @@ function renderList() {
   if (!items.length) {
     list.innerHTML = '';
     empty.classList.remove('hidden');
-    empty.textContent = allGraded.length ? `No ${fairFilter.toLowerCase()} trades found.` : 'No completed trades found for this league yet.';
+    empty.textContent = allGraded.length ? `No ${fairFilter === 'Good Trade' ? 'Good' : fairFilter.toLowerCase()} trades found.` : 'No completed trades found for this league yet.';
     return;
   }
   empty.classList.add('hidden');

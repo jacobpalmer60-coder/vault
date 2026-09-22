@@ -1391,8 +1391,8 @@ function matchTarget(side, key) {
 
 function fmtSigned(n) { return (n >= 0 ? '+' : '') + Math.round(n).toLocaleString(); }
 
-function fairnessBucket(pct) {
-  return pct < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pct < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided';
+function fairnessBucket(pct, fitA, fitB) {
+  return Vault.fairnessBucket(pct, fitA, fitB);
 }
 
 // "% off" is a ratio against the average (or target) side value, not a bounded
@@ -1445,12 +1445,12 @@ function fairnessBarHtml(signedPctDiff, bandPct) {
 // the low/high edges still read as the same bucket as the point estimate, and a
 // fuller callout when they don't — that's the case where showing only the point
 // estimate would genuinely mislead, not just add noise.
-function confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct) {
+function confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct, fitA, fitB) {
   if (!aAssets.length && !bAssets.length) return '';
   if (bandPct == null) ({ bandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdj, bValAdj));
   if (!bandPct || bandPct < 1) return '';
   const lo = Math.max(0, pctDiff - bandPct), hi = pctDiff + bandPct;
-  const bucketLo = fairnessBucket(lo), bucketHi = fairnessBucket(hi);
+  const bucketLo = fairnessBucket(lo, fitA, fitB), bucketHi = fairnessBucket(hi, fitA, fitB);
   if (bucketLo === bucketHi) return `±${bandPct.toFixed(0)}pp based on recent price swings in the less-established pieces here`;
   return `±${bandPct.toFixed(0)}pp — could read anywhere from ${bucketLo} to ${bucketHi} once the less-established pieces here (rookies, far-future picks) shake out`;
 }
@@ -1498,29 +1498,25 @@ function updateTrade() {
     : '<span class="text-zinc-400">Nothing selected</span>';
 
   const diffAdj = Math.abs(aValAdj - bValAdj);
-  const avgSideAdj = (aValAdj + bValAdj) / 2 || 1;
-  const pctDiff = diffAdj / avgSideAdj * 100;
-  // Fair/Borderline/Lopsided is gated on raw sticker value alone (KTC's own
-  // consolidation math, Vault.tradeSideValues) — the one number a manager can check
-  // against KTC's own calculator. What each pile is actually worth to the RECEIVING
-  // team (Vault.needAdjustedTradeValues) is surfaced only as a secondary "reads as
-  // X% off by need" tooltip fact below, never the number that sets the color/label.
-  const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
-  const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
-  const pctDiffNeed = avgSideAdjNeed ? Math.abs(aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
-  const signedPctDiff = Math.sign((aValAdj - bValAdj) || 1) * pctDiff;
+  // Computed once here and reused by renderAnalysis below instead of recomputing —
+  // this already runs positionalFitNotes/archetypeFitNotes/simulateTrade, real work
+  // that shouldn't happen twice on every keystroke. Also what gives the top bar's
+  // badge access to fit (resA.fit/resB.fit), needed for the Good Trade tier below.
+  const analysis = computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
+  const { pctDiff, pctDiffNeed, signedPctDiff, bandPct: diffBandPct, bucket } = analysis;
   const diffEl = document.getElementById('diff');
   diffEl.textContent = Math.round(diffAdj).toLocaleString();
-  diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400');
+  diffEl.className = 'text-[22px] font-semibold mono ' + (bucket === 'Lopsided' ? 'text-zinc-400' : bucket === 'Borderline' ? 'text-amber-400' : bucket === 'Good Trade' ? 'text-emerald-300' : 'text-emerald-400');
   // Fairness label spells out the same Fair/Lopsided thresholds the color already
   // encodes, since a raw dollar diff alone doesn't tell you what counts as fair.
+  // Good Trade is gated on value FIRST (bucket can only read Good Trade if pctDiff
+  // already cleared Fair) — see Vault.fairnessBucket.
   const diffLabelEl = document.getElementById('diffLabel');
-  diffLabelEl.textContent = (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'Fair' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'Borderline' : 'Lopsided') + ` · ${capPct(pctDiff).toFixed(0)}% off`;
-  diffLabelEl.title = `By value alone (KTC's own consolidation adjustment) — the number that decides Fair/Borderline/Lopsided. Weighted by both teams' roster needs instead, this trade reads as ${capPct(pctDiffNeed).toFixed(0)}% off.`;
-  diffLabelEl.className = 'text-[11px] mt-0.5 ' + (pctDiff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400/70' : pctDiff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400/70' : 'text-zinc-400');
-  const { bandPct: diffBandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdj, bValAdj);
+  diffLabelEl.textContent = `${bucket} · ${capPct(pctDiff).toFixed(0)}% off`;
+  diffLabelEl.title = `By value alone (KTC's own consolidation adjustment) — the number that decides Fair/Borderline/Lopsided. Good Trade means Fair-by-value AND a strong fit for both sides. Weighted by both teams' roster needs instead of raw value, this trade reads as ${capPct(pctDiffNeed).toFixed(0)}% off.`;
+  diffLabelEl.className = 'text-[11px] mt-0.5 ' + (bucket === 'Lopsided' ? 'text-zinc-400' : bucket === 'Borderline' ? 'text-amber-400/70' : bucket === 'Good Trade' ? 'text-emerald-300' : 'text-emerald-400/70');
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(signedPctDiff, diffBandPct) : '';
-  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, diffBandPct);
+  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, diffBandPct, analysis.resA.fit, analysis.resB.fit);
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
@@ -1541,7 +1537,7 @@ function updateTrade() {
     } else gapBox.classList.add('hidden');
   } else gapBox.classList.add('hidden');
 
-  renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
+  renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analysis);
 }
 
 // teamMode/MODE_LABEL now live in Vault (vault-core.js) — shared with Trade Grades.
@@ -1594,13 +1590,14 @@ function headline(dValue, avgSide, fit) {
   const pct = avgSide ? dValue / avgSide * 100 : 0;
   const dpct = capPct(pct); // display only — bucket checks below use the real pct
   const even = Math.abs(pct) < VAULT_CONFIG.FAIR_PCT;
-  if (pct <= -40) return { tone: 'bad', text: `Well below sticker value (${dpct.toFixed(0)}%)${fit >= 2 ? ' — good timeline fit, but not enough to cover a discount this big' : ''}` };
-  if (even && fit >= 2) return { tone: 'good', text: 'Even on sticker value, strong fit — good trade' };
-  if (even && fit <= -2) return { tone: 'bad', text: 'Even on sticker value, bad fit for your timeline' };
+  const goodFit = VAULT_CONFIG.GOOD_FIT_THRESHOLD;
+  if (pct <= -40) return { tone: 'bad', text: `Well below sticker value (${dpct.toFixed(0)}%)${fit >= goodFit ? ' — good timeline fit, but not enough to cover a discount this big' : ''}` };
+  if (even && fit >= goodFit) return { tone: 'good', text: 'Even on sticker value, strong fit — good trade' };
+  if (even && fit <= -goodFit) return { tone: 'bad', text: 'Even on sticker value, bad fit for your timeline' };
   if (even) return { tone: 'neutral', text: 'Even on sticker value, neutral fit' };
   if (pct >= VAULT_CONFIG.FAIR_PCT && fit >= 0) return { tone: 'good', text: `Ahead on sticker value (+${dpct.toFixed(0)}%) and fits your timeline` };
   if (pct >= VAULT_CONFIG.FAIR_PCT) return { tone: 'neutral', text: `Ahead on sticker value (+${dpct.toFixed(0)}%), but questionable fit` };
-  if (fit >= 2) return { tone: 'neutral', text: `Behind on sticker value (${dpct.toFixed(0)}%), but strong timeline fit` };
+  if (fit >= goodFit) return { tone: 'neutral', text: `Behind on sticker value (${dpct.toFixed(0)}%), but strong timeline fit` };
   return { tone: 'bad', text: `Behind on sticker value (${dpct.toFixed(0)}%) and a poor fit` };
 }
 
@@ -1789,8 +1786,9 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   });
 
   const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiff, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
+  const bucket = Vault.fairnessBucket(pctDiff, resA.fit, resB.fit);
 
-  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict };
+  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict, bucket };
 }
 
 function toggleOfferedBy(side) {
@@ -1803,7 +1801,7 @@ function renderOfferedByToggle(teamA, teamB) {
   document.getElementById('offeredByToggle').innerHTML = chip('A', teamA) + chip('B', teamB);
 }
 
-function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
+function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analysis) {
   const header = document.getElementById('analysisHeader');
   if (!aAssets.length && !bAssets.length) {
     header.classList.add('hidden');
@@ -1815,8 +1813,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
   document.getElementById('analysisA').classList.remove('hidden');
   document.getElementById('analysisB').classList.remove('hidden');
 
-  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict } =
-    computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
+  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict } = analysis;
   const displayVerdict = offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
 
   document.getElementById('tradeArchetype').innerHTML = `
@@ -1880,7 +1877,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
 
   const verdictEl = document.getElementById('tradeVerdict');
   verdictEl.className = `card rounded-2xl p-6 mb-4 border ${TONE_BANNER[displayVerdict.tone]}`;
-  const confidenceText = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct);
+  const confidenceText = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct, resA.fit, resB.fit);
   // Only worth a callout when it'd actually change how a manager reads the number —
   // otherwise it's noise repeating the badge above in slightly different words.
   const needNote = Math.abs(pctDiffNeed - pctDiff) >= 2
