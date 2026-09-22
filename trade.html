@@ -755,13 +755,24 @@ function balanceSide(mySide, btn) {
     return s;
   }, 0);
 
+  // Fit alone has no idea whether the combo is anywhere close to a fair dollar
+  // match — "keep the current selection, change nothing" is always a candidate
+  // (see additive.push(myCurrent) below), so without a fairness penalty, a
+  // wildly lopsided trade can win purely because giving away that one asset
+  // happens to help the giver's own timeline/archetype score, even at 100%+ off.
+  // Real case that surfaced this: Balance recommended giving away a $9,500 QB for
+  // a $1,000 throw-in (148% off) over swapping in a genuinely value-matched
+  // bench piece (~0% off), because dumping the QB scored better on fit alone.
+  // Scaled by /5 so it barely matters inside Fair (max ~14/5≈2.8, on par with a
+  // typical fit swing), meaningfully discourages Borderline (max ~41/5≈8.2), and
+  // overwhelms any realistic fit score once a combo is genuinely Lopsided.
   const evaluate = combo => {
     const giveA = mySide === 'A' ? combo : otherAssets;
     const giveB = mySide === 'A' ? otherAssets : combo;
     const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB);
     const result = computeTradeAnalysis(teamOf('A'), teamOf('B'), giveA, giveB, aValAdj, bValAdj);
     const fit = mySide === 'A' ? result.resA.fit : result.resB.fit;
-    return fit + needBias(combo);
+    return fit + needBias(combo) - result.pctDiffNeed / 5;
   };
 
   // Real trade partners actually want (bestFit/buildBalancedOffer's whole point) —
