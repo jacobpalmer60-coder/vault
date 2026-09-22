@@ -181,9 +181,13 @@ function renderTeamSummary(graded, teams) {
 }
 function fmtSigned(n, decimals = 0) { return (n >= 0 ? '+' : '') + n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
 
+// Same colored position pill Player Rankings/Trade Calculator use (vault.css's
+// .pos-badge-*) — a bare player name with no position shown means a reader can't
+// tell what they're looking at without already knowing the league's rosters.
+const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
 function assetChips(list) {
   if (!list.length) return '<span class="text-zinc-400">Nothing</span>';
-  return list.map(a => `<span class="inline-flex items-center gap-1.5 mr-3 mb-1"><span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span><span class="text-zinc-400 text-[12px] mono">${a.value > 0 ? Math.round(a.value).toLocaleString() : '—'}</span></span>`).join('');
+  return list.map(a => `<span class="inline-flex items-center gap-1.5 mr-3 mb-1">${a.pos && a.pos !== 'PICK' ? `<span class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span>` : ''}<span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span><span class="text-zinc-400 text-[12px] mono">${a.value > 0 ? Math.round(a.value).toLocaleString() : '—'}</span></span>`).join('');
 }
 
 function optDeltaHtml(dOpt) {
