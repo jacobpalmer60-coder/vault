@@ -374,6 +374,11 @@ function teamNameFor(rosterId, rosterMap, userMap) {
 // slotLabel is only passed for a starter row (fixed lineup-slot order); a bench
 // player has no slot, just their real position, so the two rows read differently
 // on purpose (STARTER slot vs POS) rather than forcing one shared column.
+// Same colored position system as the rest of the site (vault.css's
+// .pos-badge-*) — colored by the player's REAL position, not the roster slot
+// label shown as the badge's text, since a FLEX/SFLX slot can hold any of
+// several positions and "FLEX" alone doesn't say which one you're looking at.
+const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
 function playerLine(pid, pts, slotLabel) {
   const p = playersDb[pid] || {};
   const name = pid && pid !== '0' ? (`${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`) : 'Empty';
@@ -381,7 +386,7 @@ function playerLine(pid, pts, slotLabel) {
   const isStarter = !!slotLabel;
   return `<div class="flex items-center justify-between text-[12px] py-1">
     <div class="flex items-center gap-2 min-w-0">
-      <span class="${isStarter ? 'text-amber-300/50' : 'text-zinc-400'} w-9 shrink-0 uppercase text-[10px]">${leftLabel}</span>
+      <span class="inline-flex items-center justify-center w-9 shrink-0 px-1 py-px rounded text-[9px] font-semibold border uppercase ${POS_BADGE(p.position || '')} ${isStarter ? '' : 'opacity-50'}">${leftLabel}</span>
       <span class="truncate ${isStarter ? 'text-zinc-200' : 'text-zinc-400'}">${Vault.escapeHtml(name)}</span>
     </div>
     <span class="mono ${isStarter ? 'text-zinc-200' : 'text-zinc-400'} shrink-0">${pts.toFixed(1)}</span>
