@@ -2680,7 +2680,22 @@ const Vault = {
         { team: g.teamB, dVal: -g.dValueAdjA, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName, received: g.toB, given: g.toA, dOpt: g.dOptB }
       ].forEach(({ team, dVal, fit, timeline, opp, received, given, dOpt }) => {
         const s = ensure(team);
-        s.trades++; s.netValue += dVal; s.fitSum += fit;
+        s.trades++;
+        // A trade with an unresolvable asset (a player since retired/dropped/left
+        // the league, priced 0 by resolveTradeAssets' fallback) still really
+        // happened — trade volume stays a true fact regardless — but every VALUE-
+        // based stat below would be corrupted by treating "we don't know this
+        // player's price" as "this player was worth nothing." That's exactly the
+        // shape of an extreme blowout, so these trades were disproportionately
+        // winning "best/worst move" and skewing net value/fair-lopsided buckets
+        // off real, often near-even trades. Trade Grades already shows a "(some
+        // asset values unavailable)" caveat per-trade for the same reason; this
+        // is the same fix for the aggregated Manager stats, which had no caveat
+        // at all. Skips the rest of this trade's contribution entirely rather
+        // than trying to partially correct it — there's no reliable way to know
+        // how far off a guessed replacement value would be.
+        if (g.anyMissingValue) return;
+        s.netValue += dVal; s.fitSum += fit;
         s.netPicks += timeline.dPicks; s.ageDeltaSum += timeline.dAge;
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
         if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
