@@ -563,26 +563,15 @@ function runSuggestTradeSearch() {
     // matching package (mirrors the "Find" shop-out flow, run automatically). The
     // package flows to ME, so it's searched against MY profile — a package that
     // actually fills my need can settle for less sticker value and still get found.
-    // When the anchor itself is a pick, the return pool excludes the partner's own
-    // picks — picks are cheap and plentiful, so "closest value match" very often
-    // finds another similarly-priced pick, producing a pick-for-pick "trade" that
-    // changes nothing about either roster this year (or ever, really) and just
-    // clutters the list with technically-fair, actually-pointless suggestions. A
-    // player anchor still searches the partner's full pool, including picks —
-    // selling a player for future capital is a real, common trade type.
     myAnchors.forEach(mine => {
-      const pool = mine.type === 'pick' ? partner.assets.filter(a => a.type !== 'pick') : partner.assets;
-      const combo = bestCombo(pool, mine.value, myProfile);
+      const combo = bestCombo(partner.assets, mine.value, myProfile);
       if (combo) consider(partner, [mine], combo.combo);
     });
     // Direction 2: Team A acquires one of the partner's meaningful assets, sending
     // its own best matching package (mirrors the Finder's acquire-mode flow) — this
-    // package flows to THEM, so it's searched against their profile instead. Same
-    // pick-anchor guard, mirrored: acquiring one of their picks searches only my
-    // own players to send back, not my picks.
+    // package flows to THEM, so it's searched against their profile instead.
     tradeableAssets(partner).forEach(theirs => {
-      const pool = theirs.type === 'pick' ? myTeam.assets.filter(a => a.type !== 'pick') : myTeam.assets;
-      const combo = bestCombo(pool, theirs.value, partnerProfile);
+      const combo = bestCombo(myTeam.assets, theirs.value, partnerProfile);
       if (combo) consider(partner, combo.combo, [theirs]);
     });
   });
@@ -603,8 +592,18 @@ function runSuggestTradeSearch() {
   // already cleared the "not bad" bar in consider() above, so this ordering is
   // specifically "which of these genuinely-viable trades is closest to even", not a
   // blend with fit/archetype scoring (that's still visible per-card via the verdict
-  // label, just not what determines the order).
-  deduped.sort((x, y) => x.result.pctDiffNeed - y.result.pctDiffNeed);
+  // label, just not what determines the order). Pick-for-pick trades sort last
+  // within that — they're trivial to price almost perfectly even (two same-asset-
+  // class items of similar cost), so "closest to fair" isn't a meaningful quality
+  // signal for them the way it is for a real trade moving rostered talent, and
+  // ranking by raw fairness alone would let them claim the top spots on that
+  // technicality alone.
+  const isPickForPick = c => c.giveA.every(a => a.type === 'pick') && c.giveB.every(a => a.type === 'pick');
+  deduped.sort((x, y) => {
+    const px = isPickForPick(x) ? 1 : 0, py = isPickForPick(y) ? 1 : 0;
+    if (px !== py) return px - py;
+    return x.result.pctDiffNeed - y.result.pctDiffNeed;
+  });
 
   // Cap per-partner, not just overall — otherwise the pool fills up with
   // near-duplicate variations against whichever single team fits best, crowding out
@@ -612,11 +611,23 @@ function runSuggestTradeSearch() {
   // small overall number here — that happens in renderSuggestions, so filtering by
   // position can still surface a good trade that didn't make the default top-5.
   const MAX_PER_PARTNER = 2;
+  // A real pick-for-pick trade is a legitimate suggestion sometimes (consolidating
+  // capital, converting a far-future pick into a nearer one) — the actual problem
+  // was every top result being one, not that any exist at all. Sorted to the back
+  // above and capped here too, so a couple can still surface once every real
+  // player trade is exhausted, without crowding out trades that actually move
+  // rostered talent.
+  const MAX_PICK_FOR_PICK = 2;
   const partnerCounts = new Map();
+  let pickForPickCount = 0;
   const pool = [];
   for (const c of deduped) {
     const n = partnerCounts.get(c.partner.rosterId) || 0;
     if (n >= MAX_PER_PARTNER) continue;
+    if (isPickForPick(c)) {
+      if (pickForPickCount >= MAX_PICK_FOR_PICK) continue;
+      pickForPickCount++;
+    }
     pool.push(c);
     partnerCounts.set(c.partner.rosterId, n + 1);
   }
