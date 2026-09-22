@@ -1683,6 +1683,25 @@ const Vault = {
     return { aValAdjNeed, bValAdjNeed };
   },
 
+  // Need-weighting is meant to refine a close call, not launder a genuinely
+  // lopsided trade into reading as fair. Real case that surfaced this: a team
+  // receiving one elite piece for two lesser ones (a real ~30% sticker-value gap,
+  // matching KeepTradeCut's own read) need-adjusted all the way down to ~0%
+  // because the exact positions involved happened to be a mirror-image need/
+  // surplus match on both sides — the ±15% multipliers (POS_NEED_MULTIPLIER /
+  // POS_SURPLUS_MULTIPLIER) can each swing a side by 15%, so a trade where both
+  // sides get the full push in the same direction can move by ~35% relative,
+  // enough to fully erase or even invert a real mismatch. This floors how far
+  // need-weighting can pull the reading toward "more fair" than the raw sticker
+  // number — it can still cut a bad number substantially (up to half), just never
+  // launder it away entirely. Never floors the other direction (need revealing a
+  // trade is WORSE than sticker price suggests, i.e. pctDiffNeed > pctDiff) —
+  // only "looks fairer than it should" is the trust problem here.
+  NEED_ADJUSTMENT_FLOOR_RATIO: 0.5,
+  clampNeedAdjustedPct(pctDiff, pctDiffNeed) {
+    return Math.max(pctDiffNeed, pctDiff * Vault.NEED_ADJUSTMENT_FLOOR_RATIO);
+  },
+
   /* ---------- Value confidence / uncertainty ----------
      Every trade number in this app is a point estimate off today's KTC price, but
      that price itself is a real market's current best guess, not a fact — a rookie
@@ -2471,8 +2490,11 @@ const Vault = {
     // sticker-price version, kept for the recap text and as a tooltip detail.
     const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toB, toA);
     const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
-    const signedPctDiffNeed = (aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100;
-    const pctDiffNeed = Math.abs(signedPctDiffNeed);
+    const rawSignedPctDiffNeed = (aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100;
+    // Floored against the raw sticker % — need-weighting can soften a bad number,
+    // never launder it away entirely. See Vault.clampNeedAdjustedPct.
+    const pctDiffNeed = Vault.clampNeedAdjustedPct(pctDiff, Math.abs(rawSignedPctDiffNeed));
+    const signedPctDiffNeed = Math.sign(rawSignedPctDiffNeed || 1) * pctDiffNeed;
     // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand) — for a
     // completed trade this reads less like "how sure are we" and more like "how much
     // of this verdict rode on pieces that were genuinely unproven at the time," since

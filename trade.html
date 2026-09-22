@@ -1496,8 +1496,14 @@ function updateTrade() {
   // checkable fact); the label/color below is what changed.
   const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
   const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
-  const signedPctDiffNeed = (aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100;
-  const pctDiffNeed = Math.abs(signedPctDiffNeed);
+  const rawSignedPctDiffNeed = (aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100;
+  // Floored against the raw sticker % — need-weighting can soften a bad number,
+  // never launder it away entirely (see Vault.clampNeedAdjustedPct). pctDiffNeed
+  // stays unsigned (every downstream bucket comparison expects a magnitude);
+  // signedPctDiffNeed (the fairness bar's marker position) carries the same
+  // clamped magnitude back out with its original direction.
+  const pctDiffNeed = Vault.clampNeedAdjustedPct(pctDiff, Math.abs(rawSignedPctDiffNeed));
+  const signedPctDiffNeed = Math.sign(rawSignedPctDiffNeed || 1) * pctDiffNeed;
   const diffEl = document.getElementById('diff');
   diffEl.textContent = Math.round(diffAdj).toLocaleString();
   diffEl.className = 'text-[22px] font-semibold mono ' + (pctDiffNeed < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : pctDiffNeed < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400');
@@ -1739,8 +1745,15 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   // worth keeping, just not the one that should gate the fairness label.
   const { aValAdjNeed, bValAdjNeed } = Vault.needAdjustedTradeValues(teamA, teamB, teams, aAssets, bAssets);
   const avgSideAdjNeed = (aValAdjNeed + bValAdjNeed) / 2 || 1;
-  const signedPctDiffNeed = avgSideAdjNeed ? (aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
-  const pctDiffNeed = Math.abs(signedPctDiffNeed);
+  const rawSignedPctDiffNeed = avgSideAdjNeed ? (aValAdjNeed - bValAdjNeed) / avgSideAdjNeed * 100 : 0;
+  const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
+  // Floored against the raw sticker % — need-weighting can soften a bad number,
+  // never launder it away entirely (see Vault.clampNeedAdjustedPct). pctDiffNeed
+  // stays unsigned (every downstream bucket comparison expects a magnitude);
+  // signedPctDiffNeed (the fairness bar's marker position) carries the same
+  // clamped magnitude back out with its original direction.
+  const pctDiffNeed = Vault.clampNeedAdjustedPct(pctDiff, Math.abs(rawSignedPctDiffNeed));
+  const signedPctDiffNeed = Math.sign(rawSignedPctDiffNeed || 1) * pctDiffNeed;
   const { bandPct } = Vault.tradeConfidenceBand(aAssets, bAssets, aValAdjNeed, bValAdjNeed);
 
   const resA = analyzeSide(before.A, after.A);
@@ -1776,7 +1789,6 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     wins[side] = win;
   });
 
-  const pctDiff = avgSideAdj ? Math.abs(aValAdj - bValAdj) / avgSideAdj * 100 : 0;
   const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiffNeed, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
 
   return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiffNeed, bandPct, verdict };
