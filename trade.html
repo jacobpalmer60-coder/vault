@@ -792,8 +792,21 @@ function balanceSide(mySide, btn) {
     return needPool.length ? comboSearchTopN(needPool, targetAdj, n, otherProfile).map(c => c.combo) : [];
   };
 
+  // Real dollar gap for a candidate combo — used to decide whether Tier 1 already
+  // reached a fair trade, separately from `evaluate`'s fit-weighted score (which
+  // isn't on a scale comparable to VAULT_CONFIG.FAIR_PCT).
+  const pctDiffFor = combo => {
+    const giveA = mySide === 'A' ? combo : otherAssets;
+    const giveB = mySide === 'A' ? otherAssets : combo;
+    const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB);
+    const avg = (aValAdj + bValAdj) / 2 || 1;
+    return Math.abs(aValAdj - bValAdj) / avg * 100;
+  };
+
   // Tier 1: current selection (if any) + up to a few added pieces from the rest of
-  // my roster, aimed at the remaining value gap.
+  // my roster, aimed at the remaining value gap. This is the expected, common
+  // path — Balance is meant to adjust what's already on the table, not throw it
+  // out for something unrelated.
   const fillerPool = myTeam.assets.filter(a => !mySel.has(a.key));
   const remainingAdj = targetAdj - myCurrent.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
   const additive = comboSearchTopN(fillerPool, remainingAdj, 6, otherProfile).map(c => [...myCurrent, ...c.combo]);
@@ -803,15 +816,21 @@ function balanceSide(mySide, btn) {
   let best = null, bestFitScore = -Infinity;
   additive.forEach(combo => { const fit = evaluate(combo); if (fit > bestFitScore) { bestFitScore = fit; best = combo; } });
 
-  // Tier 2: a fresh, whole-roster search — always run, not just when Tier 1 looks
-  // bad. Tier 1 can only ever ADD to the current selection, never remove from it,
-  // so a bad piece that's already selected (and numerically "good enough" to clear
-  // an early-exit gate) would survive Balance forever if this only ran as a
-  // fallback — exactly how a surplus-position throw-in kept surviving repeated
-  // Balance clicks even after a genuinely better-fitting option existed.
-  const fresh = comboSearchTopN(myTeam.assets, targetAdj, 10, otherProfile).map(c => c.combo);
-  fresh.push(...needCandidates(myTeam.assets, targetAdj, 5));
-  fresh.forEach(combo => { const fit = evaluate(combo); if (fit > bestFitScore) { bestFitScore = fit; best = combo; } });
+  // Tier 2: a fresh, whole-roster search — only when Tier 1 genuinely can't reach
+  // a fair trade by adding to what's already selected. Tier 1 can only ever ADD to
+  // the current selection, never remove from it, so a fundamentally mismatched
+  // piece already on the table (the wrong position or archetype entirely) can
+  // leave every additive combo still Lopsided/Unfair no matter what gets piled on
+  // top — that's the real gap this closes, not a routine second opinion. Gating it
+  // like this (instead of always running it and letting `evaluate` pick whichever
+  // scores higher) is what stops Balance from swapping out a perfectly fine
+  // current selection for an unrelated fresh combo just because it happens to
+  // score a little higher on fit.
+  if (!best || pctDiffFor(best) >= VAULT_CONFIG.FAIR_PCT) {
+    const fresh = comboSearchTopN(myTeam.assets, targetAdj, 10, otherProfile).map(c => c.combo);
+    fresh.push(...needCandidates(myTeam.assets, targetAdj, 5));
+    fresh.forEach(combo => { const fit = evaluate(combo); if (fit > bestFitScore) { bestFitScore = fit; best = combo; } });
+  }
   if (!best) return flashButtonMessage(btn, 'No alternative package found');
 
   // Either tier can legitimately land back on exactly what's already selected.
