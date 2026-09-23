@@ -1898,16 +1898,21 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
     <div class="text-[13px] text-zinc-300 leading-relaxed">${trade.desc}</div>`;
 
   // One button, not one per side — it always rebuilds whichever side is currently
-  // LOSING this trade (the lower dValueAdj), so the user never has to guess which
-  // of two buttons to click. Lives above the trade itself (next to Reset in the
-  // Trade Bar), not buried in either side's analysis card, since it acts on the
-  // trade you're building — gated on the OVERALL verdict rather than either side's
-  // own tone, since a side can read "good" simply for getting the better end of a
-  // lopsided deal.
-  const loseSide = dValueAdjA <= dValueAdjB ? 'A' : 'B';
-  const loseTeamName = loseSide === 'A' ? teamA.teamName : teamB.teamName;
+  // UNDERPAYING this trade (the higher dValueAdj, i.e. gave up less real value),
+  // so the user never has to guess which of two buttons to click. Sweetening the
+  // cheaper side's offer, not cheapening the pricier side's ask, matches how a
+  // real trade negotiation actually closes a gap — and it's what Balance's own
+  // Tier 1 (see balanceSide) is built to do well: ADD to what's already selected
+  // rather than replace it, which only works when the side being adjusted is the
+  // one that needs to give MORE, not less. Lives above the trade itself (next to
+  // Reset in the Trade Bar), not buried in either side's analysis card, since it
+  // acts on the trade you're building — gated on the OVERALL verdict rather than
+  // either side's own tone, since a side can read "good" simply for getting the
+  // better end of a lopsided deal.
+  const sweetenSide = dValueAdjA >= dValueAdjB ? 'A' : 'B';
+  const sweetenTeamName = sweetenSide === 'A' ? teamA.teamName : teamB.teamName;
   document.getElementById('balanceBtn').innerHTML = verdict.tone !== 'good'
-    ? `<button onclick="balanceSide('${loseSide}', this)" title="Keep Team ${loseSide === 'A' ? 'B' : 'A'}'s side exactly as selected, and look for a different ${Vault.escapeHtml(loseTeamName)} package that reads as a better fit" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l-3 6a4 4 0 0 0 6 0zM19 8l-3 6a4 4 0 0 0 6 0zM5 8h14M9 3h6"/></svg>Balance ${Vault.escapeHtml(loseTeamName)}</button>`
+    ? `<button onclick="balanceSide('${sweetenSide}', this)" title="Keep Team ${sweetenSide === 'A' ? 'B' : 'A'}'s side exactly as selected, and add to ${Vault.escapeHtml(sweetenTeamName)}'s side to close the gap" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l-3 6a4 4 0 0 0 6 0zM19 8l-3 6a4 4 0 0 0 6 0zM5 8h14M9 3h6"/></svg>Balance ${Vault.escapeHtml(sweetenTeamName)}</button>`
     : '';
 
   [['A', before.A, after.A, resA, dValueAdjA], ['B', before.B, after.B, resB, dValueAdjB]].forEach(([side, bef, aft, res, dValueAdj]) => {
