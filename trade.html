@@ -1420,10 +1420,19 @@ function bucketColor(bucket, muted) {
 // both a genuine Good bucket (one side's fit clears the bar, the other doesn't)
 // AND a real "Fair, No Real Winner" (neither side's fit clears it), which the
 // plain three-tone system can't tell apart — hence checking bucket explicitly
-// rather than trying to derive it from tone alone. These three helpers are only
-// for the objective two-sided verdict display (banner, Suggested Trades card);
-// a per-side head.tone stays on the plain TONE/TONE_DOT maps, where 'good'
-// means "this side benefited," not "the whole trade is Great."
+// rather than trying to derive it from tone alone.
+//
+// Also used for the offeredBy-reframed acceptance verdict, whose tone comes
+// from one side's own headline (heads[receivingSide].tone) instead — there
+// tone 'good' does NOT imply bucket 'Great' (only that THIS side did well), but
+// the bucket check here still can't misfire from that: Great forces both sides'
+// headline tone to 'good' (proven above), so a Great trade always paints violet
+// here too; a Good trade only paints blue when this side's own tone lands on
+// the neutral fallback, otherwise it correctly defers to plain accept/decline
+// coloring. A per-side head.tone used elsewhere (analysis card, notes list)
+// stays on the plain TONE/TONE_DOT maps — only these three helpers are bucket-
+// aware, where 'good' still just means "this side benefited," not "the whole
+// trade is Great."
 function verdictColor(tone, bucket) {
   if (bucket === 'Great') return 'text-violet-300';
   if (bucket === 'Good' && tone === 'neutral') return 'text-sky-400';
@@ -1860,12 +1869,6 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
   const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict, bucket } = analysis;
   const displayVerdict = offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
-  // Only tint the banner off the whole-trade bucket for the objective two-sided
-  // verdict — once offeredBy reframes this around "should THEY accept," tone
-  // comes from one side's own headline (heads[receivingSide].tone), where 'good'
-  // no longer implies Great (see the proof in bucketColor's comment), so it falls
-  // back to the plain tone palette instead of guessing.
-  const bannerBucket = offeredBy ? null : bucket;
 
   document.getElementById('tradeArchetype').innerHTML = `
     <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">Trade Archetype</div>
@@ -1927,7 +1930,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
   });
 
   const verdictEl = document.getElementById('tradeVerdict');
-  verdictEl.className = `card rounded-2xl p-6 mb-4 border ${verdictBanner(displayVerdict.tone, bannerBucket)}`;
+  verdictEl.className = `card rounded-2xl p-6 mb-4 border ${verdictBanner(displayVerdict.tone, bucket)}`;
   const confidenceText = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct, resA.fit, resB.fit);
   // Only worth a callout when it'd actually change how a manager reads the number —
   // otherwise it's noise repeating the badge above in slightly different words.
@@ -1935,10 +1938,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
     ? `<span title="Weighted by both teams' roster needs instead of raw sticker value" class="cursor-help">reads as ${capPct(pctDiffNeed).toFixed(0)}% off by need</span>` : '';
   verdictEl.innerHTML = `
     <div class="flex items-center gap-3 mb-2">
-      <span class="size-3.5 rounded-full shrink-0 ${verdictDot(displayVerdict.tone, bannerBucket)}"></span>
-      <div class="text-[28px] font-semibold leading-tight ${verdictColor(displayVerdict.tone, bannerBucket)}">${displayVerdict.label}</div>
+      <span class="size-3.5 rounded-full shrink-0 ${verdictDot(displayVerdict.tone, bucket)}"></span>
+      <div class="text-[28px] font-semibold leading-tight ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.label}</div>
     </div>
-    <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bannerBucket)}">${displayVerdict.text}</div>
+    <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.text}</div>
     <div class="max-w-sm mt-3">${fairnessBarHtml(signedPctDiff, bandPct)}</div>
     <div class="text-[11px] text-zinc-400 mt-1.5">${[confidenceText, needNote].filter(Boolean).join(' · ')}</div>`;
 }
