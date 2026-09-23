@@ -2445,7 +2445,7 @@ const Vault = {
 
     if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
       const favored = dValueAdjA >= 0 ? 'A' : 'B';
-      return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
+      return { tone: 'bad', label: `Unfair — Favored Team ${favored}`, text };
     }
     if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
     if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };

@@ -660,8 +660,8 @@ function suggestionCard(c, i) {
       </div>
       <div class="text-[12px] text-zinc-300 mb-1.5">You send <span class="text-zinc-200">${c.giveA.map(a => Vault.escapeHtml(a.name)).join(', ')}</span> for <span class="text-zinc-200">${c.giveB.map(a => Vault.escapeHtml(a.name)).join(', ')}</span></div>
       <div class="flex items-center gap-2">
-        <span class="size-2 rounded-full ${TONE_DOT[c.result.verdict.tone]}"></span>
-        <span class="text-[12px] font-medium ${TONE[c.result.verdict.tone]}">${c.result.verdict.label}</span>
+        <span class="size-2 rounded-full ${verdictDot(c.result.verdict.tone, c.result.bucket)}"></span>
+        <span class="text-[12px] font-medium ${verdictColor(c.result.verdict.tone, c.result.bucket)}">${c.result.verdict.label}</span>
       </div>
     </div>`;
 }
@@ -1408,6 +1408,38 @@ function bucketColor(bucket, muted) {
   return 'text-zinc-400';
 }
 
+// The two-sided verdict's own tone (overallVerdict/historyVerdict's return, NOT
+// a per-side head.tone) turns out to line up exactly with the value+fit bucket:
+// tone 'good' requires BOTH sides' headline to read 'good', which — since a
+// side's headline can only be 'good' when it's even-or-ahead on value AND its
+// own fit clears the threshold, and one side being "ahead" forces the other
+// "behind" (dValueAdjA = -dValueAdjB) — is only possible when both sides are
+// exactly even (pctDiff < FAIR_PCT) and both clear the fit bar: precisely
+// Vault.fairnessBucket's Great condition. So tone 'good' ⟺ bucket 'Great',
+// always, for this two-sided verdict. Tone 'neutral' isn't as clean — it covers
+// both a genuine Good bucket (one side's fit clears the bar, the other doesn't)
+// AND a real "Fair, No Real Winner" (neither side's fit clears it), which the
+// plain three-tone system can't tell apart — hence checking bucket explicitly
+// rather than trying to derive it from tone alone. These three helpers are only
+// for the objective two-sided verdict display (banner, Suggested Trades card);
+// a per-side head.tone stays on the plain TONE/TONE_DOT maps, where 'good'
+// means "this side benefited," not "the whole trade is Great."
+function verdictColor(tone, bucket) {
+  if (bucket === 'Great') return 'text-violet-300';
+  if (bucket === 'Good' && tone === 'neutral') return 'text-sky-400';
+  return TONE[tone];
+}
+function verdictDot(tone, bucket) {
+  if (bucket === 'Great') return 'bg-violet-400';
+  if (bucket === 'Good' && tone === 'neutral') return 'bg-sky-400';
+  return TONE_DOT[tone];
+}
+function verdictBanner(tone, bucket) {
+  if (bucket === 'Great') return 'bg-violet-500/[0.06] border-violet-500/25';
+  if (bucket === 'Good' && tone === 'neutral') return 'bg-sky-500/[0.06] border-sky-500/25';
+  return TONE_BANNER[tone];
+}
+
 // "% off" is a ratio against the average (or target) side value, not a bounded
 // percentage — it can mathematically clear 100 when one side gives up next to
 // nothing (the other side's whole value lands on top of a near-zero average).
@@ -1656,7 +1688,7 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
 
   if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
     const favored = dValueAdjA >= 0 ? 'A' : 'B';
-    return { tone: 'bad', label: `Lopsided — Favors Team ${favored}`, text };
+    return { tone: 'bad', label: `Unfair — Favors Team ${favored}`, text };
   }
 
   // Below the Lopsided cutoff, a real dollar tilt is the norm for an actual trade
@@ -1826,8 +1858,14 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
   document.getElementById('analysisA').classList.remove('hidden');
   document.getElementById('analysisB').classList.remove('hidden');
 
-  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict } = analysis;
+  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict, bucket } = analysis;
   const displayVerdict = offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
+  // Only tint the banner off the whole-trade bucket for the objective two-sided
+  // verdict — once offeredBy reframes this around "should THEY accept," tone
+  // comes from one side's own headline (heads[receivingSide].tone), where 'good'
+  // no longer implies Great (see the proof in bucketColor's comment), so it falls
+  // back to the plain tone palette instead of guessing.
+  const bannerBucket = offeredBy ? null : bucket;
 
   document.getElementById('tradeArchetype').innerHTML = `
     <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">Trade Archetype</div>
@@ -1889,7 +1927,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
   });
 
   const verdictEl = document.getElementById('tradeVerdict');
-  verdictEl.className = `card rounded-2xl p-6 mb-4 border ${TONE_BANNER[displayVerdict.tone]}`;
+  verdictEl.className = `card rounded-2xl p-6 mb-4 border ${verdictBanner(displayVerdict.tone, bannerBucket)}`;
   const confidenceText = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct, resA.fit, resB.fit);
   // Only worth a callout when it'd actually change how a manager reads the number —
   // otherwise it's noise repeating the badge above in slightly different words.
@@ -1897,10 +1935,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
     ? `<span title="Weighted by both teams' roster needs instead of raw sticker value" class="cursor-help">reads as ${capPct(pctDiffNeed).toFixed(0)}% off by need</span>` : '';
   verdictEl.innerHTML = `
     <div class="flex items-center gap-3 mb-2">
-      <span class="size-3.5 rounded-full shrink-0 ${TONE_DOT[displayVerdict.tone]}"></span>
-      <div class="text-[28px] font-semibold leading-tight ${TONE[displayVerdict.tone]}">${displayVerdict.label}</div>
+      <span class="size-3.5 rounded-full shrink-0 ${verdictDot(displayVerdict.tone, bannerBucket)}"></span>
+      <div class="text-[28px] font-semibold leading-tight ${verdictColor(displayVerdict.tone, bannerBucket)}">${displayVerdict.label}</div>
     </div>
-    <div class="text-[17px] font-medium leading-snug ${TONE[displayVerdict.tone]}">${displayVerdict.text}</div>
+    <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bannerBucket)}">${displayVerdict.text}</div>
     <div class="max-w-sm mt-3">${fairnessBarHtml(signedPctDiff, bandPct)}</div>
     <div class="text-[11px] text-zinc-400 mt-1.5">${[confidenceText, needNote].filter(Boolean).join(' · ')}</div>`;
 }
