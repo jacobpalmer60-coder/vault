@@ -304,11 +304,17 @@ async function init() {
   try {
     const built = await Vault.buildLeagueTeams(Vault.getLeagueId());
     league = built.league; slots = built.slots;
-    // Sleeper's roster cap isn't roster_positions.length alone — taxi and IR are
-    // separate pools on top of it (a real league here: 30 lineup+bench slots + 4
-    // taxi + 6 reserve = 40, while roster_positions alone would undercount every
-    // team's actual, comfortably-legal roster size of 31-36).
-    rosterCap = (league.roster_positions || []).length + (league.settings?.taxi_slots || 0) + (league.settings?.reserve_slots || 0);
+    // The ACTIVE roster cap — taxi and IR are separate pools Sleeper tracks (see
+    // team.taxiIds/reserveIds), but they're not generic overflow capacity a newly
+    // -acquired trade piece can just slot into: taxi needs rookie/sophomore
+    // eligibility plus a league-specific deadline, IR needs an actual injury
+    // designation. A team can legitimately carry more total players than this
+    // (already-stashed taxi/IR players don't count against it), but a HEALTHY
+    // veteran received in a trade needs a real active/bench slot, so this is the
+    // number that matters for "does this trade force a drop." Filters out literal
+    // 'IR'/'TAXI' entries in case a league puts those directly in roster_positions
+    // instead of the separate taxi_slots/reserve_slots settings.
+    rosterCap = (league.roster_positions || []).filter(s => s !== 'IR' && s !== 'TAXI').length;
 
     const [playerHist, pickHist] = await Promise.all([Vault.fetchPlayerValueHistory(), Vault.fetchPickValueHistory()]);
     const bonusRecTe = league.scoring_settings?.bonus_rec_te;
@@ -1764,15 +1770,20 @@ function acceptanceVerdict(side, heads, teamA, teamB) {
   };
 }
 
-// How many total rostered players (not picks — those don't occupy a roster spot
-// until drafted) a team would carry after this trade, against the league's real
-// capacity (starters + bench + taxi + IR — see rosterCap's own comment). A
-// consolidation trade can be fine on value and fit and still force a drop the
+// How many ACTIVE (non-taxi, non-IR) roster spots a team would occupy after this
+// trade, against rosterCap. Picks don't count — they don't occupy a roster spot
+// until drafted. An outgoing player only frees an active spot if they weren't
+// already stashed on taxi/IR (trading away a taxi rookie doesn't help you fit a
+// newly-acquired veteran); an incoming player always needs a real active spot,
+// since a trade can't assume the other team's taxi/IR eligibility carries over.
+// A consolidation trade can be fine on value and fit and still force a drop the
 // rest of the app has no other way to surface.
 function projectedRosterCount(team, outgoing, incoming) {
-  const outPlayers = outgoing.filter(a => a.type === 'player').length;
+  const isStashed = a => team.taxiIds?.has(a.id) || team.reserveIds?.has(a.id);
+  const outActive = outgoing.filter(a => a.type === 'player' && !isStashed(a)).length;
   const inPlayers = incoming.filter(a => a.type === 'player').length;
-  return team.plist.length - outPlayers + inPlayers;
+  const currentActive = team.plist.length - (team.taxiIds?.size || 0) - (team.reserveIds?.size || 0);
+  return currentActive - outActive + inPlayers;
 }
 
 // Labels the trade itself — not either team's fit, but what kind of transaction this is.
@@ -1812,8 +1823,8 @@ function classifyTrade(resA, resB, aAssets, bAssets, teamA, teamB) {
   if (rosterCap) {
     const newA = projectedRosterCount(teamA, aAssets, bAssets);
     const newB = projectedRosterCount(teamB, bAssets, aAssets);
-    if (newA > rosterCap) desc += ` This leaves Team A at ${newA}/${rosterCap} roster spots — they'll need to drop ${newA - rosterCap}.`;
-    if (newB > rosterCap) desc += ` This leaves Team B at ${newB}/${rosterCap} roster spots — they'll need to drop ${newB - rosterCap}.`;
+    if (newA > rosterCap) desc += ` This leaves Team A needing ${newA}/${rosterCap} active roster spots — they'll need to drop ${newA - rosterCap} (taxi/IR don't count unless the incoming piece actually qualifies).`;
+    if (newB > rosterCap) desc += ` This leaves Team B needing ${newB}/${rosterCap} active roster spots — they'll need to drop ${newB - rosterCap} (taxi/IR don't count unless the incoming piece actually qualifies).`;
   }
 
   return { label, desc };

@@ -1102,7 +1102,14 @@ const Vault = {
         fpts: (rs.fpts || 0) + (rs.fpts_decimal || 0) / 100,
         fptsAgainst: (rs.fpts_against || 0) + (rs.fpts_against_decimal || 0) / 100
       };
-      return { rosterId: r.roster_id, ownerId: r.owner_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, vorpTotal, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [], record };
+      // Who's CURRENTLY parked on taxi/IR — not generically available capacity for
+      // a newly-acquired trade piece the way a bench slot is (taxi needs rookie/
+      // sophomore eligibility and a league-specific deadline; IR needs an actual
+      // injury designation), so roster-space checks need to know who's stashed
+      // there apart from plist.length alone. String ids, matching plist's own p.id.
+      const taxiIds = new Set((r.taxi || []).map(String));
+      const reserveIds = new Set((r.reserve || []).map(String));
+      return { rosterId: r.roster_id, ownerId: r.owner_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, vorpTotal, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [], record, taxiIds, reserveIds };
     });
 
     /* ---------- Per-player value/production divergence ----------
