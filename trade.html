@@ -186,7 +186,7 @@
 <script src="vault-core.js"></script>
 <script src="vault-nav.js"></script>
 <script>
-let teams = [], league = null, slots = [];
+let teams = [], league = null, slots = [], rosterCap = 0;
 let playerTrend = new Map(), pickTrend = new Map(), playerVolatility = new Map();
 let selectedA = new Set();
 let selectedB = new Set();
@@ -304,6 +304,11 @@ async function init() {
   try {
     const built = await Vault.buildLeagueTeams(Vault.getLeagueId());
     league = built.league; slots = built.slots;
+    // Sleeper's roster cap isn't roster_positions.length alone — taxi and IR are
+    // separate pools on top of it (a real league here: 30 lineup+bench slots + 4
+    // taxi + 6 reserve = 40, while roster_positions alone would undercount every
+    // team's actual, comfortably-legal roster size of 31-36).
+    rosterCap = (league.roster_positions || []).length + (league.settings?.taxi_slots || 0) + (league.settings?.reserve_slots || 0);
 
     const [playerHist, pickHist] = await Promise.all([Vault.fetchPlayerValueHistory(), Vault.fetchPickValueHistory()]);
     const bonusRecTe = league.scoring_settings?.bonus_rec_te;
@@ -1759,8 +1764,19 @@ function acceptanceVerdict(side, heads, teamA, teamB) {
   };
 }
 
+// How many total rostered players (not picks — those don't occupy a roster spot
+// until drafted) a team would carry after this trade, against the league's real
+// capacity (starters + bench + taxi + IR — see rosterCap's own comment). A
+// consolidation trade can be fine on value and fit and still force a drop the
+// rest of the app has no other way to surface.
+function projectedRosterCount(team, outgoing, incoming) {
+  const outPlayers = outgoing.filter(a => a.type === 'player').length;
+  const inPlayers = incoming.filter(a => a.type === 'player').length;
+  return team.plist.length - outPlayers + inPlayers;
+}
+
 // Labels the trade itself — not either team's fit, but what kind of transaction this is.
-function classifyTrade(resA, resB, aAssets, bAssets) {
+function classifyTrade(resA, resB, aAssets, bAssets, teamA, teamB) {
   const aSellsProd = resA.dOpt < -3 && resA.dPicks > 500;
   const bSellsProd = resB.dOpt < -3 && resB.dPicks > 500;
   const aBuysProd = resA.dOpt > 3 && resA.dPicks < -500;
@@ -1792,6 +1808,13 @@ function classifyTrade(resA, resB, aAssets, bAssets) {
 
   if (aAssets.length >= bAssets.length + 2) desc += ` Team A is also consolidating — ${aAssets.length} pieces down to ${bAssets.length} bigger ones from Team B.`;
   else if (bAssets.length >= aAssets.length + 2) desc += ` Team B is also consolidating — ${bAssets.length} pieces down to ${aAssets.length} bigger ones from Team A.`;
+
+  if (rosterCap) {
+    const newA = projectedRosterCount(teamA, aAssets, bAssets);
+    const newB = projectedRosterCount(teamB, bAssets, aAssets);
+    if (newA > rosterCap) desc += ` This leaves Team A at ${newA}/${rosterCap} roster spots — they'll need to drop ${newA - rosterCap}.`;
+    if (newB > rosterCap) desc += ` This leaves Team B at ${newB}/${rosterCap} roster spots — they'll need to drop ${newB - rosterCap}.`;
+  }
 
   return { label, desc };
 }
@@ -1827,7 +1850,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
 
   const resA = analyzeSide(before.A, after.A);
   const resB = analyzeSide(before.B, after.B);
-  const trade = classifyTrade(resA, resB, aAssets, bAssets);
+  const trade = classifyTrade(resA, resB, aAssets, bAssets, teamA, teamB);
 
   const heads = {}, wins = {}, posResults = {};
   [['A', before.A, after.A, resA, dValueAdjA, bAssets, aAssets], ['B', before.B, after.B, resB, dValueAdjB, aAssets, bAssets]].forEach(([side, bef, aft, res, dValueAdj, incoming, outgoing]) => {
