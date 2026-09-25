@@ -352,6 +352,45 @@ function renderWeeklyLeaders(rosterMap, userMap) {
 // change to show for it, so the delta badge only appears on their MOST RECENT
 // play line (first in this reversed, newest-first list) — repeating the same
 // total on every older line for the same player would just be noise.
+// Best-effort play-type tag from ESPN's own play text — no structured "play type"
+// field exists in this feed (see the file-level comment on ESPN_TEAM_ALIAS), just
+// keyword matching against the same text already shown below it. Order matters:
+// checked most-specific-first so a touchdown-scoring extra point still reads as
+// TD before XP, etc.
+const PLAY_TAG = {
+  TD: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  XP: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  FG: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  INT: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+  FUM: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+  SACK: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+  FLAG: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  INC: 'bg-white/5 text-zinc-400 border-white/10',
+  PLAY: 'bg-white/5 text-zinc-400 border-white/10'
+};
+function classifyPlay(text) {
+  const t = text.toUpperCase();
+  let label = 'PLAY';
+  if (t.includes('TOUCHDOWN')) label = 'TD';
+  else if (t.includes('INTERCEPTED')) label = 'INT';
+  else if (t.includes('FUMBLE')) label = 'FUM';
+  else if (t.includes('SACKED')) label = 'SACK';
+  else if (t.includes('PENALTY')) label = 'FLAG';
+  else if (t.includes('FIELD GOAL')) label = 'FG';
+  else if (t.includes('EXTRA POINT')) label = 'XP';
+  else if (t.includes('INCOMPLETE')) label = 'INC';
+  return { label, cls: PLAY_TAG[label] };
+}
+
+// Point value + running total per play, closest we can get to a real per-play
+// stat feed from ESPN text + Sleeper's own players_points. The running TOTAL is
+// always accurate (it's just this player's current score, no timing involved),
+// but the "+X.X" point CHANGE is inherently best-effort: Sleeper's official
+// scoring can lag ESPN's play text by a play or two while stats get confirmed,
+// so the change shows up attributed to whichever of this player's plays is
+// still their most recent once Sleeper actually catches up — not always the
+// literal play that caused it, the same honest limitation this feed's own
+// text-matching already has (see allRosteredCandidates).
 function renderLiveFeed(rosterMap, userMap) {
   const candidates = allRosteredCandidates(rosterMap, userMap).filter(c => c.pattern);
   const found = [];
@@ -371,12 +410,20 @@ function renderLiveFeed(rosterMap, userMap) {
     const delta = playerPointDeltas.get(p.pid) || 0;
     const showDelta = !shown.has(p.pid) && Math.abs(delta) >= 0.05;
     if (showDelta) shown.add(p.pid);
+    const total = knownPlayerPoints.get(p.pid);
+    const tag = classifyPlay(p.text);
     return `
     <div class="py-2 border-b border-white/5 last:border-0">
-      <div class="flex items-center gap-2 mb-0.5 flex-wrap">
-        <span class="text-[12px] font-medium text-zinc-100">${Vault.escapeHtml(p.player)}</span>
-        <span class="text-[10px] text-zinc-400">${Vault.escapeHtml(p.teamName)}</span>
-        ${showDelta ? `<span class="text-[16px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="This player's fantasy point change since the last update">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</span>` : ''}
+      <div class="flex items-center justify-between gap-2 mb-0.5">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${tag.cls}">${tag.label}</span>
+          <span class="text-[12px] font-medium text-zinc-100 truncate">${Vault.escapeHtml(p.player)}</span>
+          <span class="text-[10px] text-zinc-400 truncate">${Vault.escapeHtml(p.teamName)}</span>
+        </div>
+        <div class="text-right shrink-0 leading-tight">
+          ${showDelta ? `<div class="text-[15px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Point change since the last update, attributed to this player's most recent play — Sleeper's scoring can trail ESPN's play text by a play or two">${delta > 0 ? '+' : ''}${delta.toFixed(1)} PTS</div>` : ''}
+          ${total != null ? `<div class="text-[10px] mono text-zinc-400">${total.toFixed(1)} TOTAL</div>` : ''}
+        </div>
       </div>
       <div class="text-[11px] text-zinc-400 leading-snug">${Vault.escapeHtml(p.text)}</div>
     </div>`;
@@ -670,6 +717,16 @@ async function init() {
 
 document.getElementById('weekPrev').onclick = () => setWeek(week - 1);
 document.getElementById('weekNext').onclick = () => setWeek(week + 1);
+
+// Polling only acts while the tab is visible (see startPolling) — cheap on network,
+// but it means a backgrounded tab shows whatever it last had until the NEXT
+// scheduled tick happens to land while visible again, which could be nearly a
+// full REFRESH_MS after you actually look back at it. Catching up immediately on
+// the visible transition instead means matchups, scores, and the feed are never
+// more than a moment stale just because the tab sat in the background for a while.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && week === currentWeek) fetchWeek(week);
+});
 
 init();
 </script>
