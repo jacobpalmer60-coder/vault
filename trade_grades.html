@@ -150,7 +150,8 @@ function renderTeamSummary(graded, teams) {
   if (!graded.length) { box.classList.add('hidden'); return; }
 
   const rows = Vault.buildManagerStats(graded, teams);
-  const maxAbsNet = Math.max(...rows.map(s => Math.abs(s.netValue)), 1);
+  // One shared scale for both net columns, so the bars are directly comparable.
+  const maxAbsNet = Math.max(...rows.flatMap(s => [Math.abs(s.netValue), Math.abs(s.netValueToday)]), 1);
   const maxAbsFit = Math.max(...rows.map(s => Math.abs(s.fitSum)), 1);
 
   box.classList.remove('hidden');
@@ -167,7 +168,8 @@ function renderTeamSummary(graded, teams) {
               <th class="text-left px-4 py-2.5">Team</th>
               <th class="text-right px-3 py-2.5">Trades</th>
               <th class="text-right px-3 py-2.5" title="Trades where they gained value vs. lost it">W-L</th>
-              <th class="text-right px-3 py-2.5" title="Net VBA-adjusted value gained/lost across every trade">Net Value</th>
+              <th class="text-right px-3 py-2.5" title="Net value gained/lost across every trade, at KTC prices on each trade's date (KTC consolidation-adjusted)">Net Then</th>
+              <th class="text-right px-3 py-2.5" title="The same trades at today's KTC prices: how they've aged">Net Now</th>
               <th class="text-right px-4 py-2.5" title="Positional need + rebuild/contend timeline fit, summed across every trade">Timeline/Need Fit</th>
             </tr>
           </thead>
@@ -177,7 +179,8 @@ function renderTeamSummary(graded, teams) {
                 <td class="px-4 py-2.5 font-medium">${Vault.escapeHtml(s.teamName)}</td>
                 <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.trades}</td>
                 <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.won}-${s.lost}</td>
-                <td class="px-3 py-2.5 text-right"><div class="mono font-medium ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</div>${divergingBar(s.netValue, maxAbsNet)}</td>
+                <td class="px-3 py-2.5 text-right"><div class="mono font-medium ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(Math.round(s.netValue))}</div>${divergingBar(s.netValue, maxAbsNet)}</td>
+                <td class="px-3 py-2.5 text-right"><div class="mono font-medium ${s.netValueToday > 0 ? 'text-emerald-400' : s.netValueToday < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(Math.round(s.netValueToday))}</div>${divergingBar(s.netValueToday, maxAbsNet)}</td>
                 <td class="px-4 py-2.5 text-right"><div class="mono ${s.fitSum > 0.5 ? 'text-emerald-400/80' : s.fitSum < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.fitSum, 1)}</div>${divergingBar(s.fitSum, maxAbsFit)}</td>
               </tr>`).join('')}
           </tbody>

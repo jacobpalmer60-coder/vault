@@ -2700,6 +2700,7 @@ const Vault = {
     const today = Vault.tradeSideValues(toBTodayPrices, toATodayPrices);
     const todayAvg = (today.valueA + today.valueB) / 2 || 1;
     const todaySignedPctDiff = (today.valueA - today.valueB) / todayAvg * 100;
+    const dValueAdjAToday = today.valueB - today.valueA; // same basis as dValueAdjA, at today's prices
 
     // Fairness uses KTC's own consolidation adjustment (see Vault.tradeSideValues) —
     // toB is what A gave (B received it), toA is what B gave.
@@ -2781,7 +2782,7 @@ const Vault = {
     const bucket = Vault.fairnessBucket(fairness.overallPct, combinedFitA, combinedFitB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
   },
 
   // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
@@ -2928,7 +2929,7 @@ const Vault = {
     const ensure = team => {
       if (!byTeam.has(team.rosterId)) byTeam.set(team.rosterId, {
         teamName: team.teamName, rosterId: team.rosterId, record: team.record,
-        trades: 0, won: 0, lost: 0, netValue: 0, fitSum: 0,
+        trades: 0, won: 0, lost: 0, netValue: 0, netValueToday: 0, fitSum: 0,
         netPicks: 0, ageDeltaSum: 0, olderCount: 0, youngerCount: 0,
         fair: 0, lopsided: 0, unfair: 0, unfairFor: 0, unfairAgainst: 0,
         best: null, worst: null,
@@ -2943,9 +2944,9 @@ const Vault = {
     (teams || []).forEach(ensure);
     allGraded.forEach(g => {
       [
-        { team: g.teamA, dVal: g.dValueAdjA, favor: -g.fairness.overallSigned, fit: g.combinedFitA, timeline: g.timelineA, opp: g.teamB.teamName, received: g.toA, given: g.toB, dOpt: g.dOptA },
-        { team: g.teamB, dVal: -g.dValueAdjA, favor: g.fairness.overallSigned, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName, received: g.toB, given: g.toA, dOpt: g.dOptB }
-      ].forEach(({ team, dVal, favor, fit, timeline, opp, received, given, dOpt }) => {
+        { team: g.teamA, dVal: g.dValueAdjA, dValToday: g.dValueAdjAToday, favor: -g.fairness.overallSigned, fit: g.combinedFitA, timeline: g.timelineA, opp: g.teamB.teamName, received: g.toA, given: g.toB, dOpt: g.dOptA },
+        { team: g.teamB, dVal: -g.dValueAdjA, dValToday: -g.dValueAdjAToday, favor: g.fairness.overallSigned, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName, received: g.toB, given: g.toA, dOpt: g.dOptB }
+      ].forEach(({ team, dVal, dValToday, favor, fit, timeline, opp, received, given, dOpt }) => {
         const s = ensure(team);
         s.trades++;
         // A trade with an unresolvable asset (a player since retired/dropped/left
@@ -2962,7 +2963,7 @@ const Vault = {
         // than trying to partially correct it — there's no reliable way to know
         // how far off a guessed replacement value would be.
         if (g.anyMissingValue) return;
-        s.netValue += dVal; s.fitSum += fit;
+        s.netValue += dVal; s.netValueToday += dValToday; s.fitSum += fit;
         s.netPicks += timeline.dPicks; s.ageDeltaSum += timeline.dAge;
         if (timeline.dAge > 0.25) s.olderCount++; else if (timeline.dAge < -0.25) s.youngerCount++;
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
