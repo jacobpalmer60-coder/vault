@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Vault — Sleeper x KeepTradeCut</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vault.css">
+  <link rel="stylesheet" href="tailwind.css">
 </head>
 <body class="min-h-screen text-zinc-100 antialiased">
   <div class="vault-bg"></div>
@@ -50,7 +50,7 @@
         <!-- Actions -->
         <div id="step-actions" class="hidden mt-8">
           <div class="grid gap-3">
-            <a id="btnOverview" href="#" class="group flex items-center justify-between p-4 rounded-2xl border border-white/8 bg-gradient-to-r from-amber-500/[0.07] to-transparent hover:border-amber-500/40 hover:from-amber-500/[0.11] transition-all hover:-translate-y-0.5">
+            <a id="btnOverview" href="#" class="group flex items-center justify-between p-4 rounded-2xl border border-white/[0.08] bg-gradient-to-r from-amber-500/[0.07] to-transparent hover:border-amber-500/40 hover:from-amber-500/[0.11] transition-all hover:-translate-y-0.5">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/10 flex items-center justify-center text-amber-400">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -80,7 +80,7 @@
                 <div class="text-xs text-zinc-400 mt-1">Fair value & win-now moves</div>
               </a>
 
-              <a id="btnAnalyzer" href="#" class="group flex flex-col p-4 rounded-2xl border border-white/14 bg-black/40 hover:border-amber-500/60 hover:bg-black/60 transition-all hover:-translate-y-0.5 ring-1 ring-amber-500/20">
+              <a id="btnAnalyzer" href="#" class="group flex flex-col p-4 rounded-2xl border border-white/[0.14] bg-black/40 hover:border-amber-500/60 hover:bg-black/60 transition-all hover:-translate-y-0.5 ring-1 ring-amber-500/20">
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/10 flex items-center justify-center text-amber-400 mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                 </div>

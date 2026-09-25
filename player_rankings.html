@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Player Rankings — The Vault</title>
-<script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
+<link rel="stylesheet" href="tailwind.css">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -37,9 +37,9 @@
       <div class="flex items-center gap-2 flex-wrap">
         <div class="relative">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input id="search" placeholder="Search player, team…" class="w-[260px] bg-black/40 border border-white/8 rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-amber-500/60" />
+          <input id="search" placeholder="Search player, team…" class="w-[260px] bg-black/40 border border-white/[0.08] rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-amber-500/60" />
         </div>
-        <div class="flex items-center bg-black/40 border border-white/8 rounded-xl p-1">
+        <div class="flex items-center bg-black/40 border border-white/[0.08] rounded-xl p-1">
           <button data-pos="ALL" class="pos-btn px-3 py-1.5 text-sm rounded-lg bg-amber-500/15 text-zinc-300 font-medium">All</button>
           <button data-pos="QB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">QB</button>
           <button data-pos="RB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">RB</button>
@@ -49,12 +49,12 @@
         </div>
         <div class="flex items-center gap-1.5">
           <span class="text-xs text-zinc-400">Trend:</span>
-          <div id="trendWindowToggle" class="flex items-center bg-black/40 border border-white/8 rounded-xl p-1"></div>
+          <div id="trendWindowToggle" class="flex items-center bg-black/40 border border-white/[0.08] rounded-xl p-1"></div>
         </div>
       </div>
       <div class="flex items-center gap-3 text-xs text-zinc-400">
         <span class="hidden sm:inline">Sort by clicking headers</span>
-        <button id="resetFilters" class="px-3 py-1.5 rounded-lg border border-white/8 hover:bg-white/5">Reset</button>
+        <button id="resetFilters" class="px-3 py-1.5 rounded-lg border border-white/[0.08] hover:bg-white/5">Reset</button>
       </div>
     </div>
   </div>
@@ -475,8 +475,8 @@
       const [ktcData, projData, valueHistory, sleeperPlayers, playerHistory] = await Promise.all([
         Vault.fetchKtcValues(),
         Vault.fetchProjections(),
-        Vault.fetchPlayerValueHistory(),
-        fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
+        Vault.fetchPlayerValueHistory(isSF, scoringSettings?.bonus_rec_te, { withStats: true }),
+        Vault.fetchSleeperPlayers(),
         Vault.fetchPlayerHistory()
       ]);
       log(`KTC values: ${ktcData.count.toLocaleString()} players (updated ${new Date(ktcData.updated).toLocaleDateString()})`);

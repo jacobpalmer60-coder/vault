@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trade Calculator — The Vault</title>
-<script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
+<link rel="stylesheet" href="tailwind.css">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -22,7 +22,7 @@
     <div class="flex items-center gap-2 flex-wrap justify-end">
       <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-emerald-500/25 text-[12px] text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3 11 7l4 1.5L11 10l-1.5 4L8 10l-4-1.5L8 7z"/><path d="M18 13l.9 2.1L21 16l-2.1.9L18 19l-.9-2.1L15 16l2.1-.9z"/></svg>Suggest a Trade</button>
       <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-sky-500/25 text-[12px] text-sky-300/80 hover:text-sky-200 hover:border-sky-500/50 hover:bg-sky-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find a Trade</button>
-      <div class="h-8 px-3 rounded-lg bg-black/40 border border-white/8 flex items-center gap-2 text-[12px] text-zinc-400">
+      <div class="h-8 px-3 rounded-lg bg-black/40 border border-white/[0.08] flex items-center gap-2 text-[12px] text-zinc-400">
         <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
         Live Values
       </div>
@@ -36,7 +36,7 @@
       <div class="space-y-5">
         <div>
           <label class="text-[11px] text-zinc-400 uppercase tracking-wider block mb-2">1 · Team A</label>
-          <select id="teamASetup" class="w-full h-12 bg-black/40 border border-white/8 rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
+          <select id="teamASetup" class="w-full h-12 bg-black/40 border border-white/[0.08] rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
         </div>
         <div id="partnerSuggest" class="hidden">
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Suggested Partners for <span id="partnerForTeam" class="text-amber-300/80 normal-case"></span></div>
@@ -44,7 +44,7 @@
         </div>
         <div>
           <label class="text-[11px] text-zinc-400 uppercase tracking-wider block mb-2">2 · Team B</label>
-          <select id="teamBSetup" class="w-full h-12 bg-black/40 border border-white/8 rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
+          <select id="teamBSetup" class="w-full h-12 bg-black/40 border border-white/[0.08] rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
         </div>
         <button id="loadRostersBtn" class="w-full btn-gold-solid h-12 text-[15px] mt-2">Load Rosters</button>
       </div>
@@ -99,7 +99,7 @@
         <input id="finderAssetSearch" type="text" autocomplete="off" placeholder="Search any player or pick, any team..."
           oninput="searchFinderAssets(this.value)" onfocus="searchFinderAssets(this.value)"
           onblur="setTimeout(() => document.getElementById('finderAssetResults').classList.add('hidden'), 150)"
-          class="w-full bg-black/40 border border-white/8 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-500/40" />
+          class="w-full bg-black/40 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-500/40" />
         <div id="finderAssetResults" class="hidden absolute z-20 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-white/10 bg-black scrollbar"></div>
       </div>
     </div>
@@ -270,7 +270,7 @@ function renderPartnerSuggestions() {
   const partners = Vault.tradePartnerSuggestions(t, teams, 3);
   document.getElementById('partnerForTeam').textContent = t.teamName;
   document.getElementById('partnerList').innerHTML = partners.map(p => `
-    <button onclick="useSuggestedPartner(${p.rosterId})" class="w-full text-left px-3 py-2 rounded-lg border border-white/8 hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors">
+    <button onclick="useSuggestedPartner(${p.rosterId})" class="w-full text-left px-3 py-2 rounded-lg border border-white/[0.08] hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors">
       <div class="flex items-center justify-between gap-2">
         <span class="text-[13px] font-medium text-zinc-200">${Vault.escapeHtml(p.teamName)}</span>
         <span class="text-[10px] text-zinc-400 uppercase tracking-wider">Use →</span>
@@ -316,8 +316,8 @@ async function init() {
     // instead of the separate taxi_slots/reserve_slots settings.
     rosterCap = (league.roster_positions || []).filter(s => s !== 'IR' && s !== 'TAXI').length;
 
-    const [playerHist, pickHist] = await Promise.all([Vault.fetchPlayerValueHistory(), Vault.fetchPickValueHistory()]);
     const bonusRecTe = league.scoring_settings?.bonus_rec_te;
+    const [playerHist, pickHist] = await Promise.all([Vault.fetchPlayerValueHistory(built.isSF, bonusRecTe), Vault.fetchPickValueHistory()]);
     playerTrend = buildTrendDeltas(playerHist.snapshots, 'players', built.isSF, bonusRecTe);
     pickTrend = buildTrendDeltas(pickHist.snapshots, 'picks', built.isSF, bonusRecTe);
     playerVolatility = Vault.buildPlayerVolatilityMap(playerHist.snapshots, built.isSF, bonusRecTe);

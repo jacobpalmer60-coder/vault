@@ -453,7 +453,7 @@ const Vault = {
       fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
-      fetch(`https://api.sleeper.app/v1/players/nfl`).then(r => r.json()),
+      Vault.fetchSleeperPlayers(),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`).then(r => r.json()).catch(() => [])
     ]);
@@ -536,12 +536,64 @@ const Vault = {
      history (which roster/picks it held on which day) is reconstructed live from
      these two files by Vault.buildTeamValueHistory below — there's no per-league
      stored file for that, so it works for any league immediately. */
-  async fetchPlayerValueHistory() {
+  // With a league format (isSF + TEP), loads the slim per-format file the daily
+  // Action writes (scripts/build-slim-data.js — ~0.6 MB compressed instead of
+  // 6 MB) and rebuilds the same { snapshots: [{ date, players: { name: entry } }] }
+  // shape the full file has, so every caller and Vault.resolveHistoricalValue
+  // work unchanged. withStats also attaches the projected stats a few snapshots
+  // carry (Player Rankings only). Falls back to the full file if the slim one
+  // isn't there.
+  async fetchPlayerValueHistory(isSF, bonusRecTe, { withStats = false } = {}) {
+    if (isSF !== undefined) {
+      try {
+        const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
+        const [res, statsRes] = await Promise.all([
+          fetch(`data/history/players-${field}.json`),
+          withStats ? fetch('data/history/player-stats.json') : Promise.resolve(null)
+        ]);
+        if (res.ok && (!statsRes || statsRes.ok)) {
+          const slim = await res.json();
+          const snapshots = slim.dates.map(date => ({ date, players: {} }));
+          for (const [name, enc] of Object.entries(slim.players)) {
+            let idx = enc[0], cur = enc[1];
+            snapshots[idx].players[name] = { [field]: cur };
+            for (let k = 2; k < enc.length; k++) {
+              idx++;
+              if (enc[k] === null) continue;
+              cur += enc[k];
+              snapshots[idx].players[name] = { [field]: cur };
+            }
+          }
+          if (statsRes) {
+            const stats = await statsRes.json();
+            const idxByDate = new Map(slim.dates.map((d, i) => [d, i]));
+            for (const [name, byIdx] of Object.entries(stats.players)) {
+              for (const [statIdx, st] of Object.entries(byIdx)) {
+                const i = idxByDate.get(stats.dates[+statIdx]);
+                if (i == null) continue;
+                (snapshots[i].players[name] ||= {}).stats = st;
+              }
+            }
+          }
+          return { snapshots };
+        }
+      } catch (e) { console.warn('Slim value history unavailable, loading the full file', e); }
+    }
     try {
       const res = await fetch('data/player-value-history.json');
       if (!res.ok) return { snapshots: [] };
       return res.json();
     } catch { return { snapshots: [] }; }
+  },
+  // Sleeper's player list, cut to the fields the site reads (built daily by
+  // scripts/build-slim-data.js — ~0.2 MB compressed instead of 2.6 MB). Falls
+  // back to Sleeper's own endpoint if the local copy isn't there.
+  async fetchSleeperPlayers() {
+    try {
+      const res = await fetch('data/sleeper-players.json');
+      if (res.ok) return res.json();
+    } catch {}
+    return fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json());
   },
   async fetchPickValueHistory() {
     try {
@@ -618,7 +670,7 @@ const Vault = {
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))),
       Promise.all((drafts || []).map(d =>
         fetch(`https://api.sleeper.app/v1/draft/${d.draft_id}/picks`).then(r => r.json()).catch(() => []).then(picks => ({ draft: d, picks })))),
-      Vault.fetchPlayerValueHistory(),
+      Vault.fetchPlayerValueHistory(isSF, bonusRecTe),
       Vault.fetchPickValueHistory(),
       Vault.fetchProjections()
     ]);
@@ -2830,12 +2882,12 @@ const Vault = {
     const seasonChain = await Vault.fetchSeasonChain(leagueId, league);
 
     const [playersDb, ktcData, projData, rosters, traded, playerHist, pickHist] = await Promise.all([
-      fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
+      Vault.fetchSleeperPlayers(),
       Vault.fetchKtcValues(),
       Vault.fetchProjections(),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json()),
-      Vault.fetchPlayerValueHistory(),
+      Vault.fetchPlayerValueHistory(isSF, league.scoring_settings?.bonus_rec_te),
       Vault.fetchPickValueHistory()
     ]);
     const valMap = Vault.buildKtcValueMap(ktcData, isSF, league.scoring_settings?.bonus_rec_te);

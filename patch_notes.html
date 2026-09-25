@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Patch Notes — The Vault</title>
-<script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
+<link rel="stylesheet" href="tailwind.css">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -40,7 +40,8 @@ const NOTES = [
     { kind: 'new', page: 'Trade Grades', text: 'Every player and pick now shows its KTC value on the day of the trade and today, with the change, plus a then-vs-now total for each side.' },
     { kind: 'new', page: 'Trade Grades', text: 'League Trade Summary has Net Then and Net Now columns: each manager\'s trade results at trade-day prices and at today\'s.' },
     { kind: 'fixed', page: 'League Overview', text: 'Projected records and playoff odds were skipping the week in progress from Thursday night until it went final. Every team now projects the full season.' },
-    { kind: 'improved', page: 'Everywhere', text: 'Pages draw faster. The fairness bars on the Trade Calculator could show up a few seconds after everything else; they now appear right away.' }
+    { kind: 'improved', page: 'Everywhere', text: 'Pages load much faster: each one used to download about 9 MB of data before showing anything, and now it\'s about 1 MB. A big difference on a phone.' },
+    { kind: 'fixed', page: 'Trade Calculator', text: 'The fairness bars could show up a few seconds after everything else. The site\'s styling is now built ahead of time instead of in your browser, so they appear right away.' }
   ]},
   { date: '2026-09-24', items: [
     { kind: 'changed', page: 'Trade Calculator', text: 'The fairness grade now weighs KTC value (70%) with roster fit (15%) and timeline (15%). Three small bars under the main one show each piece. Fit can only make a grade worse than KTC alone, never better, so a deal that\'s lopsided on KTC never reads as fair.' },
