@@ -1237,7 +1237,13 @@ const Vault = {
     // every page, not just League Overview — see contentionWindow. Best effort: if
     // the schedule can't be fetched, windows fall back to the paper projection.
     try {
-      const remainingWeeks = await Vault.fetchRemainingSchedule(leagueId, league);
+      // Weeks already counted in the standings, read off the records themselves:
+      // Sleeper only adds a week to wins/losses once it's final, so a week in
+      // progress must still be simulated (the median game counts as a 2nd game).
+      const gamesPerWeek = league.settings?.league_average_match === 1 ? 2 : 1;
+      const gamesPlayed = Math.max(0, ...built.map(t => (t.record?.wins || 0) + (t.record?.losses || 0) + (t.record?.ties || 0)));
+      const completedWeeks = Math.floor(gamesPlayed / gamesPerWeek);
+      const remainingWeeks = await Vault.fetchRemainingSchedule(leagueId, league, completedWeeks);
       const projections = Vault.simulateSeason(built, league, remainingWeeks);
       built.forEach(t => {
         const p = projections.get(t.rosterId) || null;
@@ -3127,9 +3133,13 @@ const Vault = {
      pairings are already known even though they haven't been played. A week
      counts as "remaining" if nobody has posted points yet; anything already
      played is left alone since it's already baked into the real win/loss record. */
-  async fetchRemainingSchedule(leagueId, league) {
+  // completedWeeks (optional): weeks already reflected in the standings. When
+  // given, every later week is simulated, including one that's in progress —
+  // otherwise a live week (points already posted, not yet in wins/losses) was
+  // skipped as "played" and dropped from the projection entirely.
+  async fetchRemainingSchedule(leagueId, league, completedWeeks = null) {
     const playoffStart = league.settings?.playoff_week_start || 15;
-    const startWeek = Math.max(1, (league.settings?.leg || 1));
+    const startWeek = completedWeeks != null ? completedWeeks + 1 : Math.max(1, (league.settings?.leg || 1));
     const weeks = [];
     for (let w = startWeek; w < playoffStart; w++) weeks.push(w);
     if (!weeks.length) return [];
@@ -3138,7 +3148,7 @@ const Vault = {
     ));
     return weeks.map((w, i) => {
       const entries = results[i] || [];
-      const played = entries.some(m => (m.points || 0) > 0);
+      const played = completedWeeks == null && entries.some(m => (m.points || 0) > 0);
       if (played) return null;
       const byMatchup = new Map();
       entries.forEach(m => {
