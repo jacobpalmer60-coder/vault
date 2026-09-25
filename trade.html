@@ -1464,10 +1464,48 @@ function matchTarget(side, key) {
   const other = otherSide(side);
   const otherTeam = teamOf(other);
   const otherSel = other === 'A' ? selectedA : selectedB;
+  const preExistingOtherKeys = new Set(otherSel);
   const pool = otherTeam.assets.filter(a => !otherSel.has(a.key));
   // This package flows FROM otherTeam TO `team`, so it's searched against team's needs.
   const combo = bestCombo(pool, asset.value, Vault.positionalProfile(team, teams));
-  if (combo) combo.combo.forEach(a => otherSel.add(a.key));
+  if (combo) {
+    let picked = combo.combo;
+    // Local refinement pass — bestCombo (via bestFit/comboSearchAdj) ranks
+    // candidates with the same cheap VBA-based proxy comboSearchTopN uses (see
+    // balanceSide's own comment for the full reasoning), which can leave the
+    // actual best combo out of consideration entirely, not just rank it low: a
+    // real case (Ja'Marr Chase anchored against Puka Nacua + a 2027 1st) came
+    // back 17% off from this function alone, when a same-pool swap gets it to
+    // 1%. Real two-sided pctDiff (Vault.tradeSideValues), not the cheap proxy,
+    // scores every swap here — cheap enough to brute-force since it skips the
+    // full fit analysis balanceSide's own refinement needs. Never touches
+    // whatever was already selected on the other side before this call.
+    const evalOtherCombo = testCombo => {
+      const otherKeys = new Set([...preExistingOtherKeys, ...testCombo.map(a => a.key)]);
+      const aKeys = otherSel === selectedA ? otherKeys : selectedA;
+      const bKeys = otherSel === selectedB ? otherKeys : selectedB;
+      const aAssets = [...aKeys].map(k => teamOf('A').assets.find(x => x.key === k)).filter(Boolean);
+      const bAssets = [...bKeys].map(k => teamOf('B').assets.find(x => x.key === k)).filter(Boolean);
+      const { valueA, valueB } = Vault.tradeSideValues(aAssets, bAssets);
+      const avg = (valueA + valueB) / 2 || 1;
+      return Math.abs(valueA - valueB) / avg * 100;
+    };
+    for (let pass = 0; pass < 2; pass++) {
+      let swapped = false;
+      const currentPct = evalOtherCombo(picked);
+      let bestPct = currentPct;
+      for (let i = 0; i < picked.length; i++) {
+        for (const candidate of pool) {
+          if (picked.some(a => a.key === candidate.key)) continue; // already in this combo
+          const trial = picked.map((a, idx) => idx === i ? candidate : a);
+          const pct = evalOtherCombo(trial);
+          if (pct < bestPct) { bestPct = pct; picked = trial; swapped = true; }
+        }
+      }
+      if (!swapped) break;
+    }
+    picked.forEach(a => otherSel.add(a.key));
+  }
 
   render('A'); render('B');
 }
