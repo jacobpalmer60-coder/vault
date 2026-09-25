@@ -420,17 +420,23 @@ function renderLiveFeed(rosterMap, userMap) {
   panel.innerHTML = recent.map(p => {
     const tag = classifyPlay(p.text);
     const playerRows = p.players.map(pl => {
-      const delta = playerPointDeltas.get(pl.pid) || 0;
-      const showDelta = !shown.has(pl.pid) && Math.abs(delta) >= 0.05;
-      if (showDelta) shown.add(pl.pid);
+      // Only the freshest occurrence of this player in the current list carries
+      // their real change (see the file-level comment above) — older repeats of
+      // the same player this poll show a flat 0.0 rather than repeating the same
+      // total on every one of their lines. A number always renders either way
+      // ("wheres numbers?" — it shouldn't just disappear when nothing changed).
+      const isFreshest = !shown.has(pl.pid);
+      if (isFreshest) shown.add(pl.pid);
+      const delta = isFreshest ? (playerPointDeltas.get(pl.pid) || 0) : 0;
+      const deltaColor = delta > 0.05 ? 'text-emerald-400' : delta < -0.05 ? 'text-rose-400' : 'text-zinc-400';
       return `
       <div class="flex items-center justify-between gap-2 py-0.5">
         <div class="min-w-0">
           <span class="text-[12px] font-medium text-zinc-100 truncate">${Vault.escapeHtml(pl.name)}</span>
         </div>
         <div class="flex items-center justify-end gap-2 shrink-0">
-          <span class="text-[15px] font-bold text-white truncate max-w-[140px]" title="${Vault.escapeHtml(pl.teamName)}">${Vault.escapeHtml(pl.teamName)}</span>
-          ${showDelta ? `<span class="text-[22px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Point change since the last update, attributed to this player's most recent play — Sleeper's scoring can trail ESPN's play text by a play or two">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</span>` : ''}
+          <span class="text-[11px] font-semibold text-white truncate max-w-[120px]" title="${Vault.escapeHtml(pl.teamName)}">${Vault.escapeHtml(pl.teamName)}</span>
+          <span class="text-[22px] font-mono font-extrabold ${deltaColor}" title="Point change since the last update, attributed to this player's most recent play — Sleeper's scoring can trail ESPN's play text by a play or two">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</span>
         </div>
       </div>`;
     }).join('');
