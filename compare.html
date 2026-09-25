@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Compare Players — The Vault</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+<link rel="stylesheet" href="tailwind.css">
+<style>
+  /* Two series, validated for this dark surface (dataviz validator: CVD ΔE 26.8,
+     normal-vision ΔE 31.8, both ≥ 3:1 contrast). Series color marks identity
+     only; every number stays in text colors. */
+  :root { --p1: #3987e5; --p2: #d95926; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .sw1 { background: var(--p1); } .sw2 { background: var(--p2); }
+  .ring1 { box-shadow: inset 0 3px 0 var(--p1); } .ring2 { box-shadow: inset 0 3px 0 var(--p2); }
+  .win { font-weight: 600; color: #fafafa; }
+  #chartTip { pointer-events: none; }
+</style>
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[1100px] mx-auto p-6 lg:p-10">
+  <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="display text-[28px] font-semibold gold-text">Compare Players</h1>
+      <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="shareBtn" onclick="shareCompare(this)" class="hidden text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40 transition-colors">Share</button>
+      <a id="tradeBtn" class="hidden text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid"></a>
+    </div>
+  </div>
+  <p id="tradeNote" class="hidden text-[11px] text-zinc-400 -mt-3 mb-4 text-right"></p>
+
+  <!-- Pickers -->
+  <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 mb-5">
+    <div class="relative" id="pick1"></div>
+    <button onclick="swapPlayers()" title="Swap sides" aria-label="Swap sides" class="size-9 rounded-full border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">⇄</button>
+    <div class="relative" id="pick2"></div>
+  </div>
+
+  <div id="content" class="hidden space-y-5">
+    <div id="cards" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+
+    <section class="card rounded-vault-sm p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <h2 class="text-[15px] font-semibold text-zinc-100">Value over time</h2>
+        <div id="windowBtns" class="flex gap-1.5"></div>
+      </div>
+      <div id="legend" class="flex flex-wrap gap-4 text-[12px] text-zinc-300 mb-2"></div>
+      <div id="chartWrap" class="relative">
+        <svg id="chart" class="w-full block" role="img" aria-label="Value over time for both players"></svg>
+        <div id="chartTip" class="hidden absolute top-0 z-10 rounded-lg border border-white/10 bg-[#0b0c0f] px-3 py-2 text-[12px] shadow-lg"></div>
+      </div>
+      <p class="text-[11px] text-zinc-400 mt-2">KeepTradeCut value in your league's format, one point per day. Hover or tap the chart for exact values.</p>
+    </section>
+
+    <section class="card rounded-vault-sm p-5">
+      <h2 class="text-[15px] font-semibold text-zinc-100 mb-3">Head to head</h2>
+      <div class="overflow-x-auto"><table id="h2h" class="w-full text-[13px]"></table></div>
+      <p class="text-[11px] text-zinc-400 mt-2">The better side of each row is marked with its player's color. Age, experience, and price swing aren't marked — which is better depends on your plan.</p>
+    </section>
+
+    <section class="card rounded-vault-sm p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <h2 class="text-[15px] font-semibold text-zinc-100">Season stats</h2>
+        <div class="flex flex-wrap gap-2">
+          <select id="seasonPick" aria-label="Season" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-zinc-300"></select>
+          <div id="modeBtns" class="flex gap-1.5"></div>
+        </div>
+      </div>
+      <div class="overflow-x-auto"><table id="stats" class="w-full text-[13px]"></table></div>
+      <p id="statsNote" class="text-[11px] text-zinc-400 mt-2">Fantasy points use your league's scoring settings. Position finish is by total points that season.</p>
+      <h3 class="text-[13px] font-semibold text-zinc-200 mt-5 mb-2">Points per game by season</h3>
+      <div class="overflow-x-auto"><table id="bySeason" class="w-full text-[13px]"></table></div>
+    </section>
+  </div>
+</div>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let universe = [];          // every KTC-ranked player, priced/projected for this league
+let byNorm = new Map();
+let picked = [null, null];  // norms
+let histSnaps = [], isSF = true, tep = 0, scoring = {}, leagueId = '', teamsBuilt = [];
+let windowDays = 365, statMode = 'game', statSeason = 'career';
+const seasonFinish = new Map(); // "pid-year" -> { points, gp, posRank }
+
+const WINDOWS = [['3mo', 90], ['6mo', 180], ['1yr', 365], ['All', Infinity]];
+const fmt = n => Number.isFinite(n) ? Math.round(n).toLocaleString() : '—';
+const signed = n => Number.isFinite(n) ? (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(Math.round(n)).toLocaleString() : '—';
+const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+
+async function init() {
+  leagueId = Vault.getLeagueId();
+  try {
+    const built = await Vault.buildLeagueTeams(leagueId);
+    teamsBuilt = built.teams; isSF = built.isSF;
+    const league = built.league;
+    scoring = league.scoring_settings || {};
+    tep = scoring.bonus_rec_te;
+    const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(tep);
+    const [{ ktcData, projData }, hist, careers, sleeper] = await Promise.all([
+      Vault.fetchValueSheets(), Vault.fetchPlayerValueHistory(isSF, tep), Vault.fetchPlayerHistory(), Vault.fetchSleeperPlayers()
+    ]);
+    histSnaps = hist.snapshots || [];
+    const volatility = Vault.buildPlayerVolatilityMap(histSnaps, isSF, tep);
+    const ppgByName = Vault.buildProjectedPpgMapByName(projData, scoring);
+
+    // Who rosters whom, by Sleeper id and by name.
+    const ownerById = new Map(), ownerByName = new Map();
+    teamsBuilt.forEach(t => t.plist.forEach(p => { ownerById.set(p.id, t); ownerByName.set(Vault.normalizeName(p.name), t); }));
+    const pidByName = new Map(), expByName = new Map();
+    Object.entries(sleeper || {}).forEach(([pid, sp]) => {
+      const key = Vault.normalizeName(`${sp.first_name || ''} ${sp.last_name || ''}`.trim());
+      if (!key || !['QB', 'RB', 'WR', 'TE'].includes(sp.position)) return;
+      if (!pidByName.has(key)) pidByName.set(key, pid);
+      if (sp.years_exp != null && !expByName.has(key)) expByName.set(key, sp.years_exp);
+    });
+
+    // Season finishes across every player in the history file, scored to this league.
+    const byYear = new Map();
+    Object.entries(careers.players || {}).forEach(([pid, p]) => Object.entries(p.seasons || {}).forEach(([yr, st]) => {
+      if (!byYear.has(yr)) byYear.set(yr, []);
+      byYear.get(yr).push({ pid, pos: p.pos, points: Vault.scoreStats(st, scoring), gp: st.gp || 0 });
+    }));
+    byYear.forEach((rows, yr) => ['QB', 'RB', 'WR', 'TE'].forEach(pos =>
+      rows.filter(r => r.pos === pos).sort((a, b) => b.points - a.points).forEach((r, i) => seasonFinish.set(`${r.pid}-${yr}`, { ...r, posRank: i + 1 }))));
+
+    universe = (ktcData.players || []).filter(p => ['QB', 'RB', 'WR', 'TE'].includes(p.pos)).map(p => {
+      const norm = Vault.normalizeName(p.name);
+      const pid = pidByName.get(norm) || null;
+      const ppg = ppgByName.get(norm) ?? null;
+      return {
+        norm, pid, name: p.name, pos: p.pos, team: p.team || 'FA', age: p.age, rookie: p.rookie,
+        value: p[field] ?? p[isSF ? 'sf' : 'oneQB'] ?? null,
+        ppg, vorp: Vault.vorp(ppg, p.pos, built.replacementLevels),
+        vol: volatility.get(norm) ?? null, exp: expByName.get(norm) ?? null,
+        owner: (pid && ownerById.get(pid)) || ownerByName.get(norm) || null,
+        seasons: pid ? (careers.players?.[pid]?.seasons || null) : null
+      };
+    }).filter(p => Number.isFinite(p.value));
+    // Position ranks: by value, and by projected points.
+    ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
+      const atPos = universe.filter(p => p.pos === pos);
+      [...atPos].sort((a, b) => b.value - a.value).forEach((p, i) => { p.valueRank = i + 1; });
+      [...atPos].filter(p => Number.isFinite(p.ppg)).sort((a, b) => b.ppg - a.ppg).forEach((p, i) => { p.ppgRank = i + 1; });
+    });
+    byNorm = new Map(universe.map(p => [p.norm, p]));
+
+    $('status').textContent = `${universe.length} players • ${league.name} • ${isSF ? 'Superflex' : '1QB'}${Vault.ktcTepSuffix(tep) ? ', TE premium' : ''}`;
+    picked = defaultPair();
+    buildPicker(0); buildPicker(1);
+    $('windowBtns').innerHTML = WINDOWS.map(([l, d]) => `<button data-days="${d}" class="win-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
+    document.querySelectorAll('.win-btn').forEach(b => b.onclick = () => { windowDays = +b.dataset.days; renderChart(); });
+    $('modeBtns').innerHTML = [['game', 'Per game'], ['total', 'Totals']].map(([k, l]) => `<button data-mode="${k}" class="mode-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
+    document.querySelectorAll('.mode-btn').forEach(b => b.onclick = () => { statMode = b.dataset.mode; renderStats(); });
+    $('seasonPick').onchange = () => { statSeason = $('seasonPick').value; renderStats(); };
+    window.addEventListener('resize', () => renderChart());
+    renderAll();
+  } catch (e) {
+    console.error(e);
+    $('status').textContent = e.message || 'Failed to load';
+    $('status').className = 'text-[13px] text-rose-400 mt-1';
+  }
+}
+
+// ?p=norm1,norm2 from a shared link; otherwise your team's most valuable player
+// against the closest-valued player at the same position on another roster.
+function defaultPair() {
+  const fromUrl = (new URLSearchParams(location.search).get('p') || '').split(',').map(decodeURIComponent).filter(n => byNorm.has(n));
+  if (fromUrl.length === 2) return fromUrl;
+  const mine = Vault.myTeam(teamsBuilt);
+  const top = [...universe].sort((a, b) => b.value - a.value);
+  // One player in the link (e.g. from Player Rankings) is the anchor; otherwise your best player.
+  const first = (fromUrl[0] && byNorm.get(fromUrl[0])) || (mine && top.find(p => p.owner === mine)) || top[0];
+  const rival = top.filter(p => p !== first && p.pos === first.pos && p.owner !== first.owner)
+    .sort((a, b) => Math.abs(a.value - first.value) - Math.abs(b.value - first.value))[0] || top.find(p => p !== first);
+  return [first.norm, rival.norm];
+}
+
+function buildPicker(i) {
+  const box = $(i === 0 ? 'pick1' : 'pick2');
+  box.innerHTML = `<div class="flex items-center gap-2 bg-black/50 border border-white/10 rounded-xl px-3 py-2 focus-within:border-amber-500/60">
+      <span class="sw sw${i + 1}"></span>
+      <input type="text" autocomplete="off" placeholder="Search a player…" aria-label="Player ${i + 1}" class="flex-1 min-w-0 bg-transparent outline-none text-[14px]">
+    </div>
+    <div class="hidden absolute left-0 right-0 top-full mt-1 z-20 max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-[#111317] scrollbar" role="listbox"></div>`;
+  const input = box.querySelector('input'), list = box.querySelector('[role=listbox]');
+  const show = () => {
+    const q = Vault.normalizeName(input.value);
+    const matches = universe.filter(p => !q || p.norm.includes(q)).sort((a, b) => b.value - a.value).slice(0, 12);
+    list.innerHTML = matches.map(p => `<button type="button" data-norm="${p.norm}" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[13px] hover:bg-white/5">
+        <span class="flex items-center gap-2 min-w-0"><span class="inline-flex px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span><span class="truncate">${Vault.escapeHtml(p.name)}</span><span class="text-zinc-500 text-[11px]">${p.team}</span></span>
+        <span class="mono text-[12px] text-zinc-400">${fmt(p.value)}</span></button>`).join('') || '<div class="px-3 py-2 text-[12px] text-zinc-400">No match</div>';
+    list.classList.remove('hidden');
+    list.querySelectorAll('button').forEach(b => b.onmousedown = e => { e.preventDefault(); choose(b.dataset.norm); });
+  };
+  const choose = norm => { picked[i] = norm; list.classList.add('hidden'); input.blur(); renderAll(); };
+  input.onfocus = () => { input.select(); show(); };
+  input.oninput = show;
+  input.onblur = () => { list.classList.add('hidden'); input.value = byNorm.get(picked[i])?.name || ''; };
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { const first = list.querySelector('button[data-norm]'); if (first) choose(first.dataset.norm); }
+    if (e.key === 'Escape') input.blur();
+  };
+}
+
+function swapPlayers() { picked = [picked[1], picked[0]]; renderAll(); }
+
+function renderAll() {
+  const [a, b] = picked.map(n => byNorm.get(n));
+  if (!a || !b) return;
+  document.querySelectorAll('#pick1 input, #pick2 input').forEach((el, i) => { el.value = [a, b][i].name; });
+  const url = `${location.pathname}?league_id=${encodeURIComponent(leagueId)}&p=${picked.map(encodeURIComponent).join(',')}`;
+  history.replaceState(null, '', url);
+  $('content').classList.remove('hidden');
+  $('shareBtn').classList.remove('hidden');
+  renderTradeLink(a, b);
+  renderCards(a, b);
+  renderChart();
+  renderH2H(a, b);
+  renderSeasonPicker(a, b);
+  renderStats();
+}
+
+// Both on different teams in this league: one click builds the 1-for-1 in the
+// Trade Calculator (your team on side A when it's one of them).
+function renderTradeLink(a, b) {
+  const btn = $('tradeBtn'), note = $('tradeNote');
+  let reason = '';
+  if (!a.owner || !b.owner) reason = `${!a.owner ? a.name : b.name} isn't on a roster in this league`;
+  else if (a.owner === b.owner) reason = `Both are on ${a.owner.teamName}`;
+  else if (!a.pid || !b.pid) reason = 'One of these players couldn\'t be matched to Sleeper';
+  if (reason) { btn.classList.add('hidden'); note.classList.add('hidden'); return; }
+  const mine = Vault.myTeam(teamsBuilt);
+  const [x, y] = mine && b.owner === mine ? [b, a] : [a, b];
+  const p = new URLSearchParams({ league_id: leagueId, a: x.owner.rosterId, b: y.owner.rosterId, give_a: 'p_' + x.pid, give_b: 'p_' + y.pid });
+  btn.href = `trade.html?${p.toString()}`;
+  btn.textContent = 'Open this trade';
+  btn.classList.remove('hidden');
+  note.textContent = `${x.name} (${x.owner.teamName}) for ${y.name} (${y.owner.teamName}) in the Trade Calculator`;
+  note.classList.remove('hidden');
+}
+
+function ownerLine(p) {
+  if (!p.owner) return 'Free agent in your league';
+  const mine = Vault.myTeam(teamsBuilt);
+  return `On ${Vault.escapeHtml(p.owner.teamName)}${mine === p.owner ? ' <span class="align-middle ml-1 text-[10px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}`;
+}
+
+function renderCards(a, b) {
+  $('cards').innerHTML = [a, b].map((p, i) => `
+    <div class="card rounded-vault-sm p-5 ring${i + 1}">
+      <div class="flex items-start justify-between gap-3">
+        <img src="${p.pid ? `https://sleepercdn.com/content/nfl/players/${p.pid}.jpg` : 'https://sleepercdn.com/images/v2/icons/player_default.webp'}" alt=""
+             class="size-14 rounded-full object-cover bg-white/5 shrink-0" onerror="this.onerror=null; this.src='https://sleepercdn.com/images/v2/icons/player_default.webp';"/>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-flex px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span>
+            <span class="text-[12px] text-zinc-400">${p.team}${p.rookie ? ' · Rookie' : ''}</span>
+          </div>
+          <div class="text-[20px] font-semibold text-zinc-100 leading-tight break-words">${Vault.escapeHtml(p.name)}</div>
+          <div class="text-[12px] text-zinc-400 mt-0.5">${ownerLine(p)}</div>
+        </div>
+        <div class="text-right shrink-0">
+          <div class="mono text-[22px] font-semibold text-zinc-100">${fmt(p.value)}</div>
+          <div class="text-[11px] text-zinc-400">${p.pos}${p.valueRank} by value</div>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/5 text-center">
+        <div><div class="mono text-[14px]">${Number.isFinite(p.age) ? p.age.toFixed(1) : '—'}</div><div class="text-[11px] text-zinc-400">Age</div></div>
+        <div><div class="mono text-[14px]">${p.exp != null ? (p.exp === 0 ? 'Rookie' : p.exp + ' yr') : '—'}</div><div class="text-[11px] text-zinc-400">NFL exp</div></div>
+        <div><div class="mono text-[14px]">${Number.isFinite(p.ppg) ? p.ppg.toFixed(1) : '—'}</div><div class="text-[11px] text-zinc-400">Proj. PPG</div></div>
+      </div>
+    </div>`).join('');
+}
+
+// Value series for one player across the loaded history, in this league's format.
+function seriesFor(norm) {
+  return histSnaps.map(s => ({ date: s.date, v: Vault.resolveHistoricalValue(s.players?.[norm], isSF, tep) }));
+}
+
+function renderChart() {
+  const [a, b] = picked.map(n => byNorm.get(n));
+  if (!a || !b) return;
+  document.querySelectorAll('.win-btn').forEach(btn => {
+    const on = +btn.dataset.days === windowDays;
+    btn.className = `win-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
+  });
+  const all = [seriesFor(a.norm), seriesFor(b.norm)];
+  const lastDate = histSnaps.length ? new Date(histSnaps[histSnaps.length - 1].date) : new Date();
+  const cutoff = Number.isFinite(windowDays) ? new Date(lastDate - windowDays * 864e5) : null;
+  // Start the window where at least one player has a value, so "All" doesn't
+  // open on years of empty space before either was ranked.
+  let idx0 = histSnaps.findIndex(s => !cutoff || new Date(s.date) >= cutoff);
+  const firstVal = Math.min(...all.map(ser => { const k = ser.findIndex(x => x.v != null); return k < 0 ? Infinity : k; }));
+  idx0 = Math.max(idx0 < 0 ? 0 : idx0, Number.isFinite(firstVal) ? firstVal : 0);
+  const series = all.map(ser => ser.slice(idx0));
+  const dates = series[0].map(x => x.date);
+  const vals = series.flat().map(x => x.v).filter(v => v != null);
+
+  $('legend').innerHTML = [a, b].map((p, i) => `<span class="inline-flex items-center gap-2"><span class="sw sw${i + 1}"></span>${Vault.escapeHtml(p.name)}</span>`).join('');
+  const svg = $('chart'), wrap = $('chartWrap');
+  // Drawn at the real container width so text never gets scaled below 11px.
+  const W = Math.max(240, wrap.clientWidth), H = W < 500 ? 220 : 280;
+  const m = { l: 46, r: 70, t: 12, b: 26 };
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('height', H);
+  if (!vals.length || dates.length < 2) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#a1a1aa" font-size="12" text-anchor="middle">Not enough price history for this window</text>`; return; }
+
+  // Nice y range: padded, rounded to a step (a line chart doesn't need a zero baseline).
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max(200, (hi - lo) * 0.08); lo = Math.max(0, lo - pad); hi += pad;
+  const rawStep = (hi - lo) / 4, mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= rawStep);
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  const x = i => m.l + (i / (dates.length - 1)) * (W - m.l - m.r);
+  const y = v => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
+
+  const grid = [];
+  for (let v = lo; v <= hi + 1e-9; v += step) grid.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(255,255,255,0.06)"/><text x="${m.l - 8}" y="${y(v) + 4}" fill="#a1a1aa" font-size="11" text-anchor="end" font-family="JetBrains Mono, monospace">${Math.round(v).toLocaleString()}</text>`);
+  const nTicks = W < 500 ? 3 : 5;
+  const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+  for (let k = 0; k < nTicks; k++) {
+    const i = Math.round(k * (dates.length - 1) / (nTicks - 1));
+    grid.push(`<text x="${x(i)}" y="${H - 6}" fill="#a1a1aa" font-size="11" text-anchor="${k === 0 ? 'start' : k === nTicks - 1 ? 'end' : 'middle'}">${fmtDate(dates[i])}</text>`);
+  }
+  // Lines break over gaps (days a player wasn't ranked) instead of bridging them.
+  const path = ser => { let d = '', pen = false; ser.forEach((pt, i) => { if (pt.v == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(pt.v).toFixed(1)}`; pen = true; }); return d; };
+  const endLabel = (ser, i, p) => {
+    let k = ser.length - 1; while (k >= 0 && ser[k].v == null) k--;
+    if (k < 0) return '';
+    return `<text data-end="${i}" x="${x(k) + 6}" y="${y(ser[k].v) + 4}" fill="#e4e4e7" font-size="11">${Vault.escapeHtml(p.name.split(' ').slice(-1)[0])}</text>`;
+  };
+  svg.innerHTML = `${grid.join('')}
+    ${series.map((ser, i) => `<path d="${path(ser)}" fill="none" stroke="var(--p${i + 1})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}
+    ${series.map((ser, i) => endLabel(ser, i, [a, b][i])).join('')}
+    <line id="xhair" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" stroke="rgba(255,255,255,0.25)" visibility="hidden"/>
+    ${[0, 1].map(i => `<circle id="dot${i}" r="4" fill="var(--p${i + 1})" stroke="#13151a" stroke-width="2" visibility="hidden"/>`).join('')}
+    <rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" id="hit"/>`;
+  // Nudge overlapping end labels apart.
+  const ends = [...svg.querySelectorAll('[data-end]')];
+  if (ends.length === 2 && Math.abs(+ends[0].getAttribute('y') - +ends[1].getAttribute('y')) < 13) {
+    const up = +ends[0].getAttribute('y') < +ends[1].getAttribute('y') ? 0 : 1;
+    ends[up].setAttribute('y', +ends[up].getAttribute('y') - 7); ends[1 - up].setAttribute('y', +ends[1 - up].getAttribute('y') + 7);
+  }
+
+  // Crosshair + tooltip with both players' values on the hovered day.
+  const tip = $('chartTip'), hit = svg.querySelector('#hit');
+  const move = ev => {
+    const r = svg.getBoundingClientRect();
+    const px = (ev.clientX - r.left) * (W / r.width);
+    const i = Math.max(0, Math.min(dates.length - 1, Math.round((px - m.l) / (W - m.l - m.r) * (dates.length - 1))));
+    svg.querySelector('#xhair').setAttribute('x1', x(i)); svg.querySelector('#xhair').setAttribute('x2', x(i));
+    svg.querySelector('#xhair').setAttribute('visibility', 'visible');
+    series.forEach((ser, s) => { const dot = svg.querySelector('#dot' + s); if (ser[i].v == null) { dot.setAttribute('visibility', 'hidden'); return; } dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(ser[i].v)); dot.setAttribute('visibility', 'visible'); });
+    tip.innerHTML = `<div class="text-zinc-400 mb-1">${new Date(dates[i] + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>` +
+      [a, b].map((p, s) => `<div class="flex items-center gap-2"><span class="sw sw${s + 1}"></span><span class="text-zinc-300">${Vault.escapeHtml(p.name)}</span><span class="mono text-zinc-100 ml-auto pl-3">${fmt(series[s][i].v)}</span></div>`).join('');
+    tip.classList.remove('hidden');
+    const left = (x(i) / W) * r.width;
+    tip.style.left = `${Math.min(Math.max(0, left + 12), r.width - tip.offsetWidth)}px`;
+  };
+  hit.onpointermove = move; hit.onpointerdown = move;
+  hit.onpointerleave = () => { tip.classList.add('hidden'); svg.querySelector('#xhair').setAttribute('visibility', 'hidden'); [0, 1].forEach(s => svg.querySelector('#dot' + s).setAttribute('visibility', 'hidden')); };
+}
+
+// Value change over the last N days, from the same history.
+function changeOver(norm, days) {
+  const ser = seriesFor(norm).filter(x => x.v != null);
+  if (ser.length < 2) return null;
+  const last = ser[ser.length - 1], cutoff = new Date(new Date(last.date) - days * 864e5);
+  const then = [...ser].reverse().find(x => new Date(x.date) <= cutoff);
+  return then ? last.v - then.v : null;
+}
+
+function row(label, va, vb, show, better) {
+  // better: 'high' | 'low' | null (no winner marked)
+  let wa = false, wb = false;
+  if (better && Number.isFinite(va) && Number.isFinite(vb) && va !== vb) { const aWins = better === 'high' ? va > vb : va < vb; wa = aWins; wb = !aWins; }
+  const cell = (v, w, s) => `<td class="px-3 py-2 text-right mono ${w ? 'win' : 'text-zinc-300'}"><span class="inline-flex items-center gap-2 justify-end">${w ? `<span class="sw sw${s}" title="Better"></span>` : ''}${show(v)}</span></td>`;
+  return `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${label}</td>${cell(va, wa, 1)}${cell(vb, wb, 2)}</tr>`;
+}
+
+function headRow(a, b, first) {
+  return `<thead><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left px-3 py-2 font-medium">${first}</th>${[a, b].map((p, i) => `<th class="text-right px-3 py-2 font-medium"><span class="inline-flex items-center gap-2 justify-end normal-case tracking-normal text-[12px] text-zinc-200"><span class="sw sw${i + 1}"></span>${Vault.escapeHtml(p.name)}</span></th>`).join('')}</tr></thead>`;
+}
+
+function renderH2H(a, b) {
+  // Position ranks only get a winner when both play the same position — QB3
+  // vs WR3 isn't a comparison.
+  const rankRow = (label, key) => {
+    const same = a.pos === b.pos, va = a[key], vb = b[key];
+    const wa = same && va && vb && va < vb, wb = same && va && vb && vb < va;
+    const cell = (p, w, s) => `<td class="px-3 py-2 text-right mono ${w ? 'win' : 'text-zinc-300'}"><span class="inline-flex items-center gap-2 justify-end">${w ? `<span class="sw sw${s}" title="Better"></span>` : ''}${p[key] ? `${p.pos}${p[key]}` : '—'}</span></td>`;
+    return `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${label}</td>${cell(a, wa, 1)}${cell(b, wb, 2)}</tr>`;
+  };
+  $('h2h').innerHTML = headRow(a, b, '') + '<tbody>' + [
+    row('KTC value', a.value, b.value, fmt, 'high'),
+    rankRow('Position rank by value', 'valueRank'),
+    row('Change, last 30 days', changeOver(a.norm, 30), changeOver(b.norm, 30), signed, 'high'),
+    row('Change, last year', changeOver(a.norm, 365), changeOver(b.norm, 365), signed, 'high'),
+    // vol is a fraction (std dev / mean of the last 90 days' prices).
+    row('Price swing (90 days)', a.vol, b.vol, v => Number.isFinite(v) ? `±${(v * 100).toFixed(1)}%` : '—', null),
+    row('Projected PPG (your scoring)', a.ppg, b.ppg, v => Number.isFinite(v) ? v.toFixed(1) : '—', 'high'),
+    row('VORP', a.vorp, b.vorp, v => Number.isFinite(v) ? (v >= 0 ? '+' : '') + v.toFixed(1) : '—', 'high'),
+    row('Age', a.age, b.age, v => Number.isFinite(v) ? v.toFixed(1) : '—', null),
+    row('NFL experience', a.exp, b.exp, v => v == null ? '—' : v === 0 ? 'Rookie' : `${v} yr`, null),
+    rankRow('Position rank by projection', 'ppgRank')
+  ].join('') + '</tbody>';
+}
+
+// ---- Season stats ----
+const STAT_SETS = {
+  QB: [['pass_cmp', 'Completions'], ['pass_att', 'Pass attempts'], ['pass_yd', 'Pass yards'], ['pass_td', 'Pass TD'], ['pass_int', 'Interceptions', 'low'], ['rush_yd', 'Rush yards'], ['rush_td', 'Rush TD']],
+  RB: [['rush_att', 'Carries'], ['rush_yd', 'Rush yards'], ['rush_td', 'Rush TD'], ['rec_tgt', 'Targets'], ['rec', 'Receptions'], ['rec_yd', 'Receiving yards'], ['rec_td', 'Receiving TD']],
+  WR: [['rec_tgt', 'Targets'], ['rec', 'Receptions'], ['rec_yd', 'Receiving yards'], ['rec_td', 'Receiving TD'], ['rush_yd', 'Rush yards']],
+  TE: [['rec_tgt', 'Targets'], ['rec', 'Receptions'], ['rec_yd', 'Receiving yards'], ['rec_td', 'Receiving TD']]
+};
+
+function seasonList(p) { return p.seasons ? Object.keys(p.seasons).sort((x, y) => y - x) : []; }
+
+function renderSeasonPicker(a, b) {
+  const years = [...new Set([...seasonList(a), ...seasonList(b)])].sort((x, y) => y - x);
+  if (statSeason !== 'career' && !years.includes(statSeason)) statSeason = 'career';
+  $('seasonPick').innerHTML = `<option value="career">Career</option>` + years.map(yr => `<option value="${yr}">${yr}</option>`).join('');
+  $('seasonPick').value = statSeason;
+}
+
+// Summed stats for a player over the chosen season(s), plus fantasy points in
+// this league's scoring and position finish (single season only).
+function statLine(p) {
+  if (!p.seasons) return null;
+  const yrs = statSeason === 'career' ? Object.keys(p.seasons) : (p.seasons[statSeason] ? [statSeason] : []);
+  if (!yrs.length) return null;
+  const sum = {};
+  yrs.forEach(yr => Object.entries(p.seasons[yr]).forEach(([k, v]) => { if (typeof v === 'number') sum[k] = (sum[k] || 0) + v; }));
+  const points = yrs.reduce((s, yr) => s + Vault.scoreStats(p.seasons[yr], scoring), 0);
+  const finishes = yrs.map(yr => seasonFinish.get(`${p.pid}-${yr}`)?.posRank).filter(Boolean);
+  return { sum, gp: sum.gp || 0, points, finish: statSeason === 'career' ? (finishes.length ? Math.min(...finishes) : null) : (finishes[0] || null) };
+}
+
+function renderStats() {
+  const [a, b] = picked.map(n => byNorm.get(n));
+  if (!a || !b) return;
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    const on = btn.dataset.mode === statMode;
+    btn.className = `mode-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
+  });
+  const la = statLine(a), lb = statLine(b);
+  if (!la && !lb) {
+    $('stats').innerHTML = `<tbody><tr><td class="px-3 py-3 text-zinc-400">No NFL stats for ${statSeason === 'career' ? 'either player yet' : statSeason} — rookies and players new to the league won't have any.</td></tr></tbody>`;
+  } else {
+    const per = (l, v) => !l ? null : statMode === 'game' ? (l.gp ? v / l.gp : null) : v;
+    const dec = statMode === 'game' ? 1 : 0;
+    const show = v => Number.isFinite(v) ? v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—';
+    const keys = [...new Map([...STAT_SETS[a.pos] || [], ...STAT_SETS[b.pos] || []].map(s => [s[0], s])).values()];
+    const finishLabel = statSeason === 'career' ? 'Best position finish' : 'Position finish';
+    $('stats').innerHTML = headRow(a, b, statSeason === 'career' ? 'Career' : statSeason) + '<tbody>' + [
+      row('Games', la?.gp, lb?.gp, v => Number.isFinite(v) ? String(v) : '—', null),
+      row(statMode === 'game' ? 'Fantasy points per game' : 'Fantasy points', per(la, la?.points), per(lb, lb?.points), show, 'high'),
+      row(finishLabel, la?.finish, lb?.finish, v => v ? `#${v}` : '—', a.pos === b.pos ? 'low' : null),
+      ...keys.map(([k, label, dir]) => row(label, per(la, la?.sum[k] || 0), per(lb, lb?.sum[k] || 0), show, dir || 'high'))
+    ].join('') + '</tbody>';
+  }
+  $('statsNote').textContent = `Fantasy points use your league's scoring settings. ${a.pos === b.pos ? 'Position finish is by total points that season.' : 'Position finishes aren\'t marked since these players play different positions.'}`;
+
+  // PPG by season, most recent first.
+  const years = [...new Set([...seasonList(a), ...seasonList(b)])].sort((x, y) => y - x);
+  const cell = (p, yr, s) => {
+    const st = p.seasons?.[yr]; if (!st || !st.gp) return '<td class="px-3 py-2 text-right mono text-zinc-500">—</td>';
+    const f = seasonFinish.get(`${p.pid}-${yr}`);
+    return `<td class="px-3 py-2 text-right mono text-zinc-300">${Vault.playerSeasonPpg(st, scoring).toFixed(1)} <span class="text-zinc-500 text-[11px]">${f ? `${p.pos}${f.posRank}` : ''} · ${st.gp} gp</span></td>`;
+  };
+  $('bySeason').innerHTML = years.length ? headRow(a, b, 'Season') + '<tbody>' + years.map(yr => `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${yr}</td>${cell(a, yr, 1)}${cell(b, yr, 2)}</tr>`).join('') + '</tbody>'
+    : '<tbody><tr><td class="px-3 py-2 text-zinc-400">No seasons played yet.</td></tr></tbody>';
+}
+
+async function shareCompare(btn) {
+  const url = location.href;
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+    try { await navigator.share({ title: 'Player comparison on The Vault', url }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(url); const t = btn.textContent; btn.textContent = 'Link copied'; setTimeout(() => { btn.textContent = t; }, 1800); }
+  catch { window.prompt('Copy this link:', url); }
+}
+
+init();
+</script>
+</body>
+</html>

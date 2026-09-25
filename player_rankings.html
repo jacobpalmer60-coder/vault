@@ -451,6 +451,7 @@
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time</div>
       ${ppgChart}
       ${historySection}
+      <a href="compare.html?league_id=${encodeURIComponent(Vault.getLeagueId())}&p=${encodeURIComponent(r.norm)}" class="mt-4 inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40">Compare with another player →</a>
     `;
   }
 
