@@ -2439,11 +2439,18 @@ const Vault = {
     return assets;
   },
 
-  // Value fairness is gated first (Fair/Lopsided/Unfair), then each side's
-  // combined fit (positional need/surplus + rebuild/contend timeline + archetype +
-  // optimal-lineup swing) decides the sub-label. Below the Lopsided cutoff a real
-  // dollar tilt is the norm for an actual trade, not a finding worth naming — the
-  // badge shown alongside this label already communicates the price gap.
+  // Value fairness is gated first (Fair/Lopsided/Unfair) — a fit-based label
+  // (below) can NEVER fire once pctDiff clears LOPSIDED_PCT or even just
+  // FAIR_PCT, full stop. This used to only gate the >=LOPSIDED_PCT case,
+  // reasoning that "a real dollar tilt is the norm for an actual trade, not a
+  // finding worth naming in the label" — but that let a trade that's genuinely
+  // Lopsided by value (the exact same pctDiff the badge next to this label
+  // reads off) still get called "Great Trade — Worked for Both Sides" purely
+  // because both sides' FIT happened to be good, a direct contradiction between
+  // the headline label and the badge sitting right next to it. Matches
+  // Vault.fairnessBucket's own gate exactly for this reason — fit only ever
+  // enriches the label once the trade already reads Fair-by-value, same as it
+  // only ever enriches the bucket into Good/Great, never rescues Lopsided/Unfair.
   historyVerdict(pctDiff, dValueAdjA, fitA, fitB, teamAName, teamBName, avgSideAdj, posResultA, posResultB, timelineA, timelineB) {
     const good = s => s >= VAULT_CONFIG.GOOD_FIT_THRESHOLD, bad = s => s <= -VAULT_CONFIG.GOOD_FIT_THRESHOLD;
     const themeA = Vault.sideTheme(posResultA, timelineA.dAge, timelineA.dPicks, timelineA.mode);
@@ -2453,6 +2460,10 @@ const Vault = {
     if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
       const favored = dValueAdjA >= 0 ? 'A' : 'B';
       return { tone: 'bad', label: `Unfair — Favored Team ${favored}`, text };
+    }
+    if (pctDiff >= VAULT_CONFIG.FAIR_PCT) {
+      const favored = dValueAdjA >= 0 ? 'A' : 'B';
+      return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
     }
     if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
     if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };

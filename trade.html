@@ -1729,11 +1729,21 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
     const favored = dValueAdjA >= 0 ? 'A' : 'B';
     return { tone: 'bad', label: `Unfair — Favors Team ${favored}`, text };
   }
+  if (pctDiff >= VAULT_CONFIG.FAIR_PCT) {
+    // A fit-based label can misfire here too, not just past LOPSIDED_PCT — a
+    // side that's meaningfully ahead on value with slightly negative fit reads
+    // 'neutral' from headline(), same as a side that's meaningfully behind but
+    // still fills a real need, and that (neutral, neutral) combo falls through
+    // the cascade below to "Fair, No Real Winner" even though the trade is
+    // genuinely Lopsided by value — the same badge-vs-label contradiction
+    // Vault.historyVerdict had. Gated explicitly rather than trusting the
+    // tone cascade to never reach a fit-based label out here.
+    const favored = dValueAdjA >= 0 ? 'A' : 'B';
+    return { tone: 'bad', label: `Lopsided — Favors Team ${favored}`, text };
+  }
 
-  // Below the Lopsided cutoff, a real dollar tilt is the norm for an actual trade
-  // (median real trade runs ~22% off) — not a finding worth naming in the label.
-  // The Fair/Lopsided/Unfair badge next to this already communicates the price
-  // gap; this label speaks to fit only.
+  // Below the Fair cutoff, fit decides the sub-label — the Fair/Lopsided/Unfair
+  // badge next to this already communicates the price gap, this speaks to fit.
   if (toneA === 'good' && toneB === 'good') return { tone: 'good', label: 'Now That’s a Good Trade', text };
   if (toneA === 'bad' && toneB === 'bad') return { tone: 'bad', label: 'Bad Trade for Both Sides', text };
   if (toneA === 'good' && toneB === 'bad') return { tone: 'neutral', label: 'Solid for Team A', text };
