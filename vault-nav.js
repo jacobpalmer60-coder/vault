@@ -12,7 +12,8 @@
     { key: 'trade', label: 'Trade Calculator', href: 'trade.html' },
     { key: 'grades', label: 'Trade Grades', href: 'trade_grades.html' },
     { key: 'database', label: 'Trade Database', href: 'trade_database.html' },
-    { key: 'managers', label: 'Managers', href: 'managers.html' }
+    { key: 'managers', label: 'Managers', href: 'managers.html' },
+    { key: 'patch', label: 'Patch Notes', href: 'patch_notes.html' }
   ];
 
   function currentPage() {

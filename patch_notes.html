@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Patch Notes — The Vault</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[860px] mx-auto p-6 lg:p-10">
+  <div class="mb-2">
+    <h1 class="display text-[28px] font-semibold gold-text">Patch Notes</h1>
+    <p id="status" class="text-[13px] text-zinc-400 mt-1"></p>
+  </div>
+  <p class="text-[12px] text-zinc-400 max-w-[640px] mb-6 leading-relaxed">
+    What's changed on The Vault, newest first. Anything that changes how trades
+    are graded is spelled out here, so a verdict never shifts without a reason
+    you can read.
+  </p>
+
+  <div id="filters" class="flex gap-1.5 flex-wrap mb-5"></div>
+  <div id="notes" class="space-y-5"></div>
+</div>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+/* Hand-written, manager-facing notes — not the commit log, which is full of
+   internal detail and daily data refreshes. Add an entry here with every
+   change people will notice. kind: new | improved | fixed | changed | removed. */
+const NOTES = [
+  { date: '2026-09-25', items: [
+    { kind: 'new', page: 'Managers', text: 'League at a glance: a table at the top with each manager\'s trading style (consolidator, depth builder, youth & picks buyer, win-now buyer, or value trader) and a one-line description of how their trades have gone.' },
+    { kind: 'new', page: 'Trade Grades', text: 'Every player and pick now shows its KTC value on the day of the trade and today, with the change, plus a then-vs-now total for each side.' },
+    { kind: 'new', page: 'Trade Grades', text: 'League Trade Summary has Net Then and Net Now columns: each manager\'s trade results at trade-day prices and at today\'s.' },
+    { kind: 'fixed', page: 'League Overview', text: 'Projected records and playoff odds were skipping the week in progress from Thursday night until it went final. Every team now projects the full season.' },
+    { kind: 'improved', page: 'Everywhere', text: 'Pages draw faster. The fairness bars on the Trade Calculator could show up a few seconds after everything else; they now appear right away.' }
+  ]},
+  { date: '2026-09-24', items: [
+    { kind: 'changed', page: 'Trade Calculator', text: 'The fairness grade now weighs KTC value (70%) with roster fit (15%) and timeline (15%). Three small bars under the main one show each piece. Fit can only make a grade worse than KTC alone, never better, so a deal that\'s lopsided on KTC never reads as fair.' },
+    { kind: 'new', page: 'Trade Calculator', text: 'Suggested Trades and Balance now look for 1-for-2 and 2-for-1 deals. Cards show the trade\'s shape and warn when someone would have to drop a player to fit it.' },
+    { kind: 'changed', page: 'Trade Grades', text: 'Past trades are graded at KTC prices from the day they happened, not today\'s. A deal that was fair when it was made no longer reads as unfair because a player broke out later.' },
+    { kind: 'fixed', page: 'Player Rankings', text: 'VORP was undervaluing QBs in superflex: RB and TE replacement level was set near 3 points per game. It now fills every lineup in the league properly (replacement is about 10 PPG for RB, WR, and TE).' },
+    { kind: 'fixed', page: 'Team Analyzer', text: 'A team with strong playoff odds no longer shows "No window", and Flaws now lists the same positional needs as the Trade Calculator and trade-partner cards.' },
+    { kind: 'fixed', page: 'Everywhere', text: 'Manager names showed as a bare "@". They now show each manager\'s Sleeper name.' },
+    { kind: 'new', page: 'Trade Database', text: 'Each market trade shows its % off and Fair / Lopsided / Unfair grade using the same math as the calculator, plus how the whole market splits.' },
+    { kind: 'improved', page: 'Managers', text: 'Managers with no trades are no longer ranked, and "consistently" only appears when most of a manager\'s deals actually go that way.' },
+    { kind: 'fixed', page: 'Trade Calculator', text: 'Balance could throw out the piece you\'d already picked. It now always keeps your selection and adds to it when that gets the trade to fair.' },
+    { kind: 'removed', page: 'Live Scores', text: 'The Live Scores page has been retired.' }
+  ]},
+  { date: '2026-09-22', items: [
+    { kind: 'new', page: 'Trade Calculator', text: 'Five fairness tiers: Great, Good, Fair, Lopsided, and Unfair. Great and Good are fair trades that also fit one or both teams well, shown as violet and blue bands inside the green on the fairness bar.' },
+    { kind: 'changed', page: 'Trade Calculator', text: 'Fair / Lopsided / Unfair is decided by KTC value, the number anyone can check on KeepTradeCut. Roster need is still shown, but it can\'t make a lopsided trade look fair.' },
+    { kind: 'new', page: 'Trade Calculator', text: 'Warns when a trade would push a team over its active roster limit (taxi and IR spots don\'t count unless the incoming player qualifies).' },
+    { kind: 'improved', page: 'Trade Calculator', text: 'One Balance button that adds to whichever side is underpaying, instead of two buttons that could replace your selection.' }
+  ]},
+  { date: '2026-09-21', items: [
+    { kind: 'new', page: 'Trade Grades', text: 'Trade history now covers every past season of the league, not just this one.' },
+    { kind: 'improved', page: 'Trade Calculator', text: 'The fairness bar is centered: dead even in the middle, sliding toward whichever team the trade favors.' },
+    { kind: 'improved', page: 'Everywhere', text: 'Colored position badges on every roster, lineup, and trade list.' },
+    { kind: 'improved', page: 'Trade Calculator', text: 'Suggest a Trade pushes pick-for-pick swaps to the back instead of leading with them.' }
+  ]},
+  { date: '2026-09-19', items: [
+    { kind: 'new', page: 'Trade Calculator', text: '"Who\'s offering" toggle: pick which team is proposing, and the verdict becomes a plain accept-or-decline recommendation for the other side.' },
+    { kind: 'improved', page: 'League Overview', text: 'Column bars use a red-to-green scale based on where each team actually ranks.' }
+  ]}
+];
+
+const KIND = {
+  new: ['New', 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'],
+  improved: ['Improved', 'bg-sky-500/10 text-sky-300 border-sky-500/25'],
+  fixed: ['Fixed', 'bg-amber-500/10 text-amber-300 border-amber-500/25'],
+  changed: ['Changed', 'bg-violet-500/10 text-violet-300 border-violet-500/25'],
+  removed: ['Removed', 'bg-white/5 text-zinc-400 border-white/10']
+};
+
+// "New since your last visit" is per-browser only — a convenience, not state
+// anyone else needs. Storage can be blocked (private windows), so every access
+// is guarded and the page renders the same without it.
+const SEEN_KEY = 'vault_patch_notes_seen';
+let lastSeen = null;
+try { lastSeen = localStorage.getItem(SEEN_KEY); } catch {}
+try { localStorage.setItem(SEEN_KEY, NOTES[0].date); } catch {}
+
+let pageFilter = 'All';
+const pages = ['All', ...new Set(NOTES.flatMap(d => d.items.map(i => i.page)))];
+
+function fmtDate(iso) {
+  return new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function render() {
+  document.getElementById('filters').innerHTML = pages.map(p =>
+    `<button onclick="setPage('${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${pageFilter === p ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p}</button>`
+  ).join('');
+
+  const days = NOTES.map(d => ({ ...d, items: d.items.filter(i => pageFilter === 'All' || i.page === pageFilter) })).filter(d => d.items.length);
+  document.getElementById('notes').innerHTML = days.map(d => {
+    const fresh = lastSeen && d.date > lastSeen;
+    return `<section class="card rounded-vault-sm p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <h2 class="text-[14px] font-semibold text-zinc-100">${fmtDate(d.date)}</h2>
+        ${fresh ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-black font-semibold">New since your last visit</span>' : ''}
+      </div>
+      <ul class="space-y-2.5">
+        ${d.items.map(i => `<li class="flex gap-3 items-start">
+          <span class="shrink-0 w-[74px] text-center text-[10px] px-1.5 py-0.5 rounded border ${KIND[i.kind][1]}">${KIND[i.kind][0]}</span>
+          <div class="text-[13px] leading-relaxed text-zinc-300"><span class="text-zinc-100 font-medium">${i.page}</span> · ${i.text}</div>
+        </li>`).join('')}
+      </ul>
+    </section>`;
+  }).join('');
+
+  const total = NOTES.reduce((s, d) => s + d.items.length, 0);
+  document.getElementById('status').textContent = `${total} changes · last updated ${fmtDate(NOTES[0].date)}`;
+}
+
+function setPage(p) { pageFilter = p; render(); }
+render();
+</script>
+</body>
+</html>
