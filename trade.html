@@ -818,10 +818,27 @@ function balanceSide(mySide, btn) {
   // my roster, aimed at the remaining value gap. This is the expected, common
   // path — Balance is meant to adjust what's already on the table, not throw it
   // out for something unrelated.
+  //
+  // comboSearchTopN itself ranks candidates by a cheap VBA-based approximation
+  // (Vault.adjustedValue), not the real two-sided KTC consolidation math
+  // (Vault.tradeSideValues) `evaluate` above actually scores with — see its own
+  // comment for why (recomputing the real number for all ~10,700 combos in a
+  // 40-asset pool is too slow to do inline). That gap is usually harmless, but
+  // it can systematically MISRANK exactly the kind of combo Balance most needs:
+  // a real case that surfaced this — Cyrus Allen (a single $2,500 WR) trying to
+  // match a $4,800 QB — had a genuinely near-perfect combo (Cyrus Allen + two
+  // mid picks, 0.3% off) that the cheap proxy ranked far behind a worse one
+  // (Cyrus Allen + a $2,000 TE, 15% off), because the proxy has no visibility
+  // into the real consolidation premium a 1-for-several trade generates. A top-6
+  // shortlist can miss that combo entirely before `evaluate`'s real math ever
+  // gets a look at it. Widened to a much larger shortlist here specifically
+  // (Balance only ever evaluates once per click, not per keystroke, so the
+  // extra real-math calls are cheap in context) so the actual best combo is far
+  // more likely to survive into the pool `evaluate` picks from.
   const fillerPool = myTeam.assets.filter(a => !mySel.has(a.key));
   const remainingAdj = targetAdj - myCurrent.reduce((s, a) => s + Vault.adjustedValue(a.value), 0);
-  const additive = comboSearchTopN(fillerPool, remainingAdj, 6, otherProfile).map(c => [...myCurrent, ...c.combo]);
-  needCandidates(fillerPool, remainingAdj, 3).forEach(c => additive.push([...myCurrent, ...c]));
+  const additive = comboSearchTopN(fillerPool, remainingAdj, 20, otherProfile).map(c => [...myCurrent, ...c.combo]);
+  needCandidates(fillerPool, remainingAdj, 8).forEach(c => additive.push([...myCurrent, ...c]));
   if (myCurrent.length) additive.push(myCurrent); // "add nothing" is a valid option too
 
   let best = null, bestFitScore = -Infinity;
@@ -836,11 +853,47 @@ function balanceSide(mySide, btn) {
   // like this (instead of always running it and letting `evaluate` pick whichever
   // scores higher) is what stops Balance from swapping out a perfectly fine
   // current selection for an unrelated fresh combo just because it happens to
-  // score a little higher on fit.
+  // score a little higher on fit. Same widened shortlist as Tier 1, same reason.
   if (!best || pctDiffFor(best) >= VAULT_CONFIG.FAIR_PCT) {
-    const fresh = comboSearchTopN(myTeam.assets, targetAdj, 10, otherProfile).map(c => c.combo);
-    fresh.push(...needCandidates(myTeam.assets, targetAdj, 5));
+    const fresh = comboSearchTopN(myTeam.assets, targetAdj, 30, otherProfile).map(c => c.combo);
+    fresh.push(...needCandidates(myTeam.assets, targetAdj, 10));
     fresh.forEach(combo => { const fit = evaluate(combo); if (fit > bestFitScore) { bestFitScore = fit; best = combo; } });
+  }
+
+  // One bounded local-refinement pass: comboSearchTopN's cheap ranking (see its
+  // comment above) can leave the actual best single-piece swap out of the
+  // candidate pool entirely, not just rank it low — a real case that surfaced
+  // this had a genuinely near-perfect combo (0.3% off) the proxy never
+  // surfaced at all, because it undervalues "overshoot the raw target with an
+  // extra cheap piece" combos that a real two-sided consolidation bonus can
+  // make excellent. Trying every other roster asset in place of each piece
+  // currently in `best`, scored with the same real `evaluate` the rest of this
+  // function already uses, catches that without touching the shared proxy
+  // (comboSearchTopN is also used by Suggested Trades and the Finder — fixing
+  // its ranking algorithm itself would be a much larger, riskier change than
+  // this bounded, Balance-only refinement). Two passes, not a full hill-climb
+  // to convergence — bounded cost for a single button click; a second pass
+  // catches a swap that only becomes visible once the first one lands.
+  // Never touches a myCurrent piece (the asset(s) already selected before this
+  // click) — this refinement is only allowed to improve what got ADDED, same
+  // "adjust, don't overwrite" rule the Tier 1/Tier 2 split above exists for.
+  // Without this guard, a real run swapped Cyrus Allen himself out for Jordan
+  // Mason purely because it scored a little better, defeating the whole point.
+  const myCurrentKeys = new Set(myCurrent.map(a => a.key));
+  if (best) {
+    for (let pass = 0; pass < 2; pass++) {
+      let swapped = false;
+      for (let i = 0; i < best.length; i++) {
+        if (myCurrentKeys.has(best[i].key)) continue; // protect the original selection
+        for (const candidate of myTeam.assets) {
+          if (best.some(a => a.key === candidate.key)) continue; // already in this combo
+          const trial = best.map((a, idx) => idx === i ? candidate : a);
+          const score = evaluate(trial);
+          if (score > bestFitScore) { bestFitScore = score; best = trial; swapped = true; }
+        }
+      }
+      if (!swapped) break;
+    }
   }
   if (!best) return flashButtonMessage(btn, 'No alternative package found');
 
