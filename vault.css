@@ -38,7 +38,6 @@ body {
   background:
     radial-gradient(55% 35% at 50% 0%, rgba(232,179,76,0.07), transparent 60%),
     radial-gradient(35% 25% at 85% 100%, rgba(232,179,76,0.05), transparent 55%);
-  filter: blur(60px);
 }
 
 .gold-text {
@@ -48,9 +47,12 @@ body {
   color: transparent;
 }
 
+/* No backdrop-filter: on a near-black page it added almost nothing visually,
+   but Chrome has to re-raster every blurred card whenever its content changes,
+   which showed up as the Trade Calculator's verdict banner painting seconds
+   late. A slightly more opaque fill stands in for it. */
 .card {
-  background: rgba(20,22,27,0.72);
-  backdrop-filter: blur(16px);
+  background: rgba(20,22,27,0.9);
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
   transition: border-color .2s ease, box-shadow .2s ease;
@@ -142,8 +144,6 @@ tr.team-row:hover td { background: rgba(255,255,255,0.03); }
 /* Glass-style panel (used on Player Rankings + Trade Calculator) */
 .glass {
   background: rgba(255,255,255,0.03);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 20px;
 }
