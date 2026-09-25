@@ -1499,18 +1499,23 @@ const FAIRNESS_BAR_MAX = 60;
 // how fairness actually works (favoring EITHER side by a lot is equally unfair),
 // instead of a single left-to-right scale with no sense of which direction. The
 // background bands are fixed reference zones (same FAIR_PCT/LOPSIDED_PCT
-// thresholds as the text badge, mirrored on both sides of center); the white dot
-// is the one thing that actually moves, showing both how far off AND which side
-// is ahead. The translucent band around it (when there's enough price history to
-// say anything — see Vault.tradeConfidenceBand) is the same ± range as the text
+// thresholds as the text badge, mirrored on both sides of center) — purely a
+// function of raw value, so they can't reflect Great/Good (those depend on FIT
+// too, not just where a trade lands on this axis). The marker dot is what shows
+// that: violet for Great, sky for Good, white otherwise — a Great or Good trade
+// still lands somewhere inside the plain-green Fair zone by value, so without a
+// colored marker it would look identical to a barely-Fair trade with a bad fit.
+// The translucent band around it (when there's enough price history to say
+// anything — see Vault.tradeConfidenceBand) is the same ± range as the text
 // callout below it, just made visible at a glance.
-function fairnessBarHtml(signedPctDiff, bandPct) {
+function fairnessBarHtml(signedPctDiff, bandPct, bucket) {
   const half = FAIRNESS_BAR_MAX;
   const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
   const fairHi = toX(VAULT_CONFIG.FAIR_PCT), fairLo = toX(-VAULT_CONFIG.FAIR_PCT);
   const lopHi = toX(VAULT_CONFIG.LOPSIDED_PCT), lopLo = toX(-VAULT_CONFIG.LOPSIDED_PCT);
   const marker = toX(signedPctDiff);
   const band = bandPct >= 1 ? { lo: toX(signedPctDiff - bandPct), hi: toX(signedPctDiff + bandPct) } : null;
+  const markerCls = bucket === 'Great' ? 'bg-violet-400' : bucket === 'Good' ? 'bg-sky-400' : 'bg-white';
   return `
     <div class="relative h-1.5 rounded-full overflow-hidden" style="background: linear-gradient(to right,
       #fb7185 0%, #fb7185 ${lopLo}%,
@@ -1519,7 +1524,7 @@ function fairnessBarHtml(signedPctDiff, bandPct) {
       #fbbf24 ${fairHi}%, #fbbf24 ${lopHi}%,
       #fb7185 ${lopHi}%, #fb7185 100%);">
       ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${Math.min(band.lo, band.hi)}%; width:${Math.max(0.75, Math.abs(band.hi - band.lo))}%;"></div>` : ''}
-      <div class="absolute top-1/2 size-2.5 rounded-full bg-white ring-2 ring-black/50" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
+      <div class="absolute top-1/2 size-2.5 rounded-full ${markerCls} ring-2 ring-black/50" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
     </div>`;
 }
 
@@ -1599,7 +1604,7 @@ function updateTrade() {
   diffLabelEl.textContent = `${bucket} · ${capPct(pctDiff).toFixed(0)}% off`;
   diffLabelEl.title = `By value alone (KTC's own consolidation adjustment) — the number that decides Fair/Lopsided/Unfair. Great means Fair-by-value AND a strong fit for both sides; Good means Fair-by-value and a strong fit for one side. Weighted by both teams' roster needs instead of raw value, this trade reads as ${capPct(pctDiffNeed).toFixed(0)}% off.`;
   diffLabelEl.className = 'text-[11px] mt-0.5 ' + bucketColor(bucket, true);
-  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(signedPctDiff, diffBandPct) : '';
+  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(signedPctDiff, diffBandPct, bucket) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, diffBandPct, analysis.resA.fit, analysis.resB.fit);
 
   // Gap-closer suggestion
@@ -2010,7 +2015,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
       <div class="text-[28px] font-semibold leading-tight ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.label}</div>
     </div>
     <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.text}</div>
-    <div class="max-w-sm mt-3">${fairnessBarHtml(signedPctDiff, bandPct)}</div>
+    <div class="max-w-sm mt-3">${fairnessBarHtml(signedPctDiff, bandPct, bucket)}</div>
     <div class="text-[11px] text-zinc-400 mt-1.5">${[confidenceText, needNote].filter(Boolean).join(' · ')}</div>`;
 }
 

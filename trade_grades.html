@@ -95,16 +95,21 @@ const FAIRNESS_BAR_MAX = 60;
 // Unfair as the trade favored either side more, instead of a single left-to-
 // right scale with no sense of which direction. Background bands are fixed
 // reference zones (same FAIR_PCT/LOPSIDED_PCT thresholds as the text badge,
-// mirrored on both sides of center); the white dot is the one thing that actually
-// moves. The translucent band around it mirrors confidenceBandText's ± range, so
-// both are showing the same uncertainty, just in two forms.
-function fairnessBarHtml(signedPctDiff, bandPct) {
+// mirrored on both sides of center) — purely value, so they can't reflect
+// Great/Good (fit-dependent, not tied to a fixed spot on this axis). The marker
+// dot carries that instead: violet for Great, sky for Good, white otherwise —
+// without it, a Great trade would look identical to a barely-Fair one, both
+// just a plain dot somewhere in the green zone. The translucent band around it
+// mirrors confidenceBandText's ± range, so both are showing the same
+// uncertainty, just in two forms.
+function fairnessBarHtml(signedPctDiff, bandPct, bucket) {
   const half = FAIRNESS_BAR_MAX;
   const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
   const fairHi = toX(VAULT_CONFIG.FAIR_PCT), fairLo = toX(-VAULT_CONFIG.FAIR_PCT);
   const lopHi = toX(VAULT_CONFIG.LOPSIDED_PCT), lopLo = toX(-VAULT_CONFIG.LOPSIDED_PCT);
   const marker = toX(signedPctDiff);
   const band = bandPct >= 1 ? { lo: toX(signedPctDiff - bandPct), hi: toX(signedPctDiff + bandPct) } : null;
+  const markerCls = bucket === 'Great' ? 'bg-violet-400' : bucket === 'Good' ? 'bg-sky-400' : 'bg-white';
   return `
     <div class="relative h-1.5 rounded-full overflow-hidden" style="background: linear-gradient(to right,
       #fb7185 0%, #fb7185 ${lopLo}%,
@@ -113,7 +118,7 @@ function fairnessBarHtml(signedPctDiff, bandPct) {
       #fbbf24 ${fairHi}%, #fbbf24 ${lopHi}%,
       #fb7185 ${lopHi}%, #fb7185 100%);">
       ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${Math.min(band.lo, band.hi)}%; width:${Math.max(0.75, Math.abs(band.hi - band.lo))}%;"></div>` : ''}
-      <div class="absolute top-1/2 size-2.5 rounded-full bg-white ring-2 ring-black/50" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
+      <div class="absolute top-1/2 size-2.5 rounded-full ${markerCls} ring-2 ring-black/50" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
     </div>`;
 }
 
@@ -259,7 +264,7 @@ function renderCard(g) {
       <div class="pt-3 border-t border-white/5">
         <p class="truncate text-[13px] font-bold ${synopsisColor(bucket)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-400 font-normal">(some asset values unavailable)</span>' : ''}</p>
         <div class="text-[11px] ${fairColor(bucket)} mt-1" title="KTC's own consolidation-adjusted value, before need — the number a manager can check against KTC's own calculator. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Lopsided, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Unfair — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. Great means Fair-by-value AND a strong fit for both sides; Good means Fair-by-value and a strong fit for one side. Weighted by both teams' roster needs instead of raw value, this trade reads as ${capPct(g.pctDiffNeed).toFixed(0)}% off.">${bucket} · ${capPct(g.pctDiff).toFixed(0)}% off</div>
-        <div class="max-w-[200px] mt-1.5">${fairnessBarHtml(g.signedPctDiff, g.bandPct)}</div>
+        <div class="max-w-[200px] mt-1.5">${fairnessBarHtml(g.signedPctDiff, g.bandPct, g.bucket)}</div>
         ${confidenceBandText(g)}
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
