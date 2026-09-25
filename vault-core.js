@@ -2943,7 +2943,7 @@ const Vault = {
         youthIn: 0, youthOut: 0, veteranIn: 0, veteranOut: 0,
         nflTeamCounts: new Map(),
         picksInCount: 0, picksOutCount: 0,
-        optUpCount: 0, optDownCount: 0
+        optUpCount: 0, optDownCount: 0, consolidateCount: 0, splitCount: 0
       });
       return byTeam.get(team.rosterId);
     };
@@ -2975,6 +2975,8 @@ const Vault = {
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
         if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
         if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
+        // Piece count, not value: fewer pieces back than sent = consolidating.
+        if (received.length < given.length) s.consolidateCount++; else if (received.length > given.length) s.splitCount++;
         const bucket = g.fairness.overallPct >= VAULT_CONFIG.LOPSIDED_PCT ? 'unfair' : g.fairness.overallPct >= VAULT_CONFIG.FAIR_PCT ? 'lopsided' : 'fair';
         s[bucket]++;
         if (bucket === 'unfair') { if (favor > 0) s.unfairFor++; else s.unfairAgainst++; }
@@ -3014,6 +3016,57 @@ const Vault = {
 
   // Turns one manager's aggregated stats into plain-English tendency notes — the
   // narrative layer a raw stat line can't carry on its own.
+  /* One-line trading identity for the Managers summary table: a short style
+     label plus a plain-English description. Every label comes from a rule a
+     manager can check against their own trade log ("60%+ of deals", "avg +0.5
+     yrs"), not a hidden score — same principle as the fairness verdict. */
+  managerProfile(s, leagueAvgTrades) {
+    if (!s.trades) return { style: 'Sits tight', tone: 'neutral', blurb: "Hasn't made a trade yet." };
+    const most = n => n >= Math.ceil(s.trades * 0.6);
+    const fmt = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n)).toLocaleString();
+
+    let core, tone;
+    if (most(s.consolidateCount)) { core = 'consolidator'; tone = 'violet'; }
+    else if (most(s.splitCount)) { core = 'depth builder'; tone = 'sky'; }
+    else if (s.avgAgeDelta <= -0.5 || most(s.picksInCount)) { core = 'youth & picks buyer'; tone = 'emerald'; }
+    else if (s.avgAgeDelta >= 0.5 || most(s.picksOutCount)) { core = 'win-now buyer'; tone = 'amber'; }
+    else { core = 'value trader'; tone = 'neutral'; }
+    const volume = leagueAvgTrades && s.trades >= leagueAvgTrades * 1.5 ? 'Active '
+      : leagueAvgTrades && s.trades <= leagueAvgTrades * 0.5 ? 'Occasional ' : '';
+    const style = volume ? volume + core : core.charAt(0).toUpperCase() + core.slice(1);
+
+    // "3 of 5 deals", or "in their only trade" when there's just one.
+    const share = n => s.trades === 1 ? 'in their only trade' : `in ${n} of ${s.trades} deals`;
+    const yrs = d => (d < 0 ? '−' : '+') + Math.abs(d).toFixed(1);
+    const how = {
+      'consolidator': `Sends more pieces than they get back ${share(s.consolidateCount)}.`,
+      'depth builder': `Turns one piece into several ${share(s.splitCount)}.`,
+      'youth & picks buyer': s.avgAgeDelta <= -0.5 ? `Gets younger through trades (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Nets draft picks ${share(s.picksInCount)}.`,
+      'win-now buyer': s.avgAgeDelta >= 0.5 ? `Adds older, proven talent (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Spends draft picks ${share(s.picksOutCount)}.`,
+      'value trader': 'No clear lean toward youth, veterans, or picks.'
+    }[core];
+
+    // Value at trade time, then how it has aged — the connector depends on
+    // whether the aging agrees with the original result ("and ... even better")
+    // or cuts against it ("but ...").
+    const ahead = s.netValue >= 250, behind = s.netValue <= -250;
+    const swing = s.netValueToday - s.netValue;
+    const agedUp = swing >= 1000, agedDown = swing <= -1000;
+    let outcome = ahead ? `Came out ahead at trade time (${fmt(s.netValue)})`
+      : behind ? `Gave up value at trade time (${fmt(s.netValue)})`
+      : 'Roughly even at trade time';
+    if (agedUp) outcome += ahead ? `, and the deals have aged even better (${fmt(s.netValueToday)} today)`
+      : behind ? `, but the deals have aged well since (${fmt(s.netValueToday)} today)`
+      : `; the deals have aged well since (${fmt(s.netValueToday)} today)`;
+    else if (agedDown) outcome += ahead ? `, but the deals have aged poorly (${fmt(s.netValueToday)} today)`
+      : behind ? `, and the deals have aged even worse (${fmt(s.netValueToday)} today)`
+      : `; the deals have aged poorly since (${fmt(s.netValueToday)} today)`;
+
+    const fit = s.avgFit >= 1.5 ? ' Their trades usually fit their own timeline and needs.'
+      : s.avgFit <= -1.5 ? ' Their trades often work against their own timeline or needs.' : '';
+    return { style, tone, blurb: `${how} ${outcome}.${fit}` };
+  },
+
   managerTendencyNotes(s, leagueAvgTrades) {
     if (s.trades === 0) return [{ tone: 'neutral', text: "Hasn't made a trade this season." }];
     const notes = [];

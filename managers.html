@@ -25,6 +25,7 @@
     age, and their record in the trades that ended up lopsided.
   </p>
 
+  <div id="summary" class="hidden mb-8"></div>
   <div id="grid" class="grid md:grid-cols-2 gap-5"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
@@ -98,7 +99,7 @@ function renderCard(s, rank, maxAbsNet) {
     </div>`;
 }
 
-function render(stats) {
+function render(stats, teams) {
   window._avgTrades = stats.length ? stats.reduce((s, x) => s + x.trades, 0) / stats.length : 0;
   const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');
@@ -114,6 +115,61 @@ function render(stats) {
   // isn't "better" than a manager who traded and came out slightly behind.
   const traders = stats.filter(s => s.trades > 0), idle = stats.filter(s => !s.trades);
   grid.innerHTML = [...traders.map((s, i) => renderCard(s, i + 1, maxAbsNet)), ...idle.map(s => renderCard(s, null, maxAbsNet))].join('');
+  renderSummaryTable([...traders, ...idle], teams);
+}
+
+// Style pill colors — one per Vault.managerProfile style family.
+const STYLE_PILL = {
+  violet: 'bg-violet-500/10 text-violet-300 border-violet-500/25',
+  sky: 'bg-sky-500/10 text-sky-300 border-sky-500/25',
+  emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
+  amber: 'bg-amber-500/10 text-amber-300 border-amber-500/25',
+  neutral: 'bg-white/5 text-zinc-300 border-white/10'
+};
+const signedCell = n => `<span class="mono ${n > 0 ? 'text-emerald-400' : n < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(Math.round(n))}</span>`;
+
+// The whole league at a glance: who each manager is as a trader, in one line,
+// before the detailed cards below. Same order as the cards (ranked traders,
+// then anyone who hasn't traded).
+function renderSummaryTable(rows, teams) {
+  const box = document.getElementById('summary');
+  const nameOf = new Map((teams || []).map(t => [t.rosterId, t.username]));
+  box.classList.remove('hidden');
+  box.innerHTML = `
+    <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">League at a glance</div>
+    <div class="card rounded-vault-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-[13px] min-w-[860px]">
+          <thead class="bg-black/40 border-b border-white/5">
+            <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
+              <th class="text-left px-4 py-2.5">Manager</th>
+              <th class="text-left px-3 py-2.5">Trading style</th>
+              <th class="text-left px-3 py-2.5">Description</th>
+              <th class="text-right px-3 py-2.5">Trades</th>
+              <th class="text-right px-3 py-2.5" title="Net value across every trade at KTC prices on each trade's date">Net Then</th>
+              <th class="text-right px-4 py-2.5" title="The same trades at today's KTC prices">Net Now</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            ${rows.map(s => {
+              const p = Vault.managerProfile(s, window._avgTrades || 0);
+              const user = nameOf.get(s.rosterId);
+              return `<tr class="align-top">
+                <td class="px-4 py-3 min-w-[170px]">
+                  <div class="font-medium text-zinc-100">${Vault.escapeHtml(s.teamName)}</div>
+                  <div class="text-[11px] text-zinc-400">${[user ? '@' + Vault.escapeHtml(user) : '', s.record ? `${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''}` : ''].filter(Boolean).join(' • ')}</div>
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap"><span class="text-[11px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
+                <td class="px-3 py-3 text-zinc-300 leading-relaxed min-w-[320px]">${p.blurb}</td>
+                <td class="px-3 py-3 text-right mono text-zinc-400">${s.trades}</td>
+                <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValue) : '—'}</td>
+                <td class="px-4 py-3 text-right">${s.trades ? signedCell(s.netValueToday) : '—'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 async function init() {
@@ -126,7 +182,7 @@ async function init() {
 
     status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-emerald-400/80 mt-1';
-    render(stats);
+    render(stats, teams);
   } catch (e) {
     console.error(e);
     status.textContent = e.message || 'Failed to load';
