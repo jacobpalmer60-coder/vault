@@ -423,6 +423,25 @@ function toggleExpand(key) {
 // per roster) into head-to-head pairs by matchup_id — two rosters sharing an id
 // are opponents. A roster with no partner (an odd team count, or a bye built into
 // the schedule) renders as its own "bye week" card instead of being dropped.
+// Per-roster point change since the LAST poll (not since kickoff) — the whole
+// point is "what just happened," so it's diffed against whatever score this
+// roster had the previous time fetchWeek ran, not the week's starting total.
+// Empty on the very first load of a week (nothing to compare against yet) and
+// cleared on every week switch, since diffing week 4's fresh score against
+// week 3's final would produce a meaningless jump.
+let knownScores = new Map(); // rosterId -> score as of the last poll
+let scoreDeltas = new Map(); // rosterId -> last computed change
+function updateScoreDeltas() {
+  const next = new Map();
+  lastMatchups.forEach(m => {
+    const curr = m.points || 0;
+    const prev = knownScores.has(m.roster_id) ? knownScores.get(m.roster_id) : curr;
+    next.set(m.roster_id, curr - prev);
+    knownScores.set(m.roster_id, curr);
+  });
+  scoreDeltas = next;
+}
+
 let lastMatchups = [];
 function buildPairs() {
   const byMatchup = new Map();
@@ -487,16 +506,27 @@ function matchupCard(key, a, b, rosterMap, userMap) {
   // even when the simulation itself came back essentially there.
   const aWinPct = b ? Math.max(1, Math.min(99, winProbability(a.m, b.m))) : null;
 
-  const side = (rosterId, score, leads, letter, color, name, proj, record) => `
+  // Change since the LAST poll (see updateScoreDeltas), not since kickoff — a
+  // big, bold, colored callout so a fresh bump from a just-scored play is
+  // impossible to miss next to the total it fed into. Small enough deltas are
+  // treated as no real change (float noise, not a stat update).
+  const side = (rosterId, score, leads, letter, color, name, proj, record) => {
+    const delta = scoreDeltas.get(rosterId) || 0;
+    const showDelta = Math.abs(delta) >= 0.05;
+    return `
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 mb-1">
         <div class="size-6 rounded-lg ${color} flex items-center justify-center text-[11px] font-semibold text-black shrink-0">${letter}</div>
         <div class="text-[13px] font-medium truncate ${leads ? 'text-white' : 'text-zinc-400'}">${Vault.escapeHtml(name)}</div>
         <span class="text-[10px] mono text-zinc-400 shrink-0" title="Record going into this week">${record}</span>
       </div>
-      <div class="text-[26px] font-mono font-semibold ${leads ? 'text-emerald-400' : 'text-zinc-200'}">${score.toFixed(1)}</div>
+      <div class="flex items-baseline gap-2 flex-wrap">
+        <div class="text-[26px] font-mono font-semibold ${leads ? 'text-emerald-400' : 'text-zinc-200'}">${score.toFixed(1)}</div>
+        ${showDelta ? `<div class="text-[18px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Change since the last update">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</div>` : ''}
+      </div>
       ${proj != null ? `<div class="text-[11px] text-zinc-400" title="Live points plus each remaining starter's projected upside, scaled down as their real game finishes">Proj <span class="mono text-zinc-400">${proj.toFixed(1)}</span></div>` : ''}
     </div>`;
+  };
 
   const aName = teamNameFor(a?.rosterId, rosterMap, userMap);
   const bName = b ? teamNameFor(b.rosterId, rosterMap, userMap) : null;
@@ -543,6 +573,7 @@ async function fetchWeek(w) {
   const matchups = await fetch(`https://api.sleeper.app/v1/league/${Vault.getLeagueId()}/matchups/${w}`).then(r => r.json());
   lastMatchups = matchups || [];
   lastUpdated = Date.now();
+  updateScoreDeltas();
   render();
   updateStatus();
   // Live plays only mean anything for the week actually being played right now —
@@ -555,6 +586,12 @@ function setWeek(w) {
   week = Math.max(1, Math.min(18, w));
   document.getElementById('weekLabel').textContent = `Week ${week}`;
   expanded.clear();
+  // A different week's scores have nothing to do with the previous one's — without
+  // this, switching weeks would diff the new week's fresh total against whatever
+  // score this roster had when you last looked at the old week, showing a huge,
+  // meaningless "change."
+  knownScores.clear();
+  scoreDeltas.clear();
   fetchWeek(week);
 }
 
