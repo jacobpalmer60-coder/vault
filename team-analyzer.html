@@ -64,8 +64,7 @@ async function loadLeague(id) {
     window._allTeams = built;
 
     const sel = $('#teamSelect'); sel.innerHTML = built.map(t => `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)}${t.username ? ` (${Vault.escapeHtml(t.username)})` : ''}</option>`).join(''); sel.classList.remove('hidden');
-    const saved = localStorage.getItem('vault_username');
-    const found = built.find(t => t.username.toLowerCase() === String(saved || '').toLowerCase());
+    const found = Vault.myTeam(built);
     sel.value = String(found ? found.rosterId : built[0].rosterId);
     sel.onchange = () => renderSingle(built.find(t => String(t.rosterId) === sel.value));
 

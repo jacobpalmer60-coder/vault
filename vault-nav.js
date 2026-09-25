@@ -13,6 +13,7 @@
     { key: 'grades', label: 'Trade Grades', href: 'trade_grades.html' },
     { key: 'database', label: 'Trade Database', href: 'trade_database.html' },
     { key: 'managers', label: 'Managers', href: 'managers.html' },
+    { key: 'method', label: 'How We Grade', href: 'how_we_grade.html' },
     { key: 'patch', label: 'Patch Notes', href: 'patch_notes.html' }
   ];
 
@@ -54,12 +55,37 @@
           </a>
           <nav class="flex items-center gap-1 overflow-x-auto scrollbar">${tabsHtml}</nav>
           <div class="flex items-center gap-2.5 shrink-0">
-            <span class="hidden md:inline text-[11px] text-amber-200/40 mono">League ${Vault.escapeHtml(leagueId)}</span>
+            <select id="myTeamPick" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden max-w-[190px] bg-black/60 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-zinc-300"></select>
             <a href="index.html" class="btn-ghost text-[11px] px-3 py-1.5">Switch League</a>
           </div>
         </div>
       </header>`;
   }
 
-  document.addEventListener('DOMContentLoaded', render);
+  // "Your team" picker — two small Sleeper calls (users + rosters), independent
+  // of whatever the page itself loads, so it's the same on every page. Picking
+  // a team saves it for this league and reloads so the page opens on it.
+  async function mountMyTeamPicker() {
+    const sel = document.getElementById('myTeamPick');
+    if (!sel) return;
+    const leagueId = Vault.getLeagueId();
+    try {
+      const [users, rosters] = await Promise.all([
+        fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`).then(r => r.json()),
+        fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json())
+      ]);
+      const userById = new Map((users || []).map(u => [u.user_id, u]));
+      const teams = (rosters || []).map(r => {
+        const u = userById.get(r.owner_id) || {};
+        return { rosterId: r.roster_id, ownerId: r.owner_id, name: u.metadata?.team_name || u.display_name || `Team ${r.roster_id}` };
+      }).sort((a, b) => a.name.localeCompare(b.name));
+      if (!teams.length) return;
+      const mine = Vault.myTeam(teams, leagueId);
+      sel.innerHTML = `<option value="">Your team…</option>` + teams.map(t => `<option value="${t.rosterId}" ${mine && mine.rosterId === t.rosterId ? 'selected' : ''}>${Vault.escapeHtml(t.name)}</option>`).join('');
+      sel.classList.remove('hidden');
+      sel.onchange = () => { Vault.setMyTeamId(leagueId, sel.value || null); location.reload(); };
+    } catch (e) { /* picker is optional; the page works without it */ }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); });
 })();

@@ -450,6 +450,12 @@ function teamDetailPanel(t) {
 
 // Card view for narrow screens — same data as the table, no horizontal scroll.
 // Tapping a card expands the same detail panel the table row does.
+// Small "You" tag on your own team (Vault.myTeam — the nav's Your team pick).
+function youTag(t) {
+  const mine = Vault.myTeam(teams);
+  return mine && mine.rosterId === t.rosterId ? ' <span class="align-middle ml-1 text-[10px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : '';
+}
+
 function renderMobileCards(data, minOverall, maxOverall) {
   const mount = document.getElementById('mobileCards');
   mount.innerHTML = data.map(t => {
@@ -460,7 +466,7 @@ function renderMobileCards(data, minOverall, maxOverall) {
         <div class="flex items-center gap-2.5 min-w-0">
           <span class="w-5 text-right text-[11px] font-mono text-zinc-400 shrink-0">${t.rank}</span>
           <div class="min-w-0">
-            <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
+            <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
             <div class="text-[11px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
             ${careerRecordText(t) ? `<div class="text-[11px] text-zinc-400 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>
@@ -538,7 +544,7 @@ function render() {
           <span class="w-5 text-right text-[12px] font-mono text-zinc-400">${t.rank}</span>
           <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
           <div class="min-w-0">
-            <div class="font-semibold text-[15px] text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
+            <div class="font-semibold text-[15px] text-white truncate">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
             <div class="text-[12px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks</div>
             ${careerRecordText(t) ? `<div class="text-[12px] text-zinc-400 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>

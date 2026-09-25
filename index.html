@@ -136,6 +136,8 @@
         try {
           const u = await fetch(`https://api.sleeper.app/v1/user/${user}`).then(r => r.json());
           if (!u || !u.user_id) throw new Error('User not found');
+          // Remembered so every page can open on your own team (Vault.myTeam).
+          Vault.setSleeperUserId(u.user_id);
           const allLeagues = await Promise.all(
             [...Array(12)].map((_, i) =>
               fetch(`https://api.sleeper.app/v1/user/${u.user_id}/leagues/nfl/${2026 - i}`).then(r => r.json()).catch(() => [])

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How We Grade — The Vault</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css">
+<link rel="stylesheet" href="tailwind.css">
+<style>
+  .hwg h2 { font-size: 16px; font-weight: 600; color: #f4f4f5; margin-bottom: 8px; }
+  .hwg p, .hwg li { font-size: 13px; line-height: 1.7; color: #d4d4d8; }
+  .hwg p + p { margin-top: 8px; }
+  .hwg ul { list-style: disc; padding-left: 18px; margin-top: 6px; }
+  .hwg li + li { margin-top: 4px; }
+  .hwg strong { color: #f4f4f5; font-weight: 600; }
+  .hwg .num { font-family: 'JetBrains Mono', ui-monospace, monospace; color: #fcd34d; }
+</style>
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[820px] mx-auto p-6 lg:p-10 hwg">
+  <div class="mb-6">
+    <h1 class="display text-[28px] font-semibold gold-text">How We Grade</h1>
+    <p class="text-[13px] text-zinc-400 mt-1 max-w-[640px]">Every grade on The Vault can be traced back to numbers you can check yourself. This page explains where they come from and exactly how each verdict is decided. The figures shown are read live from the site's own settings, so they're always current.</p>
+  </div>
+
+  <nav class="card rounded-vault-sm p-4 mb-5 text-[12px] text-zinc-400 flex flex-wrap gap-x-4 gap-y-1.5" aria-label="On this page">
+    <a class="hover:text-amber-300" href="#sources">Where the numbers come from</a>
+    <a class="hover:text-amber-300" href="#fairness">Fair, Lopsided, Unfair</a>
+    <a class="hover:text-amber-300" href="#blend">Roster fit and timeline</a>
+    <a class="hover:text-amber-300" href="#grades">Grading past trades</a>
+    <a class="hover:text-amber-300" href="#vorp">VORP</a>
+    <a class="hover:text-amber-300" href="#odds">Playoff odds and windows</a>
+    <a class="hover:text-amber-300" href="#managers">Manager styles</a>
+  </nav>
+
+  <div class="space-y-5">
+    <section id="sources" class="card rounded-vault-sm p-5">
+      <h2>Where the numbers come from</h2>
+      <ul>
+        <li><strong>Player and pick values</strong> are KeepTradeCut's dynasty values, refreshed every night, in your league's format (superflex or 1QB, and your tight end premium).</li>
+        <li><strong>Your league</strong> — rosters, records, schedule, scoring, and roster slots — comes straight from Sleeper.</li>
+        <li><strong>Projected points</strong> are weekly projections scored with your league's actual scoring settings, not a generic PPR number.</li>
+        <li><strong>Value history</strong> is a daily record of every value going back to 2020, which is what lets us price a past trade on the day it happened.</li>
+      </ul>
+    </section>
+
+    <section id="fairness" class="card rounded-vault-sm p-5">
+      <h2>Fair, Lopsided, Unfair</h2>
+      <p>A trade's gap is measured in <strong>% off</strong>: how far apart the two sides are, relative to the average side. Before comparing, both sides get KeepTradeCut's own <strong>consolidation adjustment</strong> — one great player is worth more than several decent ones that add up to the same raw value, because roster spots and starting slots are limited. That's the same math KTC's own trade calculator uses, so you can check any number here against it.</p>
+      <ul>
+        <li><strong>Fair:</strong> under <span class="num" data-cfg="fair"></span> off</li>
+        <li><strong>Lopsided:</strong> <span class="num" data-cfg="fair"></span> to <span class="num" data-cfg="lopsided"></span> off</li>
+        <li><strong>Unfair:</strong> <span class="num" data-cfg="lopsided"></span> or more off</li>
+      </ul>
+      <p>Those cutoffs were calibrated against about 25,000 real dynasty trades from KeepTradeCut's trade database, so "Lopsided" means lopsided compared to what real leagues actually accept.</p>
+      <p>A Fair trade can be called out further: <strong>Great</strong> when it's also a strong fit for both teams, and <strong>Good</strong> when it's a strong fit for one. Fit can only add those labels to a trade that's already Fair.</p>
+      <p>The <strong>±</strong> next to some grades is how much the less-established pieces (rookies, far-off picks) have swung in price over the last <span class="num" data-cfg="volDays"></span> days — a reminder of how settled the number is.</p>
+    </section>
+
+    <section id="blend" class="card rounded-vault-sm p-5">
+      <h2>Roster fit and timeline</h2>
+      <p>The overall grade weighs three things. The three small bars under the main bar on the Trade Calculator and Trade Grades show each one.</p>
+      <ul>
+        <li><strong>KTC value (<span class="num" data-cfg="wValue"></span>)</strong> — the % off above.</li>
+        <li><strong>Roster fit (<span class="num" data-cfg="wRoster"></span>)</strong> — whether the trade fills a real positional need or opens one up, plus how much it moves each team's best possible starting lineup (projected points and VORP).</li>
+        <li><strong>Timeline (<span class="num" data-cfg="wTimeline"></span>)</strong> — whether the ages and draft picks moving fit each team's plan (rebuilding teams should get younger and add picks; contenders can spend them), and whether it opens, widens, or closes a team's contention window.</li>
+      </ul>
+      <p><strong>The one-way rule:</strong> roster fit and timeline can make a trade's grade worse than KTC value alone, but never better. If KTC says a trade is lopsided, it reads lopsided here too — fit never talks a real value gap away. Each factor is also capped at <span class="num" data-cfg="cap"></span> so one extreme reading can't swamp the others. When fit does move the grade, both numbers are shown (for example "16% off · KTC 14%").</p>
+    </section>
+
+    <section id="grades" class="card rounded-vault-sm p-5">
+      <h2>Grading past trades</h2>
+      <p>Completed trades on Trade Grades are priced at each piece's value <strong>on the day the trade happened</strong>, not today's. A deal that was fair when it was made shouldn't read as unfair because a player broke out months later. Today's values are shown alongside ("3,180 → 2,678") so you can see how it's aged, and the League Trade Summary shows each manager's net both ways: <strong>Net Then</strong> and <strong>Net Now</strong>.</p>
+      <p>Roster fit and timeline for past trades are judged against each team's current roster and standing.</p>
+    </section>
+
+    <section id="vorp" class="card rounded-vault-sm p-5">
+      <h2>VORP</h2>
+      <p><strong>Value Over Replacement Player</strong> is a player's projected points per game minus what you could get from the best player at the same position who wouldn't start for any team in your league. It makes positions comparable: a quarterback always scores more raw points, but VORP measures the edge over the alternative.</p>
+      <p>Replacement level is found by filling every team's starting lineup across your league — dedicated slots first, then each flex and superflex going to the best eligible player left — and taking the next player after the last starter at each position.</p>
+    </section>
+
+    <section id="odds" class="card rounded-vault-sm p-5">
+      <h2>Playoff odds and contention windows</h2>
+      <p><strong>Projected record, playoff odds, and title odds</strong> come from simulating the rest of the season <span class="num">2,000</span> times against your league's real remaining schedule, starting from everyone's actual record. Each team's weekly strength is its best possible lineup's projected points, with about <span class="num">±22%</span> week-to-week variance. Median games count if your league plays them, and the week in progress is included until it's final.</p>
+      <p>A team's <strong>contention window</strong> is how many of the next five years it projects as a real contender. This season counts when its playoff odds are 50% or better. Later years count when the roster's projected value (with players aging and picks arriving) stays near its peak and its lineup projects at or above the playoff line.</p>
+    </section>
+
+    <section id="managers" class="card rounded-vault-sm p-5">
+      <h2>Manager styles</h2>
+      <p>The trading styles on the Managers page come from simple rules you can check against a manager's own trades:</p>
+      <ul>
+        <li><strong>Consolidator</strong> — sends more pieces than they get back in 60%+ of deals. <strong>Depth builder</strong> — the reverse.</li>
+        <li><strong>Youth &amp; picks buyer</strong> — gets younger by half a year or more per deal on average, or nets picks in most deals. <strong>Win-now buyer</strong> — the reverse.</li>
+        <li><strong>Value trader</strong> — no clear lean either way.</li>
+        <li><strong>Active</strong> or <strong>Occasional</strong> is added when a manager trades 1.5× or ½× the league average.</li>
+      </ul>
+    </section>
+
+    <p class="text-[12px] text-zinc-400">Something here doesn't match what you're seeing? Changes to how grading works are always listed on <a id="patchLink" class="text-amber-300 hover:text-amber-200" href="patch_notes.html">Patch Notes</a>.</p>
+  </div>
+</div>
+
+<script src="vault-core.js"></script>
+<script src="vault-nav.js"></script>
+<script>
+// Fill every figure from the live settings so this page can't drift from the
+// math it describes.
+const C = VAULT_CONFIG;
+const figures = {
+  fair: C.FAIR_PCT + '%',
+  lopsided: C.LOPSIDED_PCT + '%',
+  wValue: C.FAIRNESS_WEIGHTS.value + '%',
+  wRoster: C.FAIRNESS_WEIGHTS.roster + '%',
+  wTimeline: C.FAIRNESS_WEIGHTS.timeline + '%',
+  cap: C.FAIRNESS_FACTOR_CAP + '% off',
+  volDays: String(C.PRICE_VOLATILITY_WINDOW_DAYS)
+};
+document.querySelectorAll('[data-cfg]').forEach(el => { el.textContent = figures[el.dataset.cfg] ?? '—'; });
+document.getElementById('patchLink').href = Vault.linkTo('patch_notes.html');
+</script>
+</body>
+</html>

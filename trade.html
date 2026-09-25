@@ -75,7 +75,7 @@
           <div id="giveB" class="text-[16px] font-medium"></div>
         </div>
       </div>
-      <div class="flex items-center gap-4">
+      <div class="flex items-center gap-x-4 gap-y-2 flex-wrap justify-end">
         <div class="text-right">
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value, using KeepTradeCut's own real adjustment formula. Under 14% off is considered fair, 14-41% is lopsided, and above 41% is unfair — calibrated against ~25,000 real trades from KeepTradeCut's trade database. The ± line below reflects how much today's price could still move for the less-established pieces here (rookies, far-future picks), based on their own recent price swings.">Difference <span class="text-zinc-400">(value-adj)</span></div>
           <div id="diff" class="text-[22px] font-semibold mono"></div>
@@ -84,6 +84,7 @@
           <div id="diffConfidence" class="text-[10px] text-zinc-400 mt-0.5"></div>
         </div>
         <span id="balanceBtn"></span>
+        <button onclick="shareTrade(this)" title="Copy a link to this exact trade — it opens with the same teams, pieces, and verdict" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Share</button>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
@@ -330,8 +331,10 @@ async function init() {
     const selA = document.getElementById('teamA'), selB = document.getElementById('teamB');
     const setupA = document.getElementById('teamASetup'), setupB = document.getElementById('teamBSetup');
     [selA, selB, setupA, setupB].forEach(sel => sel.innerHTML = opts);
-    selA.value = setupA.value = teams[0].rosterId;
-    selB.value = setupB.value = teams[1]?.rosterId || teams[0].rosterId;
+    // Opens on your team (Vault.myTeam) as Team A when we know it.
+    const mine = Vault.myTeam(teams) || teams[0];
+    selA.value = setupA.value = mine.rosterId;
+    selB.value = setupB.value = (teams.find(t => t !== mine) || mine).rosterId;
     prevA = prevASetup = selA.value;
     prevB = prevBSetup = selB.value;
 
@@ -374,6 +377,7 @@ async function init() {
       renderPosFilter('A'); renderPosFilter('B');
       render('A'); render('B');
     };
+    applyTradeFromUrl();
   } catch (e) {
     document.getElementById('status').textContent = e.message || 'Failed to load';
     document.getElementById('status').className = 'text-[13px] text-rose-400 mt-1';
@@ -382,6 +386,7 @@ async function init() {
 }
 
 function backToSetup() {
+  history.replaceState(null, '', Vault.linkTo('trade.html'));
   document.getElementById('workspace').classList.add('hidden');
   document.getElementById('setup').classList.remove('hidden');
   document.getElementById('finderPickerBtn').classList.add('hidden');
@@ -392,6 +397,57 @@ function backToSetup() {
 
 function teamOf(side) { return teams.find(t => t.rosterId == document.getElementById(`team${side}`).value); }
 function otherSide(side) { return side === 'A' ? 'B' : 'A'; }
+
+/* ---------- Shareable trade links ----------
+   The trade lives in the URL (league_id, a/b = the two teams' roster ids,
+   give_a/give_b = asset keys, by = who's offering), kept current on every
+   change via updateTrade, so "Share" is just this page's address. Opening a
+   link rebuilds the same trade and verdict for whoever clicks it. */
+function syncTradeUrl() {
+  if (document.getElementById('workspace').classList.contains('hidden')) return;
+  const p = new URLSearchParams({ league_id: Vault.getLeagueId(), a: document.getElementById('teamA').value, b: document.getElementById('teamB').value });
+  if (selectedA.size) p.set('give_a', [...selectedA].join(','));
+  if (selectedB.size) p.set('give_b', [...selectedB].join(','));
+  if (offeredBy) p.set('by', offeredBy);
+  const url = `${location.pathname}?${p.toString().replace(/%2C/g, ',')}`;
+  if (url !== location.pathname + location.search) history.replaceState(null, '', url);
+}
+
+function applyTradeFromUrl() {
+  const p = new URLSearchParams(location.search);
+  const a = teams.find(t => String(t.rosterId) === p.get('a'));
+  const b = teams.find(t => String(t.rosterId) === p.get('b'));
+  if (!a || !b || a === b) return;
+  document.getElementById('teamASetup').value = a.rosterId;
+  document.getElementById('teamBSetup').value = b.rosterId;
+  document.getElementById('loadRostersBtn').onclick();
+  const wanted = side => (p.get(side === 'A' ? 'give_a' : 'give_b') || '').split(',').filter(Boolean);
+  let missing = 0;
+  [['A', a, selectedA], ['B', b, selectedB]].forEach(([side, team, set]) => wanted(side).forEach(k => {
+    if (team.assets.some(x => x.key === k)) set.add(k); else missing++;
+  }));
+  if (p.get('by') === 'A' || p.get('by') === 'B') offeredBy = p.get('by');
+  render('A'); render('B');
+  // A link can outlive the rosters it was made from (a player got traded or
+  // dropped since) — say so instead of silently showing a different trade.
+  if (missing) {
+    const bar = document.getElementById('gapClose');
+    bar.classList.remove('hidden');
+    bar.insertAdjacentHTML('afterbegin', `<div class="text-[12px] text-amber-300 mb-2">${missing} piece${missing === 1 ? '' : 's'} from this shared link ${missing === 1 ? 'is' : 'are'} no longer on ${missing === 1 ? 'that' : 'those'} roster${missing === 1 ? '' : 's'}, so ${missing === 1 ? 'it was' : 'they were'} left out.</div>`);
+  }
+}
+
+async function shareTrade(btn) {
+  syncTradeUrl();
+  const url = location.href;
+  // Phones get the native share sheet (text it straight to the other manager);
+  // everywhere else the link goes to the clipboard.
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+    try { await navigator.share({ title: 'Trade on The Vault', url }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(url); flashButtonMessage(btn, 'Link copied'); }
+  catch { window.prompt('Copy this link:', url); }
+}
 
 // Same colored position pill Player Rankings already uses (vault.css's
 // .pos-badge-*), instead of plain grey position text — one consistent color
@@ -1722,6 +1778,7 @@ function confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct
 }
 
 function updateTrade() {
+  syncTradeUrl();
   const teamA = teamOf('A'), teamB = teamOf('B');
   // Unconditional (unlike the trade bar/analysis below) — who's offering is
   // meaningful the moment two teams are picked, before any assets are even
@@ -2218,7 +2275,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
       ${fairnessBarHtml(fairness.overallSigned, bandPct)}
       <div class="mt-2.5">${Vault.fairnessBreakdownHtml(fairness, teamA.teamName, teamB.teamName)}</div>
     </div>
-    <div class="text-[11px] text-zinc-400 mt-1.5">${[confidenceText, needNote].filter(Boolean).join(' · ')}</div>`;
+    <div class="text-[11px] text-zinc-400 mt-1.5">${[confidenceText, needNote, `<a href="${Vault.linkTo('how_we_grade.html')}" class="text-amber-300/80 hover:text-amber-200">How is this graded?</a>`].filter(Boolean).join(' · ')}</div>`;
 }
 
 init();

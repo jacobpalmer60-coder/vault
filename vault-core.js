@@ -165,16 +165,50 @@ const Vault = {
     return `rgb(${mix(r1, r2)},${mix(g1, g2)},${mix(b1, b2)})`;
   },
 
+  // Storage access is guarded everywhere below: it can throw in private windows
+  // or with site data blocked, and a shared link still has to open.
   getLeagueId() {
     const fromUrl = new URLSearchParams(location.search).get('league_id');
     if (fromUrl) {
-      localStorage.setItem('vault_league_id', fromUrl);
+      try { localStorage.setItem('vault_league_id', fromUrl); } catch {}
       return fromUrl;
     }
-    return localStorage.getItem('vault_league_id') || VAULT_CONFIG.DEFAULT_LEAGUE_ID;
+    let stored = null;
+    try { stored = localStorage.getItem('vault_league_id'); } catch {}
+    return stored || VAULT_CONFIG.DEFAULT_LEAGUE_ID;
   },
   setLeagueId(id) {
-    localStorage.setItem('vault_league_id', id);
+    try { localStorage.setItem('vault_league_id', id); } catch {}
+  },
+
+  /* ---------- "My team" ----------
+     Which roster is yours, per league, so every page can open on it. An
+     explicit pick (the nav's "Your team" menu) wins; otherwise it's matched
+     from the Sleeper account you signed in with on the home page. Stored only
+     in this browser. */
+  getMyTeamId(leagueId = Vault.getLeagueId()) {
+    try { return localStorage.getItem('vault_my_team_' + leagueId); } catch { return null; }
+  },
+  setMyTeamId(leagueId, rosterId) {
+    try {
+      if (rosterId) localStorage.setItem('vault_my_team_' + leagueId, String(rosterId));
+      else localStorage.removeItem('vault_my_team_' + leagueId);
+    } catch {}
+  },
+  setSleeperUserId(userId) {
+    try { localStorage.setItem('vault_user_id', userId); } catch {}
+  },
+  getSleeperUserId() {
+    try { return localStorage.getItem('vault_user_id'); } catch { return null; }
+  },
+  // teams: anything with rosterId + ownerId (buildLeagueTeams output, or raw
+  // Sleeper rosters mapped to that shape). Returns the matching team or null.
+  myTeam(teams, leagueId = Vault.getLeagueId()) {
+    const picked = Vault.getMyTeamId(leagueId);
+    const byPick = picked && teams.find(t => String(t.rosterId) === String(picked));
+    if (byPick) return byPick;
+    const uid = Vault.getSleeperUserId();
+    return (uid && teams.find(t => t.ownerId === uid)) || null;
   },
   linkTo(page, id) {
     const lid = id || Vault.getLeagueId();

@@ -134,6 +134,7 @@ const signedCell = n => `<span class="mono ${n > 0 ? 'text-emerald-400' : n < 0 
 function renderSummaryTable(rows, teams) {
   const box = document.getElementById('summary');
   const nameOf = new Map((teams || []).map(t => [t.rosterId, t.username]));
+  const mine = Vault.myTeam(teams || []);
   box.classList.remove('hidden');
   box.innerHTML = `
     <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">League at a glance</div>
@@ -156,7 +157,7 @@ function renderSummaryTable(rows, teams) {
               const user = nameOf.get(s.rosterId);
               return `<tr class="align-top">
                 <td class="px-4 py-3 min-w-[170px]">
-                  <div class="font-medium text-zinc-100">${Vault.escapeHtml(s.teamName)}</div>
+                  <div class="font-medium text-zinc-100">${Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[10px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
                   <div class="text-[11px] text-zinc-400">${[user ? '@' + Vault.escapeHtml(user) : '', s.record ? `${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''}` : ''].filter(Boolean).join(' • ')}</div>
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap"><span class="text-[11px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
