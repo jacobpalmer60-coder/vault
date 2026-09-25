@@ -421,8 +421,8 @@ function renderLiveFeed(rosterMap, userMap) {
           <span class="text-[10px] text-zinc-400 truncate">${Vault.escapeHtml(p.teamName)}</span>
         </div>
         <div class="text-right shrink-0 leading-tight">
-          ${showDelta ? `<div class="text-[15px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Point change since the last update, attributed to this player's most recent play — Sleeper's scoring can trail ESPN's play text by a play or two">${delta > 0 ? '+' : ''}${delta.toFixed(1)} PTS</div>` : ''}
-          ${total != null ? `<div class="text-[10px] mono text-zinc-400">${total.toFixed(1)} TOTAL</div>` : ''}
+          ${showDelta ? `<div class="text-[22px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Point change since the last update, attributed to this player's most recent play — Sleeper's scoring can trail ESPN's play text by a play or two">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</div>` : ''}
+          ${total != null ? `<div class="text-[15px] font-mono font-bold text-amber-300">${total.toFixed(1)} <span class="text-[9px] font-sans font-medium uppercase tracking-wide text-amber-300/60">pts</span></div>` : ''}
         </div>
       </div>
       <div class="text-[11px] text-zinc-400 leading-snug">${Vault.escapeHtml(p.text)}</div>
