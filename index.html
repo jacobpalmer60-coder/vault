@@ -112,13 +112,6 @@
                 <div class="text-xs text-zinc-400 mt-1">How every GM actually trades</div>
               </a>
 
-              <a id="btnLive" href="#" class="group flex flex-col p-4 rounded-2xl border border-white/5 bg-black/40 hover:border-amber-500/40 hover:bg-black/60 transition-all hover:-translate-y-0.5">
-                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/10 flex items-center justify-center text-amber-400 mb-3">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-                </div>
-                <div class="font-semibold text-zinc-100">Live Scores</div>
-                <div class="text-xs text-zinc-400 mt-1">Watch your matchups update live</div>
-              </a>
             </div>
           </div>
 
@@ -134,7 +127,7 @@
       const $ = id => document.getElementById(id);
       const username = $('username'), loadBtn = $('loadBtn'), leagueSelect = $('leagueSelect');
       const stepLeague = $('step-league'), stepActions = $('step-actions'), errorMsg = $('errorMsg');
-      const btns = { overview: $('btnOverview'), rankings: $('btnRankings'), trade: $('btnTrade'), analyzer: $('btnAnalyzer'), grades: $('btnGrades'), database: $('btnDatabase'), managers: $('btnManagers'), live: $('btnLive') };
+      const btns = { overview: $('btnOverview'), rankings: $('btnRankings'), trade: $('btnTrade'), analyzer: $('btnAnalyzer'), grades: $('btnGrades'), database: $('btnDatabase'), managers: $('btnManagers') };
 
       async function loadLeagues() {
         const user = username.value.trim();
@@ -172,7 +165,6 @@
         btns.grades.href = Vault.linkTo('trade_grades.html', id);
         btns.database.href = Vault.linkTo('trade_database.html', id);
         btns.managers.href = Vault.linkTo('managers.html', id);
-        btns.live.href = Vault.linkTo('live_scores.html', id);
         stepActions.classList.remove('hidden');
       }
 

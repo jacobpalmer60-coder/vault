@@ -7,7 +7,6 @@
 (function () {
   const TABS = [
     { key: 'overview', label: 'League Overview', href: 'app.html' },
-    { key: 'live', label: 'Live Scores', href: 'live_scores.html' },
     { key: 'analyzer', label: 'Team Analyzer', href: 'team-analyzer.html' },
     { key: 'rankings', label: 'Player Rankings', href: 'player_rankings.html' },
     { key: 'trade', label: 'Trade Calculator', href: 'trade.html' },
