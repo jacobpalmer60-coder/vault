@@ -22,10 +22,10 @@
     Every completed trade this season, graded with the same reasoning as the Trade
     Calculator — value fairness, positional need, and whether the specific assets
     (picks and youth vs. proven veterans) actually fit each team's rebuild/contend
-    plan, not just whether the dollar amounts line up. Value uses today's KeepTradeCut
-    prices, and roster fit/timeline reflect each team's
-    <span class="text-zinc-400">current</span> roster and standing, not where things
-    stood on the day the trade happened.
+    plan, not just whether the dollar amounts line up. Value uses KeepTradeCut
+    prices from the day each trade happened, so a deal is judged on what was known
+    then, with today's read shown underneath as how it aged. Roster fit/timeline
+    reflect each team's <span class="text-zinc-400">current</span> roster and standing.
   </p>
 
   <div id="teamSummary" class="hidden mb-6"></div>
@@ -84,9 +84,20 @@ function fairColor(bucket) {
 // can mathematically clear 100 for a real one-sided "gift" trade. Display-only cap
 // (bucket comparisons above still use the real number) so that reads as "100% off"
 // instead of a figure that looks like a bug.
-function capPct(pct) { return Math.sign(pct) * Math.min(100, Math.abs(pct)); }
+// Floored, not rounded: the Fair/Lopsided/Unfair cutoffs are whole numbers, so a
+// 13.96%-off trade (Fair) must never display as "14%" (the Lopsided cutoff).
+function capPct(pct) { return Math.sign(pct) * Math.floor(Math.min(100, Math.abs(pct))); }
 // Same fairness bar as the Trade Calculator — lives in Vault.fairnessBarHtml.
 const fairnessBarHtml = (signedPct, bandPct) => Vault.fairnessBarHtml(signedPct, bandPct);
+
+// Which prices graded this trade, and how the same trade reads at today's prices.
+function agedText(g) {
+  if (g.valuedAt !== 'trade') return 'Graded at today’s prices (no price history that far back for every piece)';
+  const d = Math.abs(g.todaySignedPctDiff);
+  const who = g.todaySignedPctDiff > 0 ? g.teamB.teamName : g.teamA.teamName;
+  const todayRead = d < 1 ? 'dead even' : `${capPct(d).toFixed(0)}% off, favoring ${Vault.escapeHtml(who)}`;
+  return `Graded at prices on the trade date · today: ${todayRead}`;
+}
 
 // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand, computed in
 // Vault.gradeTrade) — silent when there's not enough price history to say anything,
@@ -236,6 +247,7 @@ function renderCard(g) {
         <div class="text-[11px] ${fairColor(bucket)} mt-1" title="Overall % off: KTC value blended with roster fit and timeline, but never closer to even than KTC value alone (the number a manager can check on KeepTradeCut). Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Lopsided, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Unfair — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side. Weighted by both teams' roster needs instead of raw value, this trade reads as ${capPct(g.pctDiffNeed).toFixed(0)}% off. Weights: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline.">${bucket} · ${g.fairness.fitMovedIt ? `${capPct(g.fairness.overallPct).toFixed(0)}% off · KTC ${capPct(g.pctDiff).toFixed(0)}%` : `${capPct(g.pctDiff).toFixed(0)}% off`}</div>
         <div class="max-w-sm mt-1.5">${fairnessBarHtml(g.fairness.overallSigned, g.bandPct)}</div>
         <div class="max-w-sm mt-2">${Vault.fairnessBreakdownHtml(g.fairness, g.teamA.teamName, g.teamB.teamName)}</div>
+        <div class="text-[11px] text-zinc-400 mt-1.5">${agedText(g)}</div>
         ${confidenceBandText(g)}
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">

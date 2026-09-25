@@ -88,11 +88,31 @@ function assetChips(ids, playerMap, pickMap) {
   }).join('');
 }
 
+// The same KTC-value fairness read the Trade Calculator gives (consolidation-
+// adjusted % off, same Fair/Lopsided/Unfair cutoffs) — so a manager can see what
+// real leagues like theirs actually accept, in the same terms as our own verdict.
+// Priced at today's KTC values; null when any piece has no price.
+function marketRead(t, playerMap, pickMap) {
+  const side = ids => ids.map(id => assetLabel(id, playerMap, pickMap));
+  const got1 = side(t.t1), got2 = side(t.t2);
+  if (!got1.length || !got2.length || [...got1, ...got2].some(a => !(a.value > 0))) return null;
+  const { valueA: gave1, valueB: gave2 } = Vault.tradeSideValues(got2, got1); // team 1 gave what team 2 got
+  const avg = (gave1 + gave2) / 2 || 1;
+  const pct = Math.abs(gave1 - gave2) / avg * 100;
+  return { pct, signed: (gave1 - gave2) / avg * 100, bucket: Vault.fairnessBucket(pct, 0, 0) };
+}
+const BUCKET_PILL = { Fair: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25', Lopsided: 'bg-amber-500/10 text-amber-300 border-amber-500/25', Unfair: 'bg-rose-500/10 text-rose-300 border-rose-500/25' };
+
 function renderCard(t, playerMap, pickMap) {
   const date = new Date(t.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const m = t.market;
   return `
     <div class="card rounded-vault-sm p-5">
-      <div class="text-[12px] text-zinc-400 mono mb-3">${date}</div>
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div class="text-[12px] text-zinc-400 mono">${date}</div>
+        ${m ? `<div class="flex items-center gap-2" title="At today's KTC prices, with KTC's consolidation adjustment — the same math as the Trade Calculator"><span class="text-[11px] text-zinc-400">${Math.floor(Math.min(100, m.pct))}% off${Math.abs(m.signed) >= 1 ? ` · favors Team ${m.signed > 0 ? 2 : 1}` : ''}</span><span class="text-[11px] px-2 py-0.5 rounded-md border ${BUCKET_PILL[m.bucket]}">${m.bucket}</span></div>` : ''}
+      </div>
+      ${m ? `<div class="max-w-xs mb-3">${Vault.fairnessBarHtml(m.signed, 0)}</div>` : ''}
       <div class="grid md:grid-cols-2 gap-4">
         <div>
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">Team 1 received</div>
@@ -163,7 +183,10 @@ async function init() {
     pool.forEach(t => {
       t.names1 = t.t1.map(id => assetLabel(id, playerMap, pickMap).name.toLowerCase());
       t.names2 = t.t2.map(id => assetLabel(id, playerMap, pickMap).name.toLowerCase());
+      t.market = marketRead(t, playerMap, pickMap);
     });
+    const priced = pool.filter(t => t.market);
+    const share = b => priced.length ? Math.round(priced.filter(t => t.market.bucket === b).length / priced.length * 100) : 0;
 
     document.getElementById('matchBar').innerHTML = `
       <div class="flex items-center justify-between gap-3 flex-wrap">
@@ -172,7 +195,8 @@ async function init() {
           <div class="text-[11px] text-amber-300/70 mt-1">${TIER_LABEL[tier]}</div>
         </div>
         <div class="text-[12px] text-zinc-400 shrink-0">${pool.length.toLocaleString()} matching trade${pool.length === 1 ? '' : 's'} found</div>
-      </div>`;
+      </div>
+      ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded with the Trade Calculator's own value math: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-amber-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(${priced.length.toLocaleString()} fully priced)</span></div>` : ''}`;
 
     status.textContent = `${tradesData.count.toLocaleString()} trades in database • updated ${new Date(tradesData.updated).toLocaleDateString()}`;
     status.className = 'text-[13px] text-emerald-400/80 mt-1';

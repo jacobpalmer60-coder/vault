@@ -21,20 +21,14 @@
       <h1 class="display text-[28px] font-bold gold-text">Player Rankings</h1>
       <p class="text-zinc-400 max-w-xl mt-2 text-[14px]">Merge KeepTradeCut values with projected PPG, scored using your league's actual settings. Sort, filter and find value inefficiencies instantly.</p>
     </div>
-    <div class="glass p-4 min-w-[320px]">
-      <label class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2 block">Sleeper League</label>
-      <div class="flex gap-2">
-        <input id="leagueId" class="flex-1 bg-black/40 border border-white/8 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-amber-500/60 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow mono" />
-        <button id="loadLeague" class="btn-gold-solid px-4 py-2.5 text-[14px]">Load</button>
-      </div>
-      <div id="leagueInfo" class="mt-3 text-[12px] text-zinc-400">Loading league…</div>
-    </div>
+    <!-- League is picked once, via the nav's Switch League. -->
+    <div id="leagueInfo" class="text-[12px] text-zinc-400 lg:text-right">Loading league…</div>
   </header>
 
   <!-- Stats Bar -->
   <div class="grid grid-cols-2 gap-3 mb-6">
     <div class="stat-tile"><div class="stat-label">Players</div><div id="statPlayers" class="stat-value mono">—</div></div>
-    <div class="stat-tile"><div class="stat-label">Format</div><div id="statFormat" class="stat-value mono">—</div><div id="statFormatDetail" class="text-[11px] text-zinc-400 mt-1"></div></div>
+    <div class="stat-tile"><div class="stat-label">Format</div><div id="statFormat" class="stat-value mono">—</div><div id="statFormatDetail" class="text-[11px] text-zinc-400 mt-1 [overflow-wrap:anywhere]"></div></div>
   </div>
 
   <!-- Controls -->
@@ -136,6 +130,7 @@
   const leagueInfo = $('#leagueInfo');
 
   let allRows = [];
+  let vorpRatioCuts = [0, Infinity];
   let filteredRows = [];
   let sortKey = 'value';
   let sortDir = 'desc';
@@ -528,12 +523,11 @@
       });
 
       // VORP (Value Over Replacement Player) — see Vault.computeReplacementLevels.
-      // Needs the SAME "how many starters can this league actually field" math
-      // buildLeagueTeams uses, computed independently here since this page never
-      // calls buildLeagueTeams (it works off the full KTC universe, not one
-      // league's rosters).
-      const startable = Vault.computeStartable(rosterPositions.filter(s => !['BN', 'IR', 'TAXI'].includes(s)));
-      const replacementLevels = Vault.computeReplacementLevels(ktcData, ppgMap, startable, teamCount);
+      // Same leaguewide lineup-fill buildLeagueTeams uses, computed independently
+      // here since this page never calls buildLeagueTeams (it works off the full
+      // KTC universe, not one league's rosters).
+      const starterSlots = rosterPositions.filter(s => !['BN', 'IR', 'TAXI'].includes(s));
+      const replacementLevels = Vault.computeReplacementLevels(ktcData, ppgMap, starterSlots, teamCount);
       log(`Replacement level PPG — QB ${replacementLevels.QB?.toFixed(1)}, RB ${replacementLevels.RB?.toFixed(1)}, WR ${replacementLevels.WR?.toFixed(1)}, TE ${replacementLevels.TE?.toFixed(1)}`);
 
       const valueField = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(scoringSettings?.bonus_rec_te);
@@ -543,7 +537,9 @@
         const ppg = ppgMap.get(norm) ?? null;
         const vorp = Vault.vorp(ppg, p.pos, replacementLevels);
         const vpRatio = (Number.isFinite(value) && Number.isFinite(ppg) && ppg > 0) ? value / ppg : null;
-        const vVorpRatio = (Number.isFinite(value) && Number.isFinite(vorp) && vorp > 0) ? value / vorp : null;
+        // Under ~1 PPG of edge the ratio stops meaning anything (a 0.2-VORP QB reads
+        // as 27,000 per point) — shown as '—' rather than a runaway number.
+        const vVorpRatio = (Number.isFinite(value) && Number.isFinite(vorp) && vorp >= 1) ? value / vorp : null;
         // Full history — trendValues/trendDelta/windowedSeries (what's actually
         // displayed) get derived from this by applyTrendWindow() below, since
         // they depend on the current trend-window toggle, not just the data.
@@ -565,6 +561,11 @@
       });
 
       allRows = rows.filter(r => r.value != null);
+      // Cheap/expensive cutoffs for Value/VORP coloring come from this league's own
+      // spread (bottom and top thirds), not fixed numbers that drift whenever
+      // replacement levels or KTC's scale move.
+      const ratios = allRows.map(r => r.vVorpRatio).filter(v => v != null).sort((a, b) => a - b);
+      vorpRatioCuts = ratios.length ? [ratios[Math.floor(ratios.length / 3)], ratios[Math.floor(ratios.length * 2 / 3)]] : [0, Infinity];
       applyTrendWindow();
       log(`Merged rows: ${allRows.length.toLocaleString()}`);
 
@@ -657,7 +658,7 @@
           </span>
         </td>
         <td class="px-4 py-3 text-right mono">
-          <span class="${r.vVorpRatio != null && r.vVorpRatio < 300 ? 'text-emerald-400' : r.vVorpRatio != null && r.vVorpRatio > 600 ? 'text-amber-400' : 'text-zinc-300'}">
+          <span class="${r.vVorpRatio != null && r.vVorpRatio <= vorpRatioCuts[0] ? 'text-emerald-400' : r.vVorpRatio != null && r.vVorpRatio >= vorpRatioCuts[1] ? 'text-amber-400' : 'text-zinc-300'}">
             ${r.vVorpRatio != null ? fmtFloat(r.vVorpRatio, 0) : '—'}
           </span>
         </td>
@@ -708,7 +709,6 @@
       const league = await fetch(`https://api.sleeper.app/v1/league/${id}`).then(r => r.json());
       if (!league || league.error) throw new Error('League not found');
       if (!Vault.isDynastyLeague(league)) throw new Error(`"${league.name}" is a redraft/keeper league, not dynasty — The Vault only supports dynasty leagues.`);
-      const users = await fetch(`https://api.sleeper.app/v1/league/${id}/users`).then(r => r.json());
       isSF = (league.roster_positions || []).includes('SUPER_FLEX');
       scoringSettings = league.scoring_settings || {};
       rosterPositions = league.roster_positions || [];
@@ -718,14 +718,12 @@
         <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
           <span>Season ${league.season}</span>
           <span>•</span>
-          <span>${users.length} managers</span>
-          <span>•</span>
           <span>${league.total_rosters} teams</span>
           <span>•</span>
           <span>${isSF ? 'Superflex' : '1QB'}</span>
         </div>
       `;
-      log(`Sleeper league loaded: ${Vault.escapeHtml(league.name)} (${users.length} users, ${isSF ? 'Superflex' : '1QB'})`);
+      log(`Sleeper league loaded: ${Vault.escapeHtml(league.name)} (${league.total_rosters} teams, ${isSF ? 'Superflex' : '1QB'})`);
       return true;
     } catch (e) {
       console.error(e);
@@ -735,18 +733,11 @@
     }
   }
 
-  $('#loadLeague').addEventListener('click', async () => {
-    const id = $('#leagueId').value.trim();
-    if (!id) return;
-    if (await loadLeague(id)) { Vault.setLeagueId(id); loadData(); }
-  });
-  $('#leagueId').addEventListener('keydown', e => { if (e.key === 'Enter') $('#loadLeague').click(); });
 
   renderTrendWindowToggle();
 
   (async () => {
     const id = Vault.getLeagueId();
-    $('#leagueId').value = id;
     log('Vault initializing…');
     await loadLeague(id);
     loadData();

@@ -841,61 +841,64 @@ function balanceSide(mySide, btn) {
   needCandidates(fillerPool, remainingAdj, 8).forEach(c => additive.push([...myCurrent, ...c]));
   if (myCurrent.length) additive.push(myCurrent); // "add nothing" is a valid option too
 
-  let best = null, bestFitScore = -Infinity;
-  additive.forEach(combo => { const fit = evaluate(combo); if (fit > bestFitScore) { bestFitScore = fit; best = combo; } });
+  // Picks the best-scoring combo from a candidate list, preferring any that are
+  // already Fair by value — `evaluate`'s fit bonus can otherwise favor a Lopsided
+  // add over a Fair one, and a Lopsided pick here used to trip the Tier 2 rebuild
+  // below even though a Fair add-on (keeping the current selection) was right there.
+  const pickBest = combos => {
+    const fair = combos.filter(c => pctDiffFor(c) < VAULT_CONFIG.FAIR_PCT);
+    let top = null, topScore = -Infinity;
+    (fair.length ? fair : combos).forEach(c => { const s = evaluate(c); if (s > topScore) { topScore = s; top = c; } });
+    return { combo: top, score: topScore };
+  };
 
-  // Tier 2: a fresh, whole-roster search — only when Tier 1 genuinely can't reach
-  // a fair trade by adding to what's already selected. Tier 1 can only ever ADD to
-  // the current selection, never remove from it, so a fundamentally mismatched
-  // piece already on the table (the wrong position or archetype entirely) can
-  // leave every additive combo still Lopsided/Unfair no matter what gets piled on
-  // top — that's the real gap this closes, not a routine second opinion. Gating it
-  // like this (instead of always running it and letting `evaluate` pick whichever
-  // scores higher) is what stops Balance from swapping out a perfectly fine
-  // current selection for an unrelated fresh combo just because it happens to
-  // score a little higher on fit. Same widened shortlist as Tier 1, same reason.
-  if (!best || pctDiffFor(best) >= VAULT_CONFIG.FAIR_PCT) {
-    const fresh = comboSearchTopN(myTeam.assets, targetAdj, 30, otherProfile).map(c => c.combo);
-    fresh.push(...needCandidates(myTeam.assets, targetAdj, 10));
-    fresh.forEach(combo => { const fit = evaluate(combo); if (fit > bestFitScore) { bestFitScore = fit; best = combo; } });
-  }
-
-  // One bounded local-refinement pass: comboSearchTopN's cheap ranking (see its
-  // comment above) can leave the actual best single-piece swap out of the
-  // candidate pool entirely, not just rank it low — a real case that surfaced
-  // this had a genuinely near-perfect combo (0.3% off) the proxy never
-  // surfaced at all, because it undervalues "overshoot the raw target with an
-  // extra cheap piece" combos that a real two-sided consolidation bonus can
-  // make excellent. Trying every other roster asset in place of each piece
-  // currently in `best`, scored with the same real `evaluate` the rest of this
-  // function already uses, catches that without touching the shared proxy
-  // (comboSearchTopN is also used by Suggested Trades and the Finder — fixing
-  // its ranking algorithm itself would be a much larger, riskier change than
-  // this bounded, Balance-only refinement). Two passes, not a full hill-climb
-  // to convergence — bounded cost for a single button click; a second pass
-  // catches a swap that only becomes visible once the first one lands.
-  // Never touches a myCurrent piece (the asset(s) already selected before this
-  // click) — this refinement is only allowed to improve what got ADDED, same
-  // "adjust, don't overwrite" rule the Tier 1/Tier 2 split above exists for.
-  // Without this guard, a real run swapped Cyrus Allen himself out for Jordan
-  // Mason purely because it scored a little better, defeating the whole point.
+  // Bounded local refinement: comboSearchTopN's cheap ranking (see its comment
+  // above) can leave the actual best single-piece swap out of the candidate pool
+  // entirely, not just rank it low — a real case had a near-perfect combo (0.3%
+  // off) the proxy never surfaced, because it undervalues "overshoot the raw
+  // target with an extra cheap piece" combos that a real two-sided consolidation
+  // bonus can make excellent. Tries every other roster asset in place of each
+  // ADDED piece, scored with the same real `evaluate`. Two passes, not a full
+  // hill-climb. Never touches a myCurrent piece (already selected before this
+  // click) — without that guard, a real run swapped Cyrus Allen himself out for
+  // Jordan Mason purely because it scored a little better. A swap that would
+  // turn a Fair combo Lopsided is never taken.
   const myCurrentKeys = new Set(myCurrent.map(a => a.key));
-  if (best) {
+  const refine = (combo, score) => {
     for (let pass = 0; pass < 2; pass++) {
       let swapped = false;
-      for (let i = 0; i < best.length; i++) {
-        if (myCurrentKeys.has(best[i].key)) continue; // protect the original selection
+      for (let i = 0; i < combo.length; i++) {
+        if (myCurrentKeys.has(combo[i].key)) continue; // protect the original selection
         for (const candidate of myTeam.assets) {
-          if (best.some(a => a.key === candidate.key)) continue; // already in this combo
-          const trial = best.map((a, idx) => idx === i ? candidate : a);
-          const score = evaluate(trial);
-          if (score > bestFitScore) { bestFitScore = score; best = trial; swapped = true; }
+          if (combo.some(a => a.key === candidate.key)) continue; // already in this combo
+          const trial = combo.map((a, idx) => idx === i ? candidate : a);
+          const s = evaluate(trial);
+          if (s > score && (pctDiffFor(trial) < VAULT_CONFIG.FAIR_PCT || pctDiffFor(combo) >= VAULT_CONFIG.FAIR_PCT)) { score = s; combo = trial; swapped = true; }
         }
       }
       if (!swapped) break;
     }
-  }
-  if (!best) return flashButtonMessage(btn, 'No alternative package found');
+    return combo;
+  };
+
+  let { combo: best, score: bestFitScore } = pickBest(additive);
+  if (best) best = refine(best, bestFitScore);
+
+  // Tier 2: a fresh, whole-roster search — only when NOTHING built on the current
+  // selection reaches Fair, even after refinement. Tier 1 can only ever ADD to the
+  // current selection, so a fundamentally mismatched piece already on the table
+  // can leave every additive combo Lopsided/Unfair no matter what gets piled on —
+  // that's the real gap this closes, not a routine second opinion. Same widened
+  // shortlist as Tier 1, same reason.
+  if (!best || pctDiffFor(best) >= VAULT_CONFIG.FAIR_PCT) {
+    const fresh = comboSearchTopN(myTeam.assets, targetAdj, 30, otherProfile).map(c => c.combo);
+    fresh.push(...needCandidates(myTeam.assets, targetAdj, 10));
+    const tier2 = pickBest(fresh);
+    if (tier2.combo) {
+      const refined = refine(tier2.combo, tier2.score);
+      if (!best || pctDiffFor(refined) < pctDiffFor(best)) best = refined;
+    }
+  }  if (!best) return flashButtonMessage(btn, 'No alternative package found');
 
   // Either tier can legitimately land back on exactly what's already selected.
   const bestKeys = best.map(a => a.key).sort().join(',');
@@ -1046,20 +1049,50 @@ function realPctOff(targetValueRaw, combo, profile) {
   return Math.abs(comboNeedAdj - valueA) / avg * 100;
 }
 
+/* The cheap per-asset search above can rank the truly closest package outside
+   its shortlist — same gap Balance had. This takes whatever it picked and tries
+   bounded local moves (swap one piece for any pool asset, drop one piece, add
+   one piece; max 3 pieces) scored by realPctOff, the same number shown next to
+   the result, plus the usual per-extra-piece penalty. A couple of passes over a
+   ~40-asset pool is a few hundred real evaluations — cheap. */
+function refineCombo(pool, combo, targetValueRaw, profile, lockedKey = null) {
+  const score = c => realPctOff(targetValueRaw, c, profile) + (c.length - 1) * COMBO_SIZE_PENALTY_PCT;
+  let best = combo, bestScore = score(combo);
+  for (let pass = 0; pass < 2; pass++) {
+    let improved = false;
+    const trials = [];
+    for (let i = 0; i < best.length; i++) {
+      if (best[i].key === lockedKey) continue; // an anchor the user asked for stays put
+      for (const cand of pool) if (!best.some(a => a.key === cand.key)) trials.push(best.map((a, idx) => idx === i ? cand : a));
+      if (best.length > 1) trials.push(best.filter((_, idx) => idx !== i));
+    }
+    if (best.length < 3) for (const cand of pool) if (!best.some(a => a.key === cand.key)) trials.push([...best, cand]);
+    for (const t of trials) { const s = score(t); if (s < bestScore - 1e-9) { bestScore = s; best = t; improved = true; } }
+    if (!improved) break;
+  }
+  return best;
+}
+
 function bestCombos(pool, targetValueRaw, n, profile) {
   const targetAdj = Vault.adjustedValue(targetValueRaw);
+  const seen = new Set();
   return comboSearchTopN(pool, targetAdj, n, profile).map(r => {
-    const sum = r.combo.reduce((s, a) => s + a.value, 0);
-    return { combo: r.combo, sum, diff: r.diff, pctOff: realPctOff(targetValueRaw, r.combo, profile) };
-  });
+    const combo = refineCombo(pool, r.combo, targetValueRaw, profile);
+    const key = combo.map(a => a.key).sort().join(',');
+    if (seen.has(key)) return null; // two shortlist entries refined into the same package
+    seen.add(key);
+    const sum = combo.reduce((s, a) => s + a.value, 0);
+    return { combo, sum, diff: Math.abs(comboValue(combo, profile) - targetAdj), pctOff: realPctOff(targetValueRaw, combo, profile) };
+  }).filter(Boolean);
 }
 
 function bestCombo(pool, targetValueRaw, profile) {
   const targetAdj = Vault.adjustedValue(targetValueRaw);
   const best = bestFit(pool, targetAdj, targetAdj, profile);
   if (!best) return null;
-  const sum = best.combo.reduce((s, a) => s + a.value, 0);
-  return { combo: best.combo, sum, diff: best.diff, pctOff: realPctOff(targetValueRaw, best.combo, profile) };
+  const combo = refineCombo(pool, best.combo, targetValueRaw, profile);
+  const sum = combo.reduce((s, a) => s + a.value, 0);
+  return { combo, sum, diff: Math.abs(comboValue(combo, profile) - targetAdj), pctOff: realPctOff(targetValueRaw, combo, profile) };
 }
 
 /* Like bestCombo, but requires the combo to include one asset matching `posFilter`
@@ -1078,7 +1111,7 @@ function anchoredCombo(pool, targetValueRaw, posFilter, profile) {
   const remainingAdj = targetAdj - comboValue([anchor], profile);
   const fillerPool = pool.filter(a => a.key !== anchor.key);
   const filler = Math.abs(remainingAdj) > targetAdj * 0.06 ? bestFit(fillerPool, remainingAdj, targetAdj, profile) : null;
-  const combo = filler ? [anchor, ...filler.combo] : [anchor];
+  const combo = refineCombo(pool, filler ? [anchor, ...filler.combo] : [anchor], targetValueRaw, profile, anchor.key);
   const sum = combo.reduce((s, a) => s + a.value, 0);
   const diff = Math.abs(comboValue(combo, profile) - targetAdj);
   return { combo, sum, diff, pctOff: realPctOff(targetValueRaw, combo, profile) };
@@ -1147,14 +1180,14 @@ function buildBalancedOffer(myAssets, partnerAssets, core, posFilter, myProfile,
     const myPool = myAssets.filter(a => a.key !== core.key);
     const filler = bestFit(myPool, gapAdj, anchorAdj, partnerProfile);
     if (!filler || filler.diff > anchorAdj * BALANCED_OFFER_MAX_STRETCH) return null;
-    const ours = [core, ...filler.combo];
+    const ours = refineCombo(myAssets, [core, ...filler.combo], anchor.value, partnerProfile, core.key);
     return { ours, theirs: [anchor], pctOff: realPctOff(anchor.value, ours, partnerProfile) };
   }
   // Their chip alone falls short — they sweeten with a small extra, priced by what
   // WE'D actually want, same convention as the original single-sided search.
   const partnerPool = partnerAssets.filter(a => a.key !== anchor.key);
   const filler = bestFit(partnerPool, -gapAdj, coreAdj, myProfile);
-  const theirs = filler ? [anchor, ...filler.combo] : [anchor];
+  const theirs = refineCombo(partnerAssets, filler ? [anchor, ...filler.combo] : [anchor], core.value, myProfile, anchor.key);
   return { ours: [core], theirs, pctOff: realPctOff(core.value, theirs, myProfile) };
 }
 
@@ -1578,7 +1611,9 @@ function verdictBanner(tone, bucket) {
 // 100, not as "yes, this is about as lopsided as it gets." Display-only clamp —
 // bucket comparisons (Fair/Lopsided/Unfair) still use the real, uncapped
 // number, which is well below this ceiling for any of them anyway.
-function capPct(pct) { return Math.sign(pct) * Math.min(100, Math.abs(pct)); }
+// Floored, not rounded: the Fair/Lopsided/Unfair cutoffs are whole numbers, so a
+// 13.96%-off trade (Fair) must never display as "14%" (the Lopsided cutoff).
+function capPct(pct) { return Math.sign(pct) * Math.floor(Math.min(100, Math.abs(pct))); }
 
 // Fairness bar lives in Vault.fairnessBarHtml (vault-core.js) — shared with
 // Trade Grades, plus a `mini` variant for the per-factor breakdown rows.

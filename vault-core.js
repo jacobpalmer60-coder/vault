@@ -1036,18 +1036,17 @@ const Vault = {
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
 
-    // How many starters this league can ACTUALLY field at each position, counting
-    // every flex type that's eligible for it (a Superflex slot counts for QB; FLEX/
-    // WRRB_FLEX/SUPER_FLEX count for RB; etc). Used by positionalProfile so "surplus"
-    // reflects real roster depth vs. this league's own format — a 3rd QB is full
-    // Superflex depth (2 startable + 1 bye-week/insurance buffer), not surplus, even
-    // though 3 rostered QBs would be real excess in a 1QB league with no Superflex.
-    const startable = Vault.computeStartable(slots);
     // Replacement-level PPG per position, for VORP (see Vault.computeReplacementLevels)
     // — needs PPG joined by NAME across the whole KTC universe, not just rostered
     // players (buildProjectedPpgMapById only covers Sleeper IDs on THIS roster).
     const ppgByName = Vault.buildProjectedPpgMapByName(projData, league.scoring_settings);
-    const replacementLevels = Vault.computeReplacementLevels(ktcData, ppgByName, startable, rosters.length);
+    // How many starters a typical team here actually fields at each position (see
+    // Vault.computeStartable). Used by positionalProfile so "surplus" reflects real
+    // roster depth vs. this league's own format — a 3rd QB is full Superflex depth
+    // (2 startable + 1 bye-week/insurance buffer), not surplus, even though 3
+    // rostered QBs would be real excess in a 1QB league with no Superflex.
+    const startable = Vault.computeStartable(slots, ktcData, ppgByName, rosters.length);
+    const replacementLevels = Vault.computeReplacementLevels(ktcData, ppgByName, slots, rosters.length);
 
     const YEARS = pickYears, ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
     const pickOwner = new Map();
@@ -1065,7 +1064,8 @@ const Vault = {
     const built = rosters.map(r => {
       const u = userMap.get(r.owner_id) || {};
       const tn = u.metadata?.team_name || u.display_name || 'Team';
-      const un = u.username || '';
+      // Sleeper's league-users endpoint returns display_name, never username.
+      const un = u.display_name || u.username || '';
       const plist = (r.players || []).map(pid => {
         const p = players[String(pid)] || {};
         const nm = `${p.first_name || ''} ${p.last_name || ''}`.trim();
@@ -1232,16 +1232,22 @@ const Vault = {
        ever moving the displayed, rounded year count, it only orders teams that tie
        on whole years so ranking isn't decided by array order. */
     const nTeams = built.length;
-    built.forEach(t => {
-      const win = Vault.contentionWindow(t, built);
-      t.windowYears = win.inWindow.filter(Boolean).length;
-      t.windowStart = win.windowStart;
-      t.windowEnd = win.windowEnd;
-      const avgProjPpg = win.projPPG.reduce((s, v) => s + v, 0) / win.projPPG.length;
-      t.longevity = t.windowYears + avgProjPpg / 100000;
-    });
-    [...built].sort((a, b) => b.longevity - a.longevity)
-      .forEach((t, i) => { t.longevityRank = i + 1; t.longevityTier = Vault.rankBand(i + 1, nTeams); });
+    // Season odds first, so this season's slot in every team's contention window
+    // (and everything downstream: Longevity, archetype) reflects real standings on
+    // every page, not just League Overview — see contentionWindow. Best effort: if
+    // the schedule can't be fetched, windows fall back to the paper projection.
+    try {
+      const remainingWeeks = await Vault.fetchRemainingSchedule(leagueId, league);
+      const projections = Vault.simulateSeason(built, league, remainingWeeks);
+      built.forEach(t => {
+        const p = projections.get(t.rosterId) || null;
+        t.projected = p;
+        t.projWins = p ? p.projWins : undefined;
+        t.playoffPct = p ? p.playoffPct : undefined;
+        t.championshipPct = p ? p.championshipPct : undefined;
+      });
+    } catch (e) { console.warn('Season simulation unavailable', e); }
+    Vault.refreshWindows(built);
 
     /* ---------- Rebuild posture (age + picks) — NOT the same axis as Longevity above ----------
        A completely different question: not "how long will this roster stay good" but
@@ -1503,7 +1509,15 @@ const Vault = {
     const { playoffSpots, playoffLine } = Vault.playoffLine(all);
 
     const valueThreshold = peak * 0.88;
-    const inWindow = proj.map((v, i) => v >= valueThreshold && projPPG[i] >= playoffLine * 0.97);
+    // This season, once the real standings-aware simulation has run
+    // (t.playoffPct, from Vault.simulateSeason), is judged on that alone — a 4-0
+    // team at 65% playoff odds is contending THIS year whatever its on-paper PPG
+    // rank says, and showing "No window" next to "65% playoff odds" reads as the
+    // tool contradicting itself. Future years stay on the paper projection.
+    const seasonOdds = Number.isFinite(t.playoffPct) ? t.playoffPct : null;
+    const inWindow = proj.map((v, i) => i === 0 && seasonOdds != null
+      ? seasonOdds >= 50
+      : v >= valueThreshold && projPPG[i] >= playoffLine * 0.97);
 
     // No fake fallback: if no projected year actually clears the bar, windowStart/
     // End are null rather than silently defaulting to startYear (which used to be
@@ -1515,8 +1529,23 @@ const Vault = {
       proj, projPPG, peakYear: year, peak, startYear, inWindow, hasWindow,
       windowStart: hasWindow ? startYear + startIdx : null,
       windowEnd: hasWindow ? startYear + endIdx : null,
-      years, playoffLine, playoffSpots
+      years, playoffLine, playoffSpots, seasonOdds
     };
+  },
+
+  // Re-derives each team's window/longevity once season odds (t.playoffPct) have
+  // landed — same math buildLeagueTeams ran before the simulation finished.
+  refreshWindows(teams) {
+    teams.forEach(t => {
+      const win = Vault.contentionWindow(t, teams);
+      t.windowYears = win.inWindow.filter(Boolean).length;
+      t.windowStart = win.windowStart;
+      t.windowEnd = win.windowEnd;
+      const avgProjPpg = win.projPPG.reduce((s, v) => s + v, 0) / win.projPPG.length;
+      t.longevity = t.windowYears + avgProjPpg / 100000;
+    });
+    [...teams].sort((a, b) => b.longevity - a.longevity)
+      .forEach((t, i) => { t.longevityRank = i + 1; t.longevityTier = Vault.rankBand(i + 1, teams.length); });
   },
 
   /* ---------- Positional profile ----------
@@ -1561,18 +1590,17 @@ const Vault = {
      value-only (old behavior) if posCount/posPpg/startable aren't present, so any
      caller passing a bare team object still works. */
 
-  // How many starters this league can ACTUALLY field at each position, counting
-  // every flex type that's eligible for it (a Superflex slot counts for QB; FLEX/
-  // WRRB_FLEX/SUPER_FLEX count for RB; etc). Shared by buildLeagueTeams and any
-  // page (Player Rankings) that needs the same real-format-aware slot count
-  // without going through a full buildLeagueTeams call.
-  computeStartable(slots) {
-    return {
-      qb: slots.filter(s => s === 'QB').length + slots.filter(s => s === 'SUPER_FLEX').length,
-      rb: slots.filter(s => ['RB', 'FLEX', 'SUPER_FLEX', 'WRRB_FLEX'].includes(s)).length,
-      wr: slots.filter(s => ['WR', 'FLEX', 'SUPER_FLEX', 'WRRB_FLEX', 'REC_FLEX'].includes(s)).length,
-      te: slots.filter(s => ['TE', 'FLEX', 'SUPER_FLEX', 'REC_FLEX'].includes(s)).length
-    };
+  // How many starters a typical team in this league actually fields at each
+  // position — the leaguewide lineup fill (leagueStarterFill) divided by team
+  // count, never below the position's own dedicated slots. Used for depth
+  // (positionalProfile's thin/stacked) and posPpg's top-N. This used to count
+  // every eligible flex slot in full for each position (6 RB, 7 WR, 5 TE starters
+  // per team in a 2RB/3WR/1TE/3FLEX/1SF league), which flagged nearly every team
+  // as thin at WR/RB.
+  computeStartable(slots, ktcData, ppgByName, teamCount) {
+    const { used } = Vault.leagueStarterFill(ktcData, ppgByName, slots, teamCount);
+    const share = pos => Math.max(slots.filter(s => s === pos).length, Math.round(used[pos] / (teamCount || 1)));
+    return { qb: share('QB'), rb: share('RB'), wr: share('WR'), te: share('TE') };
   },
 
   /* ---------- VORP (Value Over Replacement Player) ----------
@@ -1586,12 +1614,31 @@ const Vault = {
      relative to a real starter, not because QBs individually outscore them.
 
      "Replacement level" = the best player at a position who wouldn't start
-     anywhere in this league — i.e., the (teams × startable-at-that-position + 1)th
-     best player leaguewide, ranked by real projected PPG. Computed across the
+     anywhere in this league. Found by actually filling every team's starting
+     lineup leaguewide: dedicated QB/RB/WR/TE slots first, then the flex slots
+     from most to least restrictive, each taking the best projected player still
+     left who's eligible for it. Replacement is the next-best player at each
+     position after that. (This used to count every FLEX/SUPER_FLEX slot in full
+     for RB, WR, AND TE at once — ~18 non-QB starters per team instead of ~10 —
+     which put RB/TE replacement near the 60th/50th player, ~3 PPG, and made QBs
+     look nearly worthless above replacement in Superflex.) Computed across the
      WHOLE KTC-ranked universe (every fantasy-relevant player), not just rostered
      ones — replacement level means "readily available," not "already on
      somebody's bench," so a bench stash on another team must not shrink the pool. */
-  computeReplacementLevels(ktcData, ppgByName, startable, teamCount) {
+  computeReplacementLevels(ktcData, ppgByName, slots, teamCount) {
+    const { byPos, used } = Vault.leagueStarterFill(ktcData, ppgByName, slots, teamCount);
+    const levels = {};
+    ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
+      const arr = byPos[pos];
+      levels[pos] = arr.length ? arr[Math.min(used[pos], arr.length - 1)] : 0;
+    });
+    return levels;
+  },
+
+  // The leaguewide lineup fill behind both replacement level (above) and
+  // computeStartable: how many players at each position actually start across
+  // the whole league once every flex slot goes to the best eligible player left.
+  leagueStarterFill(ktcData, ppgByName, slots, teamCount) {
     const byPos = { QB: [], RB: [], WR: [], TE: [] };
     (ktcData.players || []).forEach(p => {
       if (!byPos[p.pos]) return;
@@ -1599,14 +1646,26 @@ const Vault = {
       const ppg = ppgByName.get(key);
       if (Number.isFinite(ppg)) byPos[p.pos].push(ppg);
     });
-    const levels = {};
-    ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
-      const arr = byPos[pos].sort((a, b) => b - a);
-      if (!arr.length) { levels[pos] = 0; return; }
-      const idx = Math.round(teamCount * (startable[pos.toLowerCase()] || 0)); // 0-indexed: index N is the (N+1)th-best, i.e. the best non-starter
-      levels[pos] = arr[Math.min(idx, arr.length - 1)];
+    Object.values(byPos).forEach(arr => arr.sort((a, b) => b - a));
+    const used = { QB: 0, RB: 0, WR: 0, TE: 0 };
+    const ELIGIBLE = {
+      QB: ['QB'], RB: ['RB'], WR: ['WR'], TE: ['TE'],
+      WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'],
+      FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE']
+    };
+    const ORDER = ['QB', 'RB', 'WR', 'TE', 'WRRB_FLEX', 'REC_FLEX', 'FLEX', 'SUPER_FLEX'];
+    ORDER.forEach(slot => {
+      const n = slots.filter(s => s === slot).length * teamCount;
+      for (let i = 0; i < n; i++) {
+        let bestPos = null, bestPpg = -Infinity;
+        ELIGIBLE[slot].forEach(pos => {
+          const ppg = byPos[pos][used[pos]];
+          if (ppg != null && ppg > bestPpg) { bestPpg = ppg; bestPos = pos; }
+        });
+        if (bestPos) used[bestPos]++;
+      }
     });
-    return levels;
+    return { byPos, used };
   },
 
   // A player's edge over the best readily-available replacement at their own
@@ -1818,7 +1877,7 @@ const Vault = {
   // manager can go check, and the other two are clearly labeled as ours.
   fairnessBreakdownHtml(fair, teamAName, teamBName) {
     const who = x => Math.abs(x) < 1 ? 'Even'
-      : `${Vault.escapeHtml(x > 0 ? teamBName : teamAName)} +${Math.round(Math.min(Math.abs(x), VAULT_CONFIG.FAIRNESS_FACTOR_CAP))}${Math.abs(x) > VAULT_CONFIG.FAIRNESS_FACTOR_CAP ? '+' : ''}`;
+      : `${Vault.escapeHtml(x > 0 ? teamBName : teamAName)} +${Math.floor(Math.min(Math.abs(x), VAULT_CONFIG.FAIRNESS_FACTOR_CAP))}${Math.abs(x) > VAULT_CONFIG.FAIRNESS_FACTOR_CAP ? '+' : ''}`;
     const w = VAULT_CONFIG.FAIRNESS_WEIGHTS;
     const row = (label, weight, x, title) => `
       <div class="grid grid-cols-[92px_minmax(0,1fr)_minmax(0,120px)] items-center gap-2" title="${title}">
@@ -1870,6 +1929,34 @@ const Vault = {
      this fetch for other reasons (trade.html's trend arrows; nothing new here for
      the grading pipeline, which fetches it purely for this) — see each caller for
      why it's not fetched by every page that touches a team/trade. */
+  // Prices an asset as of a past date from the daily value-history files — the
+  // latest snapshot on or before that date. Returns null when there's no snapshot
+  // that early or the asset/format isn't in it (early history is 1QB-only), so
+  // callers can fall back to today's price instead of guessing.
+  buildHistoricalPricer(playerSnaps, pickSnaps, isSF, bonusRecTe) {
+    const index = snaps => {
+      const sorted = [...(snaps || [])].sort((a, b) => a.date < b.date ? -1 : 1);
+      return { sorted, times: sorted.map(s => new Date(s.date + 'T23:59:59Z').getTime()) };
+    };
+    const P = index(playerSnaps), K = index(pickSnaps);
+    const at = ({ sorted, times }, ms) => {
+      let lo = 0, hi = times.length - 1, found = -1;
+      while (lo <= hi) { const mid = (lo + hi) >> 1; if (times[mid] <= ms) { found = mid; lo = mid + 1; } else hi = mid - 1; }
+      return found >= 0 ? sorted[found] : null;
+    };
+    const num = v => Number.isFinite(v) ? v : null;
+    return {
+      player(name, ms) {
+        const s = at(P, ms);
+        return s ? num(Vault.resolveHistoricalValue(s.players?.[Vault.normalizeName(name)], isSF, bonusRecTe)) : null;
+      },
+      pick(season, ktcRound, tier, ms) {
+        const s = at(K, ms);
+        return s ? num(Vault.resolveHistoricalValue(s.picks?.[`${season}-${ktcRound}-${tier}`], isSF, bonusRecTe)) : null;
+      }
+    };
+  },
+
   buildPlayerVolatilityMap(snapshots, isSF, bonusRecTe) {
     const cutoff = Date.now() - VAULT_CONFIG.PRICE_VOLATILITY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
     const byKey = new Map();
@@ -2438,21 +2525,23 @@ const Vault = {
      showed "no critical flaws" and the section read as mostly empty. These
      thresholds surface ordinary, worth-knowing weaknesses instead of only
      extremes. */
-  fatalFlaws(t, leagueAvg) {
+  fatalFlaws(t, leagueAvg, all) {
     const flaws = [];
+    // Positional needs come straight from positionalProfile — the same read the
+    // Trade Calculator's "Needs RB, WR" chip and the trade-partner cards use — so
+    // this panel can never say "Nothing notable" while those say "your biggest
+    // need". Listed first since they're what the rest of the page acts on.
+    const { needs } = Vault.positionalProfile(t, all);
+    needs.forEach(k => {
+      const avg = leagueAvg[k];
+      flaws.push(`${k.toUpperCase()} Need: ${Math.round(t[k]).toLocaleString()} value${avg ? ` vs league avg ${Math.round(avg).toLocaleString()}` : ''}${t.posCount && t.startable && t.posCount[k] < t.startable[k] ? ` — ${t.posCount[k]} startable for ${t.startable[k]} spots` : ''}`);
+    });
     const rbOld = t.plist.filter(p => p.pos === 'RB' && p.age >= 27).reduce((s, p) => s + p.value, 0);
     const rbTotal = t.rb || 1;
     if (rbOld / rbTotal > 0.4) flaws.push(`RB Age Cliff: ${Math.round(rbOld / rbTotal * 100)}% of RB value is 27+`);
     const wrOld = t.plist.filter(p => p.pos === 'WR' && p.age >= 29).reduce((s, p) => s + p.value, 0);
     const wrTotal = t.wr || 1;
     if (wrOld / wrTotal > 0.4) flaws.push(`WR Age Cliff: ${Math.round(wrOld / wrTotal * 100)}% of WR value is 29+`);
-    const pos = { QB: t.qb, RB: t.rb, WR: t.wr, TE: t.te };
-    Object.entries(pos).forEach(([k, v]) => {
-      // leagueAvg is keyed lowercase (qb/rb/wr/te) — this used to look up
-      // leagueAvg[k] with the uppercase label key and silently always miss.
-      const avg = leagueAvg[k.toLowerCase()];
-      if (avg && v < avg * 0.85) flaws.push(`${k} Weakness: ${Math.round(v).toLocaleString()} vs league avg ${Math.round(avg).toLocaleString()}`);
-    });
     if (t.picksValue < leagueAvg.picks * 0.85) flaws.push(`Pick Poor: ${Math.round(t.picksValue).toLocaleString()} pick value vs league avg ${Math.round(leagueAvg.picks).toLocaleString()}`);
     // Depth check is relative to the team's own roster, not a fixed headcount —
     // a fixed threshold like "16" never fires in deep superflex formats where
@@ -2537,9 +2626,26 @@ const Vault = {
     (tx.draft_picks || []).forEach(pk => {
       if (pk.owner_id !== sideRosterId) return;
       const info = pickValueByKey.get(`${pk.season}-${pk.round}-${pk.roster_id}`);
-      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}`, pos: 'PICK', age: 0, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
+      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}`, pos: 'PICK', age: 0, season: +pk.season, ktcRound: info?.ktcRound, tier: info?.tier, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
     });
     return assets;
+  },
+
+  // Re-prices a trade's assets as of the day it happened (Vault.buildHistoricalPricer).
+  // All-or-nothing: if any single asset has no price that far back, the whole trade
+  // stays on today's prices — half-then/half-now would be worse than either.
+  // Each asset keeps its current price as valueToday.
+  priceAtTradeDate(toA, toB, pricer, ms) {
+    if (!pricer || !Number.isFinite(ms)) return null;
+    const reprice = a => {
+      const v = a.type === 'pick'
+        ? (a.ktcRound != null ? pricer.pick(a.season, a.ktcRound, a.tier, ms) : null)
+        : pricer.player(a.name, ms);
+      return v == null ? null : { ...a, value: v, valueToday: a.value };
+    };
+    const hA = toA.map(reprice), hB = toB.map(reprice);
+    if ([...hA, ...hB].some(a => a == null)) return null;
+    return { toA: hA, toB: hB };
   },
 
   // Value fairness is gated first (Fair/Lopsided/Unfair) — a fit-based label
@@ -2574,14 +2680,26 @@ const Vault = {
     return { tone: 'neutral', label: 'Fair Trade', text };
   },
 
-  gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels, playerVolatility) {
+  gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels, playerVolatility, pricer) {
     const [rA, rB] = tx.roster_ids;
     const teamA = teamById.get(rA), teamB = teamById.get(rB);
     if (!teamA || !teamB) return null;
 
-    const toA = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what A received (B gave)
-    const toB = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what B received (A gave)
-    if (!toA.length && !toB.length) return null;
+    const toATodayPrices = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what A received (B gave)
+    const toBTodayPrices = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what B received (A gave)
+    if (!toATodayPrices.length && !toBTodayPrices.length) return null;
+
+    // Graded at the prices on the trade date when every asset has one (see
+    // Vault.priceAtTradeDate); today's prices otherwise. The today-priced read
+    // is kept either way as "how it aged".
+    const tradeMs = tx.status_updated || tx.created;
+    const atTrade = Vault.priceAtTradeDate(toATodayPrices, toBTodayPrices, pricer, tradeMs);
+    const valuedAt = atTrade ? 'trade' : 'today';
+    const toA = atTrade ? atTrade.toA : toATodayPrices;
+    const toB = atTrade ? atTrade.toB : toBTodayPrices;
+    const today = Vault.tradeSideValues(toBTodayPrices, toATodayPrices);
+    const todayAvg = (today.valueA + today.valueB) / 2 || 1;
+    const todaySignedPctDiff = (today.valueA - today.valueB) / todayAvg * 100;
 
     // Fairness uses KTC's own consolidation adjustment (see Vault.tradeSideValues) —
     // toB is what A gave (B received it), toA is what B gave.
@@ -2590,10 +2708,10 @@ const Vault = {
     const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
     const dValueAdjA = bGaveAdj - aGaveAdj; // positive = A came out ahead on value
 
-    const timelineA = Vault.timelineFitNotes(teamA, toA, toB);
-    const timelineB = Vault.timelineFitNotes(teamB, toB, toA);
-    const archA = Vault.archetypeFitNotes(teamA, toA, toB);
-    const archB = Vault.archetypeFitNotes(teamB, toB, toA);
+    const timelineA = Vault.timelineFitNotes(teamA, toATodayPrices, toBTodayPrices);
+    const timelineB = Vault.timelineFitNotes(teamB, toBTodayPrices, toATodayPrices);
+    const archA = Vault.archetypeFitNotes(teamA, toATodayPrices, toBTodayPrices);
+    const archB = Vault.archetypeFitNotes(teamB, toBTodayPrices, toATodayPrices);
 
     // Value/production divergence (see Vault.valueRiskNotes) — resolveTradeAssets
     // builds toA/toB fresh from playersDb/valMap/ppgMap, not from a team's plist, so
@@ -2613,7 +2731,7 @@ const Vault = {
     // roster. Confusingly, simulateTrade's OWN before/after refer to ITS OWN
     // give/take (this reversed trade), so sim.before.A is teamA's real CURRENT
     // (already-post-trade) roster and sim.after.A is the RECONSTRUCTED pre-trade one.
-    const sim = Vault.simulateTrade(teams, slots, rA, rB, toA, toB);
+    const sim = Vault.simulateTrade(teams, slots, rA, rB, toATodayPrices, toBTodayPrices);
     const dOptA = sim.before.A.opt - sim.after.A.opt;
     const dOptB = sim.before.B.opt - sim.after.B.opt;
     const dVorpA = sim.before.A.vorpTotal - sim.after.A.vorpTotal;
@@ -2626,7 +2744,7 @@ const Vault = {
     // Fair/Lopsided/Unfair badge is gated on raw pctDiff alone, so a manager can
     // check it against KTC's own calculator. pctDiffNeed is kept as a "here's how
     // need-weighting reads it instead" tooltip detail (Trade Grades).
-    const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toB, toA);
+    const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toBTodayPrices, toATodayPrices);
     const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
     const pctDiffNeed = Math.abs((aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100);
     const signedPctDiff = Math.sign((aGaveAdj - bGaveAdj) || 1) * pctDiff;
@@ -2641,8 +2759,8 @@ const Vault = {
     // the name — see above); what it gave up is judged against its real current
     // roster, so a position that only looks thin because of THIS trade still gets
     // caught, not just a position that was already thin beforehand.
-    const fitA = Vault.positionalFitNotes(sim.after.A, teams, teamA, teams, toA, toB, timelineA.mode);
-    const fitB = Vault.positionalFitNotes(sim.after.B, teams, teamB, teams, toB, toA, timelineB.mode);
+    const fitA = Vault.positionalFitNotes(sim.after.A, teams, teamA, teams, toATodayPrices, toBTodayPrices, timelineA.mode);
+    const fitB = Vault.positionalFitNotes(sim.after.B, teams, teamB, teams, toBTodayPrices, toATodayPrices, timelineB.mode);
     const optNoteA = Vault.optShiftNote(timelineA.mode, dOptA);
     const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
     const vorpNoteA = Vault.vorpShiftNote(timelineA.mode, dVorpA);
@@ -2663,7 +2781,7 @@ const Vault = {
     const bucket = Vault.fairnessBucket(fairness.overallPct, combinedFitA, combinedFitB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
   },
 
   // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
@@ -2704,13 +2822,14 @@ const Vault = {
     const { league, isSF, teams, slots, replacementLevels } = await Vault.buildLeagueTeams(leagueId);
     const seasonChain = await Vault.fetchSeasonChain(leagueId, league);
 
-    const [playersDb, ktcData, projData, rosters, traded, playerHist] = await Promise.all([
+    const [playersDb, ktcData, projData, rosters, traded, playerHist, pickHist] = await Promise.all([
       fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json()),
       Vault.fetchKtcValues(),
       Vault.fetchProjections(),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json()),
-      Vault.fetchPlayerValueHistory()
+      Vault.fetchPlayerValueHistory(),
+      Vault.fetchPickValueHistory()
     ]);
     const valMap = Vault.buildKtcValueMap(ktcData, isSF, league.scoring_settings?.bonus_rec_te);
     const ppgMap = Vault.buildProjectedPpgMapById(projData, league.scoring_settings);
@@ -2719,6 +2838,10 @@ const Vault = {
     // price-history signal the Trade Calculator uses, fetched here specifically for
     // this (unlike trade.html, nothing else in this pipeline already needed it).
     const playerVolatility = Vault.buildPlayerVolatilityMap(playerHist.snapshots, isSF, bonusRecTe);
+    // Each trade is graded at the prices on the day it happened, not today's —
+    // a deal that was fair in March shouldn't read "Unfair" because a player
+    // broke out in September. Today's read is kept alongside as "how it aged".
+    const pricer = Vault.buildHistoricalPricer(playerHist.snapshots, pickHist.snapshots, isSF, bonusRecTe);
 
     const teamById = new Map(teams.map(t => [t.rosterId, t]));
     const currentRosterIdForOwner = new Map(teams.map(t => [t.ownerId, t.rosterId]));
@@ -2784,11 +2907,11 @@ const Vault = {
         const rank = draftRank.get(originalRosterId) || 1;
         const overall = (round - 1) * n + rank;
         const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
-        pickValueByKey.set(key, { value: pickMap.get(`${season}-${ktcRound}-${tier}`) || 0, tier, volatilityPct: Vault.pickVolatilityPct(pickMap, season, ktcRound) });
+        pickValueByKey.set(key, { value: pickMap.get(`${season}-${ktcRound}-${tier}`) || 0, ktcRound, tier, volatilityPct: Vault.pickVolatilityPct(pickMap, season, ktcRound) });
       });
     }
 
-    const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels, playerVolatility)).filter(Boolean);
+    const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels, playerVolatility, pricer)).filter(Boolean);
     return { league, isSF, teams, slots, allGraded };
   },
 
@@ -2806,7 +2929,7 @@ const Vault = {
       if (!byTeam.has(team.rosterId)) byTeam.set(team.rosterId, {
         teamName: team.teamName, rosterId: team.rosterId, record: team.record,
         trades: 0, won: 0, lost: 0, netValue: 0, fitSum: 0,
-        netPicks: 0, ageDeltaSum: 0,
+        netPicks: 0, ageDeltaSum: 0, olderCount: 0, youngerCount: 0,
         fair: 0, lopsided: 0, unfair: 0, unfairFor: 0, unfairAgainst: 0,
         best: null, worst: null,
         posNet: { QB: 0, RB: 0, WR: 0, TE: 0 },
@@ -2841,6 +2964,7 @@ const Vault = {
         if (g.anyMissingValue) return;
         s.netValue += dVal; s.fitSum += fit;
         s.netPicks += timeline.dPicks; s.ageDeltaSum += timeline.dAge;
+        if (timeline.dAge > 0.25) s.olderCount++; else if (timeline.dAge < -0.25) s.youngerCount++;
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
         if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
         if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
@@ -2903,8 +3027,15 @@ const Vault = {
       // clearly being a picks-first trader in most of their individual deals.
       if (s.picksInCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades for draft picks — ${s.picksInCount} of ${s.trades} deals net picks.` });
       else if (s.picksOutCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades picks away — ${s.picksOutCount} of ${s.trades} deals spend picks.` });
-      if (s.avgAgeDelta <= -0.5) notes.push({ tone: 'neutral', text: `Consistently gets younger through trades (avg ${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
-      else if (s.avgAgeDelta >= 0.5) notes.push({ tone: 'neutral', text: `Consistently gets older through trades (avg +${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
+      // "Consistently" only when most individual deals actually go that way — an
+      // average can be dragged by one big swing, so otherwise say "leans".
+      const mostly = n => n >= Math.ceil(s.trades * 0.6);
+      if (s.avgAgeDelta <= -0.5) notes.push({ tone: 'neutral', text: mostly(s.youngerCount)
+        ? `Consistently gets younger through trades — ${s.youngerCount} of ${s.trades} deals (avg ${s.avgAgeDelta.toFixed(1)} yrs/trade).`
+        : `Leans younger through trades on average (${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
+      else if (s.avgAgeDelta >= 0.5) notes.push({ tone: 'neutral', text: mostly(s.olderCount)
+        ? `Consistently gets older through trades — ${s.olderCount} of ${s.trades} deals (avg +${s.avgAgeDelta.toFixed(1)} yrs/trade).`
+        : `Leans older through trades on average (+${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
       // Does this manager only make moves that actually help their starting lineup?
       if (s.optUpCount >= Math.ceil(s.trades * 0.75)) notes.push({ tone: 'good', text: `Almost exclusively makes trades that raise the starting lineup's PPG (${s.optUpCount} of ${s.trades}).` });
       else if (s.optDownCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'bad', text: `Often trades away from lineup strength — ${s.optDownCount} of ${s.trades} deals lowered Opt PPG.` });

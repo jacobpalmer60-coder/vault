@@ -60,7 +60,7 @@
   <div class="mt-8 card rounded-vault p-6">
     <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
       <h2 class="display text-[20px] gold-text">Value Over Time</h2>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 flex-wrap">
         <div id="valueHistoryToggle" class="flex gap-1.5"></div>
         <div id="trendWindowToggle" class="flex items-center bg-black/40 border border-white/10 rounded-lg p-1"></div>
         <span id="valueHistoryMeta" class="text-[11px] text-zinc-400"></span>
@@ -123,7 +123,9 @@ function recordText(t) {
 
 function careerRecordText(t) {
   const c = t.careerRecord;
-  if (!c) return null;
+  // One season of history = the same numbers as the Record column; only worth a
+  // line once there's more than this season to add up.
+  if (!c || c.seasons < 2) return null;
   return `${c.wins}-${c.losses}${c.ties ? '-' + c.ties : ''} <span class="text-zinc-400">career (${c.seasons} season${c.seasons === 1 ? '' : 's'})</span>`;
 }
 
@@ -425,26 +427,13 @@ async function load() {
     }
     Vault.buildTeamValueHistory(Vault.getLeagueId()).then(h => renderValueHistory(h, teams)).catch(e => { console.error(e); renderValueHistory({ snapshots: [] }, teams); });
 
-    // Career record (walks the league's season-history chain) and the rest-of-
-    // season simulation (real remaining schedule, Monte Carlo'd) both take a
-    // handful of extra fetches — run them after the initial paint instead of
-    // blocking it, then re-render once each lands.
+    // Career record walks the league's season-history chain — a handful of extra
+    // fetches, so it runs after the initial paint and re-renders when it lands.
+    // (Season odds — t.projected/playoffPct — already come from buildLeagueTeams,
+    // which needs them for every page's contention window.)
     Vault.fetchLeagueHistory(league).then(past => {
       const overall = Vault.buildOverallRecords(teams, past);
       teams.forEach(t => { t.careerRecord = overall.get(t.ownerId) || null; });
-      render();
-    }).catch(() => {});
-    Vault.fetchRemainingSchedule(Vault.getLeagueId(), league).then(remainingWeeks => {
-      const projections = Vault.simulateSeason(teams, league, remainingWeeks);
-      teams.forEach(t => {
-        const p = projections.get(t.rosterId) || null;
-        t.projected = p;
-        // Flat aliases so the generic column sort (a[sort.key]) can reach these —
-        // it only ever does a plain property read, not a nested path.
-        t.projWins = p ? p.projWins : undefined;
-        t.playoffPct = p ? p.playoffPct : undefined;
-        t.championshipPct = p ? p.championshipPct : undefined;
-      });
       render();
     }).catch(() => {});
   } catch (e) {
@@ -472,7 +461,7 @@ function renderMobileCards(data, minOverall, maxOverall) {
           <span class="w-5 text-right text-[11px] font-mono text-zinc-400 shrink-0">${t.rank}</span>
           <div class="min-w-0">
             <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
-            <div class="text-[11px] text-zinc-400 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
+            <div class="text-[11px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
             ${careerRecordText(t) ? `<div class="text-[11px] text-zinc-400 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>
         </div>
@@ -550,7 +539,7 @@ function render() {
           <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
           <div class="min-w-0">
             <div class="font-semibold text-[15px] text-white truncate">${Vault.escapeHtml(t.teamName)}</div>
-            <div class="text-[12px] text-zinc-400 truncate">@${Vault.escapeHtml(t.username)} • ${t.picks.length} picks</div>
+            <div class="text-[12px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks</div>
             ${careerRecordText(t) ? `<div class="text-[12px] text-zinc-400 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>
         </div>
