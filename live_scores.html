@@ -391,15 +391,26 @@ function classifyPlay(text) {
 // still their most recent once Sleeper actually catches up — not always the
 // literal play that caused it, the same honest limitation this feed's own
 // text-matching already has (see allRosteredCandidates).
+//
+// One card per PLAY, not per matched player — a single pass play routinely
+// involves two of your rostered players at once (the QB throwing it and the
+// receiver catching it), and showing the identical play text twice back to
+// back was just noise. Grouped by the play's own text, which is already
+// guaranteed unique per real play (fetchEspnLive de-dupes on exact text before
+// this ever sees it), so grouping on it can't accidentally merge two different
+// plays that happen to read the same.
 function renderLiveFeed(rosterMap, userMap) {
   const candidates = allRosteredCandidates(rosterMap, userMap).filter(c => c.pattern);
-  const found = [];
+  const playMap = new Map(); // play text -> { text, players: [{pid, name, teamName}] }
   allLivePlays().forEach(play => {
     candidates.forEach(c => {
-      if (play.teamAbbr === c.team && play.text.includes(c.pattern)) found.push({ ...play, player: c.name, teamName: c.teamName, pid: c.pid });
+      if (play.teamAbbr !== c.team || !play.text.includes(c.pattern)) return;
+      if (!playMap.has(play.text)) playMap.set(play.text, { text: play.text, players: [] });
+      const entry = playMap.get(play.text);
+      if (!entry.players.some(pl => pl.pid === c.pid)) entry.players.push({ pid: c.pid, name: c.name, teamName: c.teamName });
     });
   });
-  const recent = found.slice(-25).reverse();
+  const recent = [...playMap.values()].slice(-25).reverse();
   const panel = document.getElementById('feedPanel');
   if (!recent.length) {
     panel.innerHTML = `<div class="text-zinc-400 text-[12px] py-10 text-center">${espnGames.size ? 'No plays yet involving your rostered players.' : 'No games in progress right now.'}</div>`;
@@ -407,25 +418,29 @@ function renderLiveFeed(rosterMap, userMap) {
   }
   const shown = new Set();
   panel.innerHTML = recent.map(p => {
-    const delta = playerPointDeltas.get(p.pid) || 0;
-    const showDelta = !shown.has(p.pid) && Math.abs(delta) >= 0.05;
-    if (showDelta) shown.add(p.pid);
-    const total = knownPlayerPoints.get(p.pid);
     const tag = classifyPlay(p.text);
-    return `
-    <div class="py-2 border-b border-white/5 last:border-0">
-      <div class="flex items-center justify-between gap-2 mb-0.5">
+    const playerRows = p.players.map(pl => {
+      const delta = playerPointDeltas.get(pl.pid) || 0;
+      const showDelta = !shown.has(pl.pid) && Math.abs(delta) >= 0.05;
+      if (showDelta) shown.add(pl.pid);
+      const total = knownPlayerPoints.get(pl.pid);
+      return `
+      <div class="flex items-center justify-between gap-2 py-0.5">
         <div class="flex items-center gap-1.5 min-w-0">
-          <span class="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${tag.cls}">${tag.label}</span>
-          <span class="text-[12px] font-medium text-zinc-100 truncate">${Vault.escapeHtml(p.player)}</span>
-          <span class="text-[10px] text-zinc-400 truncate">${Vault.escapeHtml(p.teamName)}</span>
+          <span class="text-[12px] font-medium text-zinc-100 truncate">${Vault.escapeHtml(pl.name)}</span>
+          <span class="text-[10px] text-zinc-400 truncate">${Vault.escapeHtml(pl.teamName)}</span>
         </div>
         <div class="text-right shrink-0 leading-tight">
           ${showDelta ? `<div class="text-[22px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Point change since the last update, attributed to this player's most recent play — Sleeper's scoring can trail ESPN's play text by a play or two">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</div>` : ''}
           ${total != null ? `<div class="text-[15px] font-mono font-bold text-amber-300">${total.toFixed(1)} <span class="text-[9px] font-sans font-medium uppercase tracking-wide text-amber-300/60">pts</span></div>` : ''}
         </div>
-      </div>
-      <div class="text-[11px] text-zinc-400 leading-snug">${Vault.escapeHtml(p.text)}</div>
+      </div>`;
+    }).join('');
+    return `
+    <div class="py-2 border-b border-white/5 last:border-0">
+      <div class="mb-1"><span class="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${tag.cls}">${tag.label}</span></div>
+      ${playerRows}
+      <div class="text-[11px] text-zinc-400 leading-snug mt-1">${Vault.escapeHtml(p.text)}</div>
     </div>`;
   }).join('');
 }
