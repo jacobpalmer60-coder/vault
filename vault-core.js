@@ -107,6 +107,23 @@ const VAULT_CONFIG = {
   // "Fair". Same threshold headline()/historyVerdict() already used for their own
   // good()/bad() reads, just centralized so Vault.fairnessBucket can share it.
   GOOD_FIT_THRESHOLD: 2,
+  // Overall fairness = a weighted blend of three factors (see
+  // Vault.blendedFairness): KTC value, roster fit (positional need + lineup
+  // PPG/VORP shift), and timeline (age/picks vs. each team's mode, archetype,
+  // contention window). Weights sum to 100. Picked by running every weighting
+  // over ~2,100 plausible trades in this league — at 70/15/15, 3.7% of grades
+  // move (always by one step), 80/10/10 barely registered (1.8%), 60/20/20
+  // started flipping which team a trade favors (4.6%).
+  FAIRNESS_WEIGHTS: { value: 70, roster: 15, timeline: 15 },
+  // Converts a net fit-point gap between the two teams into "% off" units so it
+  // can blend with value — each is the value gap's 75th-percentile spread
+  // divided by that factor's own, from the same calibration sample.
+  ROSTER_FIT_SCALE: 6.17,
+  TIMELINE_FIT_SCALE: 10.47,
+  // Each factor is clamped to ±this before blending — timeline in particular can
+  // spike (a contender's franchise QB for a rebuilder's 1st scored 157), and
+  // one factor shouldn't be able to swamp the other two. Same as the bar's scale.
+  FAIRNESS_FACTOR_CAP: 60,
   // How many percentile points apart a player's value-rank and PPG-rank at their own
   // position (see buildLeagueTeams' valueRiskGap) have to be before it's worth
   // calling out as a real disagreement rather than the normal noise between two
@@ -1714,9 +1731,9 @@ const Vault = {
   // Single source of truth for the five-tier fairness label shown everywhere a
   // trade gets graded (the Trade Calculator's bar and verdict, Suggested Trades,
   // Trade Grades, Managers): Great, Good, Fair, Lopsided, Unfair. Lopsided/Unfair
-  // stay gated on pctDiff ALONE — those are the "something's off, go check the
-  // numbers" tiers, and diluting them with fit would undercut the whole point of
-  // gating fairness on raw, KTC-checkable value. Great/Good only exist to add
+  // are gated on the OVERALL % off (Vault.blendedFairness), which can never read
+  // closer to even than raw KTC value — fit can push a trade into Lopsided, never
+  // pull one out of it. Great/Good only exist to add
   // richness at the GOOD end: once a trade already clears Fair on value, calling
   // out that it's ALSO a strong fit — for both sides (Great) or just one (Good) —
   // is a bonus signal, not a discount. A trade can never climb out of
@@ -1728,6 +1745,92 @@ const Vault = {
     if (goodA && goodB) return 'Great';
     if (goodA || goodB) return 'Good';
     return 'Fair';
+  },
+
+  // Blends KTC value with roster fit and timeline into one overall "% off" (see
+  // VAULT_CONFIG.FAIRNESS_WEIGHTS). Sign convention matches signedPctDiff:
+  // positive = Team A gave more = the trade favors Team B. rosterX/timeX are each
+  // team's own fit points for that factor.
+  //
+  // The blend can only ever make a trade read WORSE than value alone, never
+  // better: overall is whichever of value or the blend is further from even. If
+  // fit could pull a Lopsided-by-KTC trade back into Fair, the manager on the
+  // short end would check KTC, see the gap, and stop trusting the verdict — and
+  // the other manager would have no reason to accept a deal the tool called
+  // fair when KTC says otherwise. Fit still gets its say through the per-factor
+  // breakdown and by pushing a trade that's close on value but bad for one
+  // side's roster/timeline down a tier.
+  blendedFairness(signedPctDiff, rosterA, rosterB, timeA, timeB) {
+    const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, w = VAULT_CONFIG.FAIRNESS_WEIGHTS;
+    const clamp = x => Math.max(-cap, Math.min(cap, x));
+    const value = signedPctDiff;
+    const roster = VAULT_CONFIG.ROSTER_FIT_SCALE * (rosterB - rosterA);
+    const timeline = VAULT_CONFIG.TIMELINE_FIT_SCALE * (timeB - timeA);
+    const blend = (w.value * clamp(value) + w.roster * clamp(roster) + w.timeline * clamp(timeline)) / 100;
+    const overallSigned = Math.abs(blend) > Math.abs(value) ? blend : value;
+    return { value, roster, timeline, blend, overallSigned, overallPct: Math.abs(overallSigned), fitMovedIt: overallSigned !== value };
+  },
+
+  // Center-out fairness bar shared by the Trade Calculator and Trade Grades: 0%
+  // (dead even) in the MIDDLE, widening through Lopsided into Unfair toward
+  // whichever side a trade favors. The Fair zone nests a violet core and a sky
+  // ring inside the green at fixed fractions of FAIR_PCT — a reference gradient
+  // ("closer to even reads better"), not the Great/Good gate itself (those also
+  // need fit). Marker is a hollow ring so the band color it sits on shows
+  // through; the translucent band around it is the ± confidence range.
+  // `mini` draws the slimmer per-factor version used in the breakdown rows.
+  fairnessBarHtml(signedPct, bandPct, mini = false) {
+    const half = VAULT_CONFIG.FAIRNESS_FACTOR_CAP;
+    const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
+    const F = VAULT_CONFIG.FAIR_PCT, L = VAULT_CONFIG.LOPSIDED_PCT;
+    const greatHi = toX(F / 3), greatLo = toX(-F / 3);
+    const goodHi = toX(F * 2 / 3), goodLo = toX(-F * 2 / 3);
+    const fairHi = toX(F), fairLo = toX(-F);
+    const lopHi = toX(L), lopLo = toX(-L);
+    const marker = toX(signedPct);
+    const band = bandPct >= 1 ? { lo: toX(signedPct - bandPct), hi: toX(signedPct + bandPct) } : null;
+    // The ring sits OUTSIDE the clipped track (overflow-hidden would slice a ring
+    // taller than the track into a flat sliver), and its hole matches the track
+    // height so it fills with the band color instead of page background.
+    const [wrap, track, ring] = mini
+      ? ['h-2.5', 'h-1.5', 'size-2.5 border-2']
+      : ['h-4', 'h-2.5', 'size-4 border-[3px]'];
+    return `
+      <div class="relative ${wrap}">
+        <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 ${track} rounded-full overflow-hidden${mini ? ' opacity-80' : ''}" style="background: linear-gradient(to right,
+          #fb7185 0%, #fb7185 ${lopLo}%,
+          #fbbf24 ${lopLo}%, #fbbf24 ${fairLo}%,
+          #34d399 ${fairLo}%, #34d399 ${goodLo}%,
+          #38bdf8 ${goodLo}%, #38bdf8 ${greatLo}%,
+          #a78bfa ${greatLo}%, #a78bfa ${greatHi}%,
+          #38bdf8 ${greatHi}%, #38bdf8 ${goodHi}%,
+          #34d399 ${goodHi}%, #34d399 ${fairHi}%,
+          #fbbf24 ${fairHi}%, #fbbf24 ${lopHi}%,
+          #fb7185 ${lopHi}%, #fb7185 100%);">
+          ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${Math.min(band.lo, band.hi)}%; width:${Math.max(0.75, Math.abs(band.hi - band.lo))}%;"></div>` : ''}
+        </div>
+        <div class="absolute top-1/2 ${ring} rounded-full border-white ring-1 ring-black/60" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
+      </div>`;
+  },
+
+  // The three per-factor mini bars under the overall bar — what the overall
+  // number is made of. Value is labeled "KTC value" on purpose: it's the one a
+  // manager can go check, and the other two are clearly labeled as ours.
+  fairnessBreakdownHtml(fair, teamAName, teamBName) {
+    const who = x => Math.abs(x) < 1 ? 'Even'
+      : `${Vault.escapeHtml(x > 0 ? teamBName : teamAName)} +${Math.round(Math.min(Math.abs(x), VAULT_CONFIG.FAIRNESS_FACTOR_CAP))}${Math.abs(x) > VAULT_CONFIG.FAIRNESS_FACTOR_CAP ? '+' : ''}`;
+    const w = VAULT_CONFIG.FAIRNESS_WEIGHTS;
+    const row = (label, weight, x, title) => `
+      <div class="grid grid-cols-[92px_minmax(0,1fr)_minmax(0,120px)] items-center gap-2" title="${title}">
+        <div class="text-[11px] text-zinc-400">${label} <span class="text-zinc-500">${weight}%</span></div>
+        ${Vault.fairnessBarHtml(x, 0, true)}
+        <div class="text-[11px] text-zinc-400 text-right truncate">${who(x)}</div>
+      </div>`;
+    return `<div class="space-y-1">
+      ${row('KTC value', w.value, fair.value, "KTC's own consolidation-adjusted value — the number you can check on KeepTradeCut.")}
+      ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}
+      ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend mode, archetype, and contention window.')}
+    </div>`;
   },
 
   /* ---------- Value confidence / uncertainty ----------
@@ -2451,20 +2554,18 @@ const Vault = {
   // Vault.fairnessBucket's own gate exactly for this reason — fit only ever
   // enriches the label once the trade already reads Fair-by-value, same as it
   // only ever enriches the bucket into Good/Great, never rescues Lopsided/Unfair.
-  historyVerdict(pctDiff, dValueAdjA, fitA, fitB, teamAName, teamBName, avgSideAdj, posResultA, posResultB, timelineA, timelineB) {
+  // pctDiff here is the OVERALL % off (Vault.blendedFairness), and `favored`
+  // follows its direction — when fit is what pushed a trade into Lopsided, the
+  // team it favors is the one the blend leans toward, not necessarily the value
+  // winner.
+  historyVerdict(pctDiff, dValueAdjA, fitA, fitB, teamAName, teamBName, avgSideAdj, posResultA, posResultB, timelineA, timelineB, favored = dValueAdjA >= 0 ? 'A' : 'B') {
     const good = s => s >= VAULT_CONFIG.GOOD_FIT_THRESHOLD, bad = s => s <= -VAULT_CONFIG.GOOD_FIT_THRESHOLD;
     const themeA = Vault.sideTheme(posResultA, timelineA.dAge, timelineA.dPicks, timelineA.mode);
     const themeB = Vault.sideTheme(posResultB, timelineB.dAge, timelineB.dPicks, timelineB.mode);
     const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
 
-    if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
-      const favored = dValueAdjA >= 0 ? 'A' : 'B';
-      return { tone: 'bad', label: `Unfair — Favored Team ${favored}`, text };
-    }
-    if (pctDiff >= VAULT_CONFIG.FAIR_PCT) {
-      const favored = dValueAdjA >= 0 ? 'A' : 'B';
-      return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
-    }
+    if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) return { tone: 'bad', label: `Unfair — Favored Team ${favored}`, text };
+    if (pctDiff >= VAULT_CONFIG.FAIR_PCT) return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
     if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
     if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };
     if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: 'Won for Team A', text };
@@ -2550,11 +2651,19 @@ const Vault = {
     const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0);
     const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0);
 
-    const verdict = Vault.historyVerdict(pctDiff, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB);
-    const bucket = Vault.fairnessBucket(pctDiff, combinedFitA, combinedFitB);
+    // Same three-factor split as the Trade Calculator: roster = positional need +
+    // lineup PPG/VORP shift, timeline = age/picks vs. mode + archetype. (No
+    // contention-window term here — Trade Grades doesn't reconstruct windows.)
+    const rosterFitA = fitA.posFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0);
+    const rosterFitB = fitB.posFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0);
+    const fairness = Vault.blendedFairness(signedPctDiff, rosterFitA, rosterFitB, timelineA.fit + archA.archFit, timelineB.fit + archB.archFit);
+    const favored = fairness.overallSigned > 0 ? 'B' : 'A';
+
+    const verdict = Vault.historyVerdict(fairness.overallPct, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB, favored);
+    const bucket = Vault.fairnessBucket(fairness.overallPct, combinedFitA, combinedFitB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
   },
 
   // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
@@ -2711,9 +2820,9 @@ const Vault = {
     (teams || []).forEach(ensure);
     allGraded.forEach(g => {
       [
-        { team: g.teamA, dVal: g.dValueAdjA, fit: g.combinedFitA, timeline: g.timelineA, opp: g.teamB.teamName, received: g.toA, given: g.toB, dOpt: g.dOptA },
-        { team: g.teamB, dVal: -g.dValueAdjA, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName, received: g.toB, given: g.toA, dOpt: g.dOptB }
-      ].forEach(({ team, dVal, fit, timeline, opp, received, given, dOpt }) => {
+        { team: g.teamA, dVal: g.dValueAdjA, favor: -g.fairness.overallSigned, fit: g.combinedFitA, timeline: g.timelineA, opp: g.teamB.teamName, received: g.toA, given: g.toB, dOpt: g.dOptA },
+        { team: g.teamB, dVal: -g.dValueAdjA, favor: g.fairness.overallSigned, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName, received: g.toB, given: g.toA, dOpt: g.dOptB }
+      ].forEach(({ team, dVal, favor, fit, timeline, opp, received, given, dOpt }) => {
         const s = ensure(team);
         s.trades++;
         // A trade with an unresolvable asset (a player since retired/dropped/left
@@ -2735,9 +2844,9 @@ const Vault = {
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
         if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
         if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
-        const bucket = g.pctDiff >= VAULT_CONFIG.LOPSIDED_PCT ? 'unfair' : g.pctDiff >= VAULT_CONFIG.FAIR_PCT ? 'lopsided' : 'fair';
+        const bucket = g.fairness.overallPct >= VAULT_CONFIG.LOPSIDED_PCT ? 'unfair' : g.fairness.overallPct >= VAULT_CONFIG.FAIR_PCT ? 'lopsided' : 'fair';
         s[bucket]++;
-        if (bucket === 'unfair') { if (dVal > 0) s.unfairFor++; else s.unfairAgainst++; }
+        if (bucket === 'unfair') { if (favor > 0) s.unfairFor++; else s.unfairAgainst++; }
         const rec = { opp, dVal, pctDiff: g.pctDiff, created: g.tx.created };
         if (!s.best || dVal > s.best.dVal) s.best = rec;
         if (!s.worst || dVal < s.worst.dVal) s.worst = rec;

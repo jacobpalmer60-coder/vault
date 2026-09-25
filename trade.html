@@ -614,7 +614,7 @@ function runSuggestTradeSearch() {
   deduped.sort((x, y) => {
     const px = isPickForPick(x) ? 1 : 0, py = isPickForPick(y) ? 1 : 0;
     if (px !== py) return px - py;
-    return x.result.pctDiff - y.result.pctDiff;
+    return x.result.overallPct - y.result.overallPct;
   });
 
   // Cap per-partner, not just overall — otherwise the pool fills up with
@@ -784,7 +784,7 @@ function balanceSide(mySide, btn) {
     const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB);
     const result = computeTradeAnalysis(teamOf('A'), teamOf('B'), giveA, giveB, aValAdj, bValAdj);
     const fit = mySide === 'A' ? result.resA.fit : result.resB.fit;
-    return fit + needBias(combo) - result.pctDiff / 5;
+    return fit + needBias(combo) - result.overallPct / 5;
   };
 
   // Real trade partners actually want (bestFit/buildBalancedOffer's whole point) —
@@ -1580,58 +1580,9 @@ function verdictBanner(tone, bucket) {
 // number, which is well below this ceiling for any of them anyway.
 function capPct(pct) { return Math.sign(pct) * Math.min(100, Math.abs(pct)); }
 
-// Visual scale caps at 60% off — the app's own real-trade calibration puts the
-// Unfair cutoff at 41%, so anything past 60 is deep into "obviously unfair"
-// territory where showing the marker even further right stops adding information.
-const FAIRNESS_BAR_MAX = 60;
-
-// Symmetric, center-out layout: 0% (perfectly even) sits in the MIDDLE, widening
-// through Lopsided into Unfair as the trade favors either side more — matches
-// how fairness actually works (favoring EITHER side by a lot is equally unfair),
-// instead of a single left-to-right scale with no sense of which direction. The
-// Fair zone itself is nested the same way the outer zones are — a violet core
-// and a sky ring inside the green, at fixed fractions of FAIR_PCT purely as a
-// visual "closer to dead-even reads better" cue. This is NOT literally the same
-// gate as Vault.fairnessBucket's Great/Good (those also require fit, so a
-// trade sitting inside the violet band by value alone could still just be
-// plain Fair) — it's a reference gradient, exactly like the fixed Lopsided/
-// Unfair bands already are, not a live per-trade readout. The marker is a
-// hollow ring, not a filled dot, for that reason — it shows WHERE the trade
-// landed while letting whichever background color it's sitting on show through
-// the middle, instead of covering it up. The translucent band around it
-// (when there's enough price history to say anything — see
-// Vault.tradeConfidenceBand) is the same ± range as the text callout below it,
-// just made visible at a glance.
-function fairnessBarHtml(signedPctDiff, bandPct) {
-  const half = FAIRNESS_BAR_MAX;
-  const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
-  const greatHi = toX(VAULT_CONFIG.FAIR_PCT / 3), greatLo = toX(-VAULT_CONFIG.FAIR_PCT / 3);
-  const goodHi = toX(VAULT_CONFIG.FAIR_PCT * 2 / 3), goodLo = toX(-VAULT_CONFIG.FAIR_PCT * 2 / 3);
-  const fairHi = toX(VAULT_CONFIG.FAIR_PCT), fairLo = toX(-VAULT_CONFIG.FAIR_PCT);
-  const lopHi = toX(VAULT_CONFIG.LOPSIDED_PCT), lopLo = toX(-VAULT_CONFIG.LOPSIDED_PCT);
-  const marker = toX(signedPctDiff);
-  const band = bandPct >= 1 ? { lo: toX(signedPctDiff - bandPct), hi: toX(signedPctDiff + bandPct) } : null;
-  // The ring sits OUTSIDE the clipped track (overflow-hidden would slice a ring
-  // taller than the track into a flat sliver), and its hole (16px - 2×3px
-  // border = 10px) matches the track height, so the hole fills with whatever
-  // band color it's sitting on instead of showing page background.
-  return `
-    <div class="relative h-4">
-      <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2.5 rounded-full overflow-hidden" style="background: linear-gradient(to right,
-        #fb7185 0%, #fb7185 ${lopLo}%,
-        #fbbf24 ${lopLo}%, #fbbf24 ${fairLo}%,
-        #34d399 ${fairLo}%, #34d399 ${goodLo}%,
-        #38bdf8 ${goodLo}%, #38bdf8 ${greatLo}%,
-        #a78bfa ${greatLo}%, #a78bfa ${greatHi}%,
-        #38bdf8 ${greatHi}%, #38bdf8 ${goodHi}%,
-        #34d399 ${goodHi}%, #34d399 ${fairHi}%,
-        #fbbf24 ${fairHi}%, #fbbf24 ${lopHi}%,
-        #fb7185 ${lopHi}%, #fb7185 100%);">
-        ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${Math.min(band.lo, band.hi)}%; width:${Math.max(0.75, Math.abs(band.hi - band.lo))}%;"></div>` : ''}
-      </div>
-      <div class="absolute top-1/2 size-4 rounded-full border-[3px] border-white ring-1 ring-black/60" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
-    </div>`;
-}
+// Fairness bar lives in Vault.fairnessBarHtml (vault-core.js) — shared with
+// Trade Grades, plus a `mini` variant for the per-factor breakdown rows.
+const fairnessBarHtml = (signedPct, bandPct) => Vault.fairnessBarHtml(signedPct, bandPct);
 
 // Renders the ± confidence band under a fairness verdict (see
 // Vault.tradeConfidenceBand) — silent when nothing's selected or nothing here has
@@ -1697,7 +1648,7 @@ function updateTrade() {
   // that shouldn't happen twice on every keystroke. Also what gives the top bar's
   // badge access to fit (resA.fit/resB.fit), needed for the Great/Good tiers below.
   const analysis = computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
-  const { pctDiff, pctDiffNeed, signedPctDiff, bandPct: diffBandPct, bucket } = analysis;
+  const { pctDiff, pctDiffNeed, bandPct: diffBandPct, bucket, fairness, overallPct } = analysis;
   const diffEl = document.getElementById('diff');
   diffEl.textContent = Math.round(diffAdj).toLocaleString();
   diffEl.className = 'text-[22px] font-semibold mono ' + bucketColor(bucket, false);
@@ -1706,11 +1657,15 @@ function updateTrade() {
   // fair. Great/Good are gated on value FIRST (bucket can only read Great/Good if
   // pctDiff already cleared Fair) — see Vault.fairnessBucket.
   const diffLabelEl = document.getElementById('diffLabel');
-  diffLabelEl.textContent = `${bucket} · ${capPct(pctDiff).toFixed(0)}% off`;
-  diffLabelEl.title = `By value alone (KTC's own consolidation adjustment) — the number that decides Fair/Lopsided/Unfair. Great means Fair-by-value AND a strong fit for both sides; Good means Fair-by-value and a strong fit for one side. Weighted by both teams' roster needs instead of raw value, this trade reads as ${capPct(pctDiffNeed).toFixed(0)}% off.`;
+  // When roster fit/timeline pushed the overall read further than KTC value
+  // alone, show both numbers so the gap to KTC is never hidden.
+  diffLabelEl.textContent = fairness.fitMovedIt
+    ? `${bucket} · ${capPct(overallPct).toFixed(0)}% off · KTC ${capPct(pctDiff).toFixed(0)}%`
+    : `${bucket} · ${capPct(pctDiff).toFixed(0)}% off`;
+  diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than KTC value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side.`;
   diffLabelEl.className = 'text-[11px] mt-0.5 ' + bucketColor(bucket, true);
-  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(signedPctDiff, diffBandPct) : '';
-  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, diffBandPct, analysis.resA.fit, analysis.resB.fit);
+  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(fairness.overallSigned, diffBandPct) : '';
+  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
@@ -1830,13 +1785,14 @@ function windowShiftNote(befWin, aftWin) {
 // called "a poor fit" (red) slip through here as merely not-good-not-bad, landing
 // the whole trade in "Solid for One Side, Fine for the Other" even though one side
 // was being told, in red, not to make it.
-function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName, teamBName, avgSideAdj, posResultA, posResultB) {
+// pctDiff is the OVERALL % off (Vault.blendedFairness) and `favored` follows its
+// direction, so a trade fit pushed into Lopsided names the team the blend leans to.
+function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName, teamBName, avgSideAdj, posResultA, posResultB, favored = dValueAdjA >= 0 ? 'A' : 'B') {
   const themeA = Vault.sideTheme(posResultA, resA.dAge, resA.dPicks, resA.mode);
   const themeB = Vault.sideTheme(posResultB, resB.dAge, resB.dPicks, resB.mode);
   const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
 
   if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
-    const favored = dValueAdjA >= 0 ? 'A' : 'B';
     return { tone: 'bad', label: `Unfair — Favors Team ${favored}`, text };
   }
   if (pctDiff >= VAULT_CONFIG.FAIR_PCT) {
@@ -1848,7 +1804,6 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
     // genuinely Lopsided by value — the same badge-vs-label contradiction
     // Vault.historyVerdict had. Gated explicitly rather than trusting the
     // tone cascade to never reach a fit-based label out here.
-    const favored = dValueAdjA >= 0 ? 'A' : 'B';
     return { tone: 'bad', label: `Lopsided — Favors Team ${favored}`, text };
   }
 
@@ -1983,8 +1938,13 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const resB = analyzeSide(before.B, after.B);
   const trade = classifyTrade(resA, resB, aAssets, bAssets, teamA, teamB);
 
-  const heads = {}, wins = {}, posResults = {};
+  const heads = {}, wins = {}, posResults = {}, rosterFit = {}, timelineFit = {};
   [['A', before.A, after.A, resA, dValueAdjA, bAssets, aAssets], ['B', before.B, after.B, resB, dValueAdjB, aAssets, bAssets]].forEach(([side, bef, aft, res, dValueAdj, incoming, outgoing]) => {
+    // analyzeSide's fit so far = age/picks-vs-mode (timeline) + lineup PPG/VORP
+    // shift (roster) — split back apart here for Vault.blendedFairness.
+    const lineupFit = (Vault.optShiftNote(res.mode, res.dOpt)?.fit || 0) + (Vault.vorpShiftNote(res.mode, res.dVorp)?.fit || 0);
+    const ageAndPicksFit = res.fit - lineupFit;
+
     // Positional need/surplus fit for the specific assets moving this direction —
     // what's incoming is judged against the roster BEFORE the trade (does it fill a
     // real hole), what's outgoing is judged against the roster AFTER (does losing it
@@ -2001,6 +1961,8 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     const win = Vault.contentionWindow(aft, pool);
     const shift = windowShiftNote(befWin, win);
     res.fit += shift.fit;
+    rosterFit[side] = posResult.posFit + lineupFit;
+    timelineFit[side] = ageAndPicksFit + archResult.archFit + shift.fit;
 
     // Scanning only `outgoing` (not incoming too) is deliberate: each moving asset
     // is outgoing for exactly one side, so this surfaces once per asset, attributed
@@ -2012,10 +1974,17 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     wins[side] = win;
   });
 
-  const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, pctDiff, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B);
-  const bucket = Vault.fairnessBucket(pctDiff, resA.fit, resB.fit);
+  // Overall fairness = KTC value blended with roster fit and timeline, but never
+  // closer to even than value alone (see Vault.blendedFairness). overallPct is
+  // what gates the badge, verdict, and bar from here on; pctDiff stays the raw
+  // KTC number for the "KTC says X%" readouts.
+  const fairness = Vault.blendedFairness(signedPctDiff, rosterFit.A, rosterFit.B, timelineFit.A, timelineFit.B);
+  const overallPct = fairness.overallPct;
+  const favored = fairness.overallSigned > 0 ? 'B' : 'A';
+  const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, overallPct, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B, favored);
+  const bucket = Vault.fairnessBucket(overallPct, resA.fit, resB.fit);
 
-  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict, bucket };
+  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, overallPct, verdict, bucket };
 }
 
 function toggleOfferedBy(side) {
@@ -2040,7 +2009,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
   document.getElementById('analysisA').classList.remove('hidden');
   document.getElementById('analysisB').classList.remove('hidden');
 
-  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, verdict, bucket } = analysis;
+  const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, bandPct, fairness, overallPct, verdict, bucket } = analysis;
   const displayVerdict = offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
 
   document.getElementById('tradeArchetype').innerHTML = `
@@ -2109,7 +2078,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
   const verdictEl = document.getElementById('tradeVerdict');
   verdictEl.className = `card rounded-2xl p-6 mb-4 border ${verdictBanner(displayVerdict.tone, bucket)}`;
-  const confidenceText = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct, resA.fit, resB.fit);
+  const confidenceText = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, bandPct, resA.fit, resB.fit);
   // Only worth a callout when it'd actually change how a manager reads the number —
   // otherwise it's noise repeating the badge above in slightly different words.
   const needNote = Math.abs(pctDiffNeed - pctDiff) >= 2
@@ -2120,7 +2089,14 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
       <div class="text-[28px] font-semibold leading-tight ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.label}</div>
     </div>
     <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.text}</div>
-    <div class="max-w-sm mt-3">${fairnessBarHtml(signedPctDiff, bandPct)}</div>
+    <div class="max-w-md mt-3">
+      <div class="flex items-center justify-between text-[11px] text-zinc-400 mb-1">
+        <span>Overall</span>
+        <span>${fairness.fitMovedIt ? `${capPct(overallPct).toFixed(0)}% off overall · KTC alone ${capPct(pctDiff).toFixed(0)}%` : `${capPct(pctDiff).toFixed(0)}% off`}</span>
+      </div>
+      ${fairnessBarHtml(fairness.overallSigned, bandPct)}
+      <div class="mt-2.5">${Vault.fairnessBreakdownHtml(fairness, teamA.teamName, teamB.teamName)}</div>
+    </div>
     <div class="text-[11px] text-zinc-400 mt-1.5">${[confidenceText, needNote].filter(Boolean).join(' · ')}</div>`;
 }
 

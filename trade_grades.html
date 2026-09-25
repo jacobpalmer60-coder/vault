@@ -85,57 +85,16 @@ function fairColor(bucket) {
 // (bucket comparisons above still use the real number) so that reads as "100% off"
 // instead of a figure that looks like a bug.
 function capPct(pct) { return Math.sign(pct) * Math.min(100, Math.abs(pct)); }
+// Same fairness bar as the Trade Calculator — lives in Vault.fairnessBarHtml.
+const fairnessBarHtml = (signedPct, bandPct) => Vault.fairnessBarHtml(signedPct, bandPct);
+
 // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand, computed in
 // Vault.gradeTrade) — silent when there's not enough price history to say anything,
 // a plain "±Xpp" when it wouldn't have changed the verdict, a fuller callout when
 // the trade's actual bucket at the time could plausibly have read differently.
-const FAIRNESS_BAR_MAX = 60;
-// Same symmetric, center-out fairness bar as the Trade Calculator (trade.html) —
-// 0% (perfectly even) sits in the MIDDLE, widening through Lopsided into
-// Unfair as the trade favored either side more, instead of a single left-to-
-// right scale with no sense of which direction. The Fair zone is nested the
-// same way the outer zones are — a violet core and a sky ring inside the
-// green, at fixed fractions of FAIR_PCT purely as a visual "closer to
-// dead-even reads better" cue, NOT the same gate as Vault.fairnessBucket's
-// Great/Good (those also require fit) — a reference gradient, same as the
-// fixed Lopsided/Unfair bands, not a live per-trade readout. The marker is a
-// hollow ring, not a filled dot, for that reason — it shows WHERE the trade
-// landed while letting whichever background color it's sitting on show through
-// the middle. The translucent band around it
-// mirrors confidenceBandText's ± range, so both are showing the same
-// uncertainty, just in two forms.
-function fairnessBarHtml(signedPctDiff, bandPct) {
-  const half = FAIRNESS_BAR_MAX;
-  const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
-  const greatHi = toX(VAULT_CONFIG.FAIR_PCT / 3), greatLo = toX(-VAULT_CONFIG.FAIR_PCT / 3);
-  const goodHi = toX(VAULT_CONFIG.FAIR_PCT * 2 / 3), goodLo = toX(-VAULT_CONFIG.FAIR_PCT * 2 / 3);
-  const fairHi = toX(VAULT_CONFIG.FAIR_PCT), fairLo = toX(-VAULT_CONFIG.FAIR_PCT);
-  const lopHi = toX(VAULT_CONFIG.LOPSIDED_PCT), lopLo = toX(-VAULT_CONFIG.LOPSIDED_PCT);
-  const marker = toX(signedPctDiff);
-  const band = bandPct >= 1 ? { lo: toX(signedPctDiff - bandPct), hi: toX(signedPctDiff + bandPct) } : null;
-  // Ring sits outside the clipped track so overflow-hidden can't slice it flat;
-  // its 10px hole matches the track height so it fills with the band color.
-  return `
-    <div class="relative h-4">
-      <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2.5 rounded-full overflow-hidden" style="background: linear-gradient(to right,
-        #fb7185 0%, #fb7185 ${lopLo}%,
-        #fbbf24 ${lopLo}%, #fbbf24 ${fairLo}%,
-        #34d399 ${fairLo}%, #34d399 ${goodLo}%,
-        #38bdf8 ${goodLo}%, #38bdf8 ${greatLo}%,
-        #a78bfa ${greatLo}%, #a78bfa ${greatHi}%,
-        #38bdf8 ${greatHi}%, #38bdf8 ${goodHi}%,
-        #34d399 ${goodHi}%, #34d399 ${fairHi}%,
-        #fbbf24 ${fairHi}%, #fbbf24 ${lopHi}%,
-        #fb7185 ${lopHi}%, #fb7185 100%);">
-        ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${Math.min(band.lo, band.hi)}%; width:${Math.max(0.75, Math.abs(band.hi - band.lo))}%;"></div>` : ''}
-      </div>
-      <div class="absolute top-1/2 size-4 rounded-full border-[3px] border-white ring-1 ring-black/60" style="left:${marker}%; transform: translate(-50%, -50%);"></div>
-    </div>`;
-}
-
 function confidenceBandText(g) {
   if (!g.bandPct || g.bandPct < 1) return '';
-  const lo = Math.max(0, g.pctDiff - g.bandPct), hi = g.pctDiff + g.bandPct;
+  const lo = Math.max(0, g.fairness.overallPct - g.bandPct), hi = g.fairness.overallPct + g.bandPct;
   const bucketLo = fairBucket(lo, g.combinedFitA, g.combinedFitB), bucketHi = fairBucket(hi, g.combinedFitA, g.combinedFitB);
   const text = bucketLo === bucketHi
     ? `±${g.bandPct.toFixed(0)}pp based on price swings in the less-established pieces here`
@@ -274,8 +233,9 @@ function renderCard(g) {
       </div>
       <div class="pt-3 border-t border-white/5">
         <p class="truncate text-[13px] font-bold ${synopsisColor(bucket)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-400 font-normal">(some asset values unavailable)</span>' : ''}</p>
-        <div class="text-[11px] ${fairColor(bucket)} mt-1" title="KTC's own consolidation-adjusted value, before need — the number a manager can check against KTC's own calculator. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Lopsided, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Unfair — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. Great means Fair-by-value AND a strong fit for both sides; Good means Fair-by-value and a strong fit for one side. Weighted by both teams' roster needs instead of raw value, this trade reads as ${capPct(g.pctDiffNeed).toFixed(0)}% off.">${bucket} · ${capPct(g.pctDiff).toFixed(0)}% off</div>
-        <div class="max-w-[200px] mt-1.5">${fairnessBarHtml(g.signedPctDiff, g.bandPct)}</div>
+        <div class="text-[11px] ${fairColor(bucket)} mt-1" title="Overall % off: KTC value blended with roster fit and timeline, but never closer to even than KTC value alone (the number a manager can check on KeepTradeCut). Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% is Lopsided, and ${VAULT_CONFIG.LOPSIDED_PCT}%+ is Unfair — cutoffs calibrated against ~25,000 real trades from KeepTradeCut's trade database. Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side. Weighted by both teams' roster needs instead of raw value, this trade reads as ${capPct(g.pctDiffNeed).toFixed(0)}% off. Weights: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline.">${bucket} · ${g.fairness.fitMovedIt ? `${capPct(g.fairness.overallPct).toFixed(0)}% off · KTC ${capPct(g.pctDiff).toFixed(0)}%` : `${capPct(g.pctDiff).toFixed(0)}% off`}</div>
+        <div class="max-w-sm mt-1.5">${fairnessBarHtml(g.fairness.overallSigned, g.bandPct)}</div>
+        <div class="max-w-sm mt-2">${Vault.fairnessBreakdownHtml(g.fairness, g.teamA.teamName, g.teamB.teamName)}</div>
         ${confidenceBandText(g)}
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
@@ -292,9 +252,9 @@ function renderCard(g) {
 
 const FAIR_FILTER_TITLE = {
   All: 'Every completed trade, any value gap.',
-  Great: `Under ${VAULT_CONFIG.FAIR_PCT}% off in raw value, AND a strong fit for both sides.`,
-  Good: `Under ${VAULT_CONFIG.FAIR_PCT}% off in raw value, AND a strong fit for at least one side.`,
-  Fair: `Under ${VAULT_CONFIG.FAIR_PCT}% off in raw value.`,
+  Great: `Under ${VAULT_CONFIG.FAIR_PCT}% off overall, AND a strong fit for both sides.`,
+  Good: `Under ${VAULT_CONFIG.FAIR_PCT}% off overall, AND a strong fit for at least one side.`,
+  Fair: `Under ${VAULT_CONFIG.FAIR_PCT}% off overall.`,
   Lopsided: `${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% off — a real tilt, but within normal give-and-take.`,
   Unfair: `${VAULT_CONFIG.LOPSIDED_PCT}%+ off — one side clearly came out ahead on real value.`
 };
@@ -313,7 +273,7 @@ function setSort(k) { sortKey = k; renderFilters(); renderList(); }
 
 function renderList() {
   let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => g.bucket === fairFilter);
-  items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.pctDiff - a.pctDiff : b.created - a.created);
+  items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.fairness.overallPct - a.fairness.overallPct : b.created - a.created);
 
   const list = document.getElementById('list');
   const empty = document.getElementById('empty');
