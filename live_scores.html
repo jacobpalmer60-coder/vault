@@ -340,12 +340,24 @@ function renderWeeklyLeaders(rosterMap, userMap) {
 // not just whichever matchup happens to be expanded. Checked against each
 // player's real NFL team so a common surname can't false-match a different
 // player of the same name on another team.
+//
+// Each play line also gets that PLAYER's own fantasy point change since the last
+// poll (playerPointDeltas), not a point value reconstructed from the play text
+// itself — ESPN's play text has no fantasy-scoring info in it, and re-deriving
+// one from raw stats through this league's own scoring settings per play would
+// be exactly the fragile guesswork this feed has always avoided (see
+// allRosteredCandidates). Sleeper's players_points is the same real, already-
+// correctly-scored number every other panel on this page trusts. A player can
+// rack up several plays inside one 30s poll window with only ONE combined point
+// change to show for it, so the delta badge only appears on their MOST RECENT
+// play line (first in this reversed, newest-first list) — repeating the same
+// total on every older line for the same player would just be noise.
 function renderLiveFeed(rosterMap, userMap) {
   const candidates = allRosteredCandidates(rosterMap, userMap).filter(c => c.pattern);
   const found = [];
   allLivePlays().forEach(play => {
     candidates.forEach(c => {
-      if (play.teamAbbr === c.team && play.text.includes(c.pattern)) found.push({ ...play, player: c.name, teamName: c.teamName });
+      if (play.teamAbbr === c.team && play.text.includes(c.pattern)) found.push({ ...play, player: c.name, teamName: c.teamName, pid: c.pid });
     });
   });
   const recent = found.slice(-25).reverse();
@@ -354,14 +366,21 @@ function renderLiveFeed(rosterMap, userMap) {
     panel.innerHTML = `<div class="text-zinc-400 text-[12px] py-10 text-center">${espnGames.size ? 'No plays yet involving your rostered players.' : 'No games in progress right now.'}</div>`;
     return;
   }
-  panel.innerHTML = recent.map(p => `
+  const shown = new Set();
+  panel.innerHTML = recent.map(p => {
+    const delta = playerPointDeltas.get(p.pid) || 0;
+    const showDelta = !shown.has(p.pid) && Math.abs(delta) >= 0.05;
+    if (showDelta) shown.add(p.pid);
+    return `
     <div class="py-2 border-b border-white/5 last:border-0">
-      <div class="flex items-center gap-2 mb-0.5">
+      <div class="flex items-center gap-2 mb-0.5 flex-wrap">
         <span class="text-[12px] font-medium text-zinc-100">${Vault.escapeHtml(p.player)}</span>
         <span class="text-[10px] text-zinc-400">${Vault.escapeHtml(p.teamName)}</span>
+        ${showDelta ? `<span class="text-[16px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="This player's fantasy point change since the last update">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</span>` : ''}
       </div>
       <div class="text-[11px] text-zinc-400 leading-snug">${Vault.escapeHtml(p.text)}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function teamNameFor(rosterId, rosterMap, userMap) {
@@ -419,10 +438,6 @@ function toggleExpand(key) {
   render();
 }
 
-// Groups this week's per-roster rows (Sleeper's raw matchups response, one row
-// per roster) into head-to-head pairs by matchup_id — two rosters sharing an id
-// are opponents. A roster with no partner (an odd team count, or a bye built into
-// the schedule) renders as its own "bye week" card instead of being dropped.
 // Per-roster point change since the LAST poll (not since kickoff) — the whole
 // point is "what just happened," so it's diffed against whatever score this
 // roster had the previous time fetchWeek ran, not the week's starting total.
@@ -442,6 +457,29 @@ function updateScoreDeltas() {
   scoreDeltas = next;
 }
 
+// Same idea, per PLAYER instead of per team — this is what lets the Live Feed
+// show a player's own point change next to their play (see renderLiveFeed).
+// Reuses Sleeper's own players_points off every roster's matchup row, the same
+// real, already-correctly-scored number the rest of this page trusts.
+let knownPlayerPoints = new Map(); // pid -> points as of the last poll
+let playerPointDeltas = new Map(); // pid -> last computed change
+function updatePlayerPointDeltas() {
+  const next = new Map();
+  lastMatchups.forEach(m => {
+    Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
+      const curr = pts || 0;
+      const prev = knownPlayerPoints.has(pid) ? knownPlayerPoints.get(pid) : curr;
+      next.set(pid, curr - prev);
+      knownPlayerPoints.set(pid, curr);
+    });
+  });
+  playerPointDeltas = next;
+}
+
+// Groups this week's per-roster rows (Sleeper's raw matchups response, one row
+// per roster) into head-to-head pairs by matchup_id — two rosters sharing an id
+// are opponents. A roster with no partner (an odd team count, or a bye built into
+// the schedule) renders as its own "bye week" card instead of being dropped.
 let lastMatchups = [];
 function buildPairs() {
   const byMatchup = new Map();
@@ -574,6 +612,7 @@ async function fetchWeek(w) {
   lastMatchups = matchups || [];
   lastUpdated = Date.now();
   updateScoreDeltas();
+  updatePlayerPointDeltas();
   render();
   updateStatus();
   // Live plays only mean anything for the week actually being played right now —
@@ -592,6 +631,8 @@ function setWeek(w) {
   // meaningless "change."
   knownScores.clear();
   scoreDeltas.clear();
+  knownPlayerPoints.clear();
+  playerPointDeltas.clear();
   fetchWeek(week);
 }
 
