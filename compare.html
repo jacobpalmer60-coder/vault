@@ -8,15 +8,20 @@
 <link rel="stylesheet" href="vault.css">
 <link rel="stylesheet" href="tailwind.css">
 <style>
-  /* Two series, validated for this dark surface (dataviz validator: CVD ΔE 26.8,
-     normal-vision ΔE 31.8, both ≥ 3:1 contrast). Series color marks identity
-     only; every number stays in text colors. */
-  :root { --p1: #3987e5; --p2: #d95926; }
+  /* Up to four series, in the dataviz reference order for dark surfaces
+     (blue, orange, aqua, yellow), validated on this card surface for adjacent
+     pairs. No four-color set clears every pair, so lines 3 and 4 are also
+     dashed/dotted and every line carries a direct end label — identity never
+     rests on color alone. Series color marks identity only; numbers stay in
+     text colors. */
+  :root { --p1: #3987e5; --p2: #d95926; --p3: #199e70; --p4: #c98500; }
   .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-  .sw1 { background: var(--p1); } .sw2 { background: var(--p2); }
+  .sw1 { background: var(--p1); } .sw2 { background: var(--p2); } .sw3 { background: var(--p3); } .sw4 { background: var(--p4); }
   .ring1 { box-shadow: inset 0 3px 0 var(--p1); } .ring2 { box-shadow: inset 0 3px 0 var(--p2); }
+  .ring3 { box-shadow: inset 0 3px 0 var(--p3); } .ring4 { box-shadow: inset 0 3px 0 var(--p4); }
   .win { font-weight: 600; color: #fafafa; }
   #chartTip { pointer-events: none; }
+  input[type=date] { color-scheme: dark; }
 </style>
 </head>
 <body class="text-zinc-100 antialiased">
@@ -37,12 +42,9 @@
   </div>
   <p id="tradeNote" class="hidden text-[11px] text-zinc-400 -mt-3 mb-4 text-right"></p>
 
-  <!-- Pickers -->
-  <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 mb-5">
-    <div class="relative" id="pick1"></div>
-    <button onclick="swapPlayers()" title="Swap sides" aria-label="Swap sides" class="size-9 rounded-full border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">⇄</button>
-    <div class="relative" id="pick2"></div>
-  </div>
+  <!-- Pickers: 2 to 4 players -->
+  <div id="pickers" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2"></div>
+  <div class="mb-5"><button id="addBtn" onclick="addPlayer()" class="hidden text-[12px] px-3 py-1.5 rounded-lg border border-dashed border-white/15 text-zinc-400 hover:text-white hover:border-white/30">+ Add a player</button></div>
 
   <div id="content" class="hidden space-y-5">
     <div id="cards" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
@@ -50,32 +52,44 @@
     <section class="card rounded-vault-sm p-5">
       <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h2 class="text-[15px] font-semibold text-zinc-100">Value over time</h2>
-        <div id="windowBtns" class="flex gap-1.5"></div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <div id="windowBtns" class="flex gap-1.5"></div>
+          <label class="flex items-center gap-1.5 text-[11px] text-zinc-400 ml-1">From <input id="dateFrom" type="date" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-zinc-300"></label>
+          <label class="flex items-center gap-1.5 text-[11px] text-zinc-400">To <input id="dateTo" type="date" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-zinc-300"></label>
+        </div>
       </div>
       <div id="legend" class="flex flex-wrap gap-4 text-[12px] text-zinc-300 mb-2"></div>
       <div id="chartWrap" class="relative">
-        <svg id="chart" class="w-full block" role="img" aria-label="Value over time for both players"></svg>
+        <svg id="chart" class="w-full block" role="img" aria-label="Value over time for the selected players"></svg>
         <div id="chartTip" class="hidden absolute top-0 z-10 rounded-lg border border-white/10 bg-[#0b0c0f] px-3 py-2 text-[12px] shadow-lg"></div>
       </div>
-      <p class="text-[11px] text-zinc-400 mt-2">KeepTradeCut value in your league's format, one point per day. Hover or tap the chart for exact values.</p>
+      <p class="text-[11px] text-zinc-400 mt-2">KeepTradeCut value in your league's format, one point per day. Pick a preset or your own dates; hover or tap the chart for exact values.</p>
     </section>
 
     <section class="card rounded-vault-sm p-5">
       <h2 class="text-[15px] font-semibold text-zinc-100 mb-3">Head to head</h2>
       <div class="overflow-x-auto"><table id="h2h" class="w-full text-[13px]"></table></div>
-      <p class="text-[11px] text-zinc-400 mt-2">The better side of each row is marked with its player's color. Age, experience, and price swing aren't marked — which is better depends on your plan.</p>
+      <p class="text-[11px] text-zinc-400 mt-2">The best value in each row is marked with its player's color. Age, experience, and price swing aren't marked — which is better depends on your plan.</p>
     </section>
 
     <section class="card rounded-vault-sm p-5">
       <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <h2 class="text-[15px] font-semibold text-zinc-100">Season stats</h2>
-        <div class="flex flex-wrap gap-2">
+        <h2 class="text-[15px] font-semibold text-zinc-100">Stats</h2>
+        <div class="flex flex-wrap items-center gap-2">
           <select id="seasonPick" aria-label="Season" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-zinc-300"></select>
+          <span id="weekPicks" class="hidden flex items-center gap-1.5 text-[11px] text-zinc-400">
+            Weeks <select id="weekFrom" aria-label="From week" class="bg-black/60 border border-white/10 rounded-lg px-1.5 py-1 text-[12px] text-zinc-300"></select>
+            to <select id="weekTo" aria-label="To week" class="bg-black/60 border border-white/10 rounded-lg px-1.5 py-1 text-[12px] text-zinc-300"></select>
+          </span>
           <div id="modeBtns" class="flex gap-1.5"></div>
         </div>
       </div>
       <div class="overflow-x-auto"><table id="stats" class="w-full text-[13px]"></table></div>
-      <p id="statsNote" class="text-[11px] text-zinc-400 mt-2">Fantasy points use your league's scoring settings. Position finish is by total points that season.</p>
+      <p id="statsNote" class="text-[11px] text-zinc-400 mt-2"></p>
+      <div id="gameLogWrap" class="hidden">
+        <h3 class="text-[13px] font-semibold text-zinc-200 mt-5 mb-2">Game log <span class="text-zinc-400 font-normal">— fantasy points in your scoring</span></h3>
+        <div class="overflow-x-auto"><table id="gameLog" class="w-full text-[13px]"></table></div>
+      </div>
       <h3 class="text-[13px] font-semibold text-zinc-200 mt-5 mb-2">Points per game by season</h3>
       <div class="overflow-x-auto"><table id="bySeason" class="w-full text-[13px]"></table></div>
     </section>
@@ -86,17 +100,22 @@
 <script src="vault-nav.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-let universe = [];          // every KTC-ranked player, priced/projected for this league
-let byNorm = new Map();
-let picked = [null, null];  // norms
-let histSnaps = [], isSF = true, tep = 0, scoring = {}, leagueId = '', teamsBuilt = [];
-let windowDays = 365, statMode = 'game', statSeason = 'career';
-const seasonFinish = new Map(); // "pid-year" -> { points, gp, posRank }
+const MAX_PLAYERS = 4;
+const DASH = ['', '', '7 4', '1.5 4'];   // lines 3-4 dashed/dotted: identity without color
+let universe = [], byNorm = new Map();
+let picked = [];            // 2-4 player norms
+let histSnaps = [], isSF = true, tep = 0, scoring = {}, leagueId = '', teamsBuilt = [], currentSeason = '';
+let windowDays = 365, customRange = null;   // customRange: { from, to } ISO dates
+let statMode = 'game', statSeason = 'career', weekFrom = 1, weekTo = 18;
+let lastHistorySeason = '';
+const seasonFinish = new Map();  // "pid-year" -> { points, gp, posRank }
+const weeklyCache = new Map();   // "pid-season" -> Promise<{ week: entry|null }>
 
 const WINDOWS = [['3mo', 90], ['6mo', 180], ['1yr', 365], ['All', Infinity]];
 const fmt = n => Number.isFinite(n) ? Math.round(n).toLocaleString() : '—';
 const signed = n => Number.isFinite(n) ? (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(Math.round(n)).toLocaleString() : '—';
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const players = () => picked.map(n => byNorm.get(n)).filter(Boolean);
 
 async function init() {
   leagueId = Vault.getLeagueId();
@@ -106,6 +125,7 @@ async function init() {
     const league = built.league;
     scoring = league.scoring_settings || {};
     tep = scoring.bonus_rec_te;
+    currentSeason = String(league.season);
     const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(tep);
     const [{ ktcData, projData }, hist, careers, sleeper] = await Promise.all([
       Vault.fetchValueSheets(), Vault.fetchPlayerValueHistory(isSF, tep), Vault.fetchPlayerHistory(), Vault.fetchSleeperPlayers()
@@ -114,7 +134,6 @@ async function init() {
     const volatility = Vault.buildPlayerVolatilityMap(histSnaps, isSF, tep);
     const ppgByName = Vault.buildProjectedPpgMapByName(projData, scoring);
 
-    // Who rosters whom, by Sleeper id and by name.
     const ownerById = new Map(), ownerByName = new Map();
     teamsBuilt.forEach(t => t.plist.forEach(p => { ownerById.set(p.id, t); ownerByName.set(Vault.normalizeName(p.name), t); }));
     const pidByName = new Map(), expByName = new Map();
@@ -133,6 +152,7 @@ async function init() {
     }));
     byYear.forEach((rows, yr) => ['QB', 'RB', 'WR', 'TE'].forEach(pos =>
       rows.filter(r => r.pos === pos).sort((a, b) => b.points - a.points).forEach((r, i) => seasonFinish.set(`${r.pid}-${yr}`, { ...r, posRank: i + 1 }))));
+    lastHistorySeason = [...byYear.keys()].sort().pop() || '';
 
     universe = (ktcData.players || []).filter(p => ['QB', 'RB', 'WR', 'TE'].includes(p.pos)).map(p => {
       const norm = Vault.normalizeName(p.name);
@@ -147,7 +167,6 @@ async function init() {
         seasons: pid ? (careers.players?.[pid]?.seasons || null) : null
       };
     }).filter(p => Number.isFinite(p.value));
-    // Position ranks: by value, and by projected points.
     ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
       const atPos = universe.filter(p => p.pos === pos);
       [...atPos].sort((a, b) => b.value - a.value).forEach((p, i) => { p.valueRank = i + 1; });
@@ -156,14 +175,8 @@ async function init() {
     byNorm = new Map(universe.map(p => [p.norm, p]));
 
     $('status').textContent = `${universe.length} players • ${league.name} • ${isSF ? 'Superflex' : '1QB'}${Vault.ktcTepSuffix(tep) ? ', TE premium' : ''}`;
-    picked = defaultPair();
-    buildPicker(0); buildPicker(1);
-    $('windowBtns').innerHTML = WINDOWS.map(([l, d]) => `<button data-days="${d}" class="win-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
-    document.querySelectorAll('.win-btn').forEach(b => b.onclick = () => { windowDays = +b.dataset.days; renderChart(); });
-    $('modeBtns').innerHTML = [['game', 'Per game'], ['total', 'Totals']].map(([k, l]) => `<button data-mode="${k}" class="mode-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
-    document.querySelectorAll('.mode-btn').forEach(b => b.onclick = () => { statMode = b.dataset.mode; renderStats(); });
-    $('seasonPick').onchange = () => { statSeason = $('seasonPick').value; renderStats(); };
-    window.addEventListener('resize', () => renderChart());
+    picked = defaultPlayers();
+    setupControls();
     renderAll();
   } catch (e) {
     console.error(e);
@@ -172,31 +185,63 @@ async function init() {
   }
 }
 
-// ?p=norm1,norm2 from a shared link; otherwise your team's most valuable player
-// against the closest-valued player at the same position on another roster.
-function defaultPair() {
-  const fromUrl = (new URLSearchParams(location.search).get('p') || '').split(',').map(decodeURIComponent).filter(n => byNorm.has(n));
-  if (fromUrl.length === 2) return fromUrl;
+// ?p=norm1,...,normN from a shared link (2-4 players); one player in the link
+// is the anchor; otherwise your best player, against the closest-valued player
+// at the same position on another roster.
+function defaultPlayers() {
+  const fromUrl = [...new Set((new URLSearchParams(location.search).get('p') || '').split(',').map(decodeURIComponent).filter(n => byNorm.has(n)))].slice(0, MAX_PLAYERS);
+  if (fromUrl.length >= 2) return fromUrl;
   const mine = Vault.myTeam(teamsBuilt);
   const top = [...universe].sort((a, b) => b.value - a.value);
-  // One player in the link (e.g. from Player Rankings) is the anchor; otherwise your best player.
   const first = (fromUrl[0] && byNorm.get(fromUrl[0])) || (mine && top.find(p => p.owner === mine)) || top[0];
   const rival = top.filter(p => p !== first && p.pos === first.pos && p.owner !== first.owner)
     .sort((a, b) => Math.abs(a.value - first.value) - Math.abs(b.value - first.value))[0] || top.find(p => p !== first);
   return [first.norm, rival.norm];
 }
 
-function buildPicker(i) {
-  const box = $(i === 0 ? 'pick1' : 'pick2');
-  box.innerHTML = `<div class="flex items-center gap-2 bg-black/50 border border-white/10 rounded-xl px-3 py-2 focus-within:border-amber-500/60">
-      <span class="sw sw${i + 1}"></span>
-      <input type="text" autocomplete="off" placeholder="Search a player…" aria-label="Player ${i + 1}" class="flex-1 min-w-0 bg-transparent outline-none text-[14px]">
-    </div>
-    <div class="hidden absolute left-0 right-0 top-full mt-1 z-20 max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-[#111317] scrollbar" role="listbox"></div>`;
+function setupControls() {
+  $('windowBtns').innerHTML = WINDOWS.map(([l, d]) => `<button data-days="${d}" class="win-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
+  document.querySelectorAll('.win-btn').forEach(b => b.onclick = () => { windowDays = +b.dataset.days; customRange = null; renderChart(); });
+  const minD = histSnaps[0]?.date, maxD = histSnaps[histSnaps.length - 1]?.date;
+  ['dateFrom', 'dateTo'].forEach(id => { $(id).min = minD; $(id).max = maxD; });
+  const onDate = () => {
+    const from = $('dateFrom').value || minD, to = $('dateTo').value || maxD;
+    if (from > to) { $('dateTo').value = from; }
+    customRange = { from, to: $('dateTo').value || maxD };
+    renderChart();
+  };
+  $('dateFrom').onchange = onDate; $('dateTo').onchange = onDate;
+
+  $('modeBtns').innerHTML = [['game', 'Per game'], ['total', 'Totals']].map(([k, l]) => `<button data-mode="${k}" class="mode-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
+  document.querySelectorAll('.mode-btn').forEach(b => b.onclick = () => { statMode = b.dataset.mode; renderStats(); });
+  $('seasonPick').onchange = () => { statSeason = $('seasonPick').value; weekFrom = 1; weekTo = 18; renderStats(); };
+  $('weekFrom').onchange = () => { weekFrom = +$('weekFrom').value; if (weekFrom > weekTo) weekTo = weekFrom; renderStats(); };
+  $('weekTo').onchange = () => { weekTo = +$('weekTo').value; if (weekTo < weekFrom) weekFrom = weekTo; renderStats(); };
+  window.addEventListener('resize', () => renderChart());
+}
+
+// ---- Pickers ----
+function renderPickers() {
+  $('pickers').innerHTML = picked.map((n, i) => `<div class="relative" data-slot="${i}">
+      <div class="flex items-center gap-2 bg-black/50 border border-white/10 rounded-xl px-3 py-2 focus-within:border-amber-500/60">
+        <span class="sw sw${i + 1}"></span>
+        <input type="text" autocomplete="off" placeholder="Search a player…" aria-label="Player ${i + 1}" class="flex-1 min-w-0 bg-transparent outline-none text-[14px]">
+        ${picked.length > 2 ? `<button type="button" data-remove="${i}" aria-label="Remove player ${i + 1}" class="text-zinc-500 hover:text-rose-300 text-[14px] leading-none px-1">✕</button>` : ''}
+      </div>
+      <div class="hidden absolute left-0 right-0 top-full mt-1 z-20 max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-[#111317] scrollbar" role="listbox"></div>
+    </div>`).join('');
+  document.querySelectorAll('#pickers [data-slot]').forEach(box => wirePicker(box, +box.dataset.slot));
+  document.querySelectorAll('#pickers [data-remove]').forEach(b => b.onclick = () => { picked.splice(+b.dataset.remove, 1); renderAll(); });
+  $('addBtn').classList.toggle('hidden', picked.length >= MAX_PLAYERS);
+}
+
+function wirePicker(box, i) {
   const input = box.querySelector('input'), list = box.querySelector('[role=listbox]');
+  input.value = byNorm.get(picked[i])?.name || '';
   const show = () => {
     const q = Vault.normalizeName(input.value);
-    const matches = universe.filter(p => !q || p.norm.includes(q)).sort((a, b) => b.value - a.value).slice(0, 12);
+    const taken = new Set(picked.filter((_, k) => k !== i));
+    const matches = universe.filter(p => !taken.has(p.norm) && (!q || p.norm.includes(q))).sort((a, b) => b.value - a.value).slice(0, 12);
     list.innerHTML = matches.map(p => `<button type="button" data-norm="${p.norm}" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[13px] hover:bg-white/5">
         <span class="flex items-center gap-2 min-w-0"><span class="inline-flex px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span><span class="truncate">${Vault.escapeHtml(p.name)}</span><span class="text-zinc-500 text-[11px]">${p.team}</span></span>
         <span class="mono text-[12px] text-zinc-400">${fmt(p.value)}</span></button>`).join('') || '<div class="px-3 py-2 text-[12px] text-zinc-400">No match</div>';
@@ -213,33 +258,40 @@ function buildPicker(i) {
   };
 }
 
-function swapPlayers() { picked = [picked[1], picked[0]]; renderAll(); }
+// A new slot starts on the most valuable same-position player not already picked,
+// then focuses its search box so you can type over it.
+function addPlayer() {
+  if (picked.length >= MAX_PLAYERS) return;
+  const pos = byNorm.get(picked[0])?.pos;
+  const next = [...universe].sort((a, b) => b.value - a.value).find(p => !picked.includes(p.norm) && p.pos === pos) || universe.find(p => !picked.includes(p.norm));
+  picked.push(next.norm);
+  renderAll();
+  document.querySelector(`#pickers [data-slot="${picked.length - 1}"] input`)?.focus();
+}
 
 function renderAll() {
-  const [a, b] = picked.map(n => byNorm.get(n));
-  if (!a || !b) return;
-  document.querySelectorAll('#pick1 input, #pick2 input').forEach((el, i) => { el.value = [a, b][i].name; });
-  const url = `${location.pathname}?league_id=${encodeURIComponent(leagueId)}&p=${picked.map(encodeURIComponent).join(',')}`;
-  history.replaceState(null, '', url);
+  const ps = players();
+  if (ps.length < 2) return;
+  renderPickers();
+  history.replaceState(null, '', `${location.pathname}?league_id=${encodeURIComponent(leagueId)}&p=${picked.map(encodeURIComponent).join(',')}`);
   $('content').classList.remove('hidden');
   $('shareBtn').classList.remove('hidden');
-  renderTradeLink(a, b);
-  renderCards(a, b);
+  renderTradeLink(ps);
+  renderCards(ps);
   renderChart();
-  renderH2H(a, b);
-  renderSeasonPicker(a, b);
+  renderH2H(ps);
+  renderSeasonPicker(ps);
   renderStats();
 }
 
-// Both on different teams in this league: one click builds the 1-for-1 in the
-// Trade Calculator (your team on side A when it's one of them).
-function renderTradeLink(a, b) {
+// Exactly two players on different teams in this league: one click builds the
+// 1-for-1 in the Trade Calculator (your team on side A when it's one of them).
+function renderTradeLink(ps) {
   const btn = $('tradeBtn'), note = $('tradeNote');
-  let reason = '';
-  if (!a.owner || !b.owner) reason = `${!a.owner ? a.name : b.name} isn't on a roster in this league`;
-  else if (a.owner === b.owner) reason = `Both are on ${a.owner.teamName}`;
-  else if (!a.pid || !b.pid) reason = 'One of these players couldn\'t be matched to Sleeper';
-  if (reason) { btn.classList.add('hidden'); note.classList.add('hidden'); return; }
+  btn.classList.add('hidden'); note.classList.add('hidden');
+  if (ps.length !== 2) return;
+  const [a, b] = ps;
+  if (!a.owner || !b.owner || a.owner === b.owner || !a.pid || !b.pid) return;
   const mine = Vault.myTeam(teamsBuilt);
   const [x, y] = mine && b.owner === mine ? [b, a] : [a, b];
   const p = new URLSearchParams({ league_id: leagueId, a: x.owner.rosterId, b: y.owner.rosterId, give_a: 'p_' + x.pid, give_b: 'p_' + y.pid });
@@ -256,8 +308,8 @@ function ownerLine(p) {
   return `On ${Vault.escapeHtml(p.owner.teamName)}${mine === p.owner ? ' <span class="align-middle ml-1 text-[10px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}`;
 }
 
-function renderCards(a, b) {
-  $('cards').innerHTML = [a, b].map((p, i) => `
+function renderCards(ps) {
+  $('cards').innerHTML = ps.map((p, i) => `
     <div class="card rounded-vault-sm p-5 ring${i + 1}">
       <div class="flex items-start justify-between gap-3">
         <img src="${p.pid ? `https://sleepercdn.com/content/nfl/players/${p.pid}.jpg` : 'https://sleepercdn.com/images/v2/icons/player_default.webp'}" alt=""
@@ -283,38 +335,43 @@ function renderCards(a, b) {
     </div>`).join('');
 }
 
-// Value series for one player across the loaded history, in this league's format.
+// ---- Value chart ----
 function seriesFor(norm) {
   return histSnaps.map(s => ({ date: s.date, v: Vault.resolveHistoricalValue(s.players?.[norm], isSF, tep) }));
 }
+const legendMark = i => `<svg width="18" height="10" aria-hidden="true"><line x1="1" y1="5" x2="17" y2="5" stroke="var(--p${i + 1})" stroke-width="2.5" stroke-linecap="round" ${DASH[i] ? `stroke-dasharray="${DASH[i]}"` : ''}/></svg>`;
 
 function renderChart() {
-  const [a, b] = picked.map(n => byNorm.get(n));
-  if (!a || !b) return;
+  const ps = players();
+  if (ps.length < 2) return;
   document.querySelectorAll('.win-btn').forEach(btn => {
-    const on = +btn.dataset.days === windowDays;
+    const on = !customRange && +btn.dataset.days === windowDays;
     btn.className = `win-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
   });
-  const all = [seriesFor(a.norm), seriesFor(b.norm)];
-  const lastDate = histSnaps.length ? new Date(histSnaps[histSnaps.length - 1].date) : new Date();
-  const cutoff = Number.isFinite(windowDays) ? new Date(lastDate - windowDays * 864e5) : null;
-  // Start the window where at least one player has a value, so "All" doesn't
-  // open on years of empty space before either was ranked.
-  let idx0 = histSnaps.findIndex(s => !cutoff || new Date(s.date) >= cutoff);
+  const all = ps.map(p => seriesFor(p.norm));
+  const lastDate = histSnaps.length ? histSnaps[histSnaps.length - 1].date : '';
+  let fromDate, toDate = lastDate;
+  if (customRange) { fromDate = customRange.from; toDate = customRange.to; }
+  else if (Number.isFinite(windowDays)) fromDate = new Date(new Date(lastDate) - windowDays * 864e5).toISOString().slice(0, 10);
+  let idx0 = fromDate ? histSnaps.findIndex(s => s.date >= fromDate) : 0;
+  let idx1 = histSnaps.length - 1; while (idx1 > 0 && histSnaps[idx1].date > toDate) idx1--;
+  // Start where at least one player has a value, so a wide window doesn't open
+  // on years of empty space before any of them was ranked.
   const firstVal = Math.min(...all.map(ser => { const k = ser.findIndex(x => x.v != null); return k < 0 ? Infinity : k; }));
   idx0 = Math.max(idx0 < 0 ? 0 : idx0, Number.isFinite(firstVal) ? firstVal : 0);
-  const series = all.map(ser => ser.slice(idx0));
+  const series = all.map(ser => ser.slice(idx0, idx1 + 1));
   const dates = series[0].map(x => x.date);
+  if (!customRange && dates.length) { $('dateFrom').value = dates[0]; $('dateTo').value = dates[dates.length - 1]; }
   const vals = series.flat().map(x => x.v).filter(v => v != null);
 
-  $('legend').innerHTML = [a, b].map((p, i) => `<span class="inline-flex items-center gap-2"><span class="sw sw${i + 1}"></span>${Vault.escapeHtml(p.name)}</span>`).join('');
+  $('legend').innerHTML = ps.map((p, i) => `<span class="inline-flex items-center gap-2">${legendMark(i)}${Vault.escapeHtml(p.name)}</span>`).join('');
   const svg = $('chart'), wrap = $('chartWrap');
   // Drawn at the real container width so text never gets scaled below 11px.
-  const W = Math.max(240, wrap.clientWidth), H = W < 500 ? 220 : 280;
-  const m = { l: 46, r: 70, t: 12, b: 26 };
+  const W = Math.max(240, wrap.clientWidth), H = W < 500 ? 230 : 290;
+  const m = { l: 46, r: 72, t: 12, b: 26 };
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('height', H);
-  if (!vals.length || dates.length < 2) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#a1a1aa" font-size="12" text-anchor="middle">Not enough price history for this window</text>`; return; }
+  if (!vals.length || dates.length < 2) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#a1a1aa" font-size="12" text-anchor="middle">No price history in this date range</text>`; return; }
 
   // Nice y range: padded, rounded to a step (a line chart doesn't need a zero baseline).
   let lo = Math.min(...vals), hi = Math.max(...vals);
@@ -327,52 +384,47 @@ function renderChart() {
 
   const grid = [];
   for (let v = lo; v <= hi + 1e-9; v += step) grid.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(255,255,255,0.06)"/><text x="${m.l - 8}" y="${y(v) + 4}" fill="#a1a1aa" font-size="11" text-anchor="end" font-family="JetBrains Mono, monospace">${Math.round(v).toLocaleString()}</text>`);
+  const spanDays = (new Date(dates[dates.length - 1]) - new Date(dates[0])) / 864e5;
+  const fmtTick = d => new Date(d + 'T12:00:00').toLocaleDateString(undefined, spanDays < 120 ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' });
   const nTicks = W < 500 ? 3 : 5;
-  const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
   for (let k = 0; k < nTicks; k++) {
     const i = Math.round(k * (dates.length - 1) / (nTicks - 1));
-    grid.push(`<text x="${x(i)}" y="${H - 6}" fill="#a1a1aa" font-size="11" text-anchor="${k === 0 ? 'start' : k === nTicks - 1 ? 'end' : 'middle'}">${fmtDate(dates[i])}</text>`);
+    grid.push(`<text x="${x(i)}" y="${H - 6}" fill="#a1a1aa" font-size="11" text-anchor="${k === 0 ? 'start' : k === nTicks - 1 ? 'end' : 'middle'}">${fmtTick(dates[i])}</text>`);
   }
   // Lines break over gaps (days a player wasn't ranked) instead of bridging them.
   const path = ser => { let d = '', pen = false; ser.forEach((pt, i) => { if (pt.v == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(pt.v).toFixed(1)}`; pen = true; }); return d; };
-  const endLabel = (ser, i, p) => {
-    let k = ser.length - 1; while (k >= 0 && ser[k].v == null) k--;
-    if (k < 0) return '';
-    return `<text data-end="${i}" x="${x(k) + 6}" y="${y(ser[k].v) + 4}" fill="#e4e4e7" font-size="11">${Vault.escapeHtml(p.name.split(' ').slice(-1)[0])}</text>`;
-  };
+  // End labels, pushed apart so none overlap (at least 13px between baselines).
+  const ends = series.map((ser, i) => { let k = ser.length - 1; while (k >= 0 && ser[k].v == null) k--; return k < 0 ? null : { i, x: x(k) + 6, y: y(ser[k].v) + 4 }; }).filter(Boolean).sort((p, q) => p.y - q.y);
+  for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 13) ends[k].y = ends[k - 1].y + 13;
+  const overflow = ends.length ? ends[ends.length - 1].y - (H - m.b) : 0;
+  if (overflow > 0) ends.forEach(e => { e.y -= overflow; });
   svg.innerHTML = `${grid.join('')}
-    ${series.map((ser, i) => `<path d="${path(ser)}" fill="none" stroke="var(--p${i + 1})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}
-    ${series.map((ser, i) => endLabel(ser, i, [a, b][i])).join('')}
+    ${series.map((ser, i) => `<path d="${path(ser)}" fill="none" stroke="var(--p${i + 1})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" ${DASH[i] ? `stroke-dasharray="${DASH[i]}"` : ''}/>`).join('')}
+    ${ends.map(e => `<text x="${e.x}" y="${e.y}" fill="#e4e4e7" font-size="11">${Vault.escapeHtml(ps[e.i].name.split(' ').slice(-1)[0])}</text>`).join('')}
     <line id="xhair" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" stroke="rgba(255,255,255,0.25)" visibility="hidden"/>
-    ${[0, 1].map(i => `<circle id="dot${i}" r="4" fill="var(--p${i + 1})" stroke="#13151a" stroke-width="2" visibility="hidden"/>`).join('')}
+    ${ps.map((_, i) => `<circle id="dot${i}" r="4" fill="var(--p${i + 1})" stroke="#13151a" stroke-width="2" visibility="hidden"/>`).join('')}
     <rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" id="hit"/>`;
-  // Nudge overlapping end labels apart.
-  const ends = [...svg.querySelectorAll('[data-end]')];
-  if (ends.length === 2 && Math.abs(+ends[0].getAttribute('y') - +ends[1].getAttribute('y')) < 13) {
-    const up = +ends[0].getAttribute('y') < +ends[1].getAttribute('y') ? 0 : 1;
-    ends[up].setAttribute('y', +ends[up].getAttribute('y') - 7); ends[1 - up].setAttribute('y', +ends[1 - up].getAttribute('y') + 7);
-  }
 
-  // Crosshair + tooltip with both players' values on the hovered day.
+  // Crosshair + tooltip with every player's value on the hovered day.
   const tip = $('chartTip'), hit = svg.querySelector('#hit');
   const move = ev => {
     const r = svg.getBoundingClientRect();
     const px = (ev.clientX - r.left) * (W / r.width);
     const i = Math.max(0, Math.min(dates.length - 1, Math.round((px - m.l) / (W - m.l - m.r) * (dates.length - 1))));
-    svg.querySelector('#xhair').setAttribute('x1', x(i)); svg.querySelector('#xhair').setAttribute('x2', x(i));
-    svg.querySelector('#xhair').setAttribute('visibility', 'visible');
+    const xh = svg.querySelector('#xhair');
+    xh.setAttribute('x1', x(i)); xh.setAttribute('x2', x(i)); xh.setAttribute('visibility', 'visible');
     series.forEach((ser, s) => { const dot = svg.querySelector('#dot' + s); if (ser[i].v == null) { dot.setAttribute('visibility', 'hidden'); return; } dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(ser[i].v)); dot.setAttribute('visibility', 'visible'); });
     tip.innerHTML = `<div class="text-zinc-400 mb-1">${new Date(dates[i] + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>` +
-      [a, b].map((p, s) => `<div class="flex items-center gap-2"><span class="sw sw${s + 1}"></span><span class="text-zinc-300">${Vault.escapeHtml(p.name)}</span><span class="mono text-zinc-100 ml-auto pl-3">${fmt(series[s][i].v)}</span></div>`).join('');
+      ps.map((p, s) => `<div class="flex items-center gap-2">${legendMark(s)}<span class="text-zinc-300">${Vault.escapeHtml(p.name)}</span><span class="mono text-zinc-100 ml-auto pl-3">${fmt(series[s][i].v)}</span></div>`).join('');
     tip.classList.remove('hidden');
     const left = (x(i) / W) * r.width;
     tip.style.left = `${Math.min(Math.max(0, left + 12), r.width - tip.offsetWidth)}px`;
   };
   hit.onpointermove = move; hit.onpointerdown = move;
-  hit.onpointerleave = () => { tip.classList.add('hidden'); svg.querySelector('#xhair').setAttribute('visibility', 'hidden'); [0, 1].forEach(s => svg.querySelector('#dot' + s).setAttribute('visibility', 'hidden')); };
+  hit.onpointerleave = () => { tip.classList.add('hidden'); svg.querySelector('#xhair').setAttribute('visibility', 'hidden'); ps.forEach((_, s) => svg.querySelector('#dot' + s).setAttribute('visibility', 'hidden')); };
 }
 
-// Value change over the last N days, from the same history.
+// ---- Tables ----
 function changeOver(norm, days) {
   const ser = seriesFor(norm).filter(x => x.v != null);
   if (ser.length < 2) return null;
@@ -381,43 +433,45 @@ function changeOver(norm, days) {
   return then ? last.v - then.v : null;
 }
 
-function row(label, va, vb, show, better) {
-  // better: 'high' | 'low' | null (no winner marked)
-  let wa = false, wb = false;
-  if (better && Number.isFinite(va) && Number.isFinite(vb) && va !== vb) { const aWins = better === 'high' ? va > vb : va < vb; wa = aWins; wb = !aWins; }
-  const cell = (v, w, s) => `<td class="px-3 py-2 text-right mono ${w ? 'win' : 'text-zinc-300'}"><span class="inline-flex items-center gap-2 justify-end">${w ? `<span class="sw sw${s}" title="Better"></span>` : ''}${show(v)}</span></td>`;
-  return `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${label}</td>${cell(va, wa, 1)}${cell(vb, wb, 2)}</tr>`;
+// One row across all players. better: 'high' | 'low' | null. The single best
+// value is marked; ties mark nobody.
+function row(label, vals, show, better) {
+  let best = -1;
+  if (better) {
+    const finite = vals.map((v, i) => [v, i]).filter(([v]) => Number.isFinite(v));
+    if (finite.length >= 2) {
+      const target = better === 'high' ? Math.max(...finite.map(f => f[0])) : Math.min(...finite.map(f => f[0]));
+      const hits = finite.filter(f => f[0] === target);
+      if (hits.length === 1) best = hits[0][1];
+    }
+  }
+  return `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400 whitespace-nowrap">${label}</td>${vals.map((v, i) => `<td class="px-3 py-2 text-right mono ${i === best ? 'win' : 'text-zinc-300'}"><span class="inline-flex items-center gap-2 justify-end">${i === best ? `<span class="sw sw${i + 1}" title="Best"></span>` : ''}${show(v, i)}</span></td>`).join('')}</tr>`;
 }
 
-function headRow(a, b, first) {
-  return `<thead><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left px-3 py-2 font-medium">${first}</th>${[a, b].map((p, i) => `<th class="text-right px-3 py-2 font-medium"><span class="inline-flex items-center gap-2 justify-end normal-case tracking-normal text-[12px] text-zinc-200"><span class="sw sw${i + 1}"></span>${Vault.escapeHtml(p.name)}</span></th>`).join('')}</tr></thead>`;
+function headRow(ps, first) {
+  return `<thead><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left px-3 py-2 font-medium">${first}</th>${ps.map((p, i) => `<th class="text-right px-3 py-2 font-medium"><span class="inline-flex items-center gap-2 justify-end normal-case tracking-normal text-[12px] text-zinc-200 whitespace-nowrap"><span class="sw sw${i + 1}"></span>${Vault.escapeHtml(p.name)}</span></th>`).join('')}</tr></thead>`;
 }
 
-function renderH2H(a, b) {
-  // Position ranks only get a winner when both play the same position — QB3
-  // vs WR3 isn't a comparison.
-  const rankRow = (label, key) => {
-    const same = a.pos === b.pos, va = a[key], vb = b[key];
-    const wa = same && va && vb && va < vb, wb = same && va && vb && vb < va;
-    const cell = (p, w, s) => `<td class="px-3 py-2 text-right mono ${w ? 'win' : 'text-zinc-300'}"><span class="inline-flex items-center gap-2 justify-end">${w ? `<span class="sw sw${s}" title="Better"></span>` : ''}${p[key] ? `${p.pos}${p[key]}` : '—'}</span></td>`;
-    return `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${label}</td>${cell(a, wa, 1)}${cell(b, wb, 2)}</tr>`;
-  };
-  $('h2h').innerHTML = headRow(a, b, '') + '<tbody>' + [
-    row('KTC value', a.value, b.value, fmt, 'high'),
+function renderH2H(ps) {
+  const samePos = ps.every(p => p.pos === ps[0].pos);
+  // Position ranks only get a winner when everyone plays the same position.
+  const rankRow = (label, key) => row(label, ps.map(p => p[key] ?? NaN), (v, i) => Number.isFinite(v) ? `${ps[i].pos}${v}` : '—', samePos ? 'low' : null);
+  $('h2h').innerHTML = headRow(ps, '') + '<tbody>' + [
+    row('KTC value', ps.map(p => p.value), fmt, 'high'),
     rankRow('Position rank by value', 'valueRank'),
-    row('Change, last 30 days', changeOver(a.norm, 30), changeOver(b.norm, 30), signed, 'high'),
-    row('Change, last year', changeOver(a.norm, 365), changeOver(b.norm, 365), signed, 'high'),
+    row('Change, last 30 days', ps.map(p => changeOver(p.norm, 30)), signed, 'high'),
+    row('Change, last year', ps.map(p => changeOver(p.norm, 365)), signed, 'high'),
     // vol is a fraction (std dev / mean of the last 90 days' prices).
-    row('Price swing (90 days)', a.vol, b.vol, v => Number.isFinite(v) ? `±${(v * 100).toFixed(1)}%` : '—', null),
-    row('Projected PPG (your scoring)', a.ppg, b.ppg, v => Number.isFinite(v) ? v.toFixed(1) : '—', 'high'),
-    row('VORP', a.vorp, b.vorp, v => Number.isFinite(v) ? (v >= 0 ? '+' : '') + v.toFixed(1) : '—', 'high'),
-    row('Age', a.age, b.age, v => Number.isFinite(v) ? v.toFixed(1) : '—', null),
-    row('NFL experience', a.exp, b.exp, v => v == null ? '—' : v === 0 ? 'Rookie' : `${v} yr`, null),
+    row('Price swing (90 days)', ps.map(p => p.vol), v => Number.isFinite(v) ? `±${(v * 100).toFixed(1)}%` : '—', null),
+    row('Projected PPG (your scoring)', ps.map(p => p.ppg), v => Number.isFinite(v) ? v.toFixed(1) : '—', 'high'),
+    row('VORP', ps.map(p => p.vorp), v => Number.isFinite(v) ? (v >= 0 ? '+' : '') + v.toFixed(1) : '—', 'high'),
+    row('Age', ps.map(p => p.age), v => Number.isFinite(v) ? v.toFixed(1) : '—', null),
+    row('NFL experience', ps.map(p => p.exp ?? NaN), v => !Number.isFinite(v) ? '—' : v === 0 ? 'Rookie' : `${v} yr`, null),
     rankRow('Position rank by projection', 'ppgRank')
   ].join('') + '</tbody>';
 }
 
-// ---- Season stats ----
+// ---- Stats: career / season, with a week range for single seasons ----
 const STAT_SETS = {
   QB: [['pass_cmp', 'Completions'], ['pass_att', 'Pass attempts'], ['pass_yd', 'Pass yards'], ['pass_td', 'Pass TD'], ['pass_int', 'Interceptions', 'low'], ['rush_yd', 'Rush yards'], ['rush_td', 'Rush TD']],
   RB: [['rush_att', 'Carries'], ['rush_yd', 'Rush yards'], ['rush_td', 'Rush TD'], ['rec_tgt', 'Targets'], ['rec', 'Receptions'], ['rec_yd', 'Receiving yards'], ['rec_td', 'Receiving TD']],
@@ -425,62 +479,124 @@ const STAT_SETS = {
   TE: [['rec_tgt', 'Targets'], ['rec', 'Receptions'], ['rec_yd', 'Receiving yards'], ['rec_td', 'Receiving TD']]
 };
 
-function seasonList(p) { return p.seasons ? Object.keys(p.seasons).sort((x, y) => y - x) : []; }
+// Every week of one player's season from Sleeper (one request per player-season,
+// cached): { "1": { week, date, opponent, is_away_team, stats } | null, ... }
+function weekly(pid, season) {
+  const key = `${pid}-${season}`;
+  if (!weeklyCache.has(key)) weeklyCache.set(key,
+    fetch(`https://api.sleeper.com/stats/nfl/player/${pid}?season_type=regular&season=${season}&grouping=week`)
+      .then(r => r.ok ? r.json() : {}).catch(() => ({})));
+  return weeklyCache.get(key);
+}
 
-function renderSeasonPicker(a, b) {
-  const years = [...new Set([...seasonList(a), ...seasonList(b)])].sort((x, y) => y - x);
-  if (statSeason !== 'career' && !years.includes(statSeason)) statSeason = 'career';
-  $('seasonPick').innerHTML = `<option value="career">Career</option>` + years.map(yr => `<option value="${yr}">${yr}</option>`).join('');
+function renderSeasonPicker(ps) {
+  const years = new Set([currentSeason]);
+  ps.forEach(p => Object.keys(p.seasons || {}).forEach(y => years.add(y)));
+  const list = [...years].sort((x, y) => y - x);
+  if (statSeason !== 'career' && !list.includes(statSeason)) statSeason = 'career';
+  $('seasonPick').innerHTML = `<option value="career">Career${lastHistorySeason ? ` (through ${lastHistorySeason})` : ''}</option>` + list.map(yr => `<option value="${yr}">${yr} season</option>`).join('');
   $('seasonPick').value = statSeason;
 }
 
-// Summed stats for a player over the chosen season(s), plus fantasy points in
-// this league's scoring and position finish (single season only).
-function statLine(p) {
-  if (!p.seasons) return null;
-  const yrs = statSeason === 'career' ? Object.keys(p.seasons) : (p.seasons[statSeason] ? [statSeason] : []);
-  if (!yrs.length) return null;
-  const sum = {};
-  yrs.forEach(yr => Object.entries(p.seasons[yr]).forEach(([k, v]) => { if (typeof v === 'number') sum[k] = (sum[k] || 0) + v; }));
-  const points = yrs.reduce((s, yr) => s + Vault.scoreStats(p.seasons[yr], scoring), 0);
-  const finishes = yrs.map(yr => seasonFinish.get(`${p.pid}-${yr}`)?.posRank).filter(Boolean);
-  return { sum, gp: sum.gp || 0, points, finish: statSeason === 'career' ? (finishes.length ? Math.min(...finishes) : null) : (finishes[0] || null) };
-}
-
-function renderStats() {
-  const [a, b] = picked.map(n => byNorm.get(n));
-  if (!a || !b) return;
+let statsToken = 0;
+async function renderStats() {
+  const ps = players();
+  if (ps.length < 2) return;
+  const token = ++statsToken;
   document.querySelectorAll('.mode-btn').forEach(btn => {
     const on = btn.dataset.mode === statMode;
     btn.className = `mode-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
   });
-  const la = statLine(a), lb = statLine(b);
-  if (!la && !lb) {
-    $('stats').innerHTML = `<tbody><tr><td class="px-3 py-3 text-zinc-400">No NFL stats for ${statSeason === 'career' ? 'either player yet' : statSeason} — rookies and players new to the league won't have any.</td></tr></tbody>`;
+  const single = statSeason !== 'career';
+  $('weekPicks').classList.toggle('hidden', !single);
+  $('gameLogWrap').classList.toggle('hidden', !single);
+
+  // lines[i] = { gp, points, sum, finish, games: [{week, date, opp, away, pts}] } or null
+  let lines;
+  if (!single) {
+    lines = ps.map(p => {
+      if (!p.seasons) return null;
+      const sum = {}; let points = 0;
+      Object.values(p.seasons).forEach(st => { points += Vault.scoreStats(st, scoring); Object.entries(st).forEach(([k, v]) => { if (typeof v === 'number') sum[k] = (sum[k] || 0) + v; }); });
+      const finishes = Object.keys(p.seasons).map(yr => seasonFinish.get(`${p.pid}-${yr}`)?.posRank).filter(Boolean);
+      return { gp: sum.gp || 0, points, sum, finish: finishes.length ? Math.min(...finishes) : null };
+    });
   } else {
-    const per = (l, v) => !l ? null : statMode === 'game' ? (l.gp ? v / l.gp : null) : v;
+    $('stats').innerHTML = `<tbody><tr><td class="px-3 py-3 text-zinc-400">Loading ${statSeason} games…</td></tr></tbody>`;
+    const weeks = await Promise.all(ps.map(p => p.pid ? weekly(p.pid, statSeason) : Promise.resolve({})));
+    if (token !== statsToken) return; // a newer selection is already rendering
+    const maxWeek = Math.max(1, ...weeks.flatMap(w => Object.entries(w).filter(([, e]) => e?.stats?.gp).map(([k]) => +k)));
+    const upTo = Math.max(18, maxWeek);
+    weekTo = Math.min(weekTo, upTo);
+    const opts = n => Array.from({ length: n }, (_, k) => `<option value="${k + 1}">${k + 1}</option>`).join('');
+    $('weekFrom').innerHTML = opts(upTo); $('weekTo').innerHTML = opts(upTo);
+    $('weekFrom').value = weekFrom; $('weekTo').value = weekTo;
+    const fullSeason = weekFrom === 1 && weekTo >= maxWeek;
+    lines = ps.map((p, i) => {
+      const games = Object.entries(weeks[i]).map(([wk, e]) => ({ wk: +wk, e })).filter(g => g.e?.stats?.gp && g.wk >= weekFrom && g.wk <= weekTo)
+        .map(g => ({ week: g.wk, date: g.e.date, opp: g.e.opponent, away: g.e.is_away_team, stats: g.e.stats, pts: Vault.scoreStats(g.e.stats, scoring) }));
+      if (!games.length) return null;
+      const sum = {};
+      games.forEach(g => Object.entries(g.stats).forEach(([k, v]) => { if (typeof v === 'number') sum[k] = (sum[k] || 0) + v; }));
+      // Position finish only means something over a full season in the history file.
+      const finish = fullSeason ? (seasonFinish.get(`${p.pid}-${statSeason}`)?.posRank ?? null) : null;
+      return { gp: games.length, points: games.reduce((s, g) => s + g.pts, 0), sum, finish, games };
+    });
+    renderGameLog(ps, lines);
+  }
+
+  if (lines.every(l => !l)) {
+    $('stats').innerHTML = `<tbody><tr><td class="px-3 py-3 text-zinc-400">No NFL games for these players ${single ? `in ${statSeason}${weekFrom !== 1 || weekTo < 18 ? `, weeks ${weekFrom}–${weekTo}` : ''}` : 'yet'} — rookies and players new to the league won't have any.</td></tr></tbody>`;
+  } else {
+    const per = (l, v) => !l ? NaN : statMode === 'game' ? (l.gp ? v / l.gp : NaN) : v;
     const dec = statMode === 'game' ? 1 : 0;
     const show = v => Number.isFinite(v) ? v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—';
-    const keys = [...new Map([...STAT_SETS[a.pos] || [], ...STAT_SETS[b.pos] || []].map(s => [s[0], s])).values()];
-    const finishLabel = statSeason === 'career' ? 'Best position finish' : 'Position finish';
-    $('stats').innerHTML = headRow(a, b, statSeason === 'career' ? 'Career' : statSeason) + '<tbody>' + [
-      row('Games', la?.gp, lb?.gp, v => Number.isFinite(v) ? String(v) : '—', null),
-      row(statMode === 'game' ? 'Fantasy points per game' : 'Fantasy points', per(la, la?.points), per(lb, lb?.points), show, 'high'),
-      row(finishLabel, la?.finish, lb?.finish, v => v ? `#${v}` : '—', a.pos === b.pos ? 'low' : null),
-      ...keys.map(([k, label, dir]) => row(label, per(la, la?.sum[k] || 0), per(lb, lb?.sum[k] || 0), show, dir || 'high'))
+    const samePos = ps.every(p => p.pos === ps[0].pos);
+    const keys = [...new Map(ps.flatMap(p => STAT_SETS[p.pos] || []).map(s => [s[0], s])).values()];
+    const label = single ? `${statSeason}${weekFrom !== 1 || weekTo < 18 ? ` · wk ${weekFrom}–${weekTo}` : ''}` : 'Career';
+    $('stats').innerHTML = headRow(ps, label) + '<tbody>' + [
+      row('Games', lines.map(l => l ? l.gp : NaN), v => Number.isFinite(v) ? String(v) : '—', null),
+      row(statMode === 'game' ? 'Fantasy points per game' : 'Fantasy points', lines.map(l => per(l, l?.points)), show, 'high'),
+      row(single ? 'Position finish' : 'Best position finish', lines.map(l => l?.finish ?? NaN), v => Number.isFinite(v) ? `#${v}` : '—', samePos ? 'low' : null),
+      // A stat outside a player's position group (a running back's pass
+      // attempts) shows as '—', never as a 0 that could "win" fewest interceptions.
+      ...keys.map(([k, lbl, dir]) => row(lbl, lines.map((l, i) => (STAT_SETS[ps[i].pos] || []).some(s => s[0] === k) ? per(l, l?.sum[k] || 0) : NaN), show, dir || 'high'))
     ].join('') + '</tbody>';
   }
-  $('statsNote').textContent = `Fantasy points use your league's scoring settings. ${a.pos === b.pos ? 'Position finish is by total points that season.' : 'Position finishes aren\'t marked since these players play different positions.'}`;
+  $('statsNote').textContent = [
+    'Fantasy points use your league\'s scoring settings.',
+    single ? 'Pick a week range to compare just those games; byes and missed games don\'t count toward per-game numbers.' : 'Career covers seasons through ' + (lastHistorySeason || 'last year') + '; pick a season for this year\'s games.',
+    !ps.every(p => p.pos === ps[0].pos) ? 'Position finishes aren\'t marked across different positions.' : (single ? 'Position finish shows only for a full season.' : '')
+  ].filter(Boolean).join(' ');
+  renderBySeason(ps);
+}
 
-  // PPG by season, most recent first.
-  const years = [...new Set([...seasonList(a), ...seasonList(b)])].sort((x, y) => y - x);
-  const cell = (p, yr, s) => {
+// Week-by-week fantasy points for the selected range; the week's top scorer is marked.
+function renderGameLog(ps, lines) {
+  const weeks = [...new Set(lines.flatMap(l => (l?.games || []).map(g => g.week)))].sort((a, b) => a - b);
+  if (!weeks.length) { $('gameLog').innerHTML = '<tbody><tr><td class="px-3 py-2 text-zinc-400">No games in this range.</td></tr></tbody>'; return; }
+  const cellFor = (l, wk) => l?.games.find(g => g.week === wk) || null;
+  $('gameLog').innerHTML = headRow(ps, 'Week') + '<tbody>' + weeks.map(wk => {
+    const games = lines.map(l => cellFor(l, wk));
+    const pts = games.map(g => g ? g.pts : NaN);
+    const finite = pts.filter(Number.isFinite);
+    const top = finite.length >= 2 ? Math.max(...finite) : NaN;
+    const topIdx = pts.filter(v => v === top).length === 1 ? pts.indexOf(top) : -1;
+    return `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400 whitespace-nowrap">${wk}</td>${games.map((g, i) => g
+      ? `<td class="px-3 py-2 text-right mono ${i === topIdx ? 'win' : 'text-zinc-300'} whitespace-nowrap"><span class="inline-flex items-center gap-2 justify-end">${i === topIdx ? `<span class="sw sw${i + 1}" title="Top score this week"></span>` : ''}<span class="text-zinc-500 text-[11px]">${g.away ? '@' : 'vs'} ${g.opp || ''}</span>${g.pts.toFixed(1)}</span></td>`
+      : '<td class="px-3 py-2 text-right mono text-zinc-500">—</td>').join('')}</tr>`;
+  }).join('') + '</tbody>';
+}
+
+function renderBySeason(ps) {
+  const years = [...new Set(ps.flatMap(p => Object.keys(p.seasons || {})))].sort((x, y) => y - x);
+  const cell = (p, yr) => {
     const st = p.seasons?.[yr]; if (!st || !st.gp) return '<td class="px-3 py-2 text-right mono text-zinc-500">—</td>';
     const f = seasonFinish.get(`${p.pid}-${yr}`);
-    return `<td class="px-3 py-2 text-right mono text-zinc-300">${Vault.playerSeasonPpg(st, scoring).toFixed(1)} <span class="text-zinc-500 text-[11px]">${f ? `${p.pos}${f.posRank}` : ''} · ${st.gp} gp</span></td>`;
+    return `<td class="px-3 py-2 text-right mono text-zinc-300 whitespace-nowrap">${Vault.playerSeasonPpg(st, scoring).toFixed(1)} <span class="text-zinc-500 text-[11px]">${f ? `${p.pos}${f.posRank}` : ''} · ${st.gp} gp</span></td>`;
   };
-  $('bySeason').innerHTML = years.length ? headRow(a, b, 'Season') + '<tbody>' + years.map(yr => `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${yr}</td>${cell(a, yr, 1)}${cell(b, yr, 2)}</tr>`).join('') + '</tbody>'
-    : '<tbody><tr><td class="px-3 py-2 text-zinc-400">No seasons played yet.</td></tr></tbody>';
+  $('bySeason').innerHTML = years.length ? headRow(ps, 'Season') + '<tbody>' + years.map(yr => `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${yr}</td>${ps.map(p => cell(p, yr)).join('')}</tr>`).join('') + '</tbody>'
+    : '<tbody><tr><td class="px-3 py-2 text-zinc-400">No completed seasons yet.</td></tr></tbody>';
 }
 
 async function shareCompare(btn) {
