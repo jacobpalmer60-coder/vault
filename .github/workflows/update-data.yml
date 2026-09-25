@@ -32,10 +32,13 @@ jobs:
       # Small per-format history files + trimmed Sleeper player list the pages
       # actually load (see the script header) — must run after the snapshot.
       - run: node scripts/build-slim-data.js
+      # This season's week-by-week stats for every QB/RB/WR/TE (Compare page ranks,
+      # team shares, weekly finishes). Past seasons were built once and don't change.
+      - run: node scripts/build-weekly-stats.js
 
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ktc-values.json data/projections.json data/ktc-trades.json data/player-value-history.json data/pick-value-history.json data/history/ data/sleeper-players.json
+          git add data/ktc-values.json data/projections.json data/ktc-trades.json data/player-value-history.json data/pick-value-history.json data/history/ data/sleeper-players.json data/weekly/
           git diff --cached --quiet || git commit -m "Update KTC values, projections, trade database, and value history"
           git push

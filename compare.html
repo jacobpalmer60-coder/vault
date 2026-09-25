@@ -77,13 +77,14 @@
         <h2 class="text-[15px] font-semibold text-zinc-100">Stats</h2>
         <div class="flex flex-wrap items-center gap-2">
           <select id="seasonPick" aria-label="Season" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-zinc-300"></select>
-          <span id="weekPicks" class="hidden flex items-center gap-1.5 text-[11px] text-zinc-400">
-            Weeks <select id="weekFrom" aria-label="From week" class="bg-black/60 border border-white/10 rounded-lg px-1.5 py-1 text-[12px] text-zinc-300"></select>
-            to <select id="weekTo" aria-label="To week" class="bg-black/60 border border-white/10 rounded-lg px-1.5 py-1 text-[12px] text-zinc-300"></select>
-          </span>
+          <div class="relative">
+            <button id="statsPickBtn" type="button" onclick="document.getElementById('statsPanel').classList.toggle('hidden')" class="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Stats ▾</button>
+            <div id="statsPanel" class="hidden fixed left-4 right-4 top-20 z-40 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-1 sm:w-[560px] max-h-[70vh] overflow-y-auto rounded-xl border border-white/10 bg-[#111317] p-4 shadow-lg scrollbar"></div>
+          </div>
           <div id="modeBtns" class="flex gap-1.5"></div>
         </div>
       </div>
+      <div id="weekChips" class="hidden flex flex-wrap items-center gap-1 mb-3"></div>
       <div class="overflow-x-auto"><table id="stats" class="w-full text-[13px]"></table></div>
       <p id="statsNote" class="text-[11px] text-zinc-400 mt-2"></p>
       <div id="gameLogWrap" class="hidden">
@@ -98,6 +99,7 @@
 
 <script src="vault-core.js"></script>
 <script src="vault-nav.js"></script>
+<script src="stat-catalog.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const MAX_PLAYERS = 4;
@@ -106,7 +108,7 @@ let universe = [], byNorm = new Map();
 let picked = [];            // 2-4 player norms
 let histSnaps = [], isSF = true, tep = 0, scoring = {}, leagueId = '', teamsBuilt = [], currentSeason = '';
 let windowDays = 365, customRange = null;   // customRange: { from, to } ISO dates
-let statMode = 'game', statSeason = 'career', weekFrom = 1, weekTo = 18;
+let statMode = 'game', statSeason = 'career';
 let lastHistorySeason = '';
 const seasonFinish = new Map();  // "pid-year" -> { points, gp, posRank }
 const weeklyCache = new Map();   // "pid-season" -> Promise<{ week: entry|null }>
@@ -127,9 +129,13 @@ async function init() {
     tep = scoring.bonus_rec_te;
     currentSeason = String(league.season);
     const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(tep);
-    const [{ ktcData, projData }, hist, careers, sleeper] = await Promise.all([
-      Vault.fetchValueSheets(), Vault.fetchPlayerValueHistory(isSF, tep), Vault.fetchPlayerHistory(), Vault.fetchSleeperPlayers()
+    const [{ ktcData, projData }, hist, careers, sleeper, wIndex] = await Promise.all([
+      Vault.fetchValueSheets(), Vault.fetchPlayerValueHistory(isSF, tep), Vault.fetchPlayerHistory(), Vault.fetchSleeperPlayers(),
+      fetch('data/weekly/index.json').then(r => r.ok ? r.json() : { seasons: [] }).catch(() => ({ seasons: [] }))
     ]);
+    weeklyIndex = wIndex.seasons || [];
+    // Open on the most recent season (this season, once it has started).
+    statSeason = [...weeklyIndex].sort().reverse()[0] || 'career';
     histSnaps = hist.snapshots || [];
     const volatility = Vault.buildPlayerVolatilityMap(histSnaps, isSF, tep);
     const ppgByName = Vault.buildProjectedPpgMapByName(projData, scoring);
@@ -214,9 +220,9 @@ function setupControls() {
 
   $('modeBtns').innerHTML = [['game', 'Per game'], ['total', 'Totals']].map(([k, l]) => `<button data-mode="${k}" class="mode-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
   document.querySelectorAll('.mode-btn').forEach(b => b.onclick = () => { statMode = b.dataset.mode; renderStats(); });
-  $('seasonPick').onchange = () => { statSeason = $('seasonPick').value; weekFrom = 1; weekTo = 18; renderStats(); };
-  $('weekFrom').onchange = () => { weekFrom = +$('weekFrom').value; if (weekFrom > weekTo) weekTo = weekFrom; renderStats(); };
-  $('weekTo').onchange = () => { weekTo = +$('weekTo').value; if (weekTo < weekFrom) weekFrom = weekTo; renderStats(); };
+  $('seasonPick').onchange = () => { statSeason = $('seasonPick').value; selWeeks = null; renderStats(); };
+  // Close the stat picker when clicking anywhere outside it.
+  document.addEventListener('click', e => { if (!e.target.closest('#statsPanel, #statsPickBtn')) $('statsPanel').classList.add('hidden'); });
   window.addEventListener('resize', () => renderChart());
 }
 
@@ -471,31 +477,197 @@ function renderH2H(ps) {
   ].join('') + '</tbody>';
 }
 
-// ---- Stats: career / season, with a week range for single seasons ----
-const STAT_SETS = {
-  QB: [['pass_cmp', 'Completions'], ['pass_att', 'Pass attempts'], ['pass_yd', 'Pass yards'], ['pass_td', 'Pass TD'], ['pass_int', 'Interceptions', 'low'], ['rush_yd', 'Rush yards'], ['rush_td', 'Rush TD']],
-  RB: [['rush_att', 'Carries'], ['rush_yd', 'Rush yards'], ['rush_td', 'Rush TD'], ['rec_tgt', 'Targets'], ['rec', 'Receptions'], ['rec_yd', 'Receiving yards'], ['rec_td', 'Receiving TD']],
-  WR: [['rec_tgt', 'Targets'], ['rec', 'Receptions'], ['rec_yd', 'Receiving yards'], ['rec_td', 'Receiving TD'], ['rush_yd', 'Rush yards']],
-  TE: [['rec_tgt', 'Targets'], ['rec', 'Receptions'], ['rec_yd', 'Receiving yards'], ['rec_td', 'Receiving TD']]
-};
+// ---- Stats: catalog-driven (stat-catalog.js), from data/weekly/<season>.json ----
+// A season file has every QB/RB/WR/TE's weekly stats plus team totals, so each
+// stat can be computed for EVERY player at the position over the same games —
+// that's what gives every number a league-wide rank.
+let weeklyIndex = [];                 // seasons with a data/weekly file
+const seasonCache = new Map();        // season -> Promise<SeasonData>
+const rankCache = new Map();          // season|weeks|pos|mode -> { values, ranks, n }
+let selWeeks = null;                  // Set of chosen weeks (null = every week played)
+const STATS_KEY = 'vault_compare_stats';
+let customStats = null;               // array of stat ids, or null for the defaults
+try { customStats = JSON.parse(localStorage.getItem(STATS_KEY) || 'null'); } catch {}
 
-// Every week of one player's season from Sleeper (one request per player-season,
-// cached): { "1": { week, date, opponent, is_away_team, stats } | null, ... }
-function weekly(pid, season) {
-  const key = `${pid}-${season}`;
-  if (!weeklyCache.has(key)) weeklyCache.set(key,
-    fetch(`https://api.sleeper.com/stats/nfl/player/${pid}?season_type=regular&season=${season}&grouping=week`)
-      .then(r => r.ok ? r.json() : {}).catch(() => ({})));
-  return weeklyCache.get(key);
+// Points from touchdowns / from rushing, in this league's scoring.
+const tdScoreKeys = () => Object.keys(scoring).filter(k => /(^|_)td($|_\d+p$)/.test(k));
+const rushScoreKeys = () => Object.keys(scoring).filter(k => /^(rush_|bonus_rush_(?!rec))/.test(k));
+const partialScore = (st, keys) => keys.reduce((t, k) => t + (st[k] || 0) * (scoring[k] || 0), 0);
+
+function loadSeason(season) {
+  if (!seasonCache.has(season)) seasonCache.set(season, fetch(`data/weekly/${season}.json`).then(r => r.ok ? r.json() : null).then(raw => {
+    if (!raw) return null;
+    const tdK = tdScoreKeys(), rushK = rushScoreKeys();
+    const players = new Map();
+    const byWeekPos = new Map(); // "wk|pos" -> [{ pid, pts }]
+    let maxWeek = 0;
+    Object.entries(raw.players).forEach(([pid, p]) => {
+      const games = new Map();
+      Object.entries(p.w).forEach(([wk, arr]) => {
+        const st = {};
+        raw.keys.forEach((k, i) => { const v = arr[3 + i]; if (v) st[k] = v; });
+        const pts = Vault.scoreStats(st, scoring);
+        games.set(+wk, { wk: +wk, team: arr[0], opp: arr[1], away: !!arr[2], st, pts, tdPts: partialScore(st, tdK), rushPts: partialScore(st, rushK) });
+        maxWeek = Math.max(maxWeek, +wk);
+        const key = `${wk}|${p.p}`;
+        if (!byWeekPos.has(key)) byWeekPos.set(key, []);
+        byWeekPos.get(key).push({ pid, pts });
+      });
+      players.set(pid, { pid, name: p.n, pos: p.p, games });
+    });
+    // Weekly finish at the position, in this league's scoring.
+    byWeekPos.forEach((rows, key) => {
+      const wk = +key.split('|')[0];
+      rows.sort((a, b) => b.pts - a.pts).forEach((r, i) => { players.get(r.pid).games.get(wk).finish = i + 1; });
+    });
+    const teams = new Map(Object.entries(raw.teams).map(([t, wks]) => [t, new Map(Object.entries(wks).map(([wk, arr]) => [+wk, Object.fromEntries(raw.teamKeys.map((k, i) => [k, arr[i]]))]))]));
+    return { season, players, teams, maxWeek };
+  }).catch(() => null));
+  return seasonCache.get(season);
+}
+
+const leagueStarters = pos => teamsBuilt.length && teamsBuilt[0].startable ? (teamsBuilt[0].startable[pos.toLowerCase()] || 0) * teamsBuilt.length : null;
+
+// Everything one player did over the chosen games (see stat-catalog.js for A's shape).
+function aggregate(pl, weeks, sd) {
+  const games = [...pl.games.values()].filter(g => !weeks || weeks.has(g.wk)).sort((a, b) => a.wk - b.wk);
+  const A = { s: {}, mx: {}, gp: games.length, pts: 0, tdPts: 0, rushPts: 0, wk: [], games: [], tm: {}, starters: leagueStarters(pl.pos) };
+  games.forEach(g => {
+    Object.entries(g.st).forEach(([k, v]) => { if (/_lng$/.test(k)) A.mx[k] = Math.max(A.mx[k] || 0, v); else A.s[k] = (A.s[k] || 0) + v; });
+    A.pts += g.pts; A.tdPts += g.tdPts; A.rushPts += g.rushPts;
+    A.wk.push({ pts: g.pts, finish: g.finish });
+    A.games.push(g.st);
+    const t = sd.teams.get(g.team)?.get(g.wk);
+    if (t) Object.entries(t).forEach(([k, v]) => { A.tm[k] = (A.tm[k] || 0) + v; });
+  });
+  return A;
+}
+
+// Career from the season-totals history file: box score and fantasy totals only
+// (no weekly finishes or team context there, so those stats show as '—').
+function careerAggregate(p) {
+  // wk/games/tm are null (not empty): stats built on them then fail in
+  // modeValue and show '—', instead of a misleading 0 for "top-12 weeks".
+  const A = { s: {}, mx: {}, gp: 0, pts: 0, tdPts: 0, rushPts: 0, wk: null, games: null, tm: null, starters: leagueStarters(p.pos) };
+  if (!p.seasons) return null;
+  const tdK = tdScoreKeys(), rushK = rushScoreKeys();
+  Object.values(p.seasons).forEach(st => {
+    Object.entries(st).forEach(([k, v]) => { if (typeof v !== 'number') return; if (/_lng$/.test(k)) A.mx[k] = Math.max(A.mx[k] || 0, v); else A.s[k] = (A.s[k] || 0) + v; });
+    A.pts += Vault.scoreStats(st, scoring); A.tdPts += partialScore(st, tdK); A.rushPts += partialScore(st, rushK);
+  });
+  A.gp = A.s.gp || 0;
+  // Team-share and weekly stats need data this file doesn't have.
+  A.s.tm_off_snp = 0; A.s.off_snp = 0;
+  return A.gp ? A : null;
+}
+
+// The number a stat shows in the current mode.
+function modeValue(stat, A) {
+  if (!A) return null;
+  let v;
+  try { v = stat.calc(A); } catch { return null; } // needs weekly/team data this view doesn't have
+  if (v == null || !Number.isFinite(v)) return null;
+  if ((stat.kind === 'count' || stat.kind === 'weeks') && statMode === 'game') return A.gp ? v / A.gp : null;
+  return v;
+}
+
+// League-wide values and ranks at one position for the chosen games. Qualified =
+// played at least 40% as many of these games as the busiest player at the
+// position, and (for rate stats) at least a quarter of the top volume.
+function positionRanks(sd, pos, weeks) {
+  const key = `${sd.season}|${weeks ? [...weeks].sort((a, b) => a - b).join(',') : 'all'}|${pos}|${statMode}`;
+  if (rankCache.has(key)) return rankCache.get(key);
+  const aggs = [...sd.players.values()].filter(p => p.pos === pos).map(p => ({ pid: p.pid, A: aggregate(p, weeks, sd) })).filter(x => x.A.gp > 0);
+  // Position finish over these games: by total points, everyone who played.
+  [...aggs].sort((a, b) => b.A.pts - a.A.pts).forEach((x, i) => { x.A.finish = i + 1; });
+  const maxGp = Math.max(1, ...aggs.map(x => x.A.gp));
+  const minGp = Math.max(1, Math.ceil(0.4 * maxGp));
+  const out = { byStat: new Map(), aggs: new Map(aggs.map(x => [x.pid, x.A])) };
+  StatCatalog.STATS.forEach(stat => {
+    if (!stat.pos.includes(pos) || !stat.better) return;
+    let pool = aggs.filter(x => x.A.gp >= minGp);
+    if (stat.den) { const maxDen = Math.max(0, ...pool.map(x => stat.den(x.A) || 0)); pool = pool.filter(x => (stat.den(x.A) || 0) >= 0.25 * maxDen && maxDen > 0); }
+    const vals = pool.map(x => [x.pid, stat.id === 'finish' ? x.A.finish : modeValue(stat, x.A)]).filter(([, v]) => v != null);
+    out.byStat.set(stat.id, { vals: new Map(vals), sorted: vals.map(v => v[1]), n: vals.length });
+  });
+  rankCache.set(key, out);
+  return out;
+}
+
+function rankOf(entry, stat, pid) {
+  if (!entry || !entry.vals.has(pid)) return null;
+  const v = entry.vals.get(pid);
+  const better = stat.better === 'low' ? x => x < v : x => x > v;
+  return { rank: 1 + entry.sorted.filter(better).length, n: entry.n };
+}
+
+function fmtStat(stat, v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  if (stat.fmt === 'ord') return `#${v}`;
+  if (stat.kind === 'weeks') return statMode === 'game' ? `${(v * 100).toFixed(0)}%` : String(Math.round(v));
+  if (stat.fmt === 'pct') return `${(v * 100).toFixed(1)}%`;
+  if (stat.kind === 'count' && statMode === 'total') return stat.fmt === 'd1' || stat.fmt === 'int' ? Math.round(v).toLocaleString() : v.toFixed(2);
+  if (stat.fmt === 'int') return Math.round(v).toLocaleString();
+  return v.toLocaleString(undefined, { minimumFractionDigits: stat.fmt === 'd2' ? 2 : 1, maximumFractionDigits: stat.fmt === 'd2' ? 2 : 1 });
+}
+
+// Which stats show: the ones you picked (or the defaults for these positions),
+// limited to stats that apply to at least one compared player.
+function shownStats(ps) {
+  const posSet = new Set(ps.map(p => p.pos));
+  const applies = s => s.pos.some(p => posSet.has(p));
+  if (customStats) return StatCatalog.STATS.filter(s => applies(s) && customStats.includes(s.id));
+  return StatCatalog.STATS.filter(s => s.def.some(p => posSet.has(p)));
+}
+
+function renderStatsPanel(ps) {
+  const posSet = new Set(ps.map(p => p.pos));
+  const shown = new Set(shownStats(ps).map(s => s.id));
+  $('statsPickBtn').textContent = `Stats: ${shown.size} shown ▾`;
+  $('statsPanel').innerHTML = StatCatalog.CATS.map(([cat, label]) => {
+    const list = StatCatalog.STATS.filter(s => s.cat === cat && s.pos.some(p => posSet.has(p)));
+    if (!list.length) return '';
+    return `<div class="mb-3"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">${label}</div><div class="flex flex-wrap gap-1.5">${list.map(s =>
+      `<button type="button" data-stat="${s.id}" title="${Vault.escapeHtml(s.tip || '')}" class="text-[11px] px-2 py-1 rounded-md border transition-colors ${shown.has(s.id) ? 'bg-amber-500/15 border-amber-500/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${s.label}</button>`).join('')}</div></div>`;
+  }).join('') + `<div class="flex justify-between items-center pt-2 border-t border-white/5"><button type="button" id="statsDefaults" class="text-[11px] text-zinc-400 hover:text-white">Reset to defaults</button><button type="button" id="statsDone" class="text-[11px] px-3 py-1 rounded-lg btn-gold-solid">Done</button></div>`;
+  $('statsPanel').querySelectorAll('[data-stat]').forEach(b => b.onclick = () => {
+    const set = new Set(shownStats(players()).map(s => s.id));
+    set.has(b.dataset.stat) ? set.delete(b.dataset.stat) : set.add(b.dataset.stat);
+    customStats = [...set];
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(customStats)); } catch {}
+    renderStatsPanel(players()); renderStats();
+  });
+  $('statsDefaults').onclick = () => { customStats = null; try { localStorage.removeItem(STATS_KEY); } catch {} renderStatsPanel(players()); renderStats(); };
+  $('statsDone').onclick = () => $('statsPanel').classList.add('hidden');
 }
 
 function renderSeasonPicker(ps) {
-  const years = new Set([currentSeason]);
-  ps.forEach(p => Object.keys(p.seasons || {}).forEach(y => years.add(y)));
-  const list = [...years].sort((x, y) => y - x);
-  if (statSeason !== 'career' && !list.includes(statSeason)) statSeason = 'career';
+  const list = [...weeklyIndex].sort((x, y) => y - x);
+  if (statSeason !== 'career' && !list.includes(statSeason)) statSeason = list[0] || 'career';
   $('seasonPick').innerHTML = `<option value="career">Career${lastHistorySeason ? ` (through ${lastHistorySeason})` : ''}</option>` + list.map(yr => `<option value="${yr}">${yr} season</option>`).join('');
   $('seasonPick').value = statSeason;
+  renderStatsPanel(ps);
+}
+
+// Week chips: tap any games on or off (Flock-style), plus quick picks.
+function renderWeekChips(sd, ps) {
+  const box = $('weekChips');
+  if (!sd) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const all = Array.from({ length: sd.maxWeek }, (_, i) => i + 1);
+  const on = wk => !selWeeks || selWeeks.has(wk);
+  const quick = [['All', null], ['Last 4', all.slice(-4)], ['Last 8', all.slice(-8)]];
+  box.innerHTML = `<span class="text-[11px] text-zinc-400 mr-1">Games</span>` +
+    all.map(wk => `<button type="button" data-wk="${wk}" aria-pressed="${on(wk)}" class="size-7 text-[11px] rounded-md border transition-colors ${on(wk) ? 'bg-amber-500/15 border-amber-500/40 text-amber-100' : 'border-white/10 text-zinc-500 hover:text-white'}">${wk}</button>`).join('') +
+    quick.map(([l, wks], i) => `<button type="button" data-quick="${i}" class="text-[11px] px-2 py-1 rounded-md border border-white/10 text-zinc-400 hover:text-white ml-${i ? 1 : 2}">${l}</button>`).join('');
+  box.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => {
+    const set = new Set(selWeeks || all), wk = +b.dataset.wk;
+    set.has(wk) ? set.delete(wk) : set.add(wk);
+    selWeeks = set.size === all.length ? null : set;
+    if (selWeeks && !selWeeks.size) selWeeks = new Set([wk === all[0] ? all[1] || wk : all[0]]); // never zero games
+    renderStats();
+  });
+  box.querySelectorAll('[data-quick]').forEach(b => b.onclick = () => { const w = quick[+b.dataset.quick][1]; selWeeks = w ? new Set(w) : null; renderStats(); });
 }
 
 let statsToken = 0;
@@ -508,84 +680,74 @@ async function renderStats() {
     btn.className = `mode-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
   });
   const single = statSeason !== 'career';
-  $('weekPicks').classList.toggle('hidden', !single);
   $('gameLogWrap').classList.toggle('hidden', !single);
-
-  // lines[i] = { gp, points, sum, finish, games: [{week, date, opp, away, pts}] } or null
-  let lines;
-  if (!single) {
-    lines = ps.map(p => {
-      if (!p.seasons) return null;
-      const sum = {}; let points = 0;
-      Object.values(p.seasons).forEach(st => { points += Vault.scoreStats(st, scoring); Object.entries(st).forEach(([k, v]) => { if (typeof v === 'number') sum[k] = (sum[k] || 0) + v; }); });
-      const finishes = Object.keys(p.seasons).map(yr => seasonFinish.get(`${p.pid}-${yr}`)?.posRank).filter(Boolean);
-      return { gp: sum.gp || 0, points, sum, finish: finishes.length ? Math.min(...finishes) : null };
-    });
+  let sd = null, aggs, ranksByPos = new Map();
+  if (single) {
+    $('stats').innerHTML = `<tbody><tr><td class="px-3 py-3 text-zinc-400">Loading ${statSeason}…</td></tr></tbody>`;
+    sd = await loadSeason(statSeason);
+    if (token !== statsToken) return;
+    if (selWeeks && [...selWeeks].some(w => w > (sd?.maxWeek || 0))) selWeeks = null;
+    renderWeekChips(sd, ps);
+    if (sd) new Set(ps.map(p => p.pos)).forEach(pos => ranksByPos.set(pos, positionRanks(sd, pos, selWeeks)));
+    aggs = ps.map(p => (sd && p.pid && ranksByPos.get(p.pos)?.aggs.get(p.pid)) || null);
   } else {
-    $('stats').innerHTML = `<tbody><tr><td class="px-3 py-3 text-zinc-400">Loading ${statSeason} games…</td></tr></tbody>`;
-    const weeks = await Promise.all(ps.map(p => p.pid ? weekly(p.pid, statSeason) : Promise.resolve({})));
-    if (token !== statsToken) return; // a newer selection is already rendering
-    const maxWeek = Math.max(1, ...weeks.flatMap(w => Object.entries(w).filter(([, e]) => e?.stats?.gp).map(([k]) => +k)));
-    const upTo = Math.max(18, maxWeek);
-    weekTo = Math.min(weekTo, upTo);
-    const opts = n => Array.from({ length: n }, (_, k) => `<option value="${k + 1}">${k + 1}</option>`).join('');
-    $('weekFrom').innerHTML = opts(upTo); $('weekTo').innerHTML = opts(upTo);
-    $('weekFrom').value = weekFrom; $('weekTo').value = weekTo;
-    const fullSeason = weekFrom === 1 && weekTo >= maxWeek;
-    lines = ps.map((p, i) => {
-      const games = Object.entries(weeks[i]).map(([wk, e]) => ({ wk: +wk, e })).filter(g => g.e?.stats?.gp && g.wk >= weekFrom && g.wk <= weekTo)
-        .map(g => ({ week: g.wk, date: g.e.date, opp: g.e.opponent, away: g.e.is_away_team, stats: g.e.stats, pts: Vault.scoreStats(g.e.stats, scoring) }));
-      if (!games.length) return null;
-      const sum = {};
-      games.forEach(g => Object.entries(g.stats).forEach(([k, v]) => { if (typeof v === 'number') sum[k] = (sum[k] || 0) + v; }));
-      // Position finish only means something over a full season in the history file.
-      const finish = fullSeason ? (seasonFinish.get(`${p.pid}-${statSeason}`)?.posRank ?? null) : null;
-      return { gp: games.length, points: games.reduce((s, g) => s + g.pts, 0), sum, finish, games };
-    });
-    renderGameLog(ps, lines);
+    renderWeekChips(null, ps);
+    aggs = ps.map(p => careerAggregate(p));
   }
 
-  if (lines.every(l => !l)) {
-    $('stats').innerHTML = `<tbody><tr><td class="px-3 py-3 text-zinc-400">No NFL games for these players ${single ? `in ${statSeason}${weekFrom !== 1 || weekTo < 18 ? `, weeks ${weekFrom}–${weekTo}` : ''}` : 'yet'} — rookies and players new to the league won't have any.</td></tr></tbody>`;
+  const stats = shownStats(ps);
+  if (aggs.every(a => !a)) {
+    $('stats').innerHTML = `<tbody><tr><td class="px-3 py-3 text-zinc-400">No NFL games for these players ${single ? `in the ${statSeason} games picked` : 'yet'} — rookies and players new to the league won't have any.</td></tr></tbody>`;
   } else {
-    const per = (l, v) => !l ? NaN : statMode === 'game' ? (l.gp ? v / l.gp : NaN) : v;
-    const dec = statMode === 'game' ? 1 : 0;
-    const show = v => Number.isFinite(v) ? v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—';
-    const samePos = ps.every(p => p.pos === ps[0].pos);
-    const keys = [...new Map(ps.flatMap(p => STAT_SETS[p.pos] || []).map(s => [s[0], s])).values()];
-    const label = single ? `${statSeason}${weekFrom !== 1 || weekTo < 18 ? ` · wk ${weekFrom}–${weekTo}` : ''}` : 'Career';
-    $('stats').innerHTML = headRow(ps, label) + '<tbody>' + [
-      row('Games', lines.map(l => l ? l.gp : NaN), v => Number.isFinite(v) ? String(v) : '—', null),
-      row(statMode === 'game' ? 'Fantasy points per game' : 'Fantasy points', lines.map(l => per(l, l?.points)), show, 'high'),
-      row(single ? 'Position finish' : 'Best position finish', lines.map(l => l?.finish ?? NaN), v => Number.isFinite(v) ? `#${v}` : '—', samePos ? 'low' : null),
-      // A stat outside a player's position group (a running back's pass
-      // attempts) shows as '—', never as a 0 that could "win" fewest interceptions.
-      ...keys.map(([k, lbl, dir]) => row(lbl, lines.map((l, i) => (STAT_SETS[ps[i].pos] || []).some(s => s[0] === k) ? per(l, l?.sum[k] || 0) : NaN), show, dir || 'high'))
-    ].join('') + '</tbody>';
+    const gamesLabel = !single ? 'Career' : `${statSeason}${selWeeks ? ` · ${selWeeks.size} game${selWeeks.size === 1 ? '' : 's'} picked` : ''}`;
+    let body = row('Games', aggs.map(a => a ? a.gp : NaN), v => Number.isFinite(v) ? String(v) : '—', null);
+    StatCatalog.CATS.forEach(([cat, catLabel]) => {
+      const list = stats.filter(s => s.cat === cat);
+      if (!list.length) return;
+      body += `<tr><td colspan="${ps.length + 1}" class="px-3 pt-4 pb-1 text-[11px] uppercase tracking-wider text-amber-300/70">${catLabel}</td></tr>`;
+      list.forEach(stat => {
+        const vals = ps.map((p, i) => stat.pos.includes(p.pos) ? (stat.id === 'finish' ? (aggs[i]?.finish ?? null) : modeValue(stat, aggs[i])) : null);
+        // Best among the compared players (only if they all share the stat's scale).
+        let best = -1;
+        if (stat.better) {
+          const f = vals.map((v, i) => [v, i]).filter(([v]) => v != null);
+          if (f.length >= 2) { const t = stat.better === 'high' ? Math.max(...f.map(x => x[0])) : Math.min(...f.map(x => x[0])); const hits = f.filter(x => x[0] === t); if (hits.length === 1) best = hits[0][1]; }
+        }
+        const cells = ps.map((p, i) => {
+          const v = vals[i];
+          const r = single && stat.better && v != null ? rankOf(ranksByPos.get(p.pos)?.byStat.get(stat.id), stat, p.pid) : null;
+          const heat = r && r.n > 1 ? Vault.heatColor(1 - (r.rank - 1) / (r.n - 1)).replace('rgb(', 'rgba(').replace(')', ',0.7)') : 'rgba(255,255,255,0.08)';
+          const rankTxt = r && stat.kind !== 'rank' ? `<span class="text-[10px] text-zinc-500 w-9 inline-block text-left" title="${r.rank} of ${r.n} qualified ${p.pos}s">#${r.rank}</span>` : `<span class="w-9 inline-block"></span>`;
+          return `<td class="px-3 py-1.5 text-right mono whitespace-nowrap ${i === best ? 'win' : 'text-zinc-300'}"><span class="inline-flex items-center gap-1.5 justify-end">${i === best ? `<span class="sw sw${i + 1}" title="Best of these players"></span>` : ''}<span class="inline-block min-w-[3.6rem] px-1.5 py-0.5 rounded border" style="border-color:${v == null ? 'transparent' : heat}">${fmtStat(stat, v)}</span>${single ? rankTxt : ''}</span></td>`;
+        }).join('');
+        body += `<tr class="border-t border-white/5"><td class="px-3 py-1.5 text-zinc-400 whitespace-nowrap" title="${Vault.escapeHtml(stat.tip || '')}">${stat.id === 'fp' && statMode === 'game' ? 'Fantasy points per game' : stat.label}${stat.kind === 'weeks' && statMode === 'game' ? ' <span class="text-zinc-500">(% of games)</span>' : ''}</td>${cells}</tr>`;
+      });
+    });
+    $('stats').innerHTML = headRow(ps, gamesLabel) + '<tbody>' + body + '</tbody>';
   }
   $('statsNote').textContent = [
-    'Fantasy points use your league\'s scoring settings.',
-    single ? 'Pick a week range to compare just those games; byes and missed games don\'t count toward per-game numbers.' : 'Career covers seasons through ' + (lastHistorySeason || 'last year') + '; pick a season for this year\'s games.',
-    !ps.every(p => p.pos === ps[0].pos) ? 'Position finishes aren\'t marked across different positions.' : (single ? 'Position finish shows only for a full season.' : '')
-  ].filter(Boolean).join(' ');
+    'Fantasy points and weekly finishes use your league\'s scoring.',
+    single ? 'The # after each number is its rank among every qualified player at that position over the same games (enough games and volume to count), shaded green to red. Hover a stat name for what it means.' : 'Career covers seasons through ' + (lastHistorySeason || 'last year') + '; pick a season for ranks, weekly finishes, and team shares.',
+    'Routes run, evaded tackles, and similar tracking stats aren\'t available from Sleeper.'
+  ].join(' ');
+  if (single && sd) renderGameLog(ps, sd);
   renderBySeason(ps);
 }
 
-// Week-by-week fantasy points for the selected range; the week's top scorer is marked.
-function renderGameLog(ps, lines) {
-  const weeks = [...new Set(lines.flatMap(l => (l?.games || []).map(g => g.week)))].sort((a, b) => a - b);
-  if (!weeks.length) { $('gameLog').innerHTML = '<tbody><tr><td class="px-3 py-2 text-zinc-400">No games in this range.</td></tr></tbody>'; return; }
-  const cellFor = (l, wk) => l?.games.find(g => g.week === wk) || null;
-  $('gameLog').innerHTML = headRow(ps, 'Week') + '<tbody>' + weeks.map(wk => {
-    const games = lines.map(l => cellFor(l, wk));
-    const pts = games.map(g => g ? g.pts : NaN);
-    const finite = pts.filter(Number.isFinite);
-    const top = finite.length >= 2 ? Math.max(...finite) : NaN;
-    const topIdx = pts.filter(v => v === top).length === 1 ? pts.indexOf(top) : -1;
-    return `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400 whitespace-nowrap">${wk}</td>${games.map((g, i) => g
-      ? `<td class="px-3 py-2 text-right mono ${i === topIdx ? 'win' : 'text-zinc-300'} whitespace-nowrap"><span class="inline-flex items-center gap-2 justify-end">${i === topIdx ? `<span class="sw sw${i + 1}" title="Top score this week"></span>` : ''}<span class="text-zinc-500 text-[11px]">${g.away ? '@' : 'vs'} ${g.opp || ''}</span>${g.pts.toFixed(1)}</span></td>`
+// Game by game for the picked games: opponent, fantasy points, and weekly finish.
+function renderGameLog(ps, sd) {
+  const weeks = Array.from({ length: sd.maxWeek }, (_, i) => i + 1).filter(wk => !selWeeks || selWeeks.has(wk));
+  const gameOf = (p, wk) => (p.pid && sd.players.get(p.pid)?.games.get(wk)) || null;
+  const rows = weeks.map(wk => {
+    const games = ps.map(p => gameOf(p, wk));
+    if (games.every(g => !g)) return '';
+    const pts = games.map(g => g ? g.pts : NaN), f = pts.filter(Number.isFinite);
+    const top = f.length >= 2 ? Math.max(...f) : NaN, topIdx = pts.filter(v => v === top).length === 1 ? pts.indexOf(top) : -1;
+    return `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${wk}</td>${games.map((g, i) => g
+      ? `<td class="px-3 py-2 text-right mono ${i === topIdx ? 'win' : 'text-zinc-300'} whitespace-nowrap"><span class="inline-flex items-center gap-2 justify-end">${i === topIdx ? `<span class="sw sw${i + 1}" title="Top score this week"></span>` : ''}<span class="text-zinc-500 text-[11px]">${g.away ? '@' : 'vs'} ${g.opp}</span>${g.pts.toFixed(1)}<span class="text-zinc-500 text-[11px]">${ps[i].pos}${g.finish}</span></span></td>`
       : '<td class="px-3 py-2 text-right mono text-zinc-500">—</td>').join('')}</tr>`;
-  }).join('') + '</tbody>';
+  }).join('');
+  $('gameLog').innerHTML = rows ? headRow(ps, 'Week') + '<tbody>' + rows + '</tbody>' : '<tbody><tr><td class="px-3 py-2 text-zinc-400">No games in the weeks picked.</td></tr></tbody>';
 }
 
 function renderBySeason(ps) {
