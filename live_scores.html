@@ -423,18 +423,14 @@ function renderLiveFeed(rosterMap, userMap) {
       const delta = playerPointDeltas.get(pl.pid) || 0;
       const showDelta = !shown.has(pl.pid) && Math.abs(delta) >= 0.05;
       if (showDelta) shown.add(pl.pid);
-      const total = knownPlayerPoints.get(pl.pid);
       return `
       <div class="flex items-center justify-between gap-2 py-0.5">
         <div class="min-w-0">
           <span class="text-[12px] font-medium text-zinc-100 truncate">${Vault.escapeHtml(pl.name)}</span>
         </div>
-        <div class="text-right shrink-0 leading-tight">
-          <div class="flex items-center justify-end gap-2">
-            <span class="text-[15px] font-bold text-white truncate max-w-[140px]" title="${Vault.escapeHtml(pl.teamName)}">${Vault.escapeHtml(pl.teamName)}</span>
-            ${showDelta ? `<span class="text-[22px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Point change since the last update, attributed to this player's most recent play — Sleeper's scoring can trail ESPN's play text by a play or two">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</span>` : ''}
-          </div>
-          ${total != null ? `<div class="text-[15px] font-mono font-bold text-amber-300">${total.toFixed(1)} <span class="text-[9px] font-sans font-medium uppercase tracking-wide text-amber-300/60">pts</span></div>` : ''}
+        <div class="flex items-center justify-end gap-2 shrink-0">
+          <span class="text-[15px] font-bold text-white truncate max-w-[140px]" title="${Vault.escapeHtml(pl.teamName)}">${Vault.escapeHtml(pl.teamName)}</span>
+          ${showDelta ? `<span class="text-[22px] font-mono font-extrabold ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Point change since the last update, attributed to this player's most recent play — Sleeper's scoring can trail ESPN's play text by a play or two">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</span>` : ''}
         </div>
       </div>`;
     }).join('');
