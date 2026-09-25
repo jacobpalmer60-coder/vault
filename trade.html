@@ -505,7 +505,7 @@ function renderPosFilter(side) {
   const state = side === 'A' ? filterA : filterB;
   document.getElementById(`posFilter${side}`).innerHTML = POS_FILTERS.map(p => {
     const count = p === 'ALL' ? team.assets.length : team.assets.filter(a => p === 'PICK' ? a.type === 'pick' : a.pos === p).length;
-    return `<button onclick="setPosFilter('${side}','${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${state === p ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p} <span class="opacity-60">${count}</span></button>`;
+    return `<button onclick="setPosFilter('${side}','${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${state === p ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p === '1-FOR-2' ? '1-for-2' : p} <span class="opacity-60">${count}</span></button>`;
   }).join('');
 }
 
@@ -532,6 +532,30 @@ function resetTrade() {
 function tradeableAssets(team) {
   const floor = Math.max(300, team.total * 0.02);
   return team.assets.filter(a => a.value >= floor).sort((a, b) => b.value - a.value).slice(0, 15);
+}
+
+// Closest-to-even pair from `pool` for one `single` asset, by real consolidation-
+// adjusted % off — null unless it already reads Fair. `singleIsMine` says which
+// side of the trade the single asset sits on (tradeSideValues is order-sensitive).
+// Pairs whose raw sum is nowhere near the single piece are skipped before any
+// real math runs.
+function bestPairFor(single, pool, singleIsMine) {
+  let best = null, bestPct = Infinity;
+  for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) {
+    const pair = [pool[i], pool[j]];
+    const raw = pair[0].value + pair[1].value;
+    if (raw < single.value * 0.8 || raw > single.value * 2.2) continue;
+    const { valueA, valueB } = singleIsMine ? Vault.tradeSideValues([single], pair) : Vault.tradeSideValues(pair, [single]);
+    const pct = Math.abs(valueA - valueB) / (((valueA + valueB) / 2) || 1) * 100;
+    if (pct < bestPct) { bestPct = pct; best = pair; }
+  }
+  return bestPct < VAULT_CONFIG.FAIR_PCT ? best : null;
+}
+
+// "1-for-2" / "2-for-1" from Team A's side, or null for any other shape.
+function tradeShape(c) {
+  const a = c.giveA.length, b = c.giveB.length;
+  return a === 1 && b === 2 ? '1-for-2' : a === 2 && b === 1 ? '2-for-1' : null;
 }
 
 let suggestState = [];
@@ -585,6 +609,21 @@ function runSuggestTradeSearch() {
       const combo = bestCombo(myTeam.assets, theirs.value, partnerProfile);
       if (combo) consider(partner, combo.combo, [theirs]);
     });
+
+    // Explicit 1-for-2s, both directions — the searches above lean 1-for-1 (every
+    // extra piece carries COMBO_SIZE_PENALTY_PCT), so a genuinely fair 2-for-1
+    // rarely surfaced on its own. Scored with the real two-sided KTC math
+    // (Vault.tradeSideValues), since the consolidation premium is exactly what
+    // decides whether two pieces really match one.
+    const myTop = tradeableAssets(myTeam), theirTop = tradeableAssets(partner);
+    myTop.forEach(mine => {
+      const pair = bestPairFor(mine, theirTop, true);
+      if (pair) consider(partner, [mine], pair);
+    });
+    theirTop.forEach(theirs => {
+      const pair = bestPairFor(theirs, myTop, false);
+      if (pair) consider(partner, pair, [theirs]);
+    });
   });
 
   // The two search directions (send-an-anchor vs. acquire-an-anchor) can converge
@@ -622,7 +661,8 @@ function runSuggestTradeSearch() {
   // genuinely different opportunities with the rest of the league. Not capped to a
   // small overall number here — that happens in renderSuggestions, so filtering by
   // position can still surface a good trade that didn't make the default top-5.
-  const MAX_PER_PARTNER = 2;
+  // 3 rather than 2 now that 1-for-2s are in the candidate pool too.
+  const MAX_PER_PARTNER = 3;
   // A real pick-for-pick trade is a legitimate suggestion sometimes (consolidating
   // capital, converting a far-future pick into a nearer one) — the actual problem
   // was every top result being one, not that any exist at all. Sorted to the back
@@ -654,6 +694,7 @@ function runSuggestTradeSearch() {
 // same semantics as the roster position filters above (POS_FILTERS).
 function suggestionMatchesPos(c, pos) {
   if (pos === 'ALL') return true;
+  if (pos === '1-FOR-2') return !!tradeShape(c); // either direction
   return [...c.giveA, ...c.giveB].some(a => pos === 'PICK' ? a.type === 'pick' : a.pos === pos);
 }
 
@@ -662,17 +703,36 @@ function setSuggestPosFilter(pos) {
   renderSuggestions();
 }
 
+// Whoever takes in more players than they send may be over the active-roster
+// limit afterward — worth saying on the card, since a 1-for-2 can be fair on
+// value and still force a drop (see projectedRosterCount).
+function suggestionRosterNote(c) {
+  if (!rosterCap) return '';
+  const myTeam = teamOf('A');
+  const notes = [[myTeam, c.giveA, c.giveB], [c.partner, c.giveB, c.giveA]].map(([team, out, inc]) => {
+    const over = projectedRosterCount(team, out, inc) - rosterCap;
+    return over > 0 ? `${team === myTeam ? 'You' : Vault.escapeHtml(team.teamName)} would need to drop ${over}` : '';
+  }).filter(Boolean);
+  return notes.length ? `<span class="text-[11px] text-amber-300/80">${notes.join(' · ')}</span>` : '';
+}
+
 function suggestionCard(c, i) {
+  const shape = c.giveA.length === 1 && c.giveB.length === 1 ? null : `${c.giveA.length}-for-${c.giveB.length}`;
   return `
     <div class="p-3 rounded-xl bg-black/30">
       <div class="flex items-center justify-between gap-4 flex-wrap mb-1.5">
-        <div class="text-[13px] font-medium">vs. ${Vault.escapeHtml(c.partner.teamName)}</div>
+        <div class="flex items-center gap-2">
+          <div class="text-[13px] font-medium">vs. ${Vault.escapeHtml(c.partner.teamName)}</div>
+          ${shape ? `<span class="text-[10px] px-1.5 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-300">${shape}</span>` : ''}
+        </div>
         <button onclick="useSuggestion(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid shrink-0">Use This Trade</button>
       </div>
       <div class="text-[12px] text-zinc-300 mb-1.5">You send <span class="text-zinc-200">${c.giveA.map(a => Vault.escapeHtml(a.name)).join(', ')}</span> for <span class="text-zinc-200">${c.giveB.map(a => Vault.escapeHtml(a.name)).join(', ')}</span></div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <span class="size-2 rounded-full ${verdictDot(c.result.verdict.tone, c.result.bucket)}"></span>
         <span class="text-[12px] font-medium ${verdictColor(c.result.verdict.tone, c.result.bucket)}">${c.result.verdict.label}</span>
+        <span class="text-[11px] text-zinc-400">${capPct(c.result.overallPct).toFixed(0)}% off</span>
+        ${suggestionRosterNote(c)}
       </div>
     </div>`;
 }
@@ -693,10 +753,10 @@ function renderSuggestions() {
   const candidates = allSuggestions.filter(c => suggestionMatchesPos(c, suggestPosFilter)).slice(0, MAX_DISPLAYED);
   suggestState = candidates; // useSuggestion(i) indexes into whatever's currently displayed
 
-  const filterBar = POS_FILTERS.map(p => {
+  const filterBar = [...POS_FILTERS, '1-FOR-2'].map(p => {
     const count = allSuggestions.filter(c => suggestionMatchesPos(c, p)).length;
     const active = suggestPosFilter === p;
-    return `<button onclick="setSuggestPosFilter('${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${active ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p} <span class="opacity-60">${count}</span></button>`;
+    return `<button onclick="setSuggestPosFilter('${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${active ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p === '1-FOR-2' ? '1-for-2' : p} <span class="opacity-60">${count}</span></button>`;
   }).join('');
 
   box.innerHTML = `
@@ -841,14 +901,40 @@ function balanceSide(mySide, btn) {
   needCandidates(fillerPool, remainingAdj, 8).forEach(c => additive.push([...myCurrent, ...c]));
   if (myCurrent.length) additive.push(myCurrent); // "add nothing" is a valid option too
 
+  // 1-for-2 / 2-for-1 candidates, checked exhaustively with real math rather than
+  // left to the proxy shortlist (which penalizes every extra piece): one piece
+  // added to a single current pick against a single asset, a fresh pair against a
+  // single asset, or a single piece against two. Only Fair ones are kept.
+  const isFair = c => pctDiffFor(c) < VAULT_CONFIG.FAIR_PCT;
+  if (otherAssets.length === 1 && myCurrent.length === 1) {
+    fillerPool.forEach(a => { const c = [...myCurrent, a]; if (isFair(c)) additive.push(c); });
+  } else if (otherAssets.length === 1 && !myCurrent.length) {
+    const top = tradeableAssets(myTeam), target = otherAssets[0].value;
+    for (let i = 0; i < top.length; i++) for (let j = i + 1; j < top.length; j++) {
+      const raw = top[i].value + top[j].value;
+      if (raw < target * 0.8 || raw > target * 2.2) continue;
+      const c = [top[i], top[j]];
+      if (isFair(c)) additive.push(c);
+    }
+  } else if (otherAssets.length === 2 && !myCurrent.length) {
+    myTeam.assets.forEach(a => { if (isFair([a])) additive.push([a]); });
+  }
+  // Real cost of a bigger package: every player the receiving team would have to
+  // drop to fit it under the active-roster limit (see projectedRosterCount). Same
+  // weight as a GOOD_FIT_THRESHOLD-sized fit swing per forced drop, so a 3-for-1
+  // only beats a 2-for-1 when it's genuinely better for them, not by default.
+  const DROP_COST = VAULT_CONFIG.GOOD_FIT_THRESHOLD;
+  const dropsFor = c => rosterCap ? Math.max(0, projectedRosterCount(otherTeam, otherAssets, c) - rosterCap) : 0;
+  const scoreWithDrops = c => evaluate(c) - dropsFor(c) * DROP_COST;
+
   // Picks the best-scoring combo from a candidate list, preferring any that are
   // already Fair by value — `evaluate`'s fit bonus can otherwise favor a Lopsided
   // add over a Fair one, and a Lopsided pick here used to trip the Tier 2 rebuild
   // below even though a Fair add-on (keeping the current selection) was right there.
   const pickBest = combos => {
-    const fair = combos.filter(c => pctDiffFor(c) < VAULT_CONFIG.FAIR_PCT);
+    const fair = combos.filter(isFair);
     let top = null, topScore = -Infinity;
-    (fair.length ? fair : combos).forEach(c => { const s = evaluate(c); if (s > topScore) { topScore = s; top = c; } });
+    (fair.length ? fair : combos).forEach(c => { const s = scoreWithDrops(c); if (s > topScore) { topScore = s; top = c; } });
     return { combo: top, score: topScore };
   };
 
@@ -872,7 +958,7 @@ function balanceSide(mySide, btn) {
         for (const candidate of myTeam.assets) {
           if (combo.some(a => a.key === candidate.key)) continue; // already in this combo
           const trial = combo.map((a, idx) => idx === i ? candidate : a);
-          const s = evaluate(trial);
+          const s = scoreWithDrops(trial);
           if (s > score && (pctDiffFor(trial) < VAULT_CONFIG.FAIR_PCT || pctDiffFor(combo) >= VAULT_CONFIG.FAIR_PCT)) { score = s; combo = trial; swapped = true; }
         }
       }
