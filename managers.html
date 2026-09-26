@@ -131,8 +131,24 @@ const signedCell = n => `<span class="mono ${n > 0 ? 'text-emerald-400' : n < 0 
 // The whole league at a glance: who each manager is as a trader, in one line,
 // before the detailed cards below. Same order as the cards (ranked traders,
 // then anyone who hasn't traded).
+// Click a header to sort (highest first; click again to flip). Managers with
+// no trades stay at the bottom of the Net columns either way.
+let glanceSort = { key: null, dir: -1 }, glanceData = null;
+function sortGlance(key) {
+  glanceSort = glanceSort.key === key ? { key, dir: -glanceSort.dir } : { key, dir: key === 'teamName' ? 1 : -1 };
+  renderSummaryTable(glanceData.rows, glanceData.teams);
+}
 function renderSummaryTable(rows, teams) {
+  glanceData = { rows, teams };
   const box = document.getElementById('summary');
+  const { key, dir } = glanceSort;
+  const sorted = !key ? rows : [...rows].sort((a, b) => {
+    if (key === 'teamName') return dir * a.teamName.localeCompare(b.teamName);
+    const noA = key !== 'trades' && !a.trades, noB = key !== 'trades' && !b.trades;
+    if (noA !== noB) return noA ? 1 : -1;
+    return dir * ((a[key] || 0) - (b[key] || 0));
+  });
+  const th = (label, k, align, title = '', pad = 'px-3') => `<th class="${align} ${pad} py-2.5 sortable ${key === k ? 'active' : ''}" onclick="sortGlance('${k}')" ${title ? `title="${title}"` : ''} aria-sort="${key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${key === k ? (dir > 0 ? ' ↑' : ' ↓') : ''}</th>`;
   const nameOf = new Map((teams || []).map(t => [t.rosterId, t.username]));
   const mine = Vault.myTeam(teams || []);
   box.classList.remove('hidden');
@@ -143,16 +159,16 @@ function renderSummaryTable(rows, teams) {
         <table class="w-full text-[13px] min-w-[860px]">
           <thead class="bg-black/40 border-b border-white/5">
             <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
-              <th class="text-left px-4 py-2.5">Manager</th>
+              ${th('Manager', 'teamName', 'text-left', '', 'px-4')}
               <th class="text-left px-3 py-2.5">Trading style</th>
               <th class="text-left px-3 py-2.5">Description</th>
-              <th class="text-right px-3 py-2.5">Trades</th>
-              <th class="text-right px-3 py-2.5" title="Net value across every trade at KTC prices on each trade's date">Net Then</th>
-              <th class="text-right px-4 py-2.5" title="The same trades at today's KTC prices">Net Now</th>
+              ${th('Trades', 'trades', 'text-right')}
+              ${th('Net Then', 'netValue', 'text-right', "Net value across every trade at KTC prices on each trade's date")}
+              ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's KTC prices", 'px-4')}
             </tr>
           </thead>
           <tbody class="divide-y divide-white/5">
-            ${rows.map(s => {
+            ${sorted.map(s => {
               const p = Vault.managerProfile(s, window._avgTrades || 0);
               const user = nameOf.get(s.rosterId);
               return `<tr class="align-top">
