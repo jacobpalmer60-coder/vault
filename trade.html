@@ -84,12 +84,16 @@
           <div id="diffConfidence" class="text-[10px] text-zinc-400 mt-0.5"></div>
         </div>
         <span id="balanceBtn"></span>
+        <span id="offerBtn"></span>
         <button onclick="shareTrade(this)" title="Copy a link to this exact trade — it opens with the same teams, pieces, and verdict" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Share</button>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
     <div id="gapClose" class="hidden mt-3 pt-3 border-t border-white/5"></div>
   </div>
+
+  <!-- Negotiation: the other manager's predicted response, round by round (negotiation.js) -->
+  <div id="negotiation" class="hidden mb-4 p-4 rounded-2xl card"></div>
 
   <!-- Trade Finder: shop one side's asset(s) against the whole league, not just the loaded opponent -->
   <div id="finder" class="hidden mb-4 p-4 rounded-2xl card">
@@ -339,11 +343,13 @@ async function init() {
     prevB = prevBSetup = selB.value;
 
     selA.onchange = () => {
+      if (typeof negReset === 'function') negReset();
       if (resolveDup(selA.value, selB, prevA)) { prevB = selB.value; selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B'); }
       prevA = selA.value;
       selectedA.clear(); filterA = 'ALL'; renderPosFilter('A'); render('A');
     };
     selB.onchange = () => {
+      if (typeof negReset === 'function') negReset();
       if (resolveDup(selB.value, selA, prevB)) { prevA = selA.value; selectedA.clear(); filterA = 'ALL'; renderPosFilter('A'); render('A'); }
       prevB = selB.value;
       selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B');
@@ -364,6 +370,7 @@ async function init() {
     document.getElementById('status').className = 'text-[13px] text-emerald-400/80 mt-1';
 
     document.getElementById('loadRostersBtn').onclick = () => {
+      if (typeof negReset === 'function') { negReset(); negPreloadStyles(); } // trade history loads in the background for negotiations
       selA.value = setupA.value;
       selB.value = setupB.value;
       prevA = selA.value; prevB = selB.value;
@@ -386,6 +393,7 @@ async function init() {
 }
 
 function backToSetup() {
+  if (typeof negReset === 'function') negReset();
   history.replaceState(null, '', Vault.linkTo('trade.html'));
   document.getElementById('workspace').classList.add('hidden');
   document.getElementById('setup').classList.remove('hidden');
@@ -578,6 +586,7 @@ function toggle(side, key) {
 }
 
 function resetTrade() {
+  if (typeof negReset === 'function') negReset();
   selectedA.clear(); selectedB.clear();
   render('A'); render('B');
 }
@@ -1803,6 +1812,7 @@ function updateTrade() {
     document.getElementById('analysisA').classList.add('hidden');
     document.getElementById('analysisB').classList.add('hidden');
     empty.classList.remove('hidden');
+    if (typeof renderOfferButton === 'function') renderOfferButton();
     return;
   }
   empty.classList.add('hidden');
@@ -1865,6 +1875,7 @@ function updateTrade() {
   } else gapBox.classList.add('hidden');
 
   renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analysis);
+  if (typeof renderOfferButton === 'function') renderOfferButton();
 }
 
 // teamMode/MODE_LABEL now live in Vault (vault-core.js) — shared with Trade Grades.
@@ -2167,6 +2178,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
 
 function toggleOfferedBy(side) {
   offeredBy = offeredBy === side ? null : side;
+  if (typeof negReset === 'function') negReset(); // a negotiation is from one side's point of view
   render('A'); render('B');
 }
 
@@ -2280,5 +2292,6 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
+<script src="negotiation.js"></script>
 </body>
 </html>
