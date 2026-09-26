@@ -1911,6 +1911,16 @@ const Vault = {
   // fair when KTC says otherwise. Fit still gets its say through the per-factor
   // breakdown and by pushing a trade that's close on value but bad for one
   // side's roster/timeline down a tier.
+  // One manager's own read of a trade: KTC value from their side, blended with
+  // only THEIR roster fit and timeline, using the same weights and scales as the
+  // overall grade. Unlike blendedFairness it doesn't net out the other side's
+  // fit: a deal fitting the other team well doesn't make it worse for this one.
+  ownTradeRead(valuePct, rosterFit, timeFit) {
+    const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, w = VAULT_CONFIG.FAIRNESS_WEIGHTS;
+    const clamp = x => Math.max(-cap, Math.min(cap, x));
+    return (w.value * clamp(valuePct) + w.roster * clamp(VAULT_CONFIG.ROSTER_FIT_SCALE * rosterFit) + w.timeline * clamp(VAULT_CONFIG.TIMELINE_FIT_SCALE * timeFit)) / 100;
+  },
+
   blendedFairness(signedPctDiff, rosterA, rosterB, timeA, timeB) {
     const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, w = VAULT_CONFIG.FAIRNESS_WEIGHTS;
     const clamp = x => Math.max(-cap, Math.min(cap, x));
@@ -2302,7 +2312,14 @@ const Vault = {
      (Win-Now on the archetype grid) is still trying to contend, not rebuild, even
      though its rebuild band is weak. Shared by the Trade Calculator (a proposed
      trade) and Trade Grades (a completed one). */
+  // Timeline a manager has chosen for their own team (Trade Calculator's "Your
+  // timeline": Win now / Rebuild), by rosterId. Empty everywhere else, so every
+  // other page reads timelines from the roster. Applies to simulated copies of
+  // the team too (they keep the rosterId).
+  planOverride: {},
   teamMode(t) {
+    const chosen = Vault.planOverride[t.rosterId];
+    if (chosen) return chosen;
     if (t.contendTier === 'top2' || t.contendTier === 'topHalf') return 'contend';
     if (t.rebuildTier === 'top2' || t.rebuildTier === 'topHalf') return 'rebuild';
     return 'flexible';

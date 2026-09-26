@@ -2183,7 +2183,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   const verdict = overallVerdict(heads.A.tone, heads.B.tone, resA, resB, overallPct, dValueAdjA, teamA.teamName, teamB.teamName, avgSideAdj, posResults.A, posResults.B, favored);
   const bucket = Vault.fairnessBucket(overallPct, resA.fit, resB.fit);
 
-  return { before, after, pool, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, overallPct, verdict, bucket };
+  return { before, after, pool, resA, resB, trade, heads, wins, rosterFit, timelineFit, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, overallPct, verdict, bucket };
 }
 
 function toggleOfferedBy(side) {
@@ -2247,7 +2247,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
         <div class="flex items-center justify-between gap-2 mb-3">
           <div class="min-w-0">
             <div class="text-[11px] text-zinc-400 uppercase tracking-wider truncate">Team ${side} · ${Vault.escapeHtml(bef.teamName)}</div>
-            <div class="text-[11px] mt-0.5 ${TONE.neutral}">${Vault.MODE_LABEL[res.mode]}</div>
+            <div class="text-[11px] mt-0.5 ${TONE.neutral}">${Vault.MODE_LABEL[res.mode]}${Vault.planOverride[bef.rosterId] ? ' · your choice' : ''}</div>
           </div>
           <div class="text-right shrink-0">
             <div class="text-[13px] font-mono ${dValueAdj >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtSigned(dValueAdj)}</div>

@@ -123,24 +123,26 @@ function negJudge(aAssets, bAssets, R, ctx) {
 // shop your piece around the league. teamO/oAssets = the offering side.
 // Two different numbers on purpose. `edge` is the site's overall grade, the
 // one the verdict bar shows and "Fair for you" is judged on. `own` is how the
-// receiving manager reads it for themselves: the same value + roster fit +
-// timeline blend, but without the display rule that fit can't pull a grade
-// toward even (Vault.blendedFairness). A contender giving up a top scorer for a
-// pick and prospects sees a worse deal than KTC value alone says, and that's
-// what they'd decide on. They also never accept an offer the calculator's own
+// receiving manager reads it for themselves (Vault.ownTradeRead): KTC value
+// blended with only their own roster fit and timeline. A contender giving up a
+// top scorer for a pick and prospects sees a worse deal than KTC value alone
+// says, and that's what they'd decide on; how well it fits YOUR plan doesn't
+// change their answer. They also never accept an offer the calculator's own
 // read for them (heads.B, the "Decline This" verdict) says to decline, so the
 // prediction and the Trade Analysis below can't disagree.
 function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   const { valueA, valueB } = Vault.tradeSideValues(oAssets, rAssets);
   const an = computeTradeAnalysis(teamO, teamR, oAssets, rAssets, valueA, valueB);
   const fair = an.fairness; // positive favors the receiving team (side B here)
-  const edge = fair.overallSigned, own = fair.blend;
+  const edge = fair.overallSigned;
+  const fit = { roster: VAULT_CONFIG.ROSTER_FIT_SCALE * an.rosterFit.B, timeline: VAULT_CONFIG.TIMELINE_FIT_SCALE * an.timelineFit.B }; // theirs only
+  const own = Vault.ownTradeRead(fair.value, an.rosterFit.B, an.timelineFit.B);
   const drops = rosterCap ? Math.max(0, projectedRosterCount(teamR, rAssets, oAssets) - rosterCap) : 0;
   const concerns = negConcerns(rAssets, oAssets, ctx, drops);
   const will = own + concerns.reduce((t, c) => t + c.w, 0);
   const siteSaysNo = an.heads.B.tone === 'bad';
   const accepts = will >= ctx.ask && drops <= 1 && !siteSaysNo;
-  return { an, edge, own, will, drops, concerns, accepts, siteSaysNo, fair, headO: an.heads.A };
+  return { an, edge, own, will, drops, concerns, accepts, siteSaysNo, fair, fit, headO: an.heads.A };
 }
 
 // The manager's reply in their own words: what bothers them most, then what
@@ -156,8 +158,8 @@ function negReply(j, oGive, rGive, c, ctx) {
   if (theirRest.length && yourMain && theirMain && yourMain.value > theirMain.value) lead = `I don't think the difference between ${nm(yourMain)} and ${nm(theirMain)} is worth ${negNames(theirRest)}.`;
   else if (j.fair.value <= -3) lead = `${negNames(oGive)} for ${negNames(rGive)}? That's not enough for me.`;
   else if (worst) lead = worst.say;
-  else if (j.fair.roster <= -5) lead = 'This makes my lineup worse, and the value doesn\'t make up for it.';
-  else if (j.fair.timeline <= -5) lead = 'This doesn\'t fit where my team is headed.';
+  else if (j.fit.roster <= -5) lead = 'This makes my lineup worse, and the value doesn\'t make up for it.';
+  else if (j.fit.timeline <= -5) lead = 'This doesn\'t fit where my team is headed.';
   else if (ctx.ask >= 0) lead = 'I\'d need to come out clearly ahead to make a move.';
   else lead = 'I\'ll pass on this one.';
   let next = 'What else have you got?';
@@ -176,7 +178,7 @@ function negReasons(j, ctx) {
   else if (v <= -VAULT_CONFIG.LOPSIDED_PCT) no.push(`Not close on KTC value: they'd give up about ${pct(v)}% more than they get back.`);
   else if (v <= -1) no.push(`On KTC value, they'd give up about ${pct(v)}% more than they get back.`);
   else yes.push('It\'s about even on KTC value.');
-  const r = j.fair.roster, tl = j.fair.timeline, when = { contend: 'win-now', rebuild: 'rebuild' }[ctx.lean];
+  const r = j.fit.roster, tl = j.fit.timeline, when = { contend: 'win-now', rebuild: 'rebuild' }[ctx.lean];
   if (r >= 5) yes.push('It makes their starting lineup better.');
   else if (r <= -5) no.push('It makes their starting lineup worse.');
   if (tl >= 5) yes.push(`It fits their${when ? ' ' + when : ''} timeline.`);

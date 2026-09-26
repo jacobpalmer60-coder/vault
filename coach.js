@@ -35,6 +35,41 @@ const COACH_OPTIONS = {
 const Coach = { option: 'target', targetKey: null, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [] }, theirs: { must: [], keep: [], never: [] }, picker: { open: false, q: '', pos: 'ALL' } };
 
 const coachTick = () => new Promise(r => setTimeout(r, 0));
+
+/* ---------- Your timeline ----------
+   Auto reads contend/rebuild from your roster (Vault.teamMode). Win now or
+   Rebuild overrides it for your team everywhere on this page (the Trade
+   Analysis too, via Vault.planOverride), so a rebuilder going all-in isn't
+   graded as spending picks "a rebuild needed". Saved per league in this
+   browser only; storage can be blocked, so every access is guarded. */
+const COACH_PLAN_KEY = () => 'vault_timeline_' + Vault.getLeagueId();
+try { Object.assign(Vault.planOverride, JSON.parse(localStorage.getItem(COACH_PLAN_KEY()) || '{}')); } catch {}
+const COACH_PLAN_FOR = { contend: 'contend', rebuild: 'rebuild' }; // options that imply a timeline
+function coachAutoMode(team) {
+  const chosen = Vault.planOverride[team.rosterId];
+  delete Vault.planOverride[team.rosterId];
+  const mode = Vault.teamMode(team);
+  if (chosen) Vault.planOverride[team.rosterId] = chosen;
+  return mode;
+}
+function coachSetPlan(mode, quiet) {
+  const me = coachMe();
+  if (mode === 'auto') delete Vault.planOverride[me.rosterId]; else Vault.planOverride[me.rosterId] = mode;
+  try { localStorage.setItem(COACH_PLAN_KEY(), JSON.stringify(Vault.planOverride)); } catch {}
+  Coach.results = {}; // grades depend on it
+  if (typeof updateTrade === 'function') updateTrade(); // the Trade Analysis re-reads your timeline
+  if (!quiet) renderCoach();
+}
+function coachPlanHtml(me, chip) {
+  const chosen = Vault.planOverride[me.rosterId] || 'auto';
+  const auto = Vault.MODE_LABEL[coachAutoMode(me)];
+  return `<div class="flex flex-wrap items-center gap-1.5 mb-2">
+      <span class="text-[11px] text-zinc-500 mr-1">Your timeline</span>
+      ${chip(chosen === 'auto', `Auto <span class="text-zinc-500">· reads as ${auto}</span>`, "coachSetPlan('auto')")}
+      ${chip(chosen === 'contend', 'Win now', "coachSetPlan('contend')")}
+      ${chip(chosen === 'rebuild', 'Rebuild', "coachSetPlan('rebuild')")}
+    </div>`;
+}
 const coachMe = () => Vault.myTeam(teams) || teamOf('A');
 const coachFairFirst = (x, y) => (x.edge >= VAULT_CONFIG.FAIR_PCT) - (y.edge >= VAULT_CONFIG.FAIR_PCT);
 
@@ -234,13 +269,19 @@ async function coachFind() {
   if (Coach.busy) return;
   if (Coach.option === 'target' && !Coach.targetKey) return coachOpenPicker();
   const me = coachMe(), option = Coach.option;
+  const implied = COACH_PLAN_FOR[option];
+  let planNote = '';
+  if (implied && Vault.teamMode(me) !== implied) {
+    coachSetPlan(implied, true);
+    planNote = `Your timeline is now set to ${implied === 'contend' ? 'Win now' : 'Rebuild'}, so these trades (and the Trade Analysis) grade your side as ${implied === 'contend' ? 'contending' : 'rebuilding'}. Switch back under Your timeline.`;
+  }
   Coach.busy = true;
   renderCoach();
   const status = document.getElementById('coachStatus');
   const progress = text => { if (status) status.textContent = text; };
   if (!Negotiation.styles) { progress('Reading every manager\'s trade history…'); await Promise.race([negPreloadStyles(), new Promise(r => setTimeout(r, 8000))]); }
   try {
-    Coach.results[option] = { ...(await COACH_RUN[option](me, progress)), meId: me.rosterId, key: coachInputKey() };
+    Coach.results[option] = { ...(await COACH_RUN[option](me, progress)), meId: me.rosterId, key: coachInputKey(), planNote };
   } catch (e) {
     console.error(e);
     Coach.results[option] = { empty: 'Something went wrong finding trades. Try again.' };
@@ -250,7 +291,7 @@ async function coachFind() {
 }
 
 // Results belong to the inputs they were found for.
-const coachInputKey = () => ({ target: Coach.targetKey, position: Coach.pos }[Coach.option] || '') + '|' + JSON.stringify([Coach.mine, Coach.theirs]);
+const coachInputKey = () => ({ target: Coach.targetKey, position: Coach.pos }[Coach.option] || '') + '|' + JSON.stringify([Coach.mine, Coach.theirs, Vault.planOverride[coachMe().rosterId] || 'auto']);
 
 /* ---------- Panel ---------- */
 
@@ -397,6 +438,7 @@ function renderCoach() {
       </div>
       <button onclick="closeCoach()" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
     </div>
+    ${coachPlanHtml(me, chip)}
     <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(COACH_OPTIONS).map(([o, d]) => chip(Coach.option === o, d.label, `coachSetOption('${o}')`)).join('')}</div>
     <div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS[Coach.option].blurb}</div>`;
   coachSync();
@@ -428,6 +470,7 @@ function coachResultsHtml(r) {
       <div class="text-[15px] font-medium text-zinc-100">${r.title}</div>
       <div class="text-[11px] text-zinc-500">${r.list.length} option${r.list.length > 1 ? 's' : ''}, best for you first</div>
     </div>
+    ${r.planNote ? `<div class="text-[12px] text-violet-200/90 mb-2">${r.planNote}</div>` : ''}
     ${over ? '<div class="text-[12px] text-amber-300 mb-2">Some of these pay a premium: nobody would take a Fair offer for them. Those are marked Lopsided. Nothing here is Unfair.</div>' : ''}
     <div class="grid gap-2.5 md:grid-cols-2">${r.list.map((o, i) => {
       const lop = o.edge >= VAULT_CONFIG.FAIR_PCT;
