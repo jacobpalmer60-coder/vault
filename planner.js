@@ -41,7 +41,7 @@ const PLAN_GOALS = {
   rebuild: { label: 'Rebuild', blurb: 'Sells your aging players while they still hold value, most valuable first, for the best picks and young players (24 or under) anyone would give.' },
   contend: { label: 'Go all-in', blurb: 'Turns bench players and picks into starters, biggest lineup gain first. Your starters stay put.' }
 };
-const Planner = { goal: 'target', fromStep: null, targetKey: null, pos: null, result: null, busy: false, rejected: { partners: new Set(), deals: new Set() } };
+const Planner = { goal: 'target', fromStep: null, picker: { open: false, q: '', pos: 'ALL' }, targetKey: null, pos: null, result: null, busy: false, rejected: { partners: new Set(), deals: new Set() } };
 
 const planTick = () => new Promise(r => setTimeout(r, 0));
 const planTeam = (world, id) => world.find(t => t.rosterId === id);
@@ -339,13 +339,47 @@ function planDefaultPos() {
 // Switching options keeps a built plan and any negotiation, so you can flip back.
 function planSetGoal(g) { Planner.goal = g; renderPlanner(); }
 function planSetPos(p) { Planner.pos = p; Planner.result = null; renderPlanner(); }
-function planPickTarget(label) {
-  const hit = planTargetOptions().find(o => o.label === label);
-  if (hit && hit.key !== Planner.targetKey) { Planner.targetKey = hit.key; Planner.result = null; Planner.rejected = { partners: new Set(), deals: new Set() }; renderPlanner(); }
+// Target picker: the whole league by value, filtered by name and position.
+function planPickTarget(key) {
+  if (key !== Planner.targetKey) { Planner.targetKey = key; Planner.result = null; Planner.rejected = { partners: new Set(), deals: new Set() }; }
+  Planner.picker.open = false;
+  renderPlanner();
+}
+function planOpenPicker() { Planner.picker = { open: true, q: '', pos: 'ALL' }; renderPlanner(); document.getElementById('planTargetSearch')?.focus(); }
+function planClosePicker() { Planner.picker.open = false; renderPlanner(); }
+function planPickerPos(p) { Planner.picker.pos = p; renderPlanner(); }
+function planPickerSearch(q) { Planner.picker.q = q; renderPlanTargetList(); }
+function renderPlanTargetList() {
+  const el = document.getElementById('planTargetList');
+  if (!el) return;
+  const q = Planner.picker.q.trim().toLowerCase(), pos = Planner.picker.pos;
+  const hits = planTargetOptions().filter(o => (pos === 'ALL' || o.pos === pos) && (!q || o.name.toLowerCase().includes(q) || o.team.toLowerCase().includes(q))).slice(0, 40);
+  el.innerHTML = hits.length ? hits.map(o => `<button onclick="planPickTarget('${o.key}')" class="w-full px-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-violet-500/10 ${o.key === Planner.targetKey ? 'bg-violet-500/10' : ''}">
+      <span class="min-w-0 truncate text-[12px] text-zinc-200">${Vault.escapeHtml(o.name)} <span class="text-zinc-500">${o.pos} · ${Vault.escapeHtml(o.team)}</span></span>
+      <span class="mono text-[11px] text-zinc-400 shrink-0">${Math.round(o.value).toLocaleString()}</span>
+    </button>`).join('') : '<div class="px-3 py-2 text-[12px] text-zinc-400">No players match.</div>';
+}
+function planTargetHtml(chip) {
+  const cur = planTargetOptions().find(o => o.key === Planner.targetKey);
+  if (!Planner.picker.open && cur) {
+    return `<div class="flex items-center gap-2 min-w-0">
+        <div class="min-w-0 px-3 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/[0.06] text-[13px] truncate">${Vault.escapeHtml(cur.name)} <span class="text-zinc-400">${cur.pos} · ${Vault.escapeHtml(cur.team)}</span></div>
+        <button onclick="planOpenPicker()" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Change</button>
+      </div>`;
+  }
+  return `<div class="w-full sm:w-[440px]">
+      <div class="flex gap-2 mb-2">
+        <input id="planTargetSearch" type="text" autocomplete="off" placeholder="Search a player or team…" value="${Vault.escapeHtml(Planner.picker.q)}" oninput="planPickerSearch(this.value)"
+          class="flex-1 min-w-0 bg-black/40 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-violet-500/40" />
+        ${cur ? '<button onclick="planClosePicker()" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white">Cancel</button>' : ''}
+      </div>
+      <div class="flex gap-1.5 flex-wrap mb-2">${['ALL', 'QB', 'RB', 'WR', 'TE'].map(p => chip(Planner.picker.pos === p, p === 'ALL' ? 'All' : p, `planPickerPos('${p}')`)).join('')}</div>
+      <div id="planTargetList" class="max-h-64 overflow-y-auto rounded-lg border border-white/10 bg-black/40 divide-y divide-white/5 scrollbar"></div>
+    </div>`;
 }
 function planBuild() {
   if (Planner.busy) return;
-  if (Planner.goal === 'target' && !Planner.targetKey) return flashButtonMessage(document.getElementById('planBuildBtn'), 'Pick a player first');
+  if (Planner.goal === 'target' && !Planner.targetKey) return planOpenPicker();
   Planner.rejected = { partners: new Set(), deals: new Set() };
   planRun(teams);
 }
@@ -389,7 +423,7 @@ function planNegotiate(i) {
 
 function planTargetOptions() {
   const me = planMe();
-  return teams.filter(t => t !== me).flatMap(t => t.assets.filter(a => a.type === 'player' && a.value >= 300).map(a => ({ key: a.key, value: a.value, label: `${a.name} (${a.pos}) · ${t.teamName}` })))
+  return teams.filter(t => t !== me).flatMap(t => t.assets.filter(a => a.type === 'player' && a.value >= 300).map(a => ({ key: a.key, value: a.value, name: a.name, pos: a.pos, team: t.teamName })))
     .sort((x, y) => y.value - x.value);
 }
 
@@ -411,25 +445,21 @@ function renderPlanner() {
   coachSync();
 
   if (Planner.goal === 'negotiate') { box.innerHTML = coachNegotiateHtml(); return; }
-  const opts = Planner.goal === 'target' ? planTargetOptions() : [];
-  const cur = opts.find(o => o.key === Planner.targetKey);
   const needs = Vault.positionalProfile(me, teams).needs;
   const input = {
-    target: `<input id="planTarget" list="planTargets" autocomplete="off" placeholder="Search any player on another team…" value="${cur ? Vault.escapeHtml(cur.label) : ''}"
-        oninput="planPickTarget(this.value)" onchange="planPickTarget(this.value)"
-        class="w-full sm:w-[380px] bg-black/40 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-violet-500/40" />
-      <datalist id="planTargets">${opts.map(o => `<option value="${Vault.escapeHtml(o.label)}"></option>`).join('')}</datalist>`,
+    target: Planner.goal === 'target' ? planTargetHtml(chip) : '',
     position: `<div class="flex gap-1.5 flex-wrap">${['QB', 'RB', 'WR', 'TE'].map(p => chip(Planner.pos === p, p, `planSetPos('${p}')`, needs.includes(p.toLowerCase()) ? ' <span class="text-[10px] text-rose-300/80">need</span>' : '')).join('')}</div>`,
     rebuild: '', contend: ''
   }[Planner.goal];
   const built = Planner.result && Planner.result.goal === Planner.goal;
   box.innerHTML = `
-    <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
+    <div class="flex flex-col sm:flex-row sm:items-start gap-2 mb-1">
       ${input}
       <button id="planBuildBtn" onclick="planBuild()" ${Planner.busy ? 'disabled' : ''} class="self-start sm:self-auto shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Planner.busy ? 'opacity-60' : ''}">${built ? 'Plan again' : 'Build plan'}</button>
     </div>
     <div id="planStatus" class="text-[12px] text-zinc-400 min-h-[18px] ${Planner.busy ? '' : 'hidden'}">Planning…</div>
     ${Planner.busy ? '' : planResultHtml()}`;
+  renderPlanTargetList();
 }
 
 // Negotiate option: a prompt to offer the loaded trade, or (once rounds exist)
