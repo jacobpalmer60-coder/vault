@@ -121,29 +121,51 @@ function negJudge(aAssets, bAssets, R, ctx) {
 }
 // Works for any pair of teams (not just the two loaded) — the coach uses it to
 // shop your piece around the league. teamO/oAssets = the offering side.
+// Two different numbers on purpose. `edge` is the site's overall grade, the
+// one the verdict bar shows and "Fair for you" is judged on. `own` is how the
+// receiving manager reads it for themselves: the same value + roster fit +
+// timeline blend, but without the display rule that fit can't pull a grade
+// toward even (Vault.blendedFairness). A contender giving up a top scorer for a
+// pick and prospects sees a worse deal than KTC value alone says, and that's
+// what they'd decide on. They also never accept an offer the calculator's own
+// read for them (heads.B, the "Decline This" verdict) says to decline, so the
+// prediction and the Trade Analysis below can't disagree.
 function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   const { valueA, valueB } = Vault.tradeSideValues(oAssets, rAssets);
   const an = computeTradeAnalysis(teamO, teamR, oAssets, rAssets, valueA, valueB);
-  const edge = an.fairness.overallSigned; // positive favors the receiving team (side B here)
+  const fair = an.fairness; // positive favors the receiving team (side B here)
+  const edge = fair.overallSigned, own = fair.blend;
   const drops = rosterCap ? Math.max(0, projectedRosterCount(teamR, rAssets, oAssets) - rosterCap) : 0;
   const concerns = negConcerns(rAssets, oAssets, ctx, drops);
-  const will = edge + concerns.reduce((t, c) => t + c.w, 0);
-  const accepts = will >= ctx.ask && drops <= 1;
-  return { an, edge, will, drops, concerns, accepts, headO: an.heads.A };
+  const will = own + concerns.reduce((t, c) => t + c.w, 0);
+  const siteSaysNo = an.heads.B.tone === 'bad';
+  const accepts = will >= ctx.ask && drops <= 1 && !siteSaysNo;
+  return { an, edge, own, will, drops, concerns, accepts, siteSaysNo, fair, headO: an.heads.A };
 }
 
+// What they like and what gives them pause, plus one line on which side wins,
+// so a "yes" never reads as a list of reasons to say no (and vice versa).
 function negReasons(j, ctx) {
-  const e = j.edge;
-  const reasons = [];
-  if (e <= -VAULT_CONFIG.LOPSIDED_PCT) reasons.push(`Not close on value — they'd be giving up about ${capPct(-e).toFixed(0)}% more than they get back.`);
-  else if (e < -1) reasons.push(`On value, they'd be giving up about ${capPct(-e).toFixed(0)}% more than they get back.`);
-  else reasons.push(e >= 1 ? `On value, they come out about ${capPct(e).toFixed(0)}% ahead.` : 'On value, it\'s about even for them.');
-  // Concerns first (they're why it's a no), then pluses.
-  [...j.concerns].sort((x, y) => x.w - y.w).forEach(c => reasons.push(c.text));
-  if (!j.accepts && e >= ctx.ask && j.concerns.some(c => c.w < 0)) reasons.push('The value is close enough, but those concerns tip it to a no.');
-  if (!j.accepts && ctx.ask >= 0 && e < ctx.ask && e > -4) reasons.push('They rarely trade, so they want to come out ahead.');
-  if (ctx.style && ctx.style.trades) reasons.push(`Their trade history: ${Vault.escapeHtml(ctx.style.style.toLowerCase())}.`);
-  return [...new Set(reasons)].slice(0, 6);
+  const yes = [], no = [];
+  const v = j.fair.value, pct = x => capPct(Math.abs(x)).toFixed(0);
+  if (v >= 1) yes.push(`On KTC value, they come out about ${pct(v)}% ahead.`);
+  else if (v <= -VAULT_CONFIG.LOPSIDED_PCT) no.push(`Not close on KTC value: they'd give up about ${pct(v)}% more than they get back.`);
+  else if (v <= -1) no.push(`On KTC value, they'd give up about ${pct(v)}% more than they get back.`);
+  else yes.push('It\'s about even on KTC value.');
+  const r = j.fair.roster, tl = j.fair.timeline, when = { contend: 'win-now', rebuild: 'rebuild' }[ctx.lean];
+  if (r >= 5) yes.push('It makes their starting lineup better.');
+  else if (r <= -5) no.push('It makes their starting lineup worse.');
+  if (tl >= 5) yes.push(`It fits their${when ? ' ' + when : ''} timeline.`);
+  else if (tl <= -5) no.push(`It works against their${when ? ' ' + when : ''} timeline.`);
+  [...j.concerns].sort((x, y) => Math.abs(y.w) - Math.abs(x.w)).forEach(c => (c.w > 0 ? yes : no).push(c.text));
+  let summary;
+  if (j.accepts) summary = no.length ? 'What they gain outweighs what gives them pause.' : 'Nothing here gives them pause.';
+  else if (j.drops > 1) summary = `They'd have to cut ${j.drops} players to make room, so they'd pass.`;
+  else if (j.siteSaysNo && j.will >= ctx.ask) summary = 'Graded from their side, this is a Decline (see Trade Analysis), so they\'d pass.';
+  else if (ctx.ask >= 0 && j.will < ctx.ask && j.will > -4) summary = 'They rarely trade, so they want to come out clearly ahead.';
+  else summary = 'What gives them pause outweighs what they gain.';
+  const style = ctx.style && ctx.style.trades ? `Their trade history: ${Vault.escapeHtml(ctx.style.style.toLowerCase())}.` : '';
+  return { yes: [...new Set(yes)].slice(0, 4), no: [...new Set(no)].slice(0, 4), summary, style };
 }
 
 // Pieces on your roster they'd most want, for "what they'd rather have".
@@ -262,7 +284,7 @@ function negShop(O, R, coreAssets) {
   return best;
 }
 
-function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys) {
+function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys, fromPlan) {
   const you = e => -e; // their edge -> your edge
   const opts = {};
   const oGive = O === 'A' ? aAssets : bAssets;
@@ -274,15 +296,18 @@ function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys) {
   }
   const base = counter ? [counter.A, counter.B] : j.accepts ? [aAssets, bAssets] : null;
   if (base) { const cb = negCounterBack(base[0], base[1], O, R, ctx); if (cb) opts.cb = { you: you(cb.edge), A: negKeys(cb.A), B: negKeys(cb.B), text: cb.text }; }
-  const shop = negShop(O, R, core);
+  // Shopping means selling your pieces elsewhere: only when you offered a player,
+  // and never mid-plan, where the goal is getting what this step brings in.
+  const shop = !fromPlan && core.some(a => a.type === 'player') ? negShop(O, R, core) : null;
   if (shop) opts.shop = { you: you(shop.edge), team: shop.team.rosterId, name: shop.team.teamName, oKeys: shop.oKeys, tKeys: shop.tKeys, why: shop.why };
 
   // Pick the recommendation: the option that leaves you best off. Sending an
   // offer they already accept (or taking their counter) wins near-ties over
   // counter-backs and shopping, since those aren't guaranteed.
   const score = { send: opts.send ? opts.send.you + 2 : -Infinity, accept: opts.accept && opts.accept.tone !== 'bad' ? opts.accept.you + 2 : -Infinity, cb: opts.cb ? opts.cb.you : -Infinity, shop: opts.shop ? opts.shop.you - 1 : -Infinity };
-  // Never recommend sending an offer that's Lopsided against you.
-  if (opts.send && opts.send.you <= -VAULT_CONFIG.FAIR_PCT) score.send = -Infinity;
+  // Never recommend sending an offer that's Lopsided against you, unless it's a plan
+  // step that already chose to pay that premium (the step card says so).
+  if (opts.send && opts.send.you <= -VAULT_CONFIG.FAIR_PCT && !fromPlan) score.send = -Infinity;
   let primary = Object.entries(score).sort((x, y) => y[1] - x[1])[0];
   primary = primary[1] === -Infinity ? 'walk' : primary[0];
   return { primary, ...opts };
@@ -319,7 +344,7 @@ async function negOffer(btn) {
   // What you offered in round 1 is "your core" — the coach never trims it.
   const firstOffer = Negotiation.rounds.find(r => r.offer && r.O === O);
   const originalOKeys = firstOffer ? firstOffer.offer[O] : round.offer[O];
-  round.coach = negCoach(aAssets, bAssets, O, R, ctx, j, c, originalOKeys);
+  round.coach = negCoach(aAssets, bAssets, O, R, ctx, j, c, originalOKeys, typeof Planner !== 'undefined' && Planner.fromStep != null);
   Negotiation.rounds.push(round);
   negRender();
 }
@@ -397,6 +422,16 @@ function negLean(you) {
 
 // The coach's box under the latest round: the recommended move first, the
 // other workable moves after it, each one click.
+function negReasonsHtml(r) {
+  const R = r.reasons;
+  const list = (title, items, dot) => items.length ? `<div class="mb-1.5"><div class="text-[11px] text-zinc-500 mb-0.5">${title}</div><ul class="space-y-0.5">${items.map(t => `<li class="text-[12px] text-zinc-300 flex gap-2"><span class="${dot} mt-[7px] size-1.5 shrink-0 rounded-full"></span><span>${t}</span></li>`).join('')}</ul></div>` : '';
+  const yes = list('What they like', R.yes, 'bg-emerald-400/80'), no = list('What gives them pause', R.no, 'bg-rose-400/80');
+  return `<div class="mb-2">${r.decision === 'accept' ? yes + no : no + yes}
+      <div class="text-[12px] text-zinc-200">${R.summary}</div>
+      ${R.style ? `<div class="text-[11px] text-zinc-500 mt-0.5">${R.style}</div>` : ''}
+    </div>`;
+}
+
 function negCoachHtml(r, i) {
   const c = r.coach;
   if (!c) return '';
@@ -451,7 +486,7 @@ function negRender() {
         <div class="text-[11px] text-zinc-500 mb-1">Round ${i + 1} · your offer</div>
         <div class="text-[12px] mb-2">${negTradeLine(r.offer, r.O)}</div>
         <div class="flex items-center gap-2 mb-1.5"><span class="text-[11px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">${who}</span></div>
-        <ul class="space-y-0.5 mb-2">${r.reasons.map(t => `<li class="text-[12px] text-zinc-300 flex gap-2"><span class="text-zinc-500">•</span><span>${t}</span></li>`).join('')}</ul>
+        ${negReasonsHtml(r)}
         ${r.decision === 'accept' && r.edge >= VAULT_CONFIG.FAIR_PCT ? `<div class="text-[12px] text-amber-300 mb-1.5">Heads up: they'd accept because it now leans ${capPct(r.edge).toFixed(0)}% their way — ${r.edge >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided'} for you.${negAssets(r.O, r.offer[r.O]).length < negAssets(r.R, r.offer[r.R]).length ? ' On KTC\'s math, extra smaller pieces on your side count for less than the premium on the best player in the deal, so asking for a throw-in can make it worse for you.' : ''}</div>` : ''}
         ${r.decision === 'accept' ? `<div class="text-[11px] text-zinc-400">They'd take this as offered — make the offer in Sleeper.</div>` : ''}
         ${r.interests?.length ? `<div class="text-[11px] text-zinc-400 mb-1.5">On your roster, they'd be more interested in:</div>

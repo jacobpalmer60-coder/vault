@@ -68,19 +68,29 @@ function planJudge(world, me, give, partner, get) {
   return planIn(world, () => negJudgeFor(me, give, partner, get, negContextFor(partner)));
 }
 
-// Of these packages, the one best for you that they'd accept and that's Fair for you.
-function planBest(world, me, partner, get, packs) {
+// Of these packages, the one best for you that they'd accept and that stays
+// under `ceiling` against you: Fair by default, Lopsided on the fallback pass
+// (see planPriced). Never Unfair.
+function planBest(world, me, partner, get, packs, ceiling = VAULT_CONFIG.FAIR_PCT) {
   let best = null;
   packs.forEach(give => {
     if (!give.length || Planner.rejected.deals.has(planSig(partner.rosterId, give, get))) return;
     const j = planJudge(world, me, give, partner, get);
-    if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || j.edge < best.edge)) best = { partner, give, get, edge: j.edge };
+    if (j.accepts && j.edge < ceiling && (!best || j.edge < best.edge)) best = { partner, give, get, edge: j.edge };
   });
   return best;
 }
 
+// Try at a Fair price first; if nobody would take a Fair offer, the cheapest
+// deal they would take, flagged as Lopsided against you. Contenders rarely sell
+// starters at even value, and "no plan" hides what it would actually cost.
+async function planPriced(fn) {
+  const fair = await fn(VAULT_CONFIG.FAIR_PCT);
+  return fair || fn(VAULT_CONFIG.LOPSIDED_PCT);
+}
+
 // Your cheapest package for `get`: one or two pieces, three only when that won't do.
-function planBuy(world, me, partner, get, { protect = new Set(), must = [] } = {}) {
+function planBuy(world, me, partner, get, { protect = new Set(), must = [], ceiling } = {}) {
   const want = sumValue(get), mustVal = sumValue(must);
   const skip = new Set([...protect, ...negKeys(must)]);
   const pool = me.assets.filter(a => !skip.has(a.key) && a.value >= want * 0.08 && a.value + mustVal <= want * 1.4)
@@ -90,14 +100,14 @@ function planBuy(world, me, partner, get, { protect = new Set(), must = [] } = {
     packs.push([...must, a]);
     pool.slice(i + 1).forEach(b => { const s = mustVal + a.value + b.value; if (s >= want * 0.7 && s <= want * 1.7) packs.push([...must, a, b]); });
   });
-  let best = planBest(world, me, partner, get, packs);
+  let best = planBest(world, me, partner, get, packs, ceiling);
   if (!best) {
     const top = pool.slice(0, 10), triples = [];
     top.forEach((a, i) => top.slice(i + 1).forEach((b, k) => top.slice(i + k + 2).forEach(c => {
       const s = mustVal + a.value + b.value + c.value;
       if (s >= want * 0.9 && s <= want * 2.2) triples.push([...must, a, b, c]);
     })));
-    best = planBest(world, me, partner, get, triples);
+    best = planBest(world, me, partner, get, triples, ceiling);
   }
   return best;
 }
@@ -122,6 +132,9 @@ function planSell(world, me, give, filter) {
 // The biggest lineup upgrade at these positions you can afford without
 // giving up anything in `protect`.
 async function planUpgrade(world, meId, positions, protect, progress) {
+  return planPriced(ceiling => planUpgradeAt(world, meId, positions, protect, progress, ceiling));
+}
+async function planUpgradeAt(world, meId, positions, protect, progress, ceiling) {
   const me = planTeam(world, meId);
   const starters = me.lineup.filter(s => s.id);
   const floor = {};
@@ -132,9 +145,9 @@ async function planUpgrade(world, meId, positions, protect, progress) {
     .sort((x, y) => (y.a.ppg - floor[y.a.pos]) - (x.a.ppg - floor[x.a.pos])).slice(0, 12);
   let best = null;
   for (const { a, t } of cands) {
-    progress(`Pricing ${a.name}…`);
+    progress(`Pricing ${a.name}${ceiling > VAULT_CONFIG.FAIR_PCT ? ' (with a premium)' : ''}…`);
     await planTick();
-    const s = planBuy(world, me, t, [a], { protect });
+    const s = planBuy(world, me, t, [a], { protect, ceiling });
     if (!s) continue;
     const next = planApply(world, meId, t.rosterId, s.give, s.get);
     const gain = planTeam(next, meId).opt - me.opt;
@@ -192,6 +205,12 @@ async function planGoalTarget(world, meId, progress) {
         planStep(s2, `${yName} headlines the offer for ${name}.`, w1)
       ]);
     }
+  }
+  if (!paths.length) {
+    progress(`No Fair offer works. Checking what ${seller.teamName} would take with a premium…`);
+    await planTick();
+    const over = planBuy(world, me, seller, [target], { ceiling: VAULT_CONFIG.LOPSIDED_PCT });
+    if (over) return { steps: [planStep(over, `${sName} would likely take this for ${name}, but only with a premium.`, world)], title: `Get ${name}`, note: `No Fair offer works for ${name}, so this is the cheapest one ${sName} would likely take.` };
   }
   if (!paths.length) return { steps: [], title: `Get ${name}`, empty: `No fair path found. ${sName} wouldn't likely take anything on your roster for ${name} at a price that's Fair for you, even after one trade to set it up.` };
   const scored = paths.map(p => ({ p, net: planNet(p) }));
@@ -436,7 +455,7 @@ function renderPlanner() {
     <div class="flex items-start justify-between gap-3 mb-3">
       <div>
         <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Trade Coach <span class="normal-case tracking-normal text-zinc-500">· for ${Vault.escapeHtml(me.teamName)}</span></div>
-        <div class="text-[12px] text-zinc-400 mt-1 max-w-[680px]">Every trade the coach suggests is Fair for you and one the other manager would likely take. Responses are predicted from their roster, needs, timeline, and trade history, not the real managers.</div>
+        <div class="text-[12px] text-zinc-400 mt-1 max-w-[680px]">Every trade the coach suggests is one the other manager would likely take, and Fair for you unless it says otherwise. Responses are predicted from their roster, needs, timeline, and trade history, not the real managers.</div>
       </div>
       <button onclick="closeCoach()" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
     </div>
@@ -491,6 +510,7 @@ function planResultHtml() {
       <div class="text-[15px] font-medium text-zinc-100">${r.title}: ${r.steps.length} trade${r.steps.length > 1 ? 's' : ''}</div>
       ${outcome ? `<div class="text-[12px] text-zinc-300 mt-0.5">${outcome}</div>` : ''}
       ${r.note ? `<div class="text-[12px] text-zinc-400 mt-1">${r.note}</div>` : ''}
+      ${r.steps.some(s => s.edge >= VAULT_CONFIG.FAIR_PCT) ? '<div class="text-[12px] text-amber-300 mt-1">No team would sell at a Fair price, so steps marked Lopsided pay a premium. Nothing here is Unfair.</div>' : ''}
       ${next >= 0 ? `<div class="text-[12px] text-violet-200/90 mt-2">Start with step ${next + 1}. Use Negotiate it to see how ${Vault.escapeHtml(r.steps[next].partnerName)} would likely respond, then make the real offer in Sleeper.</div>` : '<div class="text-[12px] text-emerald-300 mt-2">Every step is marked done. Reload rosters once the trades go through to plan your next move.</div>'}
     </div>
     <ol class="space-y-2.5">${r.steps.map((s, i) => {
@@ -504,6 +524,7 @@ function planResultHtml() {
         <div class="text-[13px] text-zinc-300">You give <span class="text-zinc-100 font-medium">${negNames(s.give)}</span> · you get <span class="text-zinc-100 font-medium">${negNames(s.get)}</span></div>
         <div class="text-[12px] text-zinc-400 mt-1">${s.why}</div>
         <div class="text-[11px] text-zinc-400 mt-1">They'd likely accept. ${negLean(-s.edge)}</div>
+        ${s.edge >= VAULT_CONFIG.FAIR_PCT ? `<div class="text-[11px] text-amber-300 mt-1">Lopsided against you: this is the premium it takes to get their manager to sell. Only worth it if this piece matters more to you than the value.</div>` : ''}
         ${s.done
           ? `<button onclick="planUndo(${i})" class="mt-2 text-[11px] text-zinc-400 hover:text-white">Undo</button>`
           : `<div class="flex flex-wrap gap-2 mt-2.5">
