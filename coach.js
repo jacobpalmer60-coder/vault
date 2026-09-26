@@ -26,13 +26,15 @@ const COACH = {
   TARGET_SHOW: 8     // offers for one player (Get a player)
 };
 const COACH_OPTIONS = {
+  best: { label: 'Best trades', blurb: 'The fairest trades across the league for your team that the other manager would likely accept, best for you first.' },
   negotiate: { label: 'Negotiate a trade', blurb: 'Offer the trade loaded in the calculator. Their manager answers in their own words, and you can steer what you ask for next.' },
+  shop: { label: 'Shop a player', blurb: 'Pick one of your players or picks and see the best offer from every team, any return.' },
   target: { label: 'Get a player', blurb: 'Pick any player on another team and see offers their manager would likely take for them.' },
   position: { label: 'Fix a position', blurb: 'Pick a position. These trades upgrade your weakest starter there without giving up your other starters.' },
   rebuild: { label: 'Rebuild', blurb: 'Throw in the towel on this season: trades that turn your aging players into picks and players 24 or under while they still hold value.' },
   contend: { label: 'Go all-in', blurb: 'Win now: trades that spend picks, prospects, and bench players on starters for this season. Your starters stay put.' }
 };
-const Coach = { option: 'target', targetKey: null, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [] }, theirs: { must: [], keep: [], never: [] }, picker: { open: false, q: '', pos: 'ALL' } };
+const Coach = { option: 'best', shopKey: null, targetKey: null, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [] }, theirs: { must: [], keep: [], never: [] }, picker: { open: false, q: '', pos: 'ALL' } };
 
 const coachTick = () => new Promise(r => setTimeout(r, 0));
 
@@ -49,11 +51,11 @@ function coachPlanHtml(me, chip) {
   return `<div class="flex flex-wrap items-center gap-1.5 mb-2">
       <span class="text-[12px] text-zinc-500 mr-1">Your timeline</span>
       ${chip(chosen === 'auto', `Auto <span class="text-zinc-500">· reads as ${auto}</span>`, "coachSetPlan('auto')")}
-      ${chip(chosen === 'contend', 'Win now', "coachSetPlan('contend')")}
-      ${chip(chosen === 'rebuild', 'Rebuild', "coachSetPlan('rebuild')")}
+      ${chip(chosen === 'contend', 'Contending', "coachSetPlan('contend')")}
+      ${chip(chosen === 'rebuild', 'Rebuilding', "coachSetPlan('rebuild')")}
     </div>`;
 }
-const coachMe = () => Vault.myTeam(teams) || teamOf('A');
+const coachMe = () => teamOf('A'); // the calculator's left side is always your team
 const coachFairFirst = (x, y) => (x.edge >= VAULT_CONFIG.FAIR_PCT) - (y.edge >= VAULT_CONFIG.FAIR_PCT);
 
 // Your team after a trade, for lineup gains.
@@ -208,6 +210,37 @@ async function coachContend(me, progress) {
   return { title: 'Win-now trades', list };
 }
 
+// Each team's best package for your piece `v` (from pieces passing `filter`)
+// that they'd accept and that's Fair for you, best for you first. Follows
+// Their side rules.
+function coachSaleOffers(me, v, filter) {
+  const offers = [];
+  teams.filter(t => t !== me && coachPartnerOK(t)).forEach(t => {
+    const tm = coachTheirMust(t), tmVal = sumValue(tm);
+    const pool = t.assets.filter(a => filter(a) && !coachTheirOff(a) && !tm.includes(a) && a.value >= v.value * 0.1 && a.value + tmVal <= v.value * 1.3).sort((x, y) => y.value - x.value).slice(0, 10);
+    const packs = tm.length ? [[...tm]] : [];
+    pool.forEach(a => packs.push([...tm, a]));
+    pool.forEach((a, i) => pool.slice(i + 1).forEach(b => { const s = tmVal + a.value + b.value; if (s >= v.value * 0.6 && s <= v.value * 1.5) packs.push([...tm, a, b]); }));
+    let best = null;
+    packs.forEach(pack => {
+      const j = negJudgeFor(me, [v], t, pack, negContextFor(t));
+      if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || j.edge < best.edge)) best = { partner: t, give: [v], get: pack, edge: j.edge };
+    });
+    if (best) offers.push(best);
+  });
+  return offers.sort((x, y) => x.edge - y.edge);
+}
+
+async function coachShop(me, progress) {
+  const v = me.assets.find(a => a.key === Coach.shopKey);
+  if (!v) return { empty: 'Pick one of your players or picks to shop.' };
+  progress(`Shopping ${v.name} around the league…`);
+  await coachTick();
+  const list = coachSaleOffers(me, v, () => true).map(o => ({ ...o, id: o.partner.rosterId + '', why: '' }));
+  if (!list.length) return { empty: `No team would give fair value for ${Vault.escapeHtml(v.name)} right now${coachHasMine() ? ', within your Their side rules' : ''}.` };
+  return { title: `Offers for ${Vault.escapeHtml(v.name)}`, list };
+}
+
 // With Sell these set, shops only those pieces, with several offers each
 // (one per team). Otherwise, the best offer for each aging player not kept
 // off limits, most valuable first.
@@ -221,42 +254,54 @@ async function coachRebuild(me, progress) {
   for (const v of vets) {
     progress(`Shopping ${v.name}…`);
     await coachTick();
-    const offers = [];
-    teams.filter(t => t !== me && coachPartnerOK(t)).forEach(t => {
-      const tm = coachTheirMust(t), tmVal = sumValue(tm);
-      const pool = t.assets.filter(a => young(a) && !coachTheirOff(a) && !tm.includes(a) && a.value >= v.value * 0.1 && a.value + tmVal <= v.value * 1.3).sort((x, y) => y.value - x.value).slice(0, 10);
-      const packs = tm.length ? [[...tm]] : [];
-      pool.forEach(a => packs.push([...tm, a]));
-      pool.forEach((a, i) => pool.slice(i + 1).forEach(b => { const s = tmVal + a.value + b.value; if (s >= v.value * 0.6 && s <= v.value * 1.5) packs.push([...tm, a, b]); }));
-      let best = null;
-      packs.forEach(pack => {
-        const j = negJudgeFor(me, [v], t, pack, negContextFor(t));
-        if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || j.edge < best.edge)) best = { partner: t, give: [v], get: pack, edge: j.edge };
-      });
-      if (best) offers.push(best);
-    });
+    const offers = coachSaleOffers(me, v, young);
     const age = Math.floor(v.age);
     const why = must.length
       ? (v.type === 'player' && COACH.SELL_AGE[v.pos] && age >= COACH.SELL_AGE[v.pos] ? `At ${age}, ${Vault.escapeHtml(v.name)} is ${age > COACH.SELL_AGE[v.pos] ? 'past' : 'at'} the age ${v.pos}s usually start losing value.` : '')
       : `At ${age}, ${Vault.escapeHtml(v.name)} is ${age > COACH.SELL_AGE[v.pos] ? 'past' : 'at'} the age ${v.pos}s usually start losing value.`;
-    offers.sort((x, y) => x.edge - y.edge).slice(0, perPiece).forEach(o => list.push({ ...o, id: v.key + o.partner.rosterId, why }));
+    offers.slice(0, perPiece).forEach(o => list.push({ ...o, id: v.key + o.partner.rosterId, why }));
   }
   const names = must.map(a => Vault.escapeHtml(a.name)).join(', ');
   if (!list.length) return { empty: must.length ? `No team would give fair value in picks or young players for ${names} right now.` : 'No team would give fair value in picks or young players for your veterans right now.' };
   return { title: must.length ? `Offers for ${names}` : 'Rebuild trades', list: list.slice(0, must.length ? 12 : 6) };
 }
 
-const COACH_RUN = { target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
+async function coachBest(me, progress) {
+  progress('Searching the league for fair trades…');
+  await coachTick();
+  const must = coachMust(me), off = coachOffLimits(me);
+  const pool = suggestionPool(me).filter(c =>
+    coachPartnerOK(c.partner) && must.every(m => c.giveA.includes(m)) && !c.giveA.some(a => off.has(a.key))
+    && !c.giveB.some(coachTheirOff) && coachTheirMust(c.partner).every(m => c.giveB.includes(m)));
+  progress('Checking which of those their managers would take…');
+  await coachTick();
+  const perPartner = new Map(), list = [];
+  pool.map(c => ({ c, j: negJudgeFor(me, c.giveA, c.partner, c.giveB, negContextFor(c.partner)) }))
+    .filter(x => x.j.accepts && x.j.edge < VAULT_CONFIG.FAIR_PCT)
+    .sort((x, y) => x.j.edge - y.j.edge)
+    .forEach(({ c, j }) => {
+      const n = perPartner.get(c.partner.rosterId) || 0;
+      if (n >= 2 || list.length >= 10) return;
+      perPartner.set(c.partner.rosterId, n + 1);
+      const fit = c.result.bucket === 'Great' ? 'A strong fit for both rosters.' : c.result.bucket === 'Good' ? 'A strong fit for one side.' : '';
+      list.push({ partner: c.partner, give: c.giveA, get: c.giveB, edge: j.edge, id: negKeys(c.giveA).join() + '>' + negKeys(c.giveB).join(), why: fit });
+    });
+  if (!list.length) return { empty: `No trade across the league is both Fair for ${Vault.escapeHtml(me.teamName)} and one the other manager would likely take right now. Try Get a player or Fix a position.` };
+  return { title: 'Best trades for you', list };
+}
+
+const COACH_RUN = { best: coachBest, shop: coachShop, target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
 
 async function coachFind() {
   if (Coach.busy) return;
   if (Coach.option === 'target' && !Coach.targetKey) return coachOpenPicker();
+  if (Coach.option === 'shop' && !Coach.shopKey) return;
   const me = coachMe(), option = Coach.option;
   const implied = COACH_PLAN_FOR[option];
   let planNote = '';
   if (implied && Vault.teamMode(me) !== implied) {
     coachSetPlan(implied);
-    planNote = `Your timeline is now set to ${implied === 'contend' ? 'Win now' : 'Rebuild'}, so these trades (and the Trade Analysis) grade your side as ${implied === 'contend' ? 'contending' : 'rebuilding'}. Switch back under Your timeline.`;
+    planNote = `Your timeline is now set to ${implied === 'contend' ? 'Contending' : 'Rebuilding'}, so these trades (and the Trade Analysis) grade your side as ${implied === 'contend' ? 'contending' : 'rebuilding'}. Switch back under Your timeline.`;
   }
   Coach.busy = true;
   renderCoach();
@@ -274,27 +319,26 @@ async function coachFind() {
 }
 
 // Results belong to the inputs they were found for.
-const coachInputKey = () => ({ target: Coach.targetKey, position: Coach.pos }[Coach.option] || '') + '|' + JSON.stringify([Coach.mine, Coach.theirs, Vault.planOverride[coachMe().rosterId] || 'auto']);
+const coachInputKey = () => ({ shop: Coach.shopKey, target: Coach.targetKey, position: Coach.pos }[Coach.option] || '') + '|' + JSON.stringify([Coach.mine, Coach.theirs, Vault.planOverride[coachMe().rosterId] || 'auto']);
 
 /* ---------- Panel ---------- */
 
-// The coach button toggles the panel. It opens on Negotiate when a trade is
-// loaded (or already being negotiated), otherwise on the last option picked.
+// The coach is part of the page (top of the workspace), not a pop-open panel.
 function openCoach(option) {
-  const box = document.getElementById('coach');
-  const wasOpen = !box.classList.contains('hidden');
-  if (!option && wasOpen) return closeCoach();
-  if (!option && (Negotiation.rounds.length || (selectedA.size && selectedB.size))) option = 'negotiate';
   if (option) Coach.option = option;
-  box.classList.remove('hidden');
-  if (!Coach.pos) Coach.pos = coachDefaultPos();
-  if (!Coach.targetKey) { const b = [...selectedB]; if (b.length === 1 && b[0].startsWith('p_')) Coach.targetKey = b[0]; }
+  renderCoach();
+}
+// Called when the workspace opens on your team: fresh results, then Best trades.
+function coachStart() {
+  Coach.results = {};
+  Coach.pos = coachDefaultPos();
+  Coach.targetKey = null;
+  if (Coach.option !== 'negotiate') Coach.option = 'best';
   negPreloadStyles();
   renderCoach();
-  if (!wasOpen) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (Coach.option === 'best') coachFind();
 }
-function closeCoach() { document.getElementById('coach').classList.add('hidden'); }
-const coachOpen = () => !document.getElementById('coach').classList.contains('hidden');
+const coachOpen = () => !document.getElementById('workspace').classList.contains('hidden');
 function coachSync() {
   const neg = document.getElementById('negotiation');
   if (neg) neg.classList.toggle('hidden', !(Coach.option === 'negotiate' && Negotiation.rounds.length));
@@ -302,6 +346,15 @@ function coachSync() {
 function coachReset() { Coach.results = {}; if (coachOpen()) renderCoach(); }
 function coachSetOption(o) { Coach.option = o; renderCoach(); }
 function coachSetPos(p) { Coach.pos = p; renderCoach(); }
+function coachSetShop(key) { Coach.shopKey = key || null; renderCoach(); if (key) coachFind(); }
+// From a roster row: Shop (your piece) or Get (their player), then search.
+function coachShopFor(key) { Coach.option = 'shop'; Coach.shopKey = key; coachJump(); }
+function coachGetFor(key) { Coach.option = 'target'; Coach.targetKey = key; Coach.picker.open = false; coachJump(); }
+function coachJump() {
+  renderCoach();
+  document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  coachFind();
+}
 
 function coachDefaultPos() {
   const { posPct, needs } = Vault.positionalProfile(coachMe(), teams);
@@ -313,10 +366,10 @@ function coachDefaultPos() {
 function coachLoad(i) {
   const r = Coach.results[Coach.option], o = r && r.list[i];
   if (!o) return;
-  const selA = document.getElementById('teamA'), selB = document.getElementById('teamB');
-  if (selA.value !== String(r.meId)) { selA.value = String(r.meId); selA.onchange(); }
+  const selB = document.getElementById('teamB');
   if (selB.value !== String(o.partner.rosterId)) { selB.value = String(o.partner.rosterId); selB.onchange(); }
   negLoad(negKeys(o.give), negKeys(o.get));
+  document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /* ---------- Your side / Their side ---------- */
@@ -416,10 +469,9 @@ function renderCoach() {
   head.innerHTML = `
     <div class="flex items-start justify-between gap-3 mb-3">
       <div>
-        <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Trade Coach <span class="normal-case tracking-normal text-zinc-500">· for ${Vault.escapeHtml(me.teamName)}</span></div>
+        <h2 class="text-[18px] font-semibold text-zinc-100">Trade options <span class="text-[13px] font-normal text-zinc-400">for ${Vault.escapeHtml(me.teamName)}</span></h2>
         <div class="text-[12px] text-zinc-400 mt-1 max-w-[680px]">Every trade the coach suggests is one the other manager would likely take, and Fair for you unless it says otherwise. Responses are predicted from their roster, needs, timeline, and trade history, not the real managers.</div>
       </div>
-      <button onclick="closeCoach()" class="shrink-0 text-[12px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
     </div>
     ${coachPlanHtml(me, chip)}
     <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(COACH_OPTIONS).map(([o, d]) => chip(Coach.option === o, d.label, `coachSetOption('${o}')`)).join('')}</div>
@@ -430,6 +482,10 @@ function renderCoach() {
   const needs = Vault.positionalProfile(me, teams).needs;
   const input = {
     target: coachTargetHtml(chip),
+    shop: `<select onchange="coachSetShop(this.value)" aria-label="Player or pick to shop" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
+        <option value="">Pick one of your players or picks…</option>
+        ${me.assets.map(a => `<option value="${a.key}" ${a.key === Coach.shopKey ? 'selected' : ''}>${Vault.escapeHtml(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${Math.round(a.value).toLocaleString()}</option>`).join('')}
+      </select>`,
     position: `<div class="flex gap-1.5 flex-wrap">${['QB', 'RB', 'WR', 'TE'].map(p => chip(Coach.pos === p, p, `coachSetPos('${p}')`, needs.includes(p.toLowerCase()) ? ' <span class="text-[11px] text-rose-300/80">need</span>' : '')).join('')}</div>`,
     rebuild: '', contend: ''
   }[Coach.option];

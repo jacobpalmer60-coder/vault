@@ -20,9 +20,6 @@
       <p id="status" class="text-[13px] text-zinc-400 mt-1.5">Connecting...</p>
     </div>
     <div class="flex items-center gap-2 flex-wrap justify-end">
-      <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-white/10 text-[12px] text-zinc-200 hover:text-white hover:border-white/20 hover:bg-white/[0.04] transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3 11 7l4 1.5L11 10l-1.5 4L8 10l-4-1.5L8 7z"/><path d="M18 13l.9 2.1L21 16l-2.1.9L18 19l-.9-2.1L15 16l2.1-.9z"/></svg>Suggest a Trade</button>
-      <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-white/10 text-[12px] text-zinc-200 hover:text-white hover:border-white/20 hover:bg-white/[0.04] transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find a Trade</button>
-      <button id="coachBtn" onclick="openCoach()" title="Negotiate a trade, or pick a goal and get the trades to reach it, step by step" class="hidden h-8 px-3 rounded-lg border border-white/10 text-[12px] text-zinc-200 hover:text-white hover:border-white/20 hover:bg-white/[0.04] transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg>Trade Coach</button>
       <div class="h-8 px-3 rounded-lg bg-black/40 border border-white/[0.08] flex items-center gap-2 text-[12px] text-zinc-400">
         <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
         Live Values
@@ -30,30 +27,26 @@
     </div>
   </div>
 
-  <!-- Setup checklist: pick both teams, then load rosters -->
+  <!-- Setup: just your team. The partner is picked on the page, or filled in
+       by a trade option, so tools never switch your side out from under you. -->
   <div id="setup" class="min-h-[60vh] flex items-center justify-center">
-    <div class="card rounded-vault-sm p-9 w-full max-w-xl fade-in">
-      <h2 class="text-[20px] display gold-text mb-6 text-center">Set up a trade</h2>
-      <div class="space-y-5">
-        <div>
-          <label class="text-[11px] text-zinc-400 uppercase tracking-wider block mb-2">1 · Team A</label>
-          <select id="teamASetup" class="w-full h-12 bg-black/40 border border-white/[0.08] rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
-        </div>
-        <div id="partnerSuggest" class="hidden">
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Suggested Partners for <span id="partnerForTeam" class="text-amber-300/80 normal-case"></span></div>
-          <div id="partnerList" class="space-y-1.5"></div>
-        </div>
-        <div>
-          <label class="text-[11px] text-zinc-400 uppercase tracking-wider block mb-2">2 · Team B</label>
-          <select id="teamBSetup" class="w-full h-12 bg-black/40 border border-white/[0.08] rounded-xl px-4 text-[15px] outline-none focus:border-amber-500/50 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] transition-shadow"></select>
-        </div>
-        <button id="loadRostersBtn" class="w-full btn-gold-solid h-12 text-[15px] mt-2">Load Rosters</button>
-      </div>
+    <div class="card rounded-vault-sm p-8 sm:p-9 w-full max-w-md fade-in">
+      <h2 class="text-[20px] display gold-text mb-2 text-center">Which team is yours?</h2>
+      <p class="text-[13px] text-zinc-400 text-center mb-6">You'll see the best trade options for it, and can build, check, or negotiate any trade from there.</p>
+      <select id="teamASetup" aria-label="Your team" class="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-[15px] outline-none focus:border-amber-400/50"></select>
+      <button id="loadRostersBtn" class="w-full btn-gold-solid h-12 text-[15px] mt-4">Open trade tools</button>
     </div>
   </div>
 
   <div id="workspace" class="hidden">
-  <button onclick="backToSetup()" class="mb-4 text-[12px] text-zinc-400 hover:text-white transition-colors">← Change teams</button>
+  <button onclick="backToSetup()" class="mb-4 text-[12px] text-zinc-400 hover:text-white transition-colors">← Change your team</button>
+
+  <!-- Trade options (Trade Coach): best trades for your team, goals, negotiation. Always on the page. -->
+  <div id="coach" class="mb-4 p-4 sm:p-5 rounded-2xl card">
+    <div id="coachHead"></div>
+    <div id="coachBody"></div>
+    <div id="negotiation" class="hidden"></div>
+  </div>
 
   <!-- Who's offering: its own card, not a small chip buried in a button row —
        this decides how the verdict below reads, so it needs to be seen. -->
@@ -67,19 +60,18 @@
     <div class="flex items-center justify-between flex-wrap gap-4">
       <div class="flex items-center gap-6 flex-wrap">
         <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">Team A gives</div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">You give</div>
           <div id="giveA" class="text-[16px] font-medium"></div>
         </div>
         <div class="text-zinc-400">⇄</div>
         <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">Team B gives</div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">You get</div>
           <div id="giveB" class="text-[16px] font-medium"></div>
         </div>
       </div>
       <div class="flex items-center gap-x-4 gap-y-2 flex-wrap justify-end">
         <div class="text-right">
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value, using KeepTradeCut's own real adjustment formula. Under 14% off is considered fair, 14-41% is lopsided, and above 41% is unfair — calibrated against ~25,000 real trades from KeepTradeCut's trade database. The ± line below reflects how much today's price could still move for the less-established pieces here (rookies, far-future picks), based on their own recent price swings.">Difference <span class="text-zinc-400">(value-adj)</span></div>
-          <div id="diff" class="text-[22px] font-semibold mono"></div>
+          <div id="valueTable"></div>
           <div id="diffLabel" class="text-[12px] mt-0.5"></div>
           <div id="diffBar" class="w-36 ml-auto"></div>
           <div id="diffConfidence" class="text-[11px] text-zinc-400 mt-0.5"></div>
@@ -92,46 +84,6 @@
     </div>
     <div id="gapClose" class="hidden mt-3 pt-3 border-t border-white/5"></div>
   </div>
-
-  <!-- Trade Coach: one panel, pick an option — negotiate the trade above
-       (negotiation.js) or find trades toward a goal (coach.js). -->
-  <div id="coach" class="hidden mb-4 p-4 rounded-2xl card">
-    <div id="coachHead"></div>
-    <div id="coachBody"></div>
-    <div id="negotiation" class="hidden"></div>
-  </div>
-
-  <!-- Trade Finder: shop one side's asset(s) against the whole league, not just the loaded opponent -->
-  <div id="finder" class="hidden mb-4 p-4 rounded-2xl card">
-    <div id="finderPickerRow" class="hidden flex items-center gap-3 flex-wrap mb-3 pb-3 border-b border-white/5">
-      <span class="text-[11px] text-zinc-400 uppercase tracking-wider">I am</span>
-      <div id="finderSideChips" class="flex gap-1.5"></div>
-      <div class="relative flex-1 min-w-[220px]">
-        <input id="finderAssetSearch" type="text" autocomplete="off" placeholder="Search any player or pick, any team..."
-          oninput="searchFinderAssets(this.value)" onfocus="searchFinderAssets(this.value)"
-          onblur="setTimeout(() => document.getElementById('finderAssetResults').classList.add('hidden'), 150)"
-          class="w-full bg-black/40 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-500/40" />
-        <div id="finderAssetResults" class="hidden absolute z-20 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-white/10 bg-black scrollbar"></div>
-      </div>
-    </div>
-    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-      <div>
-        <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Finding trades for</div>
-        <div id="finderTarget" class="text-[16px] font-medium"></div>
-      </div>
-      <div class="flex items-center gap-2">
-        <span id="finderWantBackLabel" class="text-[12px] text-zinc-400 mr-1">Want back:</span>
-        <div id="finderPosChips" class="flex gap-1.5"></div>
-        <button onclick="closeFinder()" class="ml-2 text-[12px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
-      </div>
-    </div>
-    <div id="finderResults" class="space-y-2"></div>
-  </div>
-
-  <!-- Suggest a Trade: searches the whole league for genuinely fair trades for
-       Team A, no manual asset-picking required — for a user who doesn't know
-       who's on which roster or what anything is worth. -->
-  <div id="suggestPanel" class="hidden mb-4 p-4 rounded-2xl card"></div>
 
   <!-- Trade-wide verdict + archetype (applies to both sides, so spans full width) -->
   <div id="analysisHeader" class="hidden mb-6">
@@ -146,6 +98,7 @@
     <!-- Team A roster -->
     <div class="group min-w-0 lg:col-start-1 lg:row-start-1">
       <div class="mb-3">
+        <div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Your team</div>
         <div class="flex items-center gap-2.5 min-w-0">
           <div class="w-8 h-8 shrink-0 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-[13px] font-semibold text-black">A</div>
           <select id="teamA" class="flex-1 min-w-0 bg-transparent text-[16px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
@@ -171,6 +124,7 @@
     <!-- Team B roster -->
     <div class="group min-w-0 lg:col-start-4 lg:row-start-1">
       <div class="mb-3">
+        <div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Trade partner</div>
         <div class="flex items-center gap-2.5 min-w-0">
           <div class="w-8 h-8 shrink-0 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-[13px] font-semibold text-black">B</div>
           <select id="teamB" class="flex-1 min-w-0 bg-transparent text-[16px] font-medium outline-none cursor-pointer hover:text-white transition-colors"></select>
@@ -188,7 +142,7 @@
     </div>
 
     <div id="emptyState" class="lg:col-start-2 lg:col-span-2 lg:row-start-1 text-center text-[13px] text-zinc-400 py-8">
-      Select players or picks from either side to build a trade.
+      Pick a trade partner, then select players or picks from either side, or load one of the trade options above.
     </div>
   </div>
   </div><!-- /workspace -->
@@ -210,7 +164,7 @@ let filterA = 'ALL', filterB = 'ALL';
 // counter-packages, and re-picking who's offering every time would be busywork.
 let offeredBy = null;
 
-// Team timelines you've set (Auto / Win now / Rebuild), by rosterId, in
+// Team timelines you've set (Auto / Contending / Rebuilding), by rosterId, in
 // Vault.planOverride — which Vault.teamMode reads first, so every grade on
 // this page (Trade Analysis, suggestions, Trade Coach, negotiation) uses it.
 // Auto = read from the roster. Saved per league in this browser only;
@@ -293,28 +247,25 @@ function buildTrendDeltas(snapshots, listField, isSF, bonusRecTe) {
 // Surfaces the same need/surplus/timeline/pick-capital fit read Team Analyzer uses
 // to suggest trade partners, but here — while a trade is actually being built —
 // rather than stranded on a separate page.
-function renderPartnerSuggestions() {
-  const setupA = document.getElementById('teamASetup'), setupB = document.getElementById('teamBSetup');
-  const box = document.getElementById('partnerSuggest');
-  const t = teams.find(x => String(x.rosterId) === setupA.value);
-  if (!t) { box.classList.add('hidden'); return; }
-
-  const partners = Vault.tradePartnerSuggestions(t, teams, 3);
-  document.getElementById('partnerForTeam').textContent = t.teamName;
-  document.getElementById('partnerList').innerHTML = partners.map(p => `
-    <button onclick="useSuggestedPartner(${p.rosterId})" class="w-full text-left px-3 py-2 rounded-lg border border-white/[0.08] hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors">
-      <div class="flex items-center justify-between gap-2">
-        <span class="text-[13px] font-medium text-zinc-200">${Vault.escapeHtml(p.teamName)}</span>
-        <span class="text-[11px] text-zinc-400 uppercase tracking-wider">Use →</span>
-      </div>
-      <div class="text-[12px] text-zinc-400 mt-0.5">${Vault.escapeHtml(p.reasons[0])}</div>
-    </button>`).join('');
-  box.classList.remove('hidden');
+// No partner yet: the partner column suggests a few, from roster fit alone.
+function renderNoPartner() {
+  const me = teamOf('A');
+  ['totalB', 'needsB', 'posFilterB'].forEach(id => { document.getElementById(id).innerHTML = ''; });
+  const arch = document.getElementById('archB'); arch.textContent = ''; arch.className = 'hidden';
+  const partners = Vault.tradePartnerSuggestions(me, teams, 3);
+  document.getElementById('playersB').innerHTML = `<div class="p-3">
+      <div class="text-[13px] text-zinc-300 mb-3">Pick a trade partner from the menu above, or start with one of these:</div>
+      <div class="space-y-1.5">${partners.map(p => `
+        <button onclick="useSuggestedPartner(${p.rosterId})" class="w-full text-left px-3 py-2.5 rounded-lg border border-white/10 hover:border-white/20 hover:bg-white/[0.04] transition-colors">
+          <div class="text-[13px] font-medium text-zinc-100">${Vault.escapeHtml(p.teamName)}</div>
+          <div class="text-[12px] text-zinc-400 mt-0.5">${Vault.escapeHtml(p.reasons[0])}</div>
+        </button>`).join('')}</div>
+    </div>`;
 }
-
 function useSuggestedPartner(rosterId) {
-  document.getElementById('teamBSetup').value = rosterId;
-  prevBSetup = String(rosterId);
+  const sel = document.getElementById('teamB');
+  sel.value = String(rosterId);
+  sel.onchange();
 }
 
 // Team A and Team B can never end up on the same team — trading with yourself
@@ -326,7 +277,7 @@ function useSuggestedPartner(rosterId) {
 // collision the way a person would (swap them) rather than silently blocking it.
 // Needs each select's own previous value tracked (a plain "current value" read
 // after the fact is already the NEW one), updated after every resolution.
-let prevA = null, prevB = null, prevASetup = null, prevBSetup = null;
+let prevA = null, prevB = null;
 function resolveDup(newVal, otherEl, prevOfChanged) {
   if (newVal === otherEl.value) { otherEl.value = prevOfChanged; return true; }
   return false;
@@ -360,14 +311,15 @@ async function init() {
 
     const opts = teams.map(t => `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)}</option>`).join('');
     const selA = document.getElementById('teamA'), selB = document.getElementById('teamB');
-    const setupA = document.getElementById('teamASetup'), setupB = document.getElementById('teamBSetup');
-    [selA, selB, setupA, setupB].forEach(sel => sel.innerHTML = opts);
-    // Opens on your team (Vault.myTeam) as Team A when we know it.
+    const setupA = document.getElementById('teamASetup');
+    [selA, setupA].forEach(sel => sel.innerHTML = opts);
+    selB.innerHTML = '<option value="">Pick a trade partner…</option>' + opts;
+    // Your team (Vault.myTeam) when we know it; the partner starts empty.
     const mine = Vault.myTeam(teams) || teams[0];
     selA.value = setupA.value = mine.rosterId;
-    selB.value = setupB.value = (teams.find(t => t !== mine) || mine).rosterId;
-    prevA = prevASetup = selA.value;
-    prevB = prevBSetup = selB.value;
+    selB.value = '';
+    prevA = selA.value;
+    prevB = '';
 
     selA.onchange = () => {
       if (typeof negReset === 'function') negReset();
@@ -382,16 +334,6 @@ async function init() {
       selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B');
     };
 
-    setupA.onchange = () => {
-      if (resolveDup(setupA.value, setupB, prevASetup)) prevBSetup = setupB.value;
-      prevASetup = setupA.value;
-      renderPartnerSuggestions();
-    };
-    setupB.onchange = () => {
-      if (resolveDup(setupB.value, setupA, prevBSetup)) prevASetup = setupA.value;
-      prevBSetup = setupB.value;
-    };
-    renderPartnerSuggestions();
 
     document.getElementById('status').textContent = `${teams.length} teams • ${league.name} • ${built.isSF ? 'Superflex' : '1QB'}`;
     document.getElementById('status').className = 'text-[13px] text-zinc-400 mt-1';
@@ -400,20 +342,18 @@ async function init() {
       if (typeof negReset === 'function') { negReset(); negPreloadStyles(); }
       if (typeof coachReset === 'function') coachReset(); // trade history loads in the background for negotiations
       selA.value = setupA.value;
-      selB.value = setupB.value;
+      if (selB.value === selA.value) selB.value = '';
       prevA = selA.value; prevB = selB.value;
       selectedA.clear(); selectedB.clear();
       filterA = 'ALL'; filterB = 'ALL';
       document.getElementById('setup').classList.add('hidden');
       document.getElementById('workspace').classList.remove('hidden');
-      document.getElementById('finderPickerBtn').classList.remove('hidden');
-      document.getElementById('suggestBtn').classList.remove('hidden');
-      document.getElementById('coachBtn').classList.remove('hidden');
-      document.getElementById('offeredByWrap').classList.remove('hidden');
       renderPosFilter('A'); renderPosFilter('B');
       render('A'); render('B');
+      if (typeof coachStart === 'function') coachStart(); // trade options for your team, on the page
     };
-    applyTradeFromUrl();
+    // A shared link opens that trade; otherwise, if we know your team, skip setup.
+    if (!applyTradeFromUrl() && Vault.myTeam(teams)) document.getElementById('loadRostersBtn').onclick();
   } catch (e) {
     document.getElementById('status').textContent = e.message || 'Failed to load';
     document.getElementById('status').className = 'text-[13px] text-rose-400 mt-1';
@@ -426,12 +366,7 @@ function backToSetup() {
   history.replaceState(null, '', Vault.linkTo('trade.html'));
   document.getElementById('workspace').classList.add('hidden');
   document.getElementById('setup').classList.remove('hidden');
-  document.getElementById('finderPickerBtn').classList.add('hidden');
-  document.getElementById('suggestBtn').classList.add('hidden');
-  document.getElementById('coachBtn').classList.add('hidden');
-  if (typeof coachReset === 'function') { coachReset(); closeCoach(); }
-  document.getElementById('suggestPanel').classList.add('hidden');
-  closeFinder();
+  if (typeof coachReset === 'function') coachReset();
 }
 
 function teamOf(side) { return teams.find(t => t.rosterId == document.getElementById(`team${side}`).value); }
@@ -444,7 +379,8 @@ function otherSide(side) { return side === 'A' ? 'B' : 'A'; }
    link rebuilds the same trade and verdict for whoever clicks it. */
 function syncTradeUrl() {
   if (document.getElementById('workspace').classList.contains('hidden')) return;
-  const p = new URLSearchParams({ league_id: Vault.getLeagueId(), a: document.getElementById('teamA').value, b: document.getElementById('teamB').value });
+  const p = new URLSearchParams({ league_id: Vault.getLeagueId(), a: document.getElementById('teamA').value });
+  if (document.getElementById('teamB').value) p.set('b', document.getElementById('teamB').value);
   if (selectedA.size) p.set('give_a', [...selectedA].join(','));
   if (selectedB.size) p.set('give_b', [...selectedB].join(','));
   if (offeredBy) p.set('by', offeredBy);
@@ -456,13 +392,13 @@ function applyTradeFromUrl() {
   const p = new URLSearchParams(location.search);
   const a = teams.find(t => String(t.rosterId) === p.get('a'));
   const b = teams.find(t => String(t.rosterId) === p.get('b'));
-  if (!a || !b || a === b) return;
+  if (!a || a === b) return false;
   document.getElementById('teamASetup').value = a.rosterId;
-  document.getElementById('teamBSetup').value = b.rosterId;
+  document.getElementById('teamB').value = b ? String(b.rosterId) : '';
   document.getElementById('loadRostersBtn').onclick();
   const wanted = side => (p.get(side === 'A' ? 'give_a' : 'give_b') || '').split(',').filter(Boolean);
   let missing = 0;
-  [['A', a, selectedA], ['B', b, selectedB]].forEach(([side, team, set]) => wanted(side).forEach(k => {
+  [['A', a, selectedA], ['B', b, selectedB]].forEach(([side, team, set]) => team && wanted(side).forEach(k => {
     if (team.assets.some(x => x.key === k)) set.add(k); else missing++;
   }));
   if (p.get('by') === 'A' || p.get('by') === 'B') offeredBy = p.get('by');
@@ -474,6 +410,7 @@ function applyTradeFromUrl() {
     bar.classList.remove('hidden');
     bar.insertAdjacentHTML('afterbegin', `<div class="text-[12px] text-amber-300 mb-2">${missing} piece${missing === 1 ? '' : 's'} from this shared link ${missing === 1 ? 'is' : 'are'} no longer on ${missing === 1 ? 'that' : 'those'} roster${missing === 1 ? '' : 's'}, so ${missing === 1 ? 'it was' : 'they were'} left out.</div>`);
   }
+  return true;
 }
 
 async function shareTrade(btn) {
@@ -509,10 +446,13 @@ function assetRow(side, a, isSelected, extra) {
   // player), and "Match" becomes a league-wide value browser (who else, on ANY team,
   // is priced like this) rather than silently building the same kind of package Find
   // already builds, which just made the two buttons redundant on a Team B row.
-  const matchAction = side === 'A' ? `matchTarget('A','${a.key}')` : `openSimilarAcrossLeague('B','${a.key}')`;
-  const matchTitle = side === 'A' ? 'Build a package from the other side to match this' : 'Show players of similar value throughout the league';
-  const findAction = side === 'A' ? `openFinder('A','${a.key}')` : `openAcquireFinder('A','${a.key}',${teamOf('B').rosterId})`;
-  const findTitle = side === 'A' ? 'Shop this against every team in the league' : 'Put together a package from your roster to go get this';
+  // Your row: Match builds a package from your partner; Shop sends it to Trade
+  // Coach's Shop a player. Partner row: Get opens Trade Coach's Get a player.
+  const matchAction = side === 'A' && teamOf('B') ? `matchTarget('A','${a.key}')` : '';
+  const matchTitle = 'Build a package from your trade partner to match this';
+  const findAction = side === 'A' ? `coachShopFor('${a.key}')` : `coachGetFor('${a.key}')`;
+  const findTitle = side === 'A' ? 'See the best offer from every team for this' : 'See offers their manager would take for this';
+  const findLabel = side === 'A' ? 'Shop' : 'Get';
   // Two fixed lines instead of one shared row everything competed for space on —
   // name/value/checkbox (the "what is this and is it selected" identity) always on
   // line 1, badges/trend/actions (secondary metadata) always on line 2. Each piece
@@ -537,8 +477,8 @@ function assetRow(side, a, isSelected, extra) {
           <div class="flex items-center gap-2 shrink-0">
             ${a.trend != null ? `<div class="text-[11px] mono ${a.trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Value change over the last ${TREND_WINDOW_DAYS} days">${a.trend >= 0 ? '+' : ''}${Math.round(a.trend).toLocaleString()}</div>` : ''}
             <div class="flex gap-1.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
-              <button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
-              <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[12px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
+              ${matchAction ? `<button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Match</button>` : ''}
+              <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">${findLabel}</button>
             </div>
           </div>
         </div>
@@ -574,7 +514,7 @@ function renderNeeds(side, team) {
   const opt = (v, label) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${label}</option>`;
   const parts = [`<label class="inline-flex items-center gap-1 text-zinc-400" title="Whether this team is graded as contending or rebuilding. Auto reads it from the roster; pick one if the team has decided otherwise.">Timeline
       <select onchange="setTeamTimeline(${team.rosterId}, this.value)" class="bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300'}">
-        ${opt('', `Auto · ${Vault.MODE_LABEL[autoTimeline(team)]}`)}${opt('contend', 'Win now')}${opt('rebuild', 'Rebuild')}
+        ${opt('', `Auto · ${Vault.MODE_LABEL[autoTimeline(team)]}`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}
       </select></label>`];
   if (needs.length) parts.push(`<span class="text-emerald-400/80">Needs ${needs.map(k => POS_LABEL[k]).join(', ')}</span>`);
   if (surpluses.length) parts.push(`<span class="text-zinc-400">Deep at ${surpluses.map(k => POS_LABEL[k]).join(', ')}</span>`);
@@ -583,6 +523,8 @@ function renderNeeds(side, team) {
 
 function render(side) {
   const team = teamOf(side);
+  if (!team) { renderNoPartner(); updateTrade(); return; }
+  document.getElementById(`arch${side}`).classList.remove('hidden');
   const selected = side === 'A' ? selectedA : selectedB;
   const filter = side === 'A' ? filterA : filterB;
   const container = document.getElementById(`players${side}`);
@@ -602,6 +544,7 @@ function render(side) {
 
 function renderPosFilter(side) {
   const team = teamOf(side);
+  if (!team) return;
   const state = side === 'A' ? filterA : filterB;
   document.getElementById(`posFilter${side}`).innerHTML = POS_FILTERS.map(p => {
     const count = p === 'ALL' ? team.assets.length : team.assets.filter(a => p === 'PICK' ? a.type === 'pick' : a.pos === p).length;
@@ -659,26 +602,10 @@ function tradeShape(c) {
   return a === 1 && b === 2 ? '1-for-2' : a === 2 && b === 1 ? '2-for-1' : null;
 }
 
-let suggestState = [];
-let allSuggestions = [];
-let suggestPosFilter = 'ALL';
-
-// Searches every other team for a trade that reads as genuinely fair for Team A —
-// no manual asset-picking required. For each partner, tries sending each of Team A's
-// meaningful assets for the partner's best matching package back (and the reverse:
-// acquiring each of the partner's meaningful assets for Team A's best matching
-// package), scores every candidate through the exact same holistic verdict the
-// manual builder uses, and keeps only the ones that don't grade as lopsided.
-function suggestTrade() {
-  closeFinder();
-  const box = document.getElementById('suggestPanel');
-  box.classList.remove('hidden');
-  box.innerHTML = `<div class="text-[12px] text-zinc-400 py-2">Searching the league for fair trades…</div>`;
-  setTimeout(runSuggestTradeSearch, 30);
-}
-
-function runSuggestTradeSearch() {
-  const myTeam = teamOf('A');
+// Every fair-looking trade between your team and each other team, deduped and
+// sorted most-even first (pick-for-pick last). Trade Coach's Best trades then
+// keeps the ones the other manager would actually accept.
+function suggestionPool(myTeam) {
   const partners = teams.filter(t => t.rosterId !== myTeam.rosterId);
   const myAnchors = tradeableAssets(myTeam);
   const candidates = [];
@@ -704,7 +631,7 @@ function runSuggestTradeSearch() {
       if (combo) consider(partner, [mine], combo.combo);
     });
     // Direction 2: Team A acquires one of the partner's meaningful assets, sending
-    // its own best matching package (mirrors the Finder's acquire-mode flow) — this
+    // its own best matching package — this
     // package flows to THEM, so it's searched against their profile instead.
     tradeableAssets(partner).forEach(theirs => {
       const combo = bestCombo(myTeam.assets, theirs.value, partnerProfile);
@@ -757,130 +684,7 @@ function runSuggestTradeSearch() {
     return x.result.overallPct - y.result.overallPct;
   });
 
-  // Cap per-partner, not just overall — otherwise the pool fills up with
-  // near-duplicate variations against whichever single team fits best, crowding out
-  // genuinely different opportunities with the rest of the league. Not capped to a
-  // small overall number here — that happens in renderSuggestions, so filtering by
-  // position can still surface a good trade that didn't make the default top-5.
-  // 3 rather than 2 now that 1-for-2s are in the candidate pool too.
-  const MAX_PER_PARTNER = 3;
-  // A real pick-for-pick trade is a legitimate suggestion sometimes (consolidating
-  // capital, converting a far-future pick into a nearer one) — the actual problem
-  // was every top result being one, not that any exist at all. Sorted to the back
-  // above and capped here too, so a couple can still surface once every real
-  // player trade is exhausted, without crowding out trades that actually move
-  // rostered talent.
-  const MAX_PICK_FOR_PICK = 2;
-  const partnerCounts = new Map();
-  let pickForPickCount = 0;
-  const pool = [];
-  for (const c of deduped) {
-    const n = partnerCounts.get(c.partner.rosterId) || 0;
-    if (n >= MAX_PER_PARTNER) continue;
-    if (isPickForPick(c)) {
-      if (pickForPickCount >= MAX_PICK_FOR_PICK) continue;
-      pickForPickCount++;
-    }
-    pool.push(c);
-    partnerCounts.set(c.partner.rosterId, n + 1);
-  }
-
-  allSuggestions = pool;
-  suggestPosFilter = 'ALL';
-  renderSuggestions();
-}
-
-// A candidate "involves" a position if either side of the trade includes an asset
-// there — lets "show me RB trades" surface deals where you'd give OR get an RB,
-// same semantics as the roster position filters above (POS_FILTERS).
-function suggestionMatchesPos(c, pos) {
-  if (pos === 'ALL') return true;
-  if (pos === '1-FOR-2') return !!tradeShape(c); // either direction
-  return [...c.giveA, ...c.giveB].some(a => pos === 'PICK' ? a.type === 'pick' : a.pos === pos);
-}
-
-function setSuggestPosFilter(pos) {
-  suggestPosFilter = pos;
-  renderSuggestions();
-}
-
-// Whoever takes in more players than they send may be over the active-roster
-// limit afterward — worth saying on the card, since a 1-for-2 can be fair on
-// value and still force a drop (see projectedRosterCount).
-function suggestionRosterNote(c) {
-  if (!rosterCap) return '';
-  const myTeam = teamOf('A');
-  const notes = [[myTeam, c.giveA, c.giveB], [c.partner, c.giveB, c.giveA]].map(([team, out, inc]) => {
-    const over = projectedRosterCount(team, out, inc) - rosterCap;
-    return over > 0 ? `${team === myTeam ? 'You' : Vault.escapeHtml(team.teamName)} would need to drop ${over}` : '';
-  }).filter(Boolean);
-  return notes.length ? `<span class="text-[12px] text-amber-300/80">${notes.join(' · ')}</span>` : '';
-}
-
-function suggestionCard(c, i) {
-  const shape = c.giveA.length === 1 && c.giveB.length === 1 ? null : `${c.giveA.length}-for-${c.giveB.length}`;
-  return `
-    <div class="p-3 rounded-xl bg-black/30">
-      <div class="flex items-center justify-between gap-4 flex-wrap mb-1.5">
-        <div class="flex items-center gap-2">
-          <div class="text-[13px] font-medium">vs. ${Vault.escapeHtml(c.partner.teamName)}</div>
-          ${shape ? `<span class="text-[11px] px-1.5 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-300">${shape}</span>` : ''}
-        </div>
-        <button onclick="useSuggestion(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid shrink-0">Use This Trade</button>
-      </div>
-      <div class="text-[12px] text-zinc-300 mb-1.5">You send <span class="text-zinc-200">${c.giveA.map(a => Vault.escapeHtml(a.name)).join(', ')}</span> for <span class="text-zinc-200">${c.giveB.map(a => Vault.escapeHtml(a.name)).join(', ')}</span></div>
-      <div class="flex items-center gap-2 flex-wrap">
-        <span class="size-2 rounded-full ${verdictDot(c.result.verdict.tone, c.result.bucket)}"></span>
-        <span class="text-[12px] font-medium ${verdictColor(c.result.verdict.tone, c.result.bucket)}">${c.result.verdict.label}</span>
-        <span class="text-[12px] text-zinc-400">${capPct(c.result.overallPct).toFixed(0)}% off</span>
-        ${suggestionRosterNote(c)}
-      </div>
-    </div>`;
-}
-
-function renderSuggestions() {
-  const box = document.getElementById('suggestPanel');
-  const myTeam = teamOf('A');
-  if (!allSuggestions.length) {
-    box.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Suggested Trades</div><div class="text-[12px] text-zinc-400 py-2">No trade across the league reads as genuinely fair for ${Vault.escapeHtml(myTeam.teamName)} right now — try building one manually below, or check back after rosters change.</div>`;
-    return;
-  }
-
-  // allSuggestions is already sorted most-fair-to-least (see runSuggestTradeSearch),
-  // so slicing to 5 here — for ANY filter, not just ALL — keeps that same "most fair
-  // first" ordering while capping the list to a reviewable size. The filter buttons
-  // below still show the true total per position, even when only 5 are displayed.
-  const MAX_DISPLAYED = 5;
-  const candidates = allSuggestions.filter(c => suggestionMatchesPos(c, suggestPosFilter)).slice(0, MAX_DISPLAYED);
-  suggestState = candidates; // useSuggestion(i) indexes into whatever's currently displayed
-
-  const filterBar = [...POS_FILTERS, '1-FOR-2'].map(p => {
-    const count = allSuggestions.filter(c => suggestionMatchesPos(c, p)).length;
-    const active = suggestPosFilter === p;
-    return `<button onclick="setSuggestPosFilter('${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${active ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p === '1-FOR-2' ? '1-for-2' : p} <span class="opacity-60">${count}</span></button>`;
-  }).join('');
-
-  box.innerHTML = `
-    <div class="flex items-center justify-between mb-3">
-      <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Suggested Trades for ${Vault.escapeHtml(myTeam.teamName)}</div>
-      <button onclick="document.getElementById('suggestPanel').classList.add('hidden')" class="text-[12px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
-    </div>
-    <div class="flex gap-1.5 flex-wrap mb-3">${filterBar}</div>
-    ${candidates.length
-      ? `<div class="space-y-2 max-h-[480px] overflow-y-auto pr-1 scrollbar">${candidates.map((c, i) => suggestionCard(c, i)).join('')}</div>`
-      : `<div class="text-[12px] text-zinc-400 py-2">No suggested ${suggestPosFilter} trades right now — try another position or build one manually below.</div>`}`;
-}
-
-function useSuggestion(i) {
-  const c = suggestState[i];
-  if (!c) return;
-  document.getElementById('teamB').value = c.partner.rosterId;
-  prevB = String(c.partner.rosterId);
-  selectedA.clear(); selectedB.clear();
-  c.giveA.forEach(a => selectedA.add(a.key));
-  c.giveB.forEach(a => selectedB.add(a.key));
-  document.getElementById('suggestPanel').classList.add('hidden');
-  render('A'); render('B');
+  return deduped;
 }
 
 // Per-side balance: the OTHER side's selection is held completely fixed (it's what
@@ -917,7 +721,7 @@ function balanceSide(mySide, btn) {
   // genuinely what's at stake, but it means a real need-fit piece (a TE for a
   // TE-needy team) can lose out to a same-priced surplus piece (a bench WR) whose
   // unrelated stats happen to nudge the score higher — exactly the "still
-  // recommends the throw-in" gap bestFit/buildBalancedOffer closed for the Finder
+  // recommends the throw-in" gap bestFit closes elsewhere
   // but this evaluate-a-few-candidates design never got. A direct per-asset bonus
   // for otherTeam's actual need/surplus positions makes sure fit alone can't be the
   // one carrying that decision.
@@ -948,7 +752,7 @@ function balanceSide(mySide, btn) {
     return fit + needBias(combo) - result.overallPct / 5;
   };
 
-  // Real trade partners actually want (bestFit/buildBalancedOffer's whole point) —
+  // Real trade partners actually want (bestFit's whole point) —
   // but this function's own candidate-then-evaluate design predates that fix and
   // never got it: comboSearchTopN alone (no needs-first bias) supplies every
   // candidate `evaluate` gets to compare, so a genuine need-fit piece (a TE for a
@@ -1160,7 +964,7 @@ function comboVorp(combo) {
 }
 
 /* Package builder core: pool of assets, target already in VBA-adjusted-value space.
-   All combo search happens here so gap-closer, Match, and the Finder agree with the
+   All combo search happens here so gap-closer, Match, and suggestions agree with the
    same fairness math the analysis panel uses — a suggested combo should still look
    fair once VBA is applied to it, not just fair by raw KTC sum. */
 function comboSearchAdj(pool, targetAdj, profile) {
@@ -1185,7 +989,7 @@ function comboSearchAdj(pool, targetAdj, profile) {
 // only the single best, then returns up to N of them — skipping any combo that's
 // mostly the same assets as one already picked (>50% overlap), so the results are
 // genuinely different packages rather than "same core plus a different throw-in".
-// Used by the acquire Finder so it can offer a few real options instead of picking
+// Returns a few real options instead of picking
 // one for you.
 function comboSearchTopN(pool, targetAdj, n, profile) {
   const all = [];
@@ -1282,27 +1086,6 @@ function bestCombo(pool, targetValueRaw, profile) {
   return { combo, sum, diff: Math.abs(comboValue(combo, profile) - targetAdj), pctOff: realPctOff(targetValueRaw, combo, profile) };
 }
 
-/* Like bestCombo, but requires the combo to include one asset matching `posFilter`
-   (a position, or 'PICK' for any pick) if given — that anchor asset is picked closest
-   to the target value (need-weighted against `profile` when given, same as
-   comboValue), then the remaining value gap is filled from the rest of the pool. */
-function anchoredCombo(pool, targetValueRaw, posFilter, profile) {
-  if (!posFilter || posFilter === 'ANY') return bestCombo(pool, targetValueRaw, profile);
-  const anchors = pool.filter(a => posFilter === 'PICK' ? a.type === 'pick' : a.pos === posFilter);
-  if (!anchors.length) return null;
-  const targetAdj = Vault.adjustedValue(targetValueRaw);
-  const anchor = [...anchors].sort((a, b) =>
-    comboScore(Math.abs(comboValue([a], profile) - targetAdj), 1, targetAdj, comboVorp([a]))
-    - comboScore(Math.abs(comboValue([b], profile) - targetAdj), 1, targetAdj, comboVorp([b]))
-  )[0];
-  const remainingAdj = targetAdj - comboValue([anchor], profile);
-  const fillerPool = pool.filter(a => a.key !== anchor.key);
-  const filler = Math.abs(remainingAdj) > targetAdj * 0.06 ? bestFit(fillerPool, remainingAdj, targetAdj, profile) : null;
-  const combo = refineCombo(pool, filler ? [anchor, ...filler.combo] : [anchor], targetValueRaw, profile, anchor.key);
-  const sum = combo.reduce((s, a) => s + a.value, 0);
-  const diff = Math.abs(comboValue(combo, profile) - targetAdj);
-  return { combo, sum, diff, pctOff: realPctOff(targetValueRaw, combo, profile) };
-}
 
 // Searches `pool` for the closest match to `searchTargetAdj`, preferring a combo
 // built from a position the RECEIVING team (profile) actually needs over one that
@@ -1327,351 +1110,6 @@ function bestFit(pool, searchTargetAdj, overallTargetAdj, profile) {
   return needFitPct <= VAULT_CONFIG.LOPSIDED_PCT ? needFit : generic;
 }
 
-// A real trade is closer to "my piece (plus maybe a small sweetener) for their
-// best matching piece (plus maybe a small sweetener from them)" than "my one piece
-// for a pile of their scraps" — bestFit alone still only ever adds MORE pieces to
-// the partner's side to hit the target, which is how a single good need-fit asset
-// (worth more than the core alone) gets buried under 2-3 mediocre ones instead of
-// just being the return, with a small throw-in from OUR side closing the gap
-// instead. Picks the partner's single BEST asset at the requested position (or, for
-// ANY, their best asset at one of our own needs, falling back to their best asset
-// overall) — a real partner offers their strongest chip there, not their weakest —
-// then closes whatever value gap is left with a small filler from whichever side
-// is short, priced by what the RECEIVING side of that filler would actually want.
-// Returns null if the gap is too large for a small sweetener to bridge credibly
-// (BALANCED_OFFER_MAX_STRETCH), since that anchor just isn't a realistic single
-// centerpiece for this trade.
-const BALANCED_OFFER_SWAP_TOLERANCE_PCT = 0.12;
-const BALANCED_OFFER_MAX_STRETCH = 0.35;
-function buildBalancedOffer(myAssets, partnerAssets, core, posFilter, myProfile, partnerProfile) {
-  let anchorPool = partnerAssets;
-  if (posFilter && posFilter !== 'ANY') {
-    anchorPool = partnerAssets.filter(a => posFilter === 'PICK' ? a.type === 'pick' : a.pos === posFilter);
-  } else if (myProfile.needs.length) {
-    const needPool = partnerAssets.filter(a => myProfile.needs.includes((a.pos || '').toLowerCase()));
-    if (needPool.length) anchorPool = needPool;
-  }
-  if (!anchorPool.length) return null;
-  const anchor = [...anchorPool].sort((a, b) => b.value - a.value)[0];
-  const coreAdj = Vault.adjustedValue(core.value);
-  const anchorAdj = Vault.adjustedValue(anchor.value);
-  const gapAdj = anchorAdj - coreAdj;
-  const tolerance = Math.max(coreAdj, anchorAdj) * BALANCED_OFFER_SWAP_TOLERANCE_PCT;
-
-  if (Math.abs(gapAdj) <= tolerance) {
-    return { ours: [core], theirs: [anchor], pctOff: realPctOff(core.value, [anchor], myProfile) };
-  }
-  if (gapAdj > 0) {
-    // Their chip is worth more — we sweeten our side, priced by what THEY'D
-    // actually want (need-weighted against the partner, not us).
-    const myPool = myAssets.filter(a => a.key !== core.key);
-    const filler = bestFit(myPool, gapAdj, anchorAdj, partnerProfile);
-    if (!filler || filler.diff > anchorAdj * BALANCED_OFFER_MAX_STRETCH) return null;
-    const ours = refineCombo(myAssets, [core, ...filler.combo], anchor.value, partnerProfile, core.key);
-    return { ours, theirs: [anchor], pctOff: realPctOff(anchor.value, ours, partnerProfile) };
-  }
-  // Their chip alone falls short — they sweeten with a small extra, priced by what
-  // WE'D actually want, same convention as the original single-sided search.
-  const partnerPool = partnerAssets.filter(a => a.key !== anchor.key);
-  const filler = bestFit(partnerPool, -gapAdj, coreAdj, myProfile);
-  const theirs = refineCombo(partnerAssets, filler ? [anchor, ...filler.combo] : [anchor], core.value, myProfile, anchor.key);
-  return { ours: [core], theirs, pctOff: realPctOff(core.value, theirs, myProfile) };
-}
-
-// Why might `partner` realistically part with `givingAssets`? Reuses the same
-// positional-surplus idea as Team Analyzer's trade-partner suggestions.
-function partnerRationale(partner, givingAssets) {
-  const notes = [];
-  const mode = Vault.teamMode(partner);
-  const posGiven = [...new Set(givingAssets.filter(a => a.type === 'player').map(a => a.pos))];
-  posGiven.forEach(pos => {
-    const key = pos.toLowerCase();
-    if (!(key in partner)) return;
-    const arr = teams.map(t => t[key]).sort((a, b) => a - b);
-    const pct = arr.indexOf(partner[key]) / (arr.length - 1);
-    if (pct > 0.65) notes.push(`Deep at ${pos} — top-third of the league in ${pos} value`);
-  });
-  if (givingAssets.some(a => a.type === 'pick') && mode === 'contend') notes.push(`Contending — likely open to moving picks for immediate help`);
-  if (givingAssets.some(a => a.type === 'player' && a.age >= 29) && mode === 'rebuild') notes.push(`Rebuilding — likely open to moving aging veterans`);
-  if (givingAssets.some(a => a.type === 'player' && a.age < 25) && mode === 'contend' && posGiven.length) notes.push(`Contending teams sometimes cash in unproven youth for a sure thing`);
-  if (!notes.length) notes.push(`Reasonable value match`);
-  return notes.slice(0, 2);
-}
-
-let finderState = null;
-let acquireCombos = []; // currently displayed acquire-mode packages; proposeAcquire(i) indexes into this
-
-// Entry point for the header "Find a Trade" button — no row hovered yet, so let the
-// user pick which of their two loaded teams they are, then search ANY player or
-// pick from ANY team in the league. Picking your own asset shops it to the league
-// (same as the per-row "Find" button); picking someone else's asset switches to
-// acquire mode — a package from your team to go get them.
-function openFinderPicker() {
-  if (!teams.length) return;
-  finderState = { side: 'A', key: null, position: 'ANY' };
-  document.getElementById('finder').classList.remove('hidden');
-  document.getElementById('finderPickerRow').classList.remove('hidden');
-  document.getElementById('finderTarget').textContent = 'Search a player or pick below';
-  document.getElementById('finderWantBackLabel').classList.add('hidden');
-  document.getElementById('finderPosChips').innerHTML = '';
-  document.getElementById('finderResults').innerHTML = '';
-  renderFinderAssetOptions();
-}
-function renderFinderAssetOptions() {
-  document.getElementById('finderSideChips').innerHTML = ['A', 'B'].map(s =>
-    `<button onclick="finderState.side='${s}'; renderFinderAssetOptions()" class="text-[12px] px-2.5 py-1 rounded-lg border ${finderState.side === s ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white'}">${Vault.escapeHtml(teamOf(s).teamName)}</button>`
-  ).join('');
-  document.getElementById('finderAssetSearch').value = '';
-  document.getElementById('finderAssetResults').classList.add('hidden');
-}
-
-// Flattened, league-wide asset pool (every team's players + picks) for the search box.
-function allLeagueAssets() {
-  return teams.flatMap(t => t.assets.map(a => ({ ...a, rosterId: t.rosterId, ownerName: t.teamName })));
-}
-
-function searchFinderAssets(q) {
-  const box = document.getElementById('finderAssetResults');
-  const query = q.trim().toLowerCase();
-  if (!query) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-  const mine = teamOf(finderState.side).rosterId;
-  const results = allLeagueAssets()
-    .filter(a => a.name.toLowerCase().includes(query))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 8);
-  box.innerHTML = results.length
-    ? results.map(a => `
-      <div onmousedown="pickFinderAsset('${a.key}', ${a.rosterId})" class="px-3 py-2 flex items-center justify-between gap-3 cursor-pointer hover:bg-amber-500/10 text-[12px]">
-        <span class="truncate">${Vault.escapeHtml(a.name)} <span class="text-zinc-400">${a.rosterId === mine ? '(yours)' : '— ' + Vault.escapeHtml(a.ownerName)}</span></span>
-        <span class="mono text-zinc-400 shrink-0">${Math.round(a.value).toLocaleString()}</span>
-      </div>`).join('')
-    : `<div class="px-3 py-2 text-[12px] text-zinc-400">No match</div>`;
-  box.classList.remove('hidden');
-}
-
-function pickFinderAsset(key, rosterId) {
-  document.getElementById('finderAssetSearch').value = '';
-  document.getElementById('finderAssetResults').classList.add('hidden');
-  const mySide = finderState.side;
-  if (rosterId === teamOf(mySide).rosterId) openFinder(mySide, key);
-  else openAcquireFinder(mySide, key, rosterId);
-}
-
-function openFinder(side, key) {
-  finderState = { side, key, position: 'ANY' };
-  renderFinder();
-}
-
-// Reverse of the shop-out finder: the picked asset belongs to someone else, so
-// instead of asking who wants it, build the package it'd take from MY team to go
-// get it, and stage it against that asset's real owner rather than the other
-// currently-loaded side.
-function openAcquireFinder(side, key, targetRosterId) {
-  finderState = { side, key, position: 'ANY', mode: 'acquire', targetRosterId };
-  renderAcquireFinder();
-}
-
-function renderAcquireFinder() {
-  const { side, key, targetRosterId } = finderState;
-  const myTeam = teamOf(side);
-  const targetTeam = teams.find(t => t.rosterId === targetRosterId);
-  const asset = targetTeam && targetTeam.assets.find(a => a.key === key);
-  if (!asset) { closeFinder(); return; }
-
-  // Was missing here (renderFinder and renderSimilarAcrossLeague both do this) —
-  // harmless when the modal was already open from another path (e.g. the header
-  // "Find a Trade" picker, which unhides it itself), but calling openAcquireFinder
-  // directly from a Team B row's "Find" button — the normal path now — started
-  // from #finder hidden, so the results rendered into a still-hidden panel and
-  // clicking Find appeared to silently do nothing.
-  document.getElementById('finder').classList.remove('hidden');
-  document.getElementById('finderPickerRow').classList.add('hidden');
-  document.getElementById('finderWantBackLabel').classList.add('hidden');
-  document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-zinc-400">${Math.round(asset.value).toLocaleString()}</span> <span class="text-zinc-400">on ${Vault.escapeHtml(targetTeam.teamName)}</span>`;
-  document.getElementById('finderPosChips').innerHTML = '';
-
-  // Up to 5 genuinely different packages, most fair to least — same "several real
-  // options, not just one auto-pick" pattern as Suggested Trades and the shop-mode
-  // Finder (which already shows up to 5 partners here).
-  // This package flows FROM myTeam TO targetTeam, so it's searched against
-  // targetTeam's needs — the package that would actually convince them, not just
-  // whichever combo happens to match the sticker price.
-  acquireCombos = bestCombos(myTeam.assets, asset.value, 5, Vault.positionalProfile(targetTeam, teams));
-  const resultsEl = document.getElementById('finderResults');
-  if (!acquireCombos.length) {
-    resultsEl.innerHTML = `<div class="text-[12px] text-zinc-400 py-2">Not enough value on ${Vault.escapeHtml(myTeam.teamName)}'s roster to realistically match this.</div>`;
-    return;
-  }
-  resultsEl.innerHTML = acquireCombos.map((combo, i) => `
-    <div class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 flex-wrap">
-      <div class="min-w-0">
-        <div class="text-[13px] font-medium">Package from ${Vault.escapeHtml(myTeam.teamName)}</div>
-        <div class="text-[12px] text-zinc-300 mt-0.5">${combo.combo.map(a => Vault.escapeHtml(a.name)).join(' + ')} <span class="mono text-zinc-400">${Math.round(combo.sum).toLocaleString()}</span></div>
-        <div class="text-[12px] text-sky-300/70 mt-1">${partnerRationale(targetTeam, combo.combo).join(' · ')}</div>
-      </div>
-      <div class="flex items-center gap-3 shrink-0">
-        <div class="text-right">
-          <div class="text-[12px] mono ${combo.pctOff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : combo.pctOff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400'}">${capPct(combo.pctOff).toFixed(0)}% off</div>
-        </div>
-        <button onclick="proposeAcquire(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
-      </div>
-    </div>`).join('');
-}
-
-function proposeAcquire(i) {
-  const { side, key, targetRosterId } = finderState;
-  const other = otherSide(side);
-  document.getElementById(`team${other}`).value = targetRosterId;
-  selectedA.clear(); selectedB.clear();
-  (other === 'A' ? selectedA : selectedB).add(key);
-
-  const combo = acquireCombos[i];
-  if (combo) combo.combo.forEach(a => (side === 'A' ? selectedA : selectedB).add(a.key));
-
-  closeFinder();
-  render('A'); render('B');
-}
-
-function closeFinder() {
-  finderState = null;
-  document.getElementById('finder').classList.add('hidden');
-  document.getElementById('finderPickerRow').classList.add('hidden');
-}
-
-// League-wide value browser for a Team B row's "Match" — distinct from Find (which
-// builds a specific package to acquire this exact player). Answers "who else, on
-// any team, is priced like this" rather than "how do I get THIS one", useful when
-// the specific player isn't gettable but the price point is what you're after.
-function openSimilarAcrossLeague(side, key) {
-  finderState = { side, key, mode: 'similar' };
-  renderSimilarAcrossLeague();
-}
-
-function renderSimilarAcrossLeague() {
-  const { side, key } = finderState;
-  const team = teamOf(side);
-  const asset = team.assets.find(a => a.key === key);
-  if (!asset) { closeFinder(); return; }
-
-  document.getElementById('finder').classList.remove('hidden');
-  document.getElementById('finderPickerRow').classList.add('hidden');
-  document.getElementById('finderWantBackLabel').classList.add('hidden');
-  document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-zinc-400">${Math.round(asset.value).toLocaleString()}</span> <span class="text-zinc-400">— similar value around the league</span>`;
-  document.getElementById('finderPosChips').innerHTML = '';
-
-  const pool = teams.filter(t => t.rosterId !== team.rosterId)
-    .flatMap(t => t.assets.map(a => ({ ...a, teamName: t.teamName, rosterId: t.rosterId })));
-  const results = pool.filter(a => a.value > 0 && a.key !== key)
-    .sort((a, b) => Math.abs(a.value - asset.value) - Math.abs(b.value - asset.value))
-    .slice(0, 8);
-
-  const resultsEl = document.getElementById('finderResults');
-  if (!results.length) {
-    resultsEl.innerHTML = `<div class="text-[12px] text-zinc-400 py-2">No comparable assets found elsewhere in the league.</div>`;
-    return;
-  }
-  resultsEl.innerHTML = results.map(a => {
-    const diff = a.value - asset.value;
-    return `
-    <div onclick="pickSimilarAsset('${a.key}',${a.rosterId})" class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 hover:bg-black/50 cursor-pointer flex-wrap">
-      <div class="min-w-0">
-        <div class="text-[13px] font-medium">${Vault.escapeHtml(a.name)} ${a.type === 'pick' ? '' : `<span class="text-[12px] text-zinc-400">${a.pos}</span>`}</div>
-        <div class="text-[12px] text-zinc-400 mt-0.5">${Vault.escapeHtml(a.teamName)}</div>
-      </div>
-      <div class="text-right shrink-0">
-        <div class="text-[13px] mono">${Math.round(a.value).toLocaleString()}</div>
-        <div class="text-[12px] mono ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${diff >= 0 ? '+' : ''}${Math.round(diff).toLocaleString()}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// Picking a result switches Team B to that player's real team and drops straight
-// into acquire mode for them — browsing similar value is a step toward a specific
-// target, not a dead end.
-function pickSimilarAsset(key, rosterId) {
-  document.getElementById('teamB').value = rosterId;
-  document.getElementById('teamB').dispatchEvent(new Event('change'));
-  openAcquireFinder('A', key, rosterId);
-}
-
-function renderFinder() {
-  if (!finderState) return;
-  const { side, key, position } = finderState;
-  const team = teamOf(side);
-  const asset = team.assets.find(a => a.key === key);
-  if (!asset) { closeFinder(); return; }
-
-  const box = document.getElementById('finder');
-  box.classList.remove('hidden');
-  document.getElementById('finderPickerRow').classList.add('hidden');
-  document.getElementById('finderWantBackLabel').classList.remove('hidden');
-  document.getElementById('finderTarget').innerHTML = `${Vault.escapeHtml(asset.name)} <span class="mono text-zinc-400">${Math.round(asset.value).toLocaleString()}</span> <span class="text-zinc-400">from ${Vault.escapeHtml(team.teamName)}</span>`;
-
-  const positions = ['ANY', 'QB', 'RB', 'WR', 'TE', 'PICK'];
-  document.getElementById('finderPosChips').innerHTML = positions.map(p =>
-    `<button onclick="finderState.position='${p}'; renderFinder()" class="text-[12px] px-2.5 py-1 rounded-lg border ${position === p ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white'}">${p}</button>`
-  ).join('');
-
-  const partners = teams.filter(t => t.rosterId !== team.rosterId);
-  // Every partner's return would flow to `team` (whoever's shopping `asset` out),
-  // so the anchor's need-fit is judged against `team`'s own needs, computed once
-  // for every partner. buildBalancedOffer can still ask `team` to sweeten its own
-  // side (see its own comment) — that's judged against each partner's needs
-  // instead, computed per-partner below.
-  const teamProfile = Vault.positionalProfile(team, teams);
-  const results = partners.map(partner => {
-    const partnerProfile = Vault.positionalProfile(partner, teams);
-    const offer = buildBalancedOffer(team.assets, partner.assets, asset, position, teamProfile, partnerProfile);
-    if (!offer) return null;
-    return { partner, offer, pctOff: offer.pctOff, rationale: partnerRationale(partner, offer.theirs) };
-  }).filter(Boolean).sort((a, b) => a.pctOff - b.pctOff).slice(0, 5);
-
-  const resultsEl = document.getElementById('finderResults');
-  if (!results.length) {
-    resultsEl.innerHTML = `<div class="text-[12px] text-zinc-400 py-2">No team has a ${position} package close to this value.</div>`;
-    return;
-  }
-  resultsEl.innerHTML = results.map(r => {
-    const sum = r.offer.theirs.reduce((s, a) => s + a.value, 0);
-    const extraOurs = r.offer.ours.filter(a => a.key !== key);
-    return `
-    <div class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 flex-wrap">
-      <div class="min-w-0">
-        <div class="text-[13px] font-medium">${Vault.escapeHtml(r.partner.teamName)} <span class="text-[12px] text-zinc-400">(${r.partner.arch})</span></div>
-        <div class="text-[12px] text-zinc-300 mt-0.5">${r.offer.theirs.map(a => Vault.escapeHtml(a.name)).join(' + ')} <span class="mono text-zinc-400">${Math.round(sum).toLocaleString()}</span></div>
-        ${extraOurs.length ? `<div class="text-[12px] text-amber-300/70 mt-1">You'd also send: ${extraOurs.map(a => Vault.escapeHtml(a.name)).join(' + ')}</div>` : ''}
-        <div class="text-[12px] text-sky-300/70 mt-1">${r.rationale.join(' · ')}</div>
-      </div>
-      <div class="flex items-center gap-3 shrink-0">
-        <div class="text-right">
-          <div class="text-[12px] mono ${r.pctOff < VAULT_CONFIG.FAIR_PCT ? 'text-emerald-400' : r.pctOff < VAULT_CONFIG.LOPSIDED_PCT ? 'text-amber-400' : 'text-zinc-400'}">${capPct(r.pctOff).toFixed(0)}% off</div>
-        </div>
-        <button onclick="proposeFromFinder('${r.partner.rosterId}')" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Propose</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function proposeFromFinder(partnerId) {
-  const { side, key } = finderState;
-  const other = otherSide(side);
-  document.getElementById(`team${other}`).value = partnerId;
-  selectedA.clear(); selectedB.clear();
-  (side === 'A' ? selectedA : selectedB).add(key);
-
-  const team = teamOf(side);
-  const asset = team.assets.find(a => a.key === key);
-  const partner = teamOf(other);
-  const offer = buildBalancedOffer(team.assets, partner.assets, asset, finderState.position, Vault.positionalProfile(team, teams), Vault.positionalProfile(partner, teams));
-  if (offer) {
-    offer.theirs.forEach(a => (other === 'A' ? selectedA : selectedB).add(a.key));
-    offer.ours.forEach(a => (side === 'A' ? selectedA : selectedB).add(a.key));
-  }
-
-  closeFinder();
-  render('A'); render('B');
-}
 
 // Target-matcher: select `key` on `side`, then auto-build a matching package from the other side
 function matchTarget(side, key) {
@@ -1822,9 +1260,46 @@ function confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct
   return `±${bandPct.toFixed(0)}pp — could read anywhere from ${bucketLo} to ${bucketHi} once the less-established pieces here (rookies, far-future picks) shake out`;
 }
 
+// KTC value (with KTC's own consolidation adjustment, so it matches their
+// calculator) next to the same trade adjusted for need, roster fit, and
+// timeline. The adjusted pair keeps the two sides' average and spreads them by
+// the overall % the grade uses (fairness.overallSigned), so the numbers and the
+// verdict can never disagree. Fit only ever widens the gap (never closes it),
+// and when that rule kicks in the table says so instead of hiding it.
+function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonusGet) {
+  const avg = (giveVal + getVal) / 2;
+  const adjGive = avg * (1 + fairness.overallSigned / 200), adjGet = avg * (1 - fairness.overallSigned / 200);
+  const n = v => Math.round(v).toLocaleString();
+  const d = v => `<span class="${Math.abs(v) < 1 ? 'text-zinc-300' : v > 0 ? 'text-emerald-400' : 'text-rose-400'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${n(Math.abs(v))}</span>`;
+  const held = Math.abs(fairness.blend) < Math.abs(fairness.value) - 0.5;
+  const favored = fairness.roster + fairness.timeline > 0 ? partner.teamName : me.teamName; // who fit leans toward (positive = partner)
+  return `<div class="grid grid-cols-[auto_auto_auto_auto] gap-x-4 gap-y-1 items-baseline text-right tabular-nums">
+      <span></span>
+      <span class="text-[11px] uppercase tracking-wider text-zinc-400">You give</span>
+      <span class="text-[11px] uppercase tracking-wider text-zinc-400">You get</span>
+      <span class="text-[11px] uppercase tracking-wider text-zinc-400">Net</span>
+      <span class="text-[12px] text-zinc-400 text-left" title="KeepTradeCut values, including KTC's own adjustment for consolidating pieces — the numbers you can check on KeepTradeCut's trade calculator.">KTC value</span>
+      <span class="text-[14px] text-zinc-100">${n(giveVal)}</span>
+      <span class="text-[14px] text-zinc-100">${n(getVal)}</span>
+      <span class="text-[14px] font-medium">${d(getVal - giveVal)}</span>
+      <span class="text-[12px] text-zinc-400 text-left" title="The same trade after positional need, each starting lineup's change, and each team's rebuild/contend timeline — weighted ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline, the same blend as the grade.">Adjusted</span>
+      <span class="text-[14px] text-zinc-100">${n(adjGive)}</span>
+      <span class="text-[14px] text-zinc-100">${n(adjGet)}</span>
+      <span class="text-[14px] font-medium">${d(adjGet - adjGive)}</span>
+    </div>
+    <div class="text-[11px] text-zinc-500 mt-1 text-right">${bonusGive >= 1 || bonusGet >= 1 ? `KTC value includes KTC's +${n(Math.max(bonusGive, bonusGet))} adjustment on ${bonusGive >= bonusGet ? "your side" : "their side"} for the best player in the deal · ` : ""}Adjusted = need, fit, and timeline${held ? ` · fit favors ${Vault.escapeHtml(favored)}, but grades never read closer to even than KTC value` : ''}</div>`;
+}
+
 function updateTrade() {
   syncTradeUrl();
   const teamA = teamOf('A'), teamB = teamOf('B');
+  document.getElementById('offeredByWrap').classList.toggle('hidden', !teamB);
+  if (!teamB) {
+    ['tradeBar', 'analysisHeader', 'analysisA', 'analysisB'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById('emptyState').classList.remove('hidden');
+    if (typeof renderOfferButton === 'function') renderOfferButton();
+    return;
+  }
   // Unconditional (unlike the trade bar/analysis below) — who's offering is
   // meaningful the moment two teams are picked, before any assets are even
   // selected, not just once there's a trade to analyze.
@@ -1866,16 +1341,14 @@ function updateTrade() {
     ? bAssets.map(a => giveChip('B', a)).join('')
     : '<span class="text-zinc-400">Nothing selected</span>';
 
-  const diffAdj = Math.abs(aValAdj - bValAdj);
   // Computed once here and reused by renderAnalysis below instead of recomputing —
   // this already runs positionalFitNotes/archetypeFitNotes/simulateTrade, real work
   // that shouldn't happen twice on every keystroke. Also what gives the top bar's
   // badge access to fit (resA.fit/resB.fit), needed for the Great/Good tiers below.
   const analysis = computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
   const { pctDiff, pctDiffNeed, bandPct: diffBandPct, bucket, fairness, overallPct } = analysis;
-  const diffEl = document.getElementById('diff');
-  diffEl.textContent = Math.round(diffAdj).toLocaleString();
-  diffEl.className = 'text-[22px] font-semibold mono ' + bucketColor(bucket, false);
+  const { bonusA, bonusB } = Vault.tradeSideValues(aAssets, bAssets);
+  document.getElementById('valueTable').innerHTML = valueTableHtml(aValAdj, bValAdj, fairness, teamA, teamB, bonusA, bonusB);
   // Fairness label spells out the same Fair/Lopsided/Unfair thresholds the color
   // already encodes, since a raw dollar diff alone doesn't tell you what counts as
   // fair. Great/Good are gated on value FIRST (bucket can only read Great/Good if
@@ -2131,7 +1604,7 @@ function classifyTrade(resA, resB, aAssets, bAssets, teamA, teamB) {
 }
 
 // Pure computation, no DOM access — shared by renderAnalysis (draws the result) and
-// suggestTrade (scores many candidate trades to find good ones without drawing
+// suggestionPool (scores many candidate trades to find good ones without drawing
 // anything). Takes the two teams and what each side gives, returns everything
 // needed to either render or just rank a candidate.
 function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) {
