@@ -31,7 +31,7 @@ const COACH_OPTIONS = {
   rebuild: { label: 'Rebuild', blurb: 'Throw in the towel on this season: trades that turn your aging players into picks and players 24 or under while they still hold value.' },
   contend: { label: 'Go all-in', blurb: 'Win now: trades that spend picks, prospects, and bench players on starters for this season. Your starters stay put.' }
 };
-const Coach = { option: 'target', targetKey: null, pos: null, results: {}, busy: false, picker: { open: false, q: '', pos: 'ALL' } };
+const Coach = { option: 'target', targetKey: null, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [] }, theirs: { must: [], keep: [], never: [] }, picker: { open: false, q: '', pos: 'ALL' } };
 
 const coachTick = () => new Promise(r => setTimeout(r, 0));
 const coachMe = () => Vault.myTeam(teams) || teamOf('A');
@@ -43,16 +43,41 @@ function coachAfter(meId, partnerId, give, get) {
   return pool.find(t => t.rosterId === meId);
 }
 
+// Your side (the "Your side" box): pieces every suggestion must include,
+// pieces to keep, and whole groups (a position, or picks) never to trade.
+// Must-include wins over a group toggle, and over protecting your starters.
+const coachGroup = a => (a.type === 'pick' ? 'PICK' : a.pos);
+const coachMust = me => Coach.mine.must.map(k => me.assets.find(a => a.key === k)).filter(Boolean);
+function coachOffLimits(me) {
+  const off = new Set(Coach.mine.keep);
+  me.assets.forEach(a => { if (Coach.mine.never.includes(coachGroup(a))) off.add(a.key); });
+  Coach.mine.must.forEach(k => off.delete(k));
+  return off;
+}
+const coachHasRules = side => Coach[side].must.length + Coach[side].keep.length + Coach[side].never.length > 0;
+const coachHasMine = () => coachHasRules('mine') || coachHasRules('theirs');
+
+// Their side (the "Their side" box): pieces a trade must bring back (which
+// limits it to the teams that own them), pieces you don't want, and groups
+// you'll never take. Must-get wins over a group toggle.
+const coachTheirMust = t => Coach.theirs.must.map(k => t.assets.find(a => a.key === k)).filter(Boolean);
+const coachPartnerOK = t => !Coach.theirs.must.length || coachTheirMust(t).length > 0;
+const coachTheirOff = a => !Coach.theirs.must.includes(a.key) && (Coach.theirs.keep.includes(a.key) || Coach.theirs.never.includes(coachGroup(a)));
+
 // Packages of your pieces for `get` that `partner` would accept, best for you
 // first, one per lead piece so the list isn't the same offer plus filler.
+// Every package includes your must-include pieces and nothing off limits.
 function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CONFIG.FAIR_PCT, limit = 1 } = {}) {
+  if (!coachPartnerOK(partner)) return [];
+  get = [...get, ...coachTheirMust(partner).filter(a => !get.includes(a))];
   const want = sumValue(get);
-  const pool = me.assets.filter(a => !protect.has(a.key) && a.value >= want * 0.08 && a.value <= want * 1.4)
+  const must = coachMust(me), mustVal = sumValue(must), mustKeys = new Set(negKeys(must)), off = coachOffLimits(me);
+  const pool = me.assets.filter(a => !protect.has(a.key) && !off.has(a.key) && !mustKeys.has(a.key) && a.value >= want * 0.08 && a.value + mustVal <= want * 1.4)
     .sort((x, y) => y.value - x.value).slice(0, 14);
-  const packs = [];
+  const packs = must.length ? [[...must]] : [];
   pool.forEach((a, i) => {
-    packs.push([a]);
-    pool.slice(i + 1).forEach(b => { const s = a.value + b.value; if (s >= want * 0.7 && s <= want * 1.7) packs.push([a, b]); });
+    packs.push([...must, a]);
+    pool.slice(i + 1).forEach(b => { const s = mustVal + a.value + b.value; if (s >= want * 0.7 && s <= want * 1.7) packs.push([...must, a, b]); });
   });
   const judge = list => list.map(give => ({ give, j: negJudgeFor(me, give, partner, get, negContextFor(partner)) }))
     .filter(x => x.j.accepts && x.j.edge < ceiling).map(x => ({ partner, give: x.give, get, edge: x.j.edge }));
@@ -60,14 +85,14 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
   if (found.length < limit) {
     const top = pool.slice(0, 10), triples = [];
     top.forEach((a, i) => top.slice(i + 1).forEach((b, k) => top.slice(i + k + 2).forEach(c => {
-      const s = a.value + b.value + c.value;
-      if (s >= want * 0.9 && s <= want * 2.2) triples.push([a, b, c]);
+      const s = mustVal + a.value + b.value + c.value;
+      if (s >= want * 0.9 && s <= want * 2.2) triples.push([...must, a, b, c]);
     })));
     found = found.concat(judge(triples));
   }
   const seen = new Set();
   return found.sort((x, y) => x.edge - y.edge).filter(o => {
-    const lead = [...o.give].sort((x, y) => y.value - x.value)[0].key;
+    const lead = ([...o.give].filter(a => !mustKeys.has(a.key)).sort((x, y) => y.value - x.value)[0] || { key: 'must' }).key;
     if (seen.has(lead)) return false;
     seen.add(lead);
     return true;
@@ -102,9 +127,10 @@ async function coachUpgrades(me, positions, protect, progress, pay) {
   const starters = me.lineup.filter(s => s.id);
   const floor = {};
   positions.forEach(P => { const at = starters.filter(s => s.pos === P); floor[P] = at.length ? Math.min(...at.map(s => s.ppg)) : 0; });
-  const budget = me.assets.filter(a => !protect.has(a.key)).map(a => a.value).sort((x, y) => y - x).slice(0, 3).reduce((t, v) => t + v, 0);
-  const cands = teams.filter(t => t !== me)
-    .flatMap(t => t.assets.filter(a => a.type === 'player' && positions.includes(a.pos) && (a.ppg || 0) >= floor[a.pos] + COACH.UPGRADE_BY && a.value <= budget).map(a => ({ a, t })))
+  const must = coachMust(me), off = coachOffLimits(me);
+  const budget = sumValue(must) + me.assets.filter(a => !protect.has(a.key) && !off.has(a.key) && !must.includes(a)).map(a => a.value).sort((x, y) => y - x).slice(0, 3).reduce((t, v) => t + v, 0);
+  const cands = teams.filter(t => t !== me && coachPartnerOK(t))
+    .flatMap(t => t.assets.filter(a => a.type === 'player' && !coachTheirOff(a) && positions.includes(a.pos) && (a.ppg || 0) >= floor[a.pos] + COACH.UPGRADE_BY && a.value <= budget).map(a => ({ a, t })))
     .sort((x, y) => (y.a.ppg - floor[y.a.pos]) - (x.a.ppg - floor[x.a.pos])).slice(0, 15);
   const run = async ceiling => {
     const out = [];
@@ -138,19 +164,23 @@ async function coachContend(me, progress) {
   return { title: 'Win-now trades', list };
 }
 
+// Sells your must-include pieces first, then aging players not kept off limits.
 async function coachRebuild(me, progress) {
-  const vets = me.assets.filter(a => a.type === 'player' && COACH.SELL_AGE[a.pos] && a.age >= COACH.SELL_AGE[a.pos] && a.value >= 1500).sort((x, y) => y.value - x.value);
-  if (!vets.length) return { empty: 'You don\'t have aging players worth selling (RBs 26+, WRs 28+, TEs 29+, QBs 30+ with real value).' };
+  const must = coachMust(me), off = coachOffLimits(me);
+  const vets = [...must, ...me.assets.filter(a => a.type === 'player' && !off.has(a.key) && !must.includes(a) && COACH.SELL_AGE[a.pos] && a.age >= COACH.SELL_AGE[a.pos] && a.value >= 1500).sort((x, y) => y.value - x.value)];
+  if (!vets.length) return { empty: 'You don\'t have aging players worth selling (RBs 26+, WRs 28+, TEs 29+, QBs 30+ with real value). Add anyone you want to move under Sell these.' };
   const young = a => a.type === 'pick' || (a.age && a.age <= 24);
   const list = [];
-  for (const v of vets.slice(0, 8)) {
+  for (const v of vets.slice(0, Math.max(8, must.length))) {
     progress(`Shopping ${v.name}…`);
     await coachTick();
     let best = null;
-    teams.filter(t => t !== me).forEach(t => {
-      const pool = t.assets.filter(a => young(a) && a.value >= v.value * 0.1 && a.value <= v.value * 1.3).sort((x, y) => y.value - x.value).slice(0, 10);
-      const packs = pool.map(a => [a]);
-      pool.forEach((a, i) => pool.slice(i + 1).forEach(b => { const s = a.value + b.value; if (s >= v.value * 0.6 && s <= v.value * 1.5) packs.push([a, b]); }));
+    teams.filter(t => t !== me && coachPartnerOK(t)).forEach(t => {
+      const tm = coachTheirMust(t), tmVal = sumValue(tm);
+      const pool = t.assets.filter(a => young(a) && !coachTheirOff(a) && !tm.includes(a) && a.value >= v.value * 0.1 && a.value + tmVal <= v.value * 1.3).sort((x, y) => y.value - x.value).slice(0, 10);
+      const packs = tm.length ? [[...tm]] : [];
+      pool.forEach(a => packs.push([...tm, a]));
+      pool.forEach((a, i) => pool.slice(i + 1).forEach(b => { const s = tmVal + a.value + b.value; if (s >= v.value * 0.6 && s <= v.value * 1.5) packs.push([...tm, a, b]); }));
       packs.forEach(pack => {
         const j = negJudgeFor(me, [v], t, pack, negContextFor(t));
         if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || j.edge < best.edge)) best = { partner: t, give: [v], get: pack, edge: j.edge };
@@ -158,7 +188,8 @@ async function coachRebuild(me, progress) {
     });
     if (best) {
       const age = Math.floor(v.age);
-      list.push({ ...best, id: v.key, why: `At ${age}, ${Vault.escapeHtml(v.name)} is ${age > COACH.SELL_AGE[v.pos] ? 'past' : 'at'} the age ${v.pos}s usually start losing value.` });
+      const why = must.includes(v) ? `You picked ${Vault.escapeHtml(v.name)} to sell.` : `At ${age}, ${Vault.escapeHtml(v.name)} is ${age > COACH.SELL_AGE[v.pos] ? 'past' : 'at'} the age ${v.pos}s usually start losing value.`;
+      list.push({ ...best, id: v.key, why });
     }
   }
   if (!list.length) return { empty: 'No team would give fair value in picks or young players for your veterans right now.' };
@@ -187,7 +218,7 @@ async function coachFind() {
 }
 
 // Results belong to the inputs they were found for.
-const coachInputKey = () => ({ target: Coach.targetKey, position: Coach.pos }[Coach.option] || '');
+const coachInputKey = () => ({ target: Coach.targetKey, position: Coach.pos }[Coach.option] || '') + '|' + JSON.stringify([Coach.mine, Coach.theirs]);
 
 /* ---------- Panel ---------- */
 
@@ -230,6 +261,52 @@ function coachLoad(i) {
   if (selA.value !== String(r.meId)) { selA.value = String(r.meId); selA.onchange(); }
   if (selB.value !== String(o.partner.rosterId)) { selB.value = String(o.partner.rosterId); selB.onchange(); }
   negLoad(negKeys(o.give), negKeys(o.get));
+}
+
+/* ---------- Your side / Their side ---------- */
+
+function coachSideAdd(side, list, key) {
+  if (!key) return;
+  const other = list === 'must' ? 'keep' : 'must';
+  Coach[side][other] = Coach[side][other].filter(k => k !== key);
+  if (!Coach[side][list].includes(key)) Coach[side][list].push(key);
+  renderCoach();
+}
+function coachSideRemove(side, list, key) { Coach[side][list] = Coach[side][list].filter(k => k !== key); renderCoach(); }
+function coachSideToggle(side, g) { const n = Coach[side].never; Coach[side].never = n.includes(g) ? n.filter(x => x !== g) : [...n, g]; renderCoach(); }
+function coachSideClear(side) { Coach[side] = { must: [], keep: [], never: [] }; renderCoach(); }
+
+function coachSideHtml(side, me) {
+  const m = Coach[side], esc = Vault.escapeHtml, mine = side === 'mine';
+  const others = teams.filter(x => x !== me);
+  const find = k => (mine ? me.assets : others.flatMap(x => x.assets)).find(a => a.key === k);
+  const owner = k => others.find(x => x.assets.some(a => a.key === k));
+  const tag = (k, list) => {
+    const a = find(k);
+    if (!a) return '';
+    const who = mine ? '' : ` <span class="opacity-60">· ${esc(owner(k).teamName)}</span>`;
+    return `<span class="inline-flex items-center gap-0.5 text-[11px] pl-2 pr-0.5 py-0.5 rounded-md border ${list === 'must' ? 'border-emerald-500/30 text-emerald-200 bg-emerald-500/10' : 'border-rose-500/30 text-rose-200 bg-rose-500/10'}">${esc(a.name)}${who}<button onclick="coachSideRemove('${side}', '${list}', '${k}')" aria-label="Remove ${esc(a.name)}" class="px-1 text-zinc-400 hover:text-white">×</button></span>`;
+  };
+  const used = new Set([...m.must, ...m.keep]);
+  const opt = a => `<option value="${a.key}">${esc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${Math.round(a.value).toLocaleString()}</option>`;
+  const opts = mine
+    ? me.assets.filter(a => !used.has(a.key)).map(opt).join('')
+    : others.map(x => `<optgroup label="${esc(x.teamName)}">${x.assets.filter(a => !used.has(a.key) && a.value >= 300).map(opt).join('')}</optgroup>`).join('');
+  const add = list => `<select onchange="coachSideAdd('${side}', '${list}', this.value)" aria-label="Add a player or pick" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[170px]"><option value="">+ Add…</option>${opts}</select>`;
+  const group = g => `<button onclick="coachSideToggle('${side}', '${g}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${m.never.includes(g) ? 'bg-rose-500/10 border-rose-500/30 text-rose-200' : 'border-white/10 text-zinc-400 hover:text-white'}">${g === 'PICK' ? 'Picks' : g}</button>`;
+  const row = (label, body) => `<div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] text-zinc-500 w-[96px] shrink-0">${label}</span>${body}</div>`;
+  const labels = mine
+    ? [Coach.option === 'rebuild' ? 'Sell these' : 'Must include', 'Don\'t trade', 'Never trade any']
+    : ['Must get', 'Don\'t want', 'Never take any'];
+  return `<div class="p-2.5 rounded-lg bg-black/30 border border-white/5 space-y-2 min-w-0">
+      <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-zinc-400 uppercase tracking-wider">${mine ? 'Your side' : 'Their side'}</span>${coachHasRules(side) ? `<button onclick="coachSideClear('${side}')" class="text-[11px] text-zinc-500 hover:text-white">Clear</button>` : ''}</div>
+      ${row(labels[0], m.must.map(k => tag(k, 'must')).join('') + add('must'))}
+      ${row(labels[1], m.keep.map(k => tag(k, 'keep')).join('') + add('keep'))}
+      ${row(labels[2], ['QB', 'RB', 'WR', 'TE', 'PICK'].map(group).join(''))}
+    </div>`;
+}
+function coachMineHtml(me) {
+  return `<div class="grid gap-2 lg:grid-cols-2 mb-3">${coachSideHtml('mine', me)}${coachSideHtml('theirs', me)}</div>`;
 }
 
 /* ---------- Target picker ---------- */
@@ -301,6 +378,7 @@ function renderCoach() {
   }[Coach.option];
   const r = Coach.results[Coach.option], fresh = r && r.key === coachInputKey();
   box.innerHTML = `
+    ${coachMineHtml(me)}
     <div class="flex flex-col sm:flex-row sm:items-start gap-2 mb-1">
       ${input}
       <button onclick="coachFind()" ${Coach.busy ? 'disabled' : ''} class="self-start shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Coach.busy ? 'opacity-60' : ''}">${fresh ? 'Search again' : 'Find trades'}</button>
@@ -311,7 +389,7 @@ function renderCoach() {
 }
 
 function coachResultsHtml(r) {
-  if (!r.list || !r.list.length) return `<div class="mt-3 p-3 rounded-xl bg-black/30 text-[12px] text-zinc-300">${r.empty || 'No trades found.'}</div>`;
+  if (!r.list || !r.list.length) return `<div class="mt-3 p-3 rounded-xl bg-black/30 text-[12px] text-zinc-300">${r.empty || 'No trades found.'}${coachHasMine() ? ' Your side or Their side rules out some pieces, so try loosening them.' : ''}</div>`;
   const over = r.list.some(o => o.edge >= VAULT_CONFIG.FAIR_PCT);
   return `
     <div class="mt-3 mb-2 flex items-baseline justify-between gap-3 flex-wrap">

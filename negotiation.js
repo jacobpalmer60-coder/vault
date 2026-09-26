@@ -424,7 +424,8 @@ function negAsk(i, pref, arg) {
     picks: a => a.type === 'pick',
     nfl: a => a.type === 'player' && a.nfl === arg
   }[pref] || (a => a.type === 'player' && a.pos === pref);
-  const theirs = teamOf(R).assets;
+  // Respect the coach's Their side rules (pieces or groups you don't want back).
+  const theirs = teamOf(R).assets.filter(x => typeof coachTheirOff !== 'function' || !coachTheirOff(x));
   const mains = theirs.filter(a => fits(a) && a.value >= give * 0.2 && a.value <= give * 1.3).sort((x, y) => y.value - x.value).slice(0, 12);
   const fillers = theirs.filter(a => a.value >= give * 0.05 && a.value <= give * 0.6).sort((x, y) => y.value - x.value).slice(0, 12);
   const packs = [];
