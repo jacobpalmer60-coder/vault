@@ -69,6 +69,10 @@
       </header>`;
     // On a phone the tab row scrolls sideways — start it at the current page's
     // tab instead of always at League Overview.
+    const header = mount.querySelector('header');
+    const setNavH = () => document.documentElement.style.setProperty('--nav-h', (getComputedStyle(header).position === 'sticky' ? header.offsetHeight : 0) + 'px');
+    setNavH();
+    addEventListener('resize', setNavH);
     const nav = mount.querySelector('nav'), cur = nav.querySelector('[aria-current]');
     if (cur && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = Math.max(0, cur.offsetLeft - nav.offsetLeft - 24);
   }

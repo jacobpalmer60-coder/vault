@@ -20,6 +20,9 @@
   .ring1 { box-shadow: inset 0 3px 0 var(--p1); } .ring2 { box-shadow: inset 0 3px 0 var(--p2); }
   .ring3 { box-shadow: inset 0 3px 0 var(--p3); } .ring4 { box-shadow: inset 0 3px 0 var(--p4); }
   .win { font-weight: 600; color: #fafafa; }
+  /* The player-name row stays in view while you scroll a long table: pinned
+     just under the site header (--nav-h, set by vault-nav.js) on wide screens. */
+  .sticky-head th { position: sticky; top: var(--nav-h, 0px); z-index: 5; background: #14161a; box-shadow: 0 1px 0 rgba(255,255,255,0.08); }
   #chartTip { pointer-events: none; }
   input[type=date] { color-scheme: dark; }
 </style>
@@ -68,7 +71,7 @@
 
     <section class="card rounded-vault-sm p-5">
       <h2 class="text-[15px] font-semibold text-zinc-100 mb-3">Head to head</h2>
-      <div class="overflow-x-auto"><table id="h2h" class="w-full text-[13px]"></table></div>
+      <div class="overflow-x-auto sm:overflow-visible"><table id="h2h" class="w-full text-[13px]"></table></div>
       <p class="text-[12px] text-zinc-400 mt-2">The best value in each row is marked with its player's color. Age, experience, and price swing aren't marked — which is better depends on your plan.</p>
     </section>
 
@@ -84,8 +87,9 @@
           <div id="modeBtns" class="flex gap-1.5"></div>
         </div>
       </div>
+      <div id="catTabs" class="flex flex-wrap gap-1.5 mb-3" role="tablist" aria-label="Stat category"></div>
       <div id="weekChips" class="hidden flex flex-wrap items-center gap-1 mb-3"></div>
-      <div class="overflow-x-auto"><table id="stats" class="w-full text-[13px]"></table></div>
+      <div class="overflow-x-auto sm:overflow-visible"><table id="stats" class="w-full text-[13px]"></table></div>
       <p id="statsNote" class="text-[12px] text-zinc-400 mt-2"></p>
       <div id="gameLogWrap" class="hidden">
         <h3 class="text-[13px] font-semibold text-zinc-200 mt-5 mb-2">Game log <span class="text-zinc-400 font-normal">— fantasy points in your scoring</span></h3>
@@ -455,7 +459,7 @@ function row(label, vals, show, better) {
 }
 
 function headRow(ps, first) {
-  return `<thead><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left px-3 py-2 font-medium">${first}</th>${ps.map((p, i) => `<th class="text-right px-3 py-2 font-medium"><span class="inline-flex items-center gap-2 justify-end normal-case tracking-normal text-[12px] text-zinc-200 whitespace-nowrap"><span class="sw sw${i + 1}"></span>${Vault.escapeHtml(p.name)}</span></th>`).join('')}</tr></thead>`;
+  return `<thead class="sticky-head"><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left px-3 py-2 font-medium">${first}</th>${ps.map((p, i) => `<th class="text-right px-3 py-2 font-medium"><span class="inline-flex items-center gap-2 justify-end normal-case tracking-normal text-[12px] text-zinc-200 whitespace-nowrap"><span class="sw sw${i + 1}"></span>${Vault.escapeHtml(p.name)}</span></th>`).join('')}</tr></thead>`;
 }
 
 function renderH2H(ps) {
@@ -486,6 +490,9 @@ const seasonCache = new Map();        // season -> Promise<SeasonData>
 const rankCache = new Map();          // season|weeks|pos|mode -> { values, ranks, n }
 let selWeeks = null;                  // Set of chosen weeks (null = every week played)
 const STATS_KEY = 'vault_compare_stats';
+let statCat = 'fantasy';               // the one stat category on screen
+try { statCat = localStorage.getItem('vault_compare_cat') || 'fantasy'; } catch {}
+function setStatCat(c) { statCat = c; try { localStorage.setItem('vault_compare_cat', c); } catch {} renderStats(); }
 let customStats = null;               // array of stat ids, or null for the defaults
 try { customStats = JSON.parse(localStorage.getItem(STATS_KEY) || 'null'); } catch {}
 
@@ -701,10 +708,13 @@ async function renderStats() {
   } else {
     const gamesLabel = !single ? 'Career' : `${statSeason}${selWeeks ? ` · ${selWeeks.size} game${selWeeks.size === 1 ? '' : 's'} picked` : ''}`;
     let body = row('Games', aggs.map(a => a ? a.gp : NaN), v => Number.isFinite(v) ? String(v) : '—', null);
-    StatCatalog.CATS.forEach(([cat, catLabel]) => {
+    // Tabs for the categories that have stats showing; only the chosen one renders.
+    const cats = StatCatalog.CATS.filter(([cat]) => stats.some(s => s.cat === cat));
+    if (!cats.some(([cat]) => cat === statCat) && cats.length) statCat = cats[0][0];
+    $('catTabs').innerHTML = cats.map(([cat, label]) => `<button role="tab" aria-selected="${cat === statCat}" onclick="setStatCat('${cat}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${cat === statCat ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label} <span class="opacity-60">${stats.filter(s => s.cat === cat).length}</span></button>`).join('');
+    StatCatalog.CATS.filter(([cat]) => cat === statCat).forEach(([cat]) => {
       const list = stats.filter(s => s.cat === cat);
       if (!list.length) return;
-      body += `<tr><td colspan="${ps.length + 1}" class="px-3 pt-4 pb-1 text-[11px] uppercase tracking-wider text-zinc-400">${catLabel}</td></tr>`;
       list.forEach(stat => {
         const vals = ps.map((p, i) => stat.pos.includes(p.pos) ? (stat.id === 'finish' ? (aggs[i]?.finish ?? null) : modeValue(stat, aggs[i])) : null);
         // Best among the compared players (only if they all share the stat's scale).
