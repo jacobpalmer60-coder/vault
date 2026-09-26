@@ -31,7 +31,7 @@ const COACH_OPTIONS = {
   rebuild: { label: 'Rebuild', blurb: 'Throw in the towel on this season: trades that turn your aging players into picks and players 24 or under while they still hold value.' },
   contend: { label: 'Go all-in', blurb: 'Win now: trades that spend picks, prospects, and bench players on starters for this season. Your starters stay put.' }
 };
-const Coach = { option: 'target', targetKey: null, pos: null, results: {}, busy: false, from: null, picker: { open: false, q: '', pos: 'ALL' } };
+const Coach = { option: 'target', targetKey: null, pos: null, results: {}, busy: false, picker: { open: false, q: '', pos: 'ALL' } };
 
 const coachTick = () => new Promise(r => setTimeout(r, 0));
 const coachMe = () => Vault.myTeam(teams) || teamOf('A');
@@ -212,7 +212,7 @@ function coachSync() {
   const neg = document.getElementById('negotiation');
   if (neg) neg.classList.toggle('hidden', !(Coach.option === 'negotiate' && Negotiation.rounds.length));
 }
-function coachReset() { Coach.results = {}; Coach.from = null; if (coachOpen()) renderCoach(); }
+function coachReset() { Coach.results = {}; if (coachOpen()) renderCoach(); }
 function coachSetOption(o) { Coach.option = o; renderCoach(); }
 function coachSetPos(p) { Coach.pos = p; renderCoach(); }
 
@@ -230,14 +230,6 @@ function coachLoad(i) {
   if (selA.value !== String(r.meId)) { selA.value = String(r.meId); selA.onchange(); }
   if (selB.value !== String(o.partner.rosterId)) { selB.value = String(o.partner.rosterId); selB.onchange(); }
   negLoad(negKeys(o.give), negKeys(o.get));
-}
-function coachNegotiate(i) {
-  const option = Coach.option;
-  coachLoad(i);
-  Coach.from = option;
-  Negotiation.offering = 'A';
-  negOffer(document.querySelector('#offerBtn button'));
-  document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /* ---------- Target picker ---------- */
@@ -338,22 +330,16 @@ function coachResultsHtml(r) {
         ${o.why ? `<div class="text-[12px] text-zinc-400 mt-1">${o.why}</div>` : ''}
         <div class="text-[11px] text-zinc-400 mt-1">They'd likely accept. ${negLean(-o.edge)}</div>
         <div class="flex flex-wrap gap-2 mt-auto pt-2.5">
-          <button onclick="coachNegotiate(${i})" class="text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid">Negotiate it</button>
-          <button onclick="coachLoad(${i})" class="text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Load in calculator</button>
+          <button onclick="coachLoad(${i})" class="text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid">Load in calculator</button>
         </div>
       </div>`;
     }).join('')}</div>`;
 }
 
-// Negotiate option: a prompt to offer the loaded trade, or (once rounds exist)
-// a link back to the list the offer came from. The rounds render below.
+// Negotiate option: a prompt to offer the loaded trade. Once rounds exist
+// they render below and this stays empty.
 function coachNegotiateHtml() {
-  if (Negotiation.rounds.length) {
-    return Coach.from ? `<div class="flex items-center justify-between gap-3 flex-wrap mb-3 p-2.5 rounded-lg bg-violet-500/[0.06] border border-violet-500/20">
-        <span class="text-[12px] text-violet-200/90">From ${COACH_OPTIONS[Coach.from].label}</span>
-        <button onclick="coachSetOption('${Coach.from}')" class="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Back to the list</button>
-      </div>` : '';
-  }
+  if (Negotiation.rounds.length) return '';
   const ready = selectedA.size && selectedB.size;
   return `<div class="p-3 rounded-xl bg-black/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
       <span class="text-[12px] text-zinc-300">${ready ? `Ready: ${negNames(negAssets('A', [...selectedA]))} for ${negNames(negAssets('B', [...selectedB]))}.` : 'Add pieces to both sides of the calculator below, then offer it here.'}</span>

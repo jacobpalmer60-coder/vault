@@ -44,7 +44,7 @@ function negReset() {
   Negotiation.rounds = [];
   const box = document.getElementById('negotiation');
   if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
-  if (typeof renderCoach === 'function') { Coach.from = null; renderCoach(); } // back to the Negotiate prompt in the coach
+  if (typeof renderCoach === 'function') renderCoach(); // back to the Negotiate prompt in the coach
 }
 
 const negOther = s => (s === 'A' ? 'B' : 'A');
@@ -308,7 +308,7 @@ function negShop(O, R, coreAssets) {
   return best;
 }
 
-function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys, fromCoach) {
+function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys) {
   const you = e => -e; // their edge -> your edge
   const opts = {};
   const oGive = O === 'A' ? aAssets : bAssets;
@@ -320,18 +320,16 @@ function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys, fromCo
   }
   const base = counter ? [counter.A, counter.B] : j.accepts ? [aAssets, bAssets] : null;
   if (base) { const cb = negCounterBack(base[0], base[1], O, R, ctx); if (cb) opts.cb = { you: you(cb.edge), A: negKeys(cb.A), B: negKeys(cb.B), text: cb.text }; }
-  // Shopping means selling your pieces elsewhere: only when you offered a player,
-  // and not for a trade picked from a coach list, where the goal is what it brings in.
-  const shop = !fromCoach && core.some(a => a.type === 'player') ? negShop(O, R, core) : null;
+  // Shopping means selling your pieces elsewhere: only when you offered a player.
+  const shop = core.some(a => a.type === 'player') ? negShop(O, R, core) : null;
   if (shop) opts.shop = { you: you(shop.edge), team: shop.team.rosterId, name: shop.team.teamName, oKeys: shop.oKeys, tKeys: shop.tKeys, why: shop.why };
 
   // Pick the recommendation: the option that leaves you best off. Sending an
   // offer they already accept (or taking their counter) wins near-ties over
   // counter-backs and shopping, since those aren't guaranteed.
   const score = { send: opts.send ? opts.send.you + 2 : -Infinity, accept: opts.accept && opts.accept.tone !== 'bad' ? opts.accept.you + 2 : -Infinity, cb: opts.cb ? opts.cb.you : -Infinity, shop: opts.shop ? opts.shop.you - 1 : -Infinity };
-  // Never recommend sending an offer that's Lopsided against you, unless it's a coach
-  // suggestion that already showed that premium (its card says so).
-  if (opts.send && opts.send.you <= -VAULT_CONFIG.FAIR_PCT && !fromCoach) score.send = -Infinity;
+  // Never recommend sending an offer that's Lopsided against you.
+  if (opts.send && opts.send.you <= -VAULT_CONFIG.FAIR_PCT) score.send = -Infinity;
   let primary = Object.entries(score).sort((x, y) => y[1] - x[1])[0];
   primary = primary[1] === -Infinity ? 'walk' : primary[0];
   return { primary, ...opts };
@@ -369,7 +367,7 @@ async function negOffer(btn) {
   // What you offered in round 1 is "your core" — the coach never trims it.
   const firstOffer = Negotiation.rounds.find(r => r.offer && r.O === O);
   const originalOKeys = firstOffer ? firstOffer.offer[O] : round.offer[O];
-  round.coach = negCoach(aAssets, bAssets, O, R, ctx, j, c, originalOKeys, typeof Coach !== 'undefined' && Coach.from != null);
+  round.coach = negCoach(aAssets, bAssets, O, R, ctx, j, c, originalOKeys);
   Negotiation.rounds.push(round);
   negRender();
 }
