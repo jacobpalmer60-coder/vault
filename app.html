@@ -30,25 +30,22 @@
     <div id="tableScroll" class="overflow-x-auto scrollbar">
       <table class="w-full text-[14px]">
         <thead class="bg-black/40 border-b border-white/5 sticky top-0">
+          <!-- Fits without sideways scrolling: position values live in the split
+               bar, record/projection and playoff/title odds share a column, and the
+               lower-priority columns appear as the screen gets wider (1100px, 1340px). -->
           <tr class="text-[12px] uppercase tracking-wider text-zinc-400">
-            <th class="text-left px-6 py-3.5 font-semibold sortable" data-sort="teamName">Team</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="recordWinPct">Record</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="projWins">Proj. Record</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="playoffPct">Playoff %</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="championshipPct">Title %</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="overall">Overall</th>
-            <th class="text-left px-3 py-3.5 font-semibold min-w-[170px] sortable" data-sort="posConcentration" title="Sorts by how concentrated a roster's value is in its single biggest position">Position Split</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="total">Players</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="qb">QB</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="rb">RB</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="wr">WR</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="te">TE</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="picksValue">Picks</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="age">Age</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="opt">Opt PPG</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Opt PPG)">VORP</th>
-            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="longevity">Longevity</th>
-            <th class="text-left pl-6 pr-10 py-3.5 font-semibold sortable" data-sort="archSort">Archetype</th>
+            <th class="text-left px-4 py-3.5 font-semibold sortable" data-sort="teamName">Team</th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="recordWinPct" title="Current record, and the projected final record below it">Record</th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="playoffPct" title="Playoff odds, and title odds below">Playoffs</th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="overall">Overall</th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="total">Players</th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="picksValue">Picks</th>
+            <th class="hidden min-[1100px]:table-cell text-left px-2.5 py-3.5 font-semibold sortable" data-sort="posConcentration" title="Player value by position. Sorts by how concentrated a roster's value is in its single biggest position">Position split</th>
+            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="age">Age</th>
+            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="opt">Opt PPG</th>
+            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Opt PPG)">VORP</th>
+            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="longevity">Window</th>
+            <th class="hidden min-[1100px]:table-cell text-left px-2.5 py-3.5 font-semibold sortable" data-sort="archSort">Archetype</th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.04]"></tbody>
@@ -179,7 +176,7 @@ function posSplitBar(t) {
   const parts = ['QB', 'RB', 'WR', 'TE'].map(p => ({ pos: p, val: t[p.toLowerCase()] }));
   const sum = parts.reduce((s, p) => s + p.val, 0) || 1;
   const segs = parts.map(p => `<div class="h-full ${POS_COLOR[p.pos]}" style="width:${p.val / sum * 100}%" title="${p.pos}: ${Math.round(p.val).toLocaleString()}"></div>`).join('');
-  const labels = parts.map(p => `<span class="${POS_TEXT[p.pos]}">${p.pos} ${Math.round(p.val / sum * 100)}%</span>`).join(' ');
+  const labels = parts.map(p => `<span class="${POS_TEXT[p.pos]}" title="${p.pos}: ${Math.round(p.val).toLocaleString()} (${Math.round(p.val / sum * 100)}% of player value)">${p.pos} ${(p.val / 1000).toFixed(1)}k</span>`).join(' ');
   return `<div class="h-[7px] w-full max-w-[160px] rounded-full overflow-hidden flex bg-white/[0.06]">${segs}</div><div class="mt-1 flex gap-2 text-[11px] font-mono whitespace-nowrap">${labels}</div>`;
 }
 
@@ -543,69 +540,57 @@ function render() {
     const exp = expanded.has(t.rosterId);
     const proj = projectedText(t);
     return `<tr class="team-row" data-id="${t.rosterId}">
-      <td class="px-6 py-3.5">
-        <div class="flex items-center gap-3">
+      <td class="px-4 py-3.5">
+        <div class="flex items-center gap-2.5 min-w-[170px] max-w-[230px]">
           <span class="w-5 text-right text-[12px] font-mono text-zinc-400">${t.rank}</span>
           <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
           <div class="min-w-0">
-            <div class="font-semibold text-[15px] text-white truncate">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
+            <div class="font-semibold text-[15px] text-white leading-snug">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
             <div class="text-[12px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks</div>
             ${careerRecordText(t) ? `<div class="text-[12px] text-zinc-400 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>
         </div>
       </td>
-      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-200">${recordText(t)}</td>
-      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-200">${proj?.rec ?? '—'}</td>
-      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-300'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
-      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-300'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
-      <td class="px-3 py-3.5 text-right">
+      <td class="px-2.5 py-3.5 text-right">
+        <div class="font-mono font-semibold text-[14px] text-zinc-200">${recordText(t)}</div>
+        <div class="font-mono text-[12px] text-zinc-400 whitespace-nowrap" title="Projected final record">${proj?.rec ?? '—'} proj.</div>
+      </td>
+      <td class="px-2.5 py-3.5 text-right">
+        <div class="font-mono font-semibold text-[14px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-300'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</div>
+        <div class="font-mono text-[12px] whitespace-nowrap ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-400'}" title="Title odds">${proj ? proj.championshipPct.toFixed(1) + '% title' : '—'}</div>
+      </td>
+      <td class="px-2.5 py-3.5 text-right">
         <div class="font-mono font-semibold text-[15px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
         ${microBar(t.overall, minOverall, maxOverall)}
       </td>
-      <td class="px-3 py-3.5">${posSplitBar(t)}</td>
-      <td class="px-3 py-3.5 text-right">
+      <td class="px-2.5 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-100">${Math.round(t.total).toLocaleString()}</div>
         ${microBar(t.total, minTotal, maxTotal)}
       </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] ${POS_TEXT.QB}">${Math.round(t.qb).toLocaleString()}</div>
-        ${microBar(t.qb, minQb, maxQb)}
-      </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] ${POS_TEXT.RB}">${Math.round(t.rb).toLocaleString()}</div>
-        ${microBar(t.rb, minRb, maxRb)}
-      </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] ${POS_TEXT.WR}">${Math.round(t.wr).toLocaleString()}</div>
-        ${microBar(t.wr, minWr, maxWr)}
-      </td>
-      <td class="px-3 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] ${POS_TEXT.TE}">${Math.round(t.te).toLocaleString()}</div>
-        ${microBar(t.te, minTe, maxTe)}
-      </td>
-      <td class="px-3 py-3.5 text-right">
+      <td class="px-2.5 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${Math.round(t.picksValue).toLocaleString()}</div>
         ${microBar(t.picksValue, minPicks, maxPicks)}
       </td>
-      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-300">${t.age.toFixed(1)}</td>
-      <td class="px-3 py-3.5 text-right">
+      <td class="hidden min-[1100px]:table-cell px-2.5 py-3.5">${posSplitBar(t)}</td>
+      <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-300">${t.age.toFixed(1)}</td>
+      <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.opt.toFixed(1)}</div>
         ${microBar(t.opt, minOpt, maxOpt)}
       </td>
-      <td class="px-3 py-3.5 text-right">
+      <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div>
         ${microBar(t.vorpTotal || 0, minVorp, maxVorp)}
       </td>
-      <td class="px-3 py-3.5 text-right">
+      <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.windowYears}yr</div>
         ${microBar(t.longevity, minLongevity, maxLongevity)}
       </td>
-      <td class="pl-6 pr-10 py-3.5">
-        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
-        <div class="text-[12px] text-zinc-400 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
+      <td class="hidden min-[1100px]:table-cell px-2.5 py-3.5">
+        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
+        <div class="text-[12px] text-zinc-400 mt-1 whitespace-nowrap">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
       </td>
     </tr>
-    ${exp ? `<tr><td colspan="17" class="px-6 pb-6 bg-black/40">${teamDetailPanel(t)}</td></tr>` : ''}`;
+    ${exp ? `<tr><td colspan="12" class="px-6 pb-6 bg-black/40">${teamDetailPanel(t)}</td></tr>` : ''}`;
   }).join('');
   document.querySelectorAll('tr.team-row').forEach(tr => {
     tr.onclick = () => { const id = Number(tr.dataset.id); if (expanded.has(id)) { expanded.delete(id); } else { expanded.add(id); } render(); };
