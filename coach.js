@@ -47,7 +47,7 @@ function coachPlanHtml(me, chip) {
   const chosen = Vault.planOverride[me.rosterId] || 'auto';
   const auto = Vault.MODE_LABEL[autoTimeline(me)];
   return `<div class="flex flex-wrap items-center gap-1.5 mb-2">
-      <span class="text-[11px] text-zinc-500 mr-1">Your timeline</span>
+      <span class="text-[12px] text-zinc-500 mr-1">Your timeline</span>
       ${chip(chosen === 'auto', `Auto <span class="text-zinc-500">· reads as ${auto}</span>`, "coachSetPlan('auto')")}
       ${chip(chosen === 'contend', 'Win now', "coachSetPlan('contend')")}
       ${chip(chosen === 'rebuild', 'Rebuild', "coachSetPlan('rebuild')")}
@@ -341,21 +341,21 @@ function coachSideHtml(side, me) {
     const a = find(k);
     if (!a) return '';
     const who = mine ? '' : ` <span class="opacity-60">· ${esc(owner(k).teamName)}</span>`;
-    return `<span class="inline-flex items-center gap-0.5 text-[11px] pl-2 pr-0.5 py-0.5 rounded-md border ${list === 'must' ? 'border-emerald-500/30 text-emerald-200 bg-emerald-500/10' : 'border-rose-500/30 text-rose-200 bg-rose-500/10'}">${esc(a.name)}${who}<button onclick="coachSideRemove('${side}', '${list}', '${k}')" aria-label="Remove ${esc(a.name)}" class="px-1 text-zinc-400 hover:text-white">×</button></span>`;
+    return `<span class="inline-flex items-center gap-0.5 text-[12px] pl-2 pr-0.5 py-0.5 rounded-md border ${list === 'must' ? 'border-emerald-500/30 text-emerald-200 bg-emerald-500/10' : 'border-rose-500/30 text-rose-200 bg-rose-500/10'}">${esc(a.name)}${who}<button onclick="coachSideRemove('${side}', '${list}', '${k}')" aria-label="Remove ${esc(a.name)}" class="px-1 text-zinc-400 hover:text-white">×</button></span>`;
   };
   const used = new Set([...m.must, ...m.keep]);
   const opt = a => `<option value="${a.key}">${esc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${Math.round(a.value).toLocaleString()}</option>`;
   const opts = mine
     ? me.assets.filter(a => !used.has(a.key)).map(opt).join('')
     : others.map(x => `<optgroup label="${esc(x.teamName)}">${x.assets.filter(a => !used.has(a.key) && a.value >= 300).map(opt).join('')}</optgroup>`).join('');
-  const add = list => `<select onchange="coachSideAdd('${side}', '${list}', this.value)" aria-label="Add a player or pick" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[170px]"><option value="">+ Add…</option>${opts}</select>`;
-  const group = g => `<button onclick="coachSideToggle('${side}', '${g}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${m.never.includes(g) ? 'bg-rose-500/10 border-rose-500/30 text-rose-200' : 'border-white/10 text-zinc-400 hover:text-white'}">${g === 'PICK' ? 'Picks' : g}</button>`;
-  const row = (label, body) => `<div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] text-zinc-500 w-[96px] shrink-0">${label}</span>${body}</div>`;
+  const add = list => `<select onchange="coachSideAdd('${side}', '${list}', this.value)" aria-label="Add a player or pick" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[170px]"><option value="">+ Add…</option>${opts}</select>`;
+  const group = g => `<button onclick="coachSideToggle('${side}', '${g}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${m.never.includes(g) ? 'bg-rose-500/10 border-rose-500/30 text-rose-200' : 'border-white/10 text-zinc-400 hover:text-white'}">${g === 'PICK' ? 'Picks' : g}</button>`;
+  const row = (label, body) => `<div class="flex flex-wrap items-center gap-1.5"><span class="text-[12px] text-zinc-500 w-[96px] shrink-0">${label}</span>${body}</div>`;
   const labels = mine
     ? [Coach.option === 'rebuild' ? 'Sell these' : 'Must include', 'Don\'t trade', 'Never trade any']
     : ['Must get', 'Don\'t want', 'Never take any'];
   return `<div class="p-2.5 rounded-lg bg-black/30 border border-white/5 space-y-2 min-w-0">
-      <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-zinc-400 uppercase tracking-wider">${mine ? 'Your side' : 'Their side'}</span>${coachHasRules(side) ? `<button onclick="coachSideClear('${side}')" class="text-[11px] text-zinc-500 hover:text-white">Clear</button>` : ''}</div>
+      <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-zinc-400 uppercase tracking-wider">${mine ? 'Your side' : 'Their side'}</span>${coachHasRules(side) ? `<button onclick="coachSideClear('${side}')" class="text-[12px] text-zinc-500 hover:text-white">Clear</button>` : ''}</div>
       ${row(labels[0], m.must.map(k => tag(k, 'must')).join('') + add('must'))}
       ${row(labels[1], m.keep.map(k => tag(k, 'keep')).join('') + add('keep'))}
       ${row(labels[2], ['QB', 'RB', 'WR', 'TE', 'PICK'].map(group).join(''))}
@@ -382,24 +382,24 @@ function renderCoachTargetList() {
   if (!el) return;
   const q = Coach.picker.q.trim().toLowerCase(), pos = Coach.picker.pos;
   const hits = coachTargetOptions().filter(o => (pos === 'ALL' || o.pos === pos) && (!q || o.name.toLowerCase().includes(q) || o.team.toLowerCase().includes(q))).slice(0, 40);
-  el.innerHTML = hits.length ? hits.map(o => `<button onclick="coachPickTarget('${o.key}')" class="w-full px-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-violet-500/10 ${o.key === Coach.targetKey ? 'bg-violet-500/10' : ''}">
+  el.innerHTML = hits.length ? hits.map(o => `<button onclick="coachPickTarget('${o.key}')" class="w-full px-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-white/[0.05] ${o.key === Coach.targetKey ? 'bg-white/[0.06]' : ''}">
       <span class="min-w-0 truncate text-[12px] text-zinc-200">${Vault.escapeHtml(o.name)} <span class="text-zinc-500">${o.pos} · ${Vault.escapeHtml(o.team)}</span></span>
-      <span class="mono text-[11px] text-zinc-400 shrink-0">${Math.round(o.value).toLocaleString()}</span>
+      <span class="mono text-[12px] text-zinc-400 shrink-0">${Math.round(o.value).toLocaleString()}</span>
     </button>`).join('') : '<div class="px-3 py-2 text-[12px] text-zinc-400">No players match.</div>';
 }
 function coachTargetHtml(chip) {
   const cur = coachTargetOptions().find(o => o.key === Coach.targetKey);
   if (!Coach.picker.open && cur) {
     return `<div class="flex items-center gap-2 min-w-0">
-        <div class="min-w-0 px-3 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/[0.06] text-[13px] truncate">${Vault.escapeHtml(cur.name)} <span class="text-zinc-400">${cur.pos} · ${Vault.escapeHtml(cur.team)}</span></div>
-        <button onclick="coachOpenPicker()" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Change</button>
+        <div class="min-w-0 px-3 py-1.5 rounded-lg border border-amber-400/30 bg-amber-400/[0.06] text-[13px] truncate">${Vault.escapeHtml(cur.name)} <span class="text-zinc-400">${cur.pos} · ${Vault.escapeHtml(cur.team)}</span></div>
+        <button onclick="coachOpenPicker()" class="shrink-0 text-[12px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Change</button>
       </div>`;
   }
   return `<div class="w-full sm:w-[440px]">
       <div class="flex gap-2 mb-2">
         <input id="coachTargetSearch" type="text" autocomplete="off" placeholder="Search a player or team…" value="${Vault.escapeHtml(Coach.picker.q)}" oninput="coachPickerSearch(this.value)"
-          class="flex-1 min-w-0 bg-black/40 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-violet-500/40" />
-        ${cur ? '<button onclick="coachClosePicker()" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white">Cancel</button>' : ''}
+          class="flex-1 min-w-0 bg-black/40 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40" />
+        ${cur ? '<button onclick="coachClosePicker()" class="shrink-0 text-[12px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white">Cancel</button>' : ''}
       </div>
       <div class="flex gap-1.5 flex-wrap mb-2">${['ALL', 'QB', 'RB', 'WR', 'TE'].map(p => chip(Coach.picker.pos === p, p === 'ALL' ? 'All' : p, `coachPickerPos('${p}')`)).join('')}</div>
       <div id="coachTargetList" class="max-h-64 overflow-y-auto rounded-lg border border-white/10 bg-black/40 divide-y divide-white/5 scrollbar"></div>
@@ -412,14 +412,14 @@ function renderCoach() {
   const head = document.getElementById('coachHead'), box = document.getElementById('coachBody');
   if (!head || !coachOpen()) return;
   const me = coachMe();
-  const chip = (on, label, onclick, extra = '') => `<button onclick="${onclick}" class="text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${on ? 'bg-violet-500/15 border-violet-500/40 text-violet-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}${extra}</button>`;
+  const chip = (on, label, onclick, extra = '') => `<button onclick="${onclick}" class="text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${on ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}${extra}</button>`;
   head.innerHTML = `
     <div class="flex items-start justify-between gap-3 mb-3">
       <div>
         <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Trade Coach <span class="normal-case tracking-normal text-zinc-500">· for ${Vault.escapeHtml(me.teamName)}</span></div>
         <div class="text-[12px] text-zinc-400 mt-1 max-w-[680px]">Every trade the coach suggests is one the other manager would likely take, and Fair for you unless it says otherwise. Responses are predicted from their roster, needs, timeline, and trade history, not the real managers.</div>
       </div>
-      <button onclick="closeCoach()" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
+      <button onclick="closeCoach()" class="shrink-0 text-[12px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
     </div>
     ${coachPlanHtml(me, chip)}
     <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(COACH_OPTIONS).map(([o, d]) => chip(Coach.option === o, d.label, `coachSetOption('${o}')`)).join('')}</div>
@@ -430,7 +430,7 @@ function renderCoach() {
   const needs = Vault.positionalProfile(me, teams).needs;
   const input = {
     target: coachTargetHtml(chip),
-    position: `<div class="flex gap-1.5 flex-wrap">${['QB', 'RB', 'WR', 'TE'].map(p => chip(Coach.pos === p, p, `coachSetPos('${p}')`, needs.includes(p.toLowerCase()) ? ' <span class="text-[10px] text-rose-300/80">need</span>' : '')).join('')}</div>`,
+    position: `<div class="flex gap-1.5 flex-wrap">${['QB', 'RB', 'WR', 'TE'].map(p => chip(Coach.pos === p, p, `coachSetPos('${p}')`, needs.includes(p.toLowerCase()) ? ' <span class="text-[11px] text-rose-300/80">need</span>' : '')).join('')}</div>`,
     rebuild: '', contend: ''
   }[Coach.option];
   const r = Coach.results[Coach.option], fresh = r && r.key === coachInputKey();
@@ -451,22 +451,22 @@ function coachResultsHtml(r) {
   return `
     <div class="mt-3 mb-2 flex items-baseline justify-between gap-3 flex-wrap">
       <div class="text-[15px] font-medium text-zinc-100">${r.title}</div>
-      <div class="text-[11px] text-zinc-500">${r.list.length} option${r.list.length > 1 ? 's' : ''}, best for you first</div>
+      <div class="text-[12px] text-zinc-500">${r.list.length} option${r.list.length > 1 ? 's' : ''}, best for you first</div>
     </div>
-    ${r.planNote ? `<div class="text-[12px] text-violet-200/90 mb-2">${r.planNote}</div>` : ''}
+    ${r.planNote ? `<div class="text-[12px] text-zinc-300 mb-2">${r.planNote}</div>` : ''}
     ${over ? '<div class="text-[12px] text-amber-300 mb-2">Some of these pay a premium: nobody would take a Fair offer for them. Those are marked Lopsided. Nothing here is Unfair.</div>' : ''}
     <div class="grid gap-2.5 md:grid-cols-2">${r.list.map((o, i) => {
       const lop = o.edge >= VAULT_CONFIG.FAIR_PCT;
       return `<div class="p-3 rounded-xl border ${lop ? 'border-amber-500/20' : 'border-white/5'} bg-black/30 flex flex-col">
         <div class="flex items-center justify-between gap-2 mb-1.5">
           <span class="text-[13px] text-zinc-100 font-medium">With ${Vault.escapeHtml(o.partner.teamName)}</span>
-          <span class="text-[10px] px-1.5 py-0.5 rounded border ${lop ? 'border-amber-500/30 text-amber-300 bg-amber-500/10' : 'border-emerald-500/25 text-emerald-300 bg-emerald-500/10'}">${lop ? 'Lopsided for you' : 'Fair'}</span>
+          <span class="text-[11px] px-1.5 py-0.5 rounded border ${lop ? 'border-amber-500/30 text-amber-300 bg-amber-500/10' : 'border-emerald-500/25 text-emerald-300 bg-emerald-500/10'}">${lop ? 'Lopsided for you' : 'Fair'}</span>
         </div>
         <div class="text-[13px] text-zinc-300">You give <span class="text-zinc-100 font-medium">${negNames(o.give)}</span> · you get <span class="text-zinc-100 font-medium">${negNames(o.get)}</span></div>
         ${o.why ? `<div class="text-[12px] text-zinc-400 mt-1">${o.why}</div>` : ''}
-        <div class="text-[11px] text-zinc-400 mt-1">They'd likely accept. ${negLean(-o.edge)}</div>
+        <div class="text-[12px] text-zinc-400 mt-1">They'd likely accept. ${negLean(-o.edge)}</div>
         <div class="flex flex-wrap gap-2 mt-auto pt-2.5">
-          <button onclick="coachLoad(${i})" class="text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid">Load in calculator</button>
+          <button onclick="coachLoad(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Load in calculator</button>
         </div>
       </div>`;
     }).join('')}</div>`;

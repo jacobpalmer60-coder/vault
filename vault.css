@@ -1,184 +1,186 @@
 /* ============================================================
    VAULT THEME
-   Neutral dark surfaces, gold reserved for primary actions and key
-   numbers only — not washed across every border/label like before.
+   A dark, quiet ledger. Graphite surfaces, one warm gold accent kept
+   for primary actions, the active page, and brand marks. Green and red
+   mean good and bad, nothing else. No glows, gradients on text, or
+   glass: legibility first.
 
-   TYPE SCALE (use these sizes everywhere instead of inventing new
-   ones — the site previously had 9 unrelated one-off pixel sizes):
-     11  micro   — uppercase eyebrow labels, table headers, badges
-     12  meta    — secondary/supporting text ("@user • 8 picks")
-     13  body-sm — table cells, list rows, dense UI text
-     14  body    — default paragraph / primary reading text
-     16  strong  — emphasized inline stats, lead paragraph
-     20  title   — card/subsection titles
+   COLOR TOKENS (below, on :root). Use these instead of new hex values.
+
+   TYPE: Inter for everything, headings included. Numbers use tabular
+   figures (.mono / tabular-nums) so columns line up.
+     11  eyebrow — UPPERCASE labels and table headers only (with tracking)
+     12  small   — secondary text, badges, chips, captions
+     13  body-sm — table cells, list rows, dense UI
+     14  body    — paragraphs, primary reading text
+     16  strong  — emphasized stats, lead text
+     20  title   — card / subsection titles
      24  section — section headers ("Trade Analysis")
      28  page    — page <h1>
-     42  hero    — landing-page hero only (index.html)
+     42  hero    — landing page only
+   Nothing smaller than 11px.
 
-   RADIUS SCALE: rounded-lg (8) / rounded-xl (12) / rounded-2xl (16)
-   for ordinary UI; .rounded-vault-sm (20) / .rounded-vault (28) for
-   card-level containers. Don't hardcode rounded-[Npx] outside these.
+   RADIUS: rounded-lg (8) controls, rounded-xl (12) inner panels,
+   .rounded-vault-sm (14) / .rounded-vault / rounded-2xl (16) cards.
    ============================================================ */
-:root { color-scheme: dark; }
-
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: #0b0c0f;
-  overflow-x: hidden;
+:root {
+  color-scheme: dark;
+  --bg: #0c0d10;
+  --surface: #14161a;
+  --surface-2: #1a1c21;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --text: #ececef;
+  --text-2: #a8a8b1;
+  --gold: #e3b04b;
+  --gold-hi: #edc168;
+  --gold-ink: #1c1406;
 }
 
-.display { font-family: 'Sora', system-ui, -apple-system, sans-serif; }
-.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11';
+}
+::selection { background: rgba(227, 176, 75, 0.3); }
 
-.vault-bg { position: fixed; inset: 0; z-index: -2; background: #0b0c0f; }
+/* Headings: Inter, tighter tracking. (Kept as a class so existing markup works.) */
+.display { font-family: inherit; font-weight: 600; letter-spacing: -0.02em; }
+/* Numbers: same face as the text, with even-width digits so columns align. */
+.mono, .font-mono { font-family: inherit !important; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Page ground: flat, with a faint neutral lift at the top. */
+.vault-bg { position: fixed; inset: 0; z-index: -2; background: var(--bg); }
 .vault-bg::before {
   content: "";
   position: absolute;
-  inset: -20%;
-  background:
-    radial-gradient(55% 35% at 50% 0%, rgba(232,179,76,0.07), transparent 60%),
-    radial-gradient(35% 25% at 85% 100%, rgba(232,179,76,0.05), transparent 55%);
+  inset: 0;
+  background: radial-gradient(70% 45% at 50% -8%, rgba(255, 255, 255, 0.035), transparent 70%);
 }
 
-.gold-text {
-  background: linear-gradient(100deg, #fff 10%, #f5d998 55%, #c7922e 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+/* Headings used to be a white-to-gold gradient; plain, high-contrast now. */
+.gold-text { color: var(--text); }
+/* Brand marks (the logo) keep the gold. */
+.brand-text { color: var(--gold); }
 
-/* No backdrop-filter: on a near-black page it added almost nothing visually,
-   but Chrome has to re-raster every blurred card whenever its content changes,
-   which showed up as the Trade Calculator's verdict banner painting seconds
-   late. A slightly more opaque fill stands in for it. */
 .card {
-  background: rgba(20,22,27,0.9);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-  transition: border-color .2s ease, box-shadow .2s ease;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: border-color .15s ease;
 }
-/* Opt-in lift for cards that represent a single clickable/focusable unit
-   (a team panel, a result row) — not applied to .card by default since most
-   cards on the site are static containers, not interactive surfaces. */
-.card-hover:hover {
-  border-color: rgba(255,255,255,0.16);
-  box-shadow: 0 0 0 1px rgba(232,179,76,0.15), inset 0 1px 0 rgba(255,255,255,0.06);
-}
+/* Opt-in lift for cards that are a single clickable unit. */
+.card-hover:hover { border-color: var(--line-strong); }
 
-.rounded-vault { border-radius: 28px; }
-.rounded-vault-sm { border-radius: 20px; }
+.rounded-vault { border-radius: 16px; }
+.rounded-vault-sm { border-radius: 14px; }
 
-/* Shared "stat box" — used for the small metric tiles repeated across
-   Team Analyzer, Trade Calculator, and League Overview. Previously each
-   page hand-rolled a slightly different version of the same thing. */
+/* Small metric tile, shared by Team Analyzer, Trade Calculator, League Overview. */
 .stat-tile {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
   padding: 14px 16px;
 }
 .stat-tile .stat-label {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .08em;
-  color: rgba(156,160,170,.85);
+  color: var(--text-2);
 }
 .stat-tile .stat-value {
   font-size: 20px;
   font-weight: 600;
   margin-top: 4px;
-  color: #f2f1ec;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Secondary button — neutral chrome, not a gold wash. Gold is reserved for
-   .btn-gold-solid, the one primary action per view. */
+/* Secondary button: neutral. */
 .btn-gold {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 9999px;
-  color: #f2f1ec;
-  transition: all .2s;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--text);
+  transition: background .15s, border-color .15s;
 }
-.btn-gold:hover {
-  border-color: rgba(232,179,76,0.5);
-  background: rgba(232,179,76,0.06);
-  color: #f5d998;
-}
+.btn-gold:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.2); }
 .btn-gold:active { transform: translateY(1px); }
 
+/* Primary button: the one gold action per view. */
 .btn-gold-solid {
-  background: linear-gradient(180deg, #f5d998, #e8b34c 55%, #c7922e);
-  color: #241505;
-  border-radius: 12px;
+  background: var(--gold);
+  color: var(--gold-ink);
+  border-radius: 10px;
   font-weight: 600;
-  transition: filter .15s, transform .1s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: background .15s, transform .1s;
 }
-.btn-gold-solid:hover { filter: brightness(1.08); }
+.btn-gold-solid:hover { background: var(--gold-hi); }
 .btn-gold-solid:active { transform: translateY(1px); }
+.btn-gold-solid:disabled { opacity: .55; cursor: default; }
 
-/* Quiet secondary button — used for "Close"/"Change teams"-style actions
-   that shouldn't compete visually with the primary gold buttons. */
+/* Quiet button for Close / Switch League style actions. */
 .btn-ghost {
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 9999px;
-  color: rgba(156,160,170,.9);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text-2);
   transition: color .15s, border-color .15s, background .15s;
 }
-.btn-ghost:hover {
-  color: #f2f1ec;
-  border-color: rgba(255,255,255,0.2);
-  background: rgba(255,255,255,0.03);
-}
+.btn-ghost:hover { color: var(--text); border-color: var(--line-strong); background: rgba(255, 255, 255, 0.03); }
+
+/* Keyboard focus: always visible, never on mouse click. */
+:focus { outline: none; }
+:focus-visible { outline: 2px solid rgba(227, 176, 75, 0.7); outline-offset: 2px; border-radius: 6px; }
 
 th.sortable { cursor: pointer; user-select: none; }
-th.sortable.active, th.sortable:hover { color: #e8b34c; }
+th.sortable.active, th.sortable:hover { color: var(--gold); }
 
 tr.team-row { cursor: pointer; }
-tr.team-row:hover td { background: rgba(255,255,255,0.03); }
+tr.team-row:hover td { background: rgba(255, 255, 255, 0.025); }
 
 .scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
 .scrollbar::-webkit-scrollbar-track { background: transparent; }
-.scrollbar::-webkit-scrollbar-thumb { background: #33363d; border-radius: 8px; }
-.scrollbar::-webkit-scrollbar-thumb:hover { background: #45484f; }
+.scrollbar::-webkit-scrollbar-thumb { background: #2c2f36; border-radius: 8px; }
+.scrollbar::-webkit-scrollbar-thumb:hover { background: #3a3e46; }
 
-/* Glass-style panel (used on Player Rankings + Trade Calculator) */
+/* Inner panel (Player Rankings, Trade Calculator). */
 .glass {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
 }
-.glass-hover:hover {
-  background: rgba(232,179,76,0.04);
-  border-color: rgba(232,179,76,0.25);
-}
+.glass-hover:hover { border-color: var(--line-strong); background: #1e2026; }
 
-input, select {
-  color-scheme: dark;
-}
-input:focus, select:focus { outline: none; }
-/* color-scheme:dark alone doesn't reliably darken the native <option> popup in
-   every browser, which left dropdown menus showing near-white text on a
-   white popup background. Force it explicitly. */
-select option {
-  background: #0e0f13;
-  color: #f2f1ec;
-}
+input, select { color-scheme: dark; }
+/* color-scheme:dark alone doesn't reliably darken the native <option> popup
+   in every browser; force it so dropdowns never show white-on-white. */
+select option { background: #121418; color: var(--text); }
 
 .pos-badge-QB { color:#e48ae0; background:rgba(228,138,224,.1); border-color:rgba(228,138,224,.25); }
 .pos-badge-RB { color:#4ade9c; background:rgba(74,222,156,.1); border-color:rgba(74,222,156,.25); }
 .pos-badge-WR { color:#5cb8e4; background:rgba(92,184,228,.1); border-color:rgba(92,184,228,.25); }
 .pos-badge-TE { color:#f0a857; background:rgba(240,168,87,.1); border-color:rgba(240,168,87,.25); }
-.pos-badge-default { color:#9ca0aa; background:rgba(156,160,170,.1); border-color:rgba(156,160,170,.25); }
+.pos-badge-default { color:#a8a8b1; background:rgba(168,168,177,.1); border-color:rgba(168,168,177,.25); }
 
-/* Skeleton loading shimmer — replaces plain "Loading…" text rows */
+/* Skeleton loading shimmer. */
 @keyframes vault-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 .skeleton {
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(232,179,76,0.06) 50%, rgba(255,255,255,0.03) 75%);
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%);
   background-size: 200% 100%;
   animation: vault-shimmer 1.6s ease-in-out infinite;
   border-radius: 8px;
 }
 
-/* Fade-in for content that pops in once data loads */
-@keyframes vault-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-.fade-in { animation: vault-fade-in .35s ease-out both; }
+/* Fade-in for content that pops in once data loads (from a visible state). */
+@keyframes vault-fade-in { from { opacity: .4; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.fade-in { animation: vault-fade-in .3s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

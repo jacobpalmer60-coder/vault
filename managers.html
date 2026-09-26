@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Managers — The Vault</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
 <link rel="stylesheet" href="tailwind.css">
 </head>
@@ -76,20 +76,20 @@ function renderCard(s, rank, maxAbsNet) {
         </div>
         <div class="text-right">
           <div class="text-[17px] mono font-semibold ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(s.netValue)}</div>
-          <div class="text-[11px] text-zinc-400">net value, all trades</div>
+          <div class="text-[12px] text-zinc-400">net value, all trades</div>
           ${divergingBar(s.netValue, maxAbsNet)}
         </div>
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-1 text-center py-3 border-y border-white/5 mb-4">
-        <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[11px] text-zinc-400">Trades</div></div>
-        <div><div class="text-[14px] mono">${s.won}-${s.lost}</div><div class="text-[11px] text-zinc-400" title="Trades that came out ahead vs. behind on value">Trade W-L</div></div>
-        <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.avgFit, 1)}</div><div class="text-[11px] text-zinc-400">Avg Fit</div></div>
-        <div title="How many of this manager's trades graded Fair, Lopsided, and Unfair"><div class="text-[14px] mono"><span class="text-emerald-400/80">${s.fair}</span> · <span class="text-amber-400/80">${s.lopsided}</span> · <span class="text-rose-400/80">${s.unfair}</span></div><div class="text-[11px] text-zinc-400">Fair · Lop · Unfair</div></div>
+        <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[12px] text-zinc-400">Trades</div></div>
+        <div><div class="text-[14px] mono">${s.won}-${s.lost}</div><div class="text-[12px] text-zinc-400" title="Trades that came out ahead vs. behind on value">Trade W-L</div></div>
+        <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.avgFit, 1)}</div><div class="text-[12px] text-zinc-400">Avg Fit</div></div>
+        <div title="How many of this manager's trades graded Fair, Lopsided, and Unfair"><div class="text-[14px] mono"><span class="text-emerald-400/80">${s.fair}</span> · <span class="text-amber-400/80">${s.lopsided}</span> · <span class="text-rose-400/80">${s.unfair}</span></div><div class="text-[12px] text-zinc-400">Fair · Lop · Unfair</div></div>
       </div>
 
       <div class="space-y-2 mb-4">
-        ${notes.map(n => `<div class="flex gap-2 text-[12.5px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
+        ${notes.map(n => `<div class="flex gap-2 text-[13px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
       </div>
 
       ${(s.best || s.worst) ? `<div class="pt-3 border-t border-white/5">
@@ -157,10 +157,10 @@ function renderSummaryTable(rows, teams) {
               const user = nameOf.get(s.rosterId);
               return `<tr class="align-top">
                 <td class="px-4 py-3 min-w-[170px]">
-                  <div class="font-medium text-zinc-100">${Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[10px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
-                  <div class="text-[11px] text-zinc-400">${[user ? '@' + Vault.escapeHtml(user) : '', s.record ? `${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''}` : ''].filter(Boolean).join(' • ')}</div>
+                  <div class="font-medium text-zinc-100">${Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
+                  <div class="text-[12px] text-zinc-400">${[user ? '@' + Vault.escapeHtml(user) : '', s.record ? `${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''}` : ''].filter(Boolean).join(' • ')}</div>
                 </td>
-                <td class="px-3 py-3 whitespace-nowrap"><span class="text-[11px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
+                <td class="px-3 py-3 whitespace-nowrap"><span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
                 <td class="px-3 py-3 text-zinc-300 leading-relaxed min-w-[320px]">${p.blurb}</td>
                 <td class="px-3 py-3 text-right mono text-zinc-400">${s.trades}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValue) : '—'}</td>

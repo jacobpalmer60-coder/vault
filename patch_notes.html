@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Patch Notes — The Vault</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
 <link rel="stylesheet" href="tailwind.css">
 </head>
@@ -36,6 +36,10 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-09-26', items: [
+    { kind: 'improved', page: 'Everywhere', text: 'A cleaner, easier-to-read look across the whole site. One typeface (Inter) for text and numbers, with numbers that line up in columns; no text smaller than 11px, and every grey readable against the background; gold kept for primary buttons and the page you\'re on, green and red only for good and bad; one card style; a simpler header and logo; and a visible outline when you move around with the keyboard.' },
+    { kind: 'improved', page: 'Trade Calculator', text: 'The fairness bars now share one center: Overall, KTC value, Roster fit, and Timeline are the same width and line up exactly. Each team\'s full name labels its end of the bars (no more cut-off names), and each row\'s number points to the side it favors. Same on Trade Grades.' },
+    { kind: 'fixed', page: 'Trade Calculator', text: 'On the team cards under Trade Analysis, the Opt PPG and VORP changes no longer run into each other, and long team names wrap instead of being cut off.' },
+    { kind: 'fixed', page: 'Trade Grades', text: 'Each trade\'s verdict line wraps instead of being cut off.' },
     { kind: 'improved', page: 'Trade Calculator', text: 'The timeline setting isn\'t just in Trade Coach anymore: each team column in the calculator has a Timeline dropdown (Auto, Win now, Rebuild). Use it on your team, or on the other team if you know they\'ve changed direction. Every grade on the page follows it.' },
     { kind: 'new', page: 'Trade Calculator', text: 'Your timeline: tell the site whether you\'re contending or rebuilding instead of it guessing from your roster. Auto, Win now, or Rebuild, at the top of Trade Coach, used by the Trade Analysis too. Go all-in and Rebuild set it for you, so a rebuilding team that decides to go for it now isn\'t graded as wasting picks its rebuild needed. Saved in your browser.' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'Trade Coach and Negotiate: a manager\'s willingness to deal dropped when a trade fit YOUR plan well, because their read compared both teams\' fit. Managers now judge a deal on KTC value plus their own lineup and timeline only.' }
@@ -118,7 +122,7 @@ function fmtDate(iso) {
 
 function render() {
   document.getElementById('filters').innerHTML = pages.map(p =>
-    `<button onclick="setPage('${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${pageFilter === p ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p}</button>`
+    `<button onclick="setPage('${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${pageFilter === p ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p}</button>`
   ).join('');
 
   const days = NOTES.map(d => ({ ...d, items: d.items.filter(i => pageFilter === 'All' || i.page === pageFilter) })).filter(d => d.items.length);
@@ -127,11 +131,11 @@ function render() {
     return `<section class="card rounded-vault-sm p-5">
       <div class="flex items-center gap-2 mb-3">
         <h2 class="text-[14px] font-semibold text-zinc-100">${fmtDate(d.date)}</h2>
-        ${fresh ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-black font-semibold">New since your last visit</span>' : ''}
+        ${fresh ? '<span class="text-[11px] px-1.5 py-0.5 rounded bg-amber-400 text-black font-semibold">New since your last visit</span>' : ''}
       </div>
       <ul class="space-y-2.5">
         ${d.items.map(i => `<li class="flex gap-3 items-start">
-          <span class="shrink-0 w-[74px] text-center text-[10px] px-1.5 py-0.5 rounded border ${KIND[i.kind][1]}">${KIND[i.kind][0]}</span>
+          <span class="shrink-0 w-[74px] text-center text-[11px] px-1.5 py-0.5 rounded border ${KIND[i.kind][1]}">${KIND[i.kind][0]}</span>
           <div class="text-[13px] leading-relaxed text-zinc-300"><span class="text-zinc-100 font-medium">${i.page}</span> · ${i.text}</div>
         </li>`).join('')}
       </ul>

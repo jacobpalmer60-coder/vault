@@ -6,6 +6,13 @@
 // Every class must appear written out in full in the source (no 'bg-' + color).
 module.exports = {
   content: ['./*.html', './*.js', '!./scouting-report.html', '!./tailwind.config.js'],
-  theme: { extend: {} },
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'] },
+      // zinc-500 is the faintest text grey on the site; Tailwind's default
+      // (#71717a) falls below readable contrast on these dark surfaces.
+      colors: { zinc: { 500: '#8d8d97' } }
+    }
+  },
   plugins: []
 };

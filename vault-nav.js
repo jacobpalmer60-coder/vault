@@ -38,33 +38,31 @@
 
     const tabsHtml = TABS.map(t => `
       <a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''}
-         class="relative px-3.5 py-2 rounded-full text-[12px] font-medium transition-colors whitespace-nowrap
+         class="relative px-3 py-2 rounded-lg text-[13px] font-medium transition-colors whitespace-nowrap
                 ${active === t.key
-                  ? 'bg-amber-500/15 text-amber-200 border border-amber-500/30'
-                  : 'text-zinc-400 border border-transparent hover:text-white hover:bg-amber-500/5'}">
+                  ? 'text-white bg-white/[0.07] after:absolute after:left-3 after:right-3 after:-bottom-[9px] after:h-[2px] after:rounded-full after:bg-amber-400'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'}">
         ${t.label}
       </a>`).join('');
-    const infoHtml = INFO.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" class="text-[11px] whitespace-nowrap transition-colors ${active === t.key ? 'text-amber-200' : 'text-zinc-400 hover:text-white'}">${t.label}</a>`).join('');
+    const infoHtml = INFO.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" class="text-[12px] whitespace-nowrap transition-colors ${active === t.key ? 'text-white' : 'text-zinc-400 hover:text-white'}">${t.label}</a>`).join('');
 
     mount.innerHTML = `
-      <header class="md:sticky md:top-0 z-40 border-b border-white/[0.08] bg-[#0b0c0f]/95">
+      <header class="md:sticky md:top-0 z-40 border-b border-white/[0.07] bg-[#0c0d10]/95">
         <!-- Two rows: brand + settings on top, page tabs underneath (full width,
              scrolls sideways on phones), so adding a page never pushes the
              settings onto a wrapped row. -->
         <div class="max-w-[1800px] mx-auto px-4 sm:px-6 pt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <a href="index.html" class="flex items-center gap-3 shrink-0 group">
-            <div class="size-9 rounded-full bg-gradient-to-br from-amber-300 to-yellow-600 p-[1.5px] shadow-[0_0_20px_rgba(250,204,21,0.25)] transition-shadow group-hover:shadow-[0_0_28px_rgba(250,204,21,0.4)]">
-              <div class="size-full rounded-full bg-black grid place-items-center"><span class="display text-base gold-text">V</span></div>
-            </div>
+          <a href="index.html" class="flex items-center gap-2.5 shrink-0 py-1">
+            <div class="size-8 rounded-lg bg-amber-400 grid place-items-center"><span class="text-[15px] font-bold text-[#1c1406] leading-none">V</span></div>
             <div class="leading-none">
-              <div class="display text-[16px] gold-text tracking-wide">THE VAULT</div>
-              <div class="text-[11px] uppercase tracking-[0.2em] text-amber-200/40">Gold Standard</div>
+              <div class="text-[15px] font-semibold tracking-[0.08em] text-zinc-100">THE VAULT</div>
+              <div class="text-[11px] uppercase tracking-[0.18em] text-zinc-500 mt-1">Dynasty tools</div>
             </div>
           </a>
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
             ${infoHtml}
-            <select id="myTeamPick" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden max-w-[190px] bg-black/60 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-zinc-300"></select>
-            <a href="index.html" class="btn-ghost text-[11px] px-3 py-1.5">Switch League</a>
+            <select id="myTeamPick" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden max-w-[190px] bg-[#14161a] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-zinc-200"></select>
+            <a href="index.html" class="btn-ghost text-[12px] px-3 py-1.5">Switch League</a>
           </div>
         </div>
         <nav class="max-w-[1800px] mx-auto px-4 sm:px-6 py-2 flex items-center gap-1 overflow-x-auto scrollbar" aria-label="Pages">${tabsHtml}</nav>

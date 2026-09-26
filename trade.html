@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trade Calculator — The Vault</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
 <link rel="stylesheet" href="tailwind.css">
 </head>
@@ -20,9 +20,9 @@
       <p id="status" class="text-[13px] text-zinc-400 mt-1.5">Connecting...</p>
     </div>
     <div class="flex items-center gap-2 flex-wrap justify-end">
-      <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-emerald-500/25 text-[12px] text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3 11 7l4 1.5L11 10l-1.5 4L8 10l-4-1.5L8 7z"/><path d="M18 13l.9 2.1L21 16l-2.1.9L18 19l-.9-2.1L15 16l2.1-.9z"/></svg>Suggest a Trade</button>
-      <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-sky-500/25 text-[12px] text-sky-300/80 hover:text-sky-200 hover:border-sky-500/50 hover:bg-sky-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find a Trade</button>
-      <button id="coachBtn" onclick="openCoach()" title="Negotiate a trade, or pick a goal and get the trades to reach it, step by step" class="hidden h-8 px-3 rounded-lg border border-violet-500/25 text-[12px] text-violet-300/80 hover:text-violet-200 hover:border-violet-500/50 hover:bg-violet-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg>Trade Coach</button>
+      <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-white/10 text-[12px] text-zinc-200 hover:text-white hover:border-white/20 hover:bg-white/[0.04] transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3 11 7l4 1.5L11 10l-1.5 4L8 10l-4-1.5L8 7z"/><path d="M18 13l.9 2.1L21 16l-2.1.9L18 19l-.9-2.1L15 16l2.1-.9z"/></svg>Suggest a Trade</button>
+      <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-white/10 text-[12px] text-zinc-200 hover:text-white hover:border-white/20 hover:bg-white/[0.04] transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find a Trade</button>
+      <button id="coachBtn" onclick="openCoach()" title="Negotiate a trade, or pick a goal and get the trades to reach it, step by step" class="hidden h-8 px-3 rounded-lg border border-white/10 text-[12px] text-zinc-200 hover:text-white hover:border-white/20 hover:bg-white/[0.04] transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg>Trade Coach</button>
       <div class="h-8 px-3 rounded-lg bg-black/40 border border-white/[0.08] flex items-center gap-2 text-[12px] text-zinc-400">
         <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
         Live Values
@@ -80,14 +80,14 @@
         <div class="text-right">
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1" title="Values are adjusted for consolidation premium — a single elite asset counts for more than several mid-tier pieces summing to the same raw KTC value, using KeepTradeCut's own real adjustment formula. Under 14% off is considered fair, 14-41% is lopsided, and above 41% is unfair — calibrated against ~25,000 real trades from KeepTradeCut's trade database. The ± line below reflects how much today's price could still move for the less-established pieces here (rookies, far-future picks), based on their own recent price swings.">Difference <span class="text-zinc-400">(value-adj)</span></div>
           <div id="diff" class="text-[22px] font-semibold mono"></div>
-          <div id="diffLabel" class="text-[11px] mt-0.5"></div>
+          <div id="diffLabel" class="text-[12px] mt-0.5"></div>
           <div id="diffBar" class="w-36 ml-auto"></div>
-          <div id="diffConfidence" class="text-[10px] text-zinc-400 mt-0.5"></div>
+          <div id="diffConfidence" class="text-[11px] text-zinc-400 mt-0.5"></div>
         </div>
         <span id="balanceBtn"></span>
         <span id="offerBtn"></span>
-        <button onclick="shareTrade(this)" title="Copy a link to this exact trade — it opens with the same teams, pieces, and verdict" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Share</button>
-        <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
+        <button onclick="shareTrade(this)" title="Copy a link to this exact trade — it opens with the same teams, pieces, and verdict" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Share</button>
+        <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
     <div id="gapClose" class="hidden mt-3 pt-3 border-t border-white/5"></div>
@@ -120,9 +120,9 @@
         <div id="finderTarget" class="text-[16px] font-medium"></div>
       </div>
       <div class="flex items-center gap-2">
-        <span id="finderWantBackLabel" class="text-[11px] text-zinc-400 mr-1">Want back:</span>
+        <span id="finderWantBackLabel" class="text-[12px] text-zinc-400 mr-1">Want back:</span>
         <div id="finderPosChips" class="flex gap-1.5"></div>
-        <button onclick="closeFinder()" class="ml-2 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
+        <button onclick="closeFinder()" class="ml-2 text-[12px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
       </div>
     </div>
     <div id="finderResults" class="space-y-2"></div>
@@ -152,9 +152,9 @@
         </div>
         <div class="flex items-center gap-2 mt-1.5 pl-[42px]">
           <div class="text-[12px] text-zinc-400 mono" id="totalA"></div>
-          <span id="archA" class="text-[11px] px-2 py-0.5 rounded-full border"></span>
+          <span id="archA" class="text-[12px] px-2 py-0.5 rounded-full border"></span>
         </div>
-        <div id="needsA" class="pl-[42px] mt-1 text-[11px] leading-relaxed"></div>
+        <div id="needsA" class="pl-[42px] mt-1 text-[12px] leading-relaxed"></div>
         <div id="posFilterA" class="flex gap-1.5 flex-wrap mt-2"></div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
@@ -177,9 +177,9 @@
         </div>
         <div class="flex items-center gap-2 mt-1.5 pl-[42px]">
           <div class="text-[12px] text-zinc-400 mono" id="totalB"></div>
-          <span id="archB" class="text-[11px] px-2 py-0.5 rounded-full border"></span>
+          <span id="archB" class="text-[12px] px-2 py-0.5 rounded-full border"></span>
         </div>
-        <div id="needsB" class="pl-[42px] mt-1 text-[11px] leading-relaxed"></div>
+        <div id="needsB" class="pl-[42px] mt-1 text-[12px] leading-relaxed"></div>
         <div id="posFilterB" class="flex gap-1.5 flex-wrap mt-2"></div>
       </div>
       <div class="rounded-2xl card overflow-hidden">
@@ -305,9 +305,9 @@ function renderPartnerSuggestions() {
     <button onclick="useSuggestedPartner(${p.rosterId})" class="w-full text-left px-3 py-2 rounded-lg border border-white/[0.08] hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors">
       <div class="flex items-center justify-between gap-2">
         <span class="text-[13px] font-medium text-zinc-200">${Vault.escapeHtml(p.teamName)}</span>
-        <span class="text-[10px] text-zinc-400 uppercase tracking-wider">Use →</span>
+        <span class="text-[11px] text-zinc-400 uppercase tracking-wider">Use →</span>
       </div>
-      <div class="text-[11px] text-zinc-400 mt-0.5">${Vault.escapeHtml(p.reasons[0])}</div>
+      <div class="text-[12px] text-zinc-400 mt-0.5">${Vault.escapeHtml(p.reasons[0])}</div>
     </button>`).join('');
   box.classList.remove('hidden');
 }
@@ -394,7 +394,7 @@ async function init() {
     renderPartnerSuggestions();
 
     document.getElementById('status').textContent = `${teams.length} teams • ${league.name} • ${built.isSF ? 'Superflex' : '1QB'}`;
-    document.getElementById('status').className = 'text-[13px] text-emerald-400/80 mt-1';
+    document.getElementById('status').className = 'text-[13px] text-zinc-400 mt-1';
 
     document.getElementById('loadRostersBtn').onclick = () => {
       if (typeof negReset === 'function') { negReset(); negPreloadStyles(); }
@@ -493,7 +493,7 @@ async function shareTrade(btn) {
 // system across the site instead of one page having it and the rest not.
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
 function assetRow(side, a, isSelected, extra) {
-  const sub = a.type === 'pick' ? `<span class="text-[11px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[11px] text-zinc-400">${a.team || ''}</span>`;
+  const sub = a.type === 'pick' ? `<span class="text-[12px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400">${a.team || ''}</span>`;
   // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
   // enough to actually mean something, not turn into visual noise on half the roster.
   // Picks use their own thresholds (Vault.pickVolatilityLabel) — reusing the
@@ -501,7 +501,7 @@ function assetRow(side, a, isSelected, extra) {
   // which stopped meaning anything.
   const volLabel = a.type === 'pick' ? Vault.pickVolatilityLabel(a.volatilityPct) : Vault.volatilityLabel(a.volatilityPct);
   const volBadge = volLabel === 'volatile'
-    ? `<span class="text-[9px] px-1 py-px rounded border border-amber-500/30 text-amber-400/80 uppercase tracking-wide" title="${a.type === 'pick' ? "This pick's real slot is still unsettled — its value could move more than most picks once this team's season plays out" : "This player's price has swung a lot recently — treat today's value as less certain than most"}">volatile</span>` : '';
+    ? `<span class="text-[11px] px-1 py-px rounded border border-amber-500/30 text-amber-400/80 uppercase tracking-wide" title="${a.type === 'pick' ? "This pick's real slot is still unsettled — its value could move more than most picks once this team's season plays out" : "This player's price has swung a lot recently — treat today's value as less certain than most"}">volatile</span>` : '';
   // Team A's row is the user's own asset: "Match" auto-builds a package from Team B
   // to hit its value, "Find" shops it against every team in the league. A Team B row
   // is a player the user doesn't own, so both need different jobs there — "Find"
@@ -535,10 +535,10 @@ function assetRow(side, a, isSelected, extra) {
             ${volBadge}
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            ${a.trend != null ? `<div class="text-[10px] mono ${a.trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Value change over the last ${TREND_WINDOW_DAYS} days">${a.trend >= 0 ? '+' : ''}${Math.round(a.trend).toLocaleString()}</div>` : ''}
+            ${a.trend != null ? `<div class="text-[11px] mono ${a.trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Value change over the last ${TREND_WINDOW_DAYS} days">${a.trend >= 0 ? '+' : ''}${Math.round(a.trend).toLocaleString()}</div>` : ''}
             <div class="flex gap-1.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
-              <button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
-              <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[11px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
+              <button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-amber-300/70 hover:text-white hover:border-amber-500/40">Match</button>
+              <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[12px] px-2 py-1 rounded-lg border border-sky-500/20 text-sky-300/70 hover:text-sky-200 hover:border-sky-500/40">Find</button>
             </div>
           </div>
         </div>
@@ -552,7 +552,7 @@ function similarRow(side, a) {
   const selected = side === 'A' ? selectedA : selectedB;
   const alts = team.assets.filter(x => x.key !== a.key && !selected.has(x.key)).sort((x, y) => Math.abs(x.value - a.value) - Math.abs(y.value - a.value)).slice(0, 3);
   if (!alts.length) return '';
-  return `<div class="mx-1 mb-1 px-3 py-1.5 rounded-lg bg-black/30 flex items-center gap-2 flex-wrap text-[11px]">
+  return `<div class="mx-1 mb-1 px-3 py-1.5 rounded-lg bg-black/30 flex items-center gap-2 flex-wrap text-[12px]">
     <span class="text-zinc-400 uppercase tracking-wider">Similar value</span>
     ${alts.map(x => `<button onclick="event.stopPropagation(); swap('${side}','${a.key}','${x.key}')" class="px-2 py-1 rounded-lg border border-white/10 hover:border-amber-500/40 hover:text-white text-zinc-300">${Vault.escapeHtml(x.name)} <span class="mono text-zinc-400">${Math.round(x.value).toLocaleString()}</span></button>`).join('')}
   </div>`;
@@ -573,7 +573,7 @@ function renderNeeds(side, team) {
   const chosen = Vault.planOverride[team.rosterId] || '';
   const opt = (v, label) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${label}</option>`;
   const parts = [`<label class="inline-flex items-center gap-1 text-zinc-400" title="Whether this team is graded as contending or rebuilding. Auto reads it from the roster; pick one if the team has decided otherwise.">Timeline
-      <select onchange="setTeamTimeline(${team.rosterId}, this.value)" class="bg-black/40 border rounded px-1 py-0.5 text-[11px] outline-none ${chosen ? 'border-violet-500/40 text-violet-200' : 'border-white/10 text-zinc-300'}">
+      <select onchange="setTeamTimeline(${team.rosterId}, this.value)" class="bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300'}">
         ${opt('', `Auto · ${Vault.MODE_LABEL[autoTimeline(team)]}`)}${opt('contend', 'Win now')}${opt('rebuild', 'Rebuild')}
       </select></label>`];
   if (needs.length) parts.push(`<span class="text-emerald-400/80">Needs ${needs.map(k => POS_LABEL[k]).join(', ')}</span>`);
@@ -590,7 +590,7 @@ function render(side) {
   const archEl = document.getElementById(`arch${side}`);
   archEl.textContent = team.arch;
   archEl.title = Vault.ARCHETYPE_INFO[team.arch]?.desc || '';
-  archEl.className = `text-[11px] px-2 py-0.5 rounded-full border inline-block mt-1 ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
+  archEl.className = `text-[12px] px-2 py-0.5 rounded-full border inline-block mt-1 ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
   renderNeeds(side, team);
 
   const visible = filter === 'ALL' ? team.assets : team.assets.filter(a => filter === 'PICK' ? a.type === 'pick' : a.pos === filter);
@@ -605,7 +605,7 @@ function renderPosFilter(side) {
   const state = side === 'A' ? filterA : filterB;
   document.getElementById(`posFilter${side}`).innerHTML = POS_FILTERS.map(p => {
     const count = p === 'ALL' ? team.assets.length : team.assets.filter(a => p === 'PICK' ? a.type === 'pick' : a.pos === p).length;
-    return `<button onclick="setPosFilter('${side}','${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${state === p ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p === '1-FOR-2' ? '1-for-2' : p} <span class="opacity-60">${count}</span></button>`;
+    return `<button onclick="setPosFilter('${side}','${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${state === p ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p === '1-FOR-2' ? '1-for-2' : p} <span class="opacity-60">${count}</span></button>`;
   }).join('');
 }
 
@@ -814,7 +814,7 @@ function suggestionRosterNote(c) {
     const over = projectedRosterCount(team, out, inc) - rosterCap;
     return over > 0 ? `${team === myTeam ? 'You' : Vault.escapeHtml(team.teamName)} would need to drop ${over}` : '';
   }).filter(Boolean);
-  return notes.length ? `<span class="text-[11px] text-amber-300/80">${notes.join(' · ')}</span>` : '';
+  return notes.length ? `<span class="text-[12px] text-amber-300/80">${notes.join(' · ')}</span>` : '';
 }
 
 function suggestionCard(c, i) {
@@ -824,7 +824,7 @@ function suggestionCard(c, i) {
       <div class="flex items-center justify-between gap-4 flex-wrap mb-1.5">
         <div class="flex items-center gap-2">
           <div class="text-[13px] font-medium">vs. ${Vault.escapeHtml(c.partner.teamName)}</div>
-          ${shape ? `<span class="text-[10px] px-1.5 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-300">${shape}</span>` : ''}
+          ${shape ? `<span class="text-[11px] px-1.5 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-300">${shape}</span>` : ''}
         </div>
         <button onclick="useSuggestion(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid shrink-0">Use This Trade</button>
       </div>
@@ -832,7 +832,7 @@ function suggestionCard(c, i) {
       <div class="flex items-center gap-2 flex-wrap">
         <span class="size-2 rounded-full ${verdictDot(c.result.verdict.tone, c.result.bucket)}"></span>
         <span class="text-[12px] font-medium ${verdictColor(c.result.verdict.tone, c.result.bucket)}">${c.result.verdict.label}</span>
-        <span class="text-[11px] text-zinc-400">${capPct(c.result.overallPct).toFixed(0)}% off</span>
+        <span class="text-[12px] text-zinc-400">${capPct(c.result.overallPct).toFixed(0)}% off</span>
         ${suggestionRosterNote(c)}
       </div>
     </div>`;
@@ -857,13 +857,13 @@ function renderSuggestions() {
   const filterBar = [...POS_FILTERS, '1-FOR-2'].map(p => {
     const count = allSuggestions.filter(c => suggestionMatchesPos(c, p)).length;
     const active = suggestPosFilter === p;
-    return `<button onclick="setSuggestPosFilter('${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${active ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p === '1-FOR-2' ? '1-for-2' : p} <span class="opacity-60">${count}</span></button>`;
+    return `<button onclick="setSuggestPosFilter('${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${active ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p === '1-FOR-2' ? '1-for-2' : p} <span class="opacity-60">${count}</span></button>`;
   }).join('');
 
   box.innerHTML = `
     <div class="flex items-center justify-between mb-3">
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Suggested Trades for ${Vault.escapeHtml(myTeam.teamName)}</div>
-      <button onclick="document.getElementById('suggestPanel').classList.add('hidden')" class="text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
+      <button onclick="document.getElementById('suggestPanel').classList.add('hidden')" class="text-[12px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
     </div>
     <div class="flex gap-1.5 flex-wrap mb-3">${filterBar}</div>
     ${candidates.length
@@ -1419,7 +1419,7 @@ function openFinderPicker() {
 }
 function renderFinderAssetOptions() {
   document.getElementById('finderSideChips').innerHTML = ['A', 'B'].map(s =>
-    `<button onclick="finderState.side='${s}'; renderFinderAssetOptions()" class="text-[11px] px-2.5 py-1 rounded-lg border ${finderState.side === s ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white'}">${Vault.escapeHtml(teamOf(s).teamName)}</button>`
+    `<button onclick="finderState.side='${s}'; renderFinderAssetOptions()" class="text-[12px] px-2.5 py-1 rounded-lg border ${finderState.side === s ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white'}">${Vault.escapeHtml(teamOf(s).teamName)}</button>`
   ).join('');
   document.getElementById('finderAssetSearch').value = '';
   document.getElementById('finderAssetResults').classList.add('hidden');
@@ -1507,7 +1507,7 @@ function renderAcquireFinder() {
       <div class="min-w-0">
         <div class="text-[13px] font-medium">Package from ${Vault.escapeHtml(myTeam.teamName)}</div>
         <div class="text-[12px] text-zinc-300 mt-0.5">${combo.combo.map(a => Vault.escapeHtml(a.name)).join(' + ')} <span class="mono text-zinc-400">${Math.round(combo.sum).toLocaleString()}</span></div>
-        <div class="text-[11px] text-sky-300/70 mt-1">${partnerRationale(targetTeam, combo.combo).join(' · ')}</div>
+        <div class="text-[12px] text-sky-300/70 mt-1">${partnerRationale(targetTeam, combo.combo).join(' · ')}</div>
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <div class="text-right">
@@ -1575,12 +1575,12 @@ function renderSimilarAcrossLeague() {
     return `
     <div onclick="pickSimilarAsset('${a.key}',${a.rosterId})" class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 hover:bg-black/50 cursor-pointer flex-wrap">
       <div class="min-w-0">
-        <div class="text-[13px] font-medium">${Vault.escapeHtml(a.name)} ${a.type === 'pick' ? '' : `<span class="text-[11px] text-zinc-400">${a.pos}</span>`}</div>
-        <div class="text-[11px] text-zinc-400 mt-0.5">${Vault.escapeHtml(a.teamName)}</div>
+        <div class="text-[13px] font-medium">${Vault.escapeHtml(a.name)} ${a.type === 'pick' ? '' : `<span class="text-[12px] text-zinc-400">${a.pos}</span>`}</div>
+        <div class="text-[12px] text-zinc-400 mt-0.5">${Vault.escapeHtml(a.teamName)}</div>
       </div>
       <div class="text-right shrink-0">
         <div class="text-[13px] mono">${Math.round(a.value).toLocaleString()}</div>
-        <div class="text-[11px] mono ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${diff >= 0 ? '+' : ''}${Math.round(diff).toLocaleString()}</div>
+        <div class="text-[12px] mono ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${diff >= 0 ? '+' : ''}${Math.round(diff).toLocaleString()}</div>
       </div>
     </div>`;
   }).join('');
@@ -1610,7 +1610,7 @@ function renderFinder() {
 
   const positions = ['ANY', 'QB', 'RB', 'WR', 'TE', 'PICK'];
   document.getElementById('finderPosChips').innerHTML = positions.map(p =>
-    `<button onclick="finderState.position='${p}'; renderFinder()" class="text-[11px] px-2.5 py-1 rounded-lg border ${position === p ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white'}">${p}</button>`
+    `<button onclick="finderState.position='${p}'; renderFinder()" class="text-[12px] px-2.5 py-1 rounded-lg border ${position === p ? 'bg-amber-500/15 border-amber-500/40 text-zinc-300' : 'border-white/10 text-zinc-400 hover:text-white'}">${p}</button>`
   ).join('');
 
   const partners = teams.filter(t => t.rosterId !== team.rosterId);
@@ -1638,10 +1638,10 @@ function renderFinder() {
     return `
     <div class="flex items-center justify-between gap-4 p-3 rounded-xl bg-black/30 flex-wrap">
       <div class="min-w-0">
-        <div class="text-[13px] font-medium">${Vault.escapeHtml(r.partner.teamName)} <span class="text-[11px] text-zinc-400">(${r.partner.arch})</span></div>
+        <div class="text-[13px] font-medium">${Vault.escapeHtml(r.partner.teamName)} <span class="text-[12px] text-zinc-400">(${r.partner.arch})</span></div>
         <div class="text-[12px] text-zinc-300 mt-0.5">${r.offer.theirs.map(a => Vault.escapeHtml(a.name)).join(' + ')} <span class="mono text-zinc-400">${Math.round(sum).toLocaleString()}</span></div>
-        ${extraOurs.length ? `<div class="text-[11px] text-amber-300/70 mt-1">You'd also send: ${extraOurs.map(a => Vault.escapeHtml(a.name)).join(' + ')}</div>` : ''}
-        <div class="text-[11px] text-sky-300/70 mt-1">${r.rationale.join(' · ')}</div>
+        ${extraOurs.length ? `<div class="text-[12px] text-amber-300/70 mt-1">You'd also send: ${extraOurs.map(a => Vault.escapeHtml(a.name)).join(' + ')}</div>` : ''}
+        <div class="text-[12px] text-sky-300/70 mt-1">${r.rationale.join(' · ')}</div>
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <div class="text-right">
@@ -1887,7 +1887,7 @@ function updateTrade() {
     ? `${bucket} · ${capPct(overallPct).toFixed(0)}% off · KTC ${capPct(pctDiff).toFixed(0)}%`
     : `${bucket} · ${capPct(pctDiff).toFixed(0)}% off`;
   diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than KTC value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side.`;
-  diffLabelEl.className = 'text-[11px] mt-0.5 ' + bucketColor(bucket, true);
+  diffLabelEl.className = 'text-[12px] mt-0.5 ' + bucketColor(bucket, true);
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(fairness.overallSigned, diffBandPct) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
 
@@ -2261,7 +2261,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
   const sweetenSide = dValueAdjA >= dValueAdjB ? 'A' : 'B';
   const sweetenTeamName = sweetenSide === 'A' ? teamA.teamName : teamB.teamName;
   document.getElementById('balanceBtn').innerHTML = verdict.tone !== 'good'
-    ? `<button onclick="balanceSide('${sweetenSide}', this)" title="Keep Team ${sweetenSide === 'A' ? 'B' : 'A'}'s side exactly as selected, and add to ${Vault.escapeHtml(sweetenTeamName)}'s side to close the gap" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-emerald-500/25 text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l-3 6a4 4 0 0 0 6 0zM19 8l-3 6a4 4 0 0 0 6 0zM5 8h14M9 3h6"/></svg>Balance ${Vault.escapeHtml(sweetenTeamName)}</button>`
+    ? `<button onclick="balanceSide('${sweetenSide}', this)" title="Keep Team ${sweetenSide === 'A' ? 'B' : 'A'}'s side exactly as selected, and add to ${Vault.escapeHtml(sweetenTeamName)}'s side to close the gap" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-200 hover:text-white hover:border-white/20 hover:bg-white/[0.04] transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l-3 6a4 4 0 0 0 6 0zM19 8l-3 6a4 4 0 0 0 6 0zM5 8h14M9 3h6"/></svg>Balance ${Vault.escapeHtml(sweetenTeamName)}</button>`
     : '';
 
   [['A', before.A, after.A, resA, dValueAdjA], ['B', before.B, after.B, resB, dValueAdjB]].forEach(([side, bef, aft, res, dValueAdj]) => {
@@ -2272,12 +2272,12 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
       <div class="card rounded-vault-sm p-4 min-w-0">
         <div class="flex items-center justify-between gap-2 mb-3">
           <div class="min-w-0">
-            <div class="text-[11px] text-zinc-400 uppercase tracking-wider truncate">Team ${side} · ${Vault.escapeHtml(bef.teamName)}</div>
-            <div class="text-[11px] mt-0.5 ${TONE.neutral}">${Vault.MODE_LABEL[res.mode]}${Vault.planOverride[bef.rosterId] ? ' · set by you' : ''}</div>
+            <div class="text-[11px] text-zinc-400 uppercase tracking-wider break-words">Team ${side} · ${Vault.escapeHtml(bef.teamName)}</div>
+            <div class="text-[12px] mt-0.5 ${TONE.neutral}">${Vault.MODE_LABEL[res.mode]}${Vault.planOverride[bef.rosterId] ? ' · set by you' : ''}</div>
           </div>
           <div class="text-right shrink-0">
             <div class="text-[13px] font-mono ${dValueAdj >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtSigned(dValueAdj)}</div>
-            <div class="text-[11px] text-zinc-400">value Δ (adj)</div>
+            <div class="text-[12px] text-zinc-400">value Δ (adj)</div>
           </div>
         </div>
         <div class="flex items-start gap-2 mb-4">
@@ -2285,7 +2285,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           <p class="text-[13px] ${TONE[head.tone]} leading-relaxed"><span class="font-medium">${head.text}.</span> <span class="font-normal">${Vault.buildSynopsis('', res.notes)}</span></p>
         </div>
         ${res.notes.length ? `<details class="group mb-4">
-          <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
+          <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
             <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
             <span>Full breakdown (${res.notes.length})</span>
           </summary>
@@ -2293,11 +2293,11 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
             ${res.notes.map(n => `<div class="flex gap-2 text-[12px] ${n.isArchetype ? 'pt-2 border-t border-white/5 mt-2' : ''}"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
           </div>
         </details>` : ''}
-        <div class="grid grid-cols-4 gap-1 text-center pt-3 border-t border-white/5">
-          <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="text-[11px] text-zinc-400">Age</div></div>
-          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}<span class="text-[11px] ml-1 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dOpt) > 0.05 ? (res.dOpt > 0 ? '+' : '') + res.dOpt.toFixed(1) : ''}</span></div><div class="text-[11px] text-zinc-400">Opt PPG</div></div>
-          <div><div class="text-[14px] font-mono" title="Optimal lineup's total VORP — real, scarcity-adjusted edge over readily-available replacements, not just raw points">${aft.vorpTotal.toFixed(1)}<span class="text-[11px] ml-1 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? (res.dVorp > 0 ? '+' : '') + res.dVorp.toFixed(1) : ''}</span></div><div class="text-[11px] text-zinc-400">VORP</div></div>
-          <div><div class="text-[14px] font-mono">${win.hasWindow ? win.windowStart + '-' + win.windowEnd : 'None'}</div><div class="text-[11px] text-zinc-400">Window</div></div>
+        <div class="grid grid-cols-4 gap-2 text-center pt-3 border-t border-white/5">
+          <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">Age</div></div>
+          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dOpt) > 0.05 ? (res.dOpt > 0 ? '+' : '') + res.dOpt.toFixed(1) : ''}</div><div class="text-[12px] text-zinc-400">Opt PPG</div></div>
+          <div title="Optimal lineup's total VORP — real, scarcity-adjusted edge over readily-available replacements, not just raw points"><div class="text-[14px] font-mono">${aft.vorpTotal.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? (res.dVorp > 0 ? '+' : '') + res.dVorp.toFixed(1) : ''}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
+          <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? win.windowStart + '–' + win.windowEnd : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">Window</div></div>
         </div>
       </div>`;
   });
@@ -2315,15 +2315,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
       <div class="text-[28px] font-semibold leading-tight ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.label}</div>
     </div>
     <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.text}</div>
-    <div class="max-w-md mt-3">
-      <div class="flex items-center justify-between text-[11px] text-zinc-400 mb-1">
-        <span>Overall</span>
-        <span>${fairness.fitMovedIt ? `${capPct(overallPct).toFixed(0)}% off overall · KTC alone ${capPct(pctDiff).toFixed(0)}%` : `${capPct(pctDiff).toFixed(0)}% off`}</span>
-      </div>
-      ${fairnessBarHtml(fairness.overallSigned, bandPct)}
-      <div class="mt-2.5">${Vault.fairnessBreakdownHtml(fairness, teamA.teamName, teamB.teamName)}</div>
-    </div>
-    <div class="text-[11px] text-zinc-400 mt-1.5">${[confidenceText, needNote, `<a href="${Vault.linkTo('how_we_grade.html')}" class="text-amber-300/80 hover:text-amber-200">How is this graded?</a>`].filter(Boolean).join(' · ')}</div>`;
+    <div class="max-w-xl mt-4">${Vault.fairnessPanelHtml(fairness, bandPct, teamA.teamName, teamB.teamName, `${capPct(fairness.fitMovedIt ? overallPct : pctDiff).toFixed(0)}% off`)}</div>
+    <div class="text-[12px] text-zinc-400 mt-3">${[fairness.fitMovedIt ? `KTC value alone: ${capPct(pctDiff).toFixed(0)}% off` : '', confidenceText, needNote, `<a href="${Vault.linkTo('how_we_grade.html')}" class="text-amber-300/80 hover:text-amber-200">How is this graded?</a>`].filter(Boolean).join(' · ')}</div>`;
 }
 
 init();

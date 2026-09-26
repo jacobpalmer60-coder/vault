@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Compare Players — The Vault</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
 <link rel="stylesheet" href="tailwind.css">
 <style>
@@ -36,11 +36,11 @@
       <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
     </div>
     <div class="flex items-center gap-2">
-      <button id="shareBtn" onclick="shareCompare(this)" class="hidden text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40 transition-colors">Share</button>
-      <a id="tradeBtn" class="hidden text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid"></a>
+      <button id="shareBtn" onclick="shareCompare(this)" class="hidden text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40 transition-colors">Share</button>
+      <a id="tradeBtn" class="hidden text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid"></a>
     </div>
   </div>
-  <p id="tradeNote" class="hidden text-[11px] text-zinc-400 -mt-3 mb-4 text-right"></p>
+  <p id="tradeNote" class="hidden text-[12px] text-zinc-400 -mt-3 mb-4 text-right"></p>
 
   <!-- Pickers: 2 to 4 players -->
   <div id="pickers" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2"></div>
@@ -54,8 +54,8 @@
         <h2 class="text-[15px] font-semibold text-zinc-100">Value over time</h2>
         <div class="flex flex-wrap items-center gap-1.5">
           <div id="windowBtns" class="flex gap-1.5"></div>
-          <label class="flex items-center gap-1.5 text-[11px] text-zinc-400 ml-1">From <input id="dateFrom" type="date" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-zinc-300"></label>
-          <label class="flex items-center gap-1.5 text-[11px] text-zinc-400">To <input id="dateTo" type="date" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-zinc-300"></label>
+          <label class="flex items-center gap-1.5 text-[12px] text-zinc-400 ml-1">From <input id="dateFrom" type="date" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-zinc-300"></label>
+          <label class="flex items-center gap-1.5 text-[12px] text-zinc-400">To <input id="dateTo" type="date" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-zinc-300"></label>
         </div>
       </div>
       <div id="legend" class="flex flex-wrap gap-4 text-[12px] text-zinc-300 mb-2"></div>
@@ -63,13 +63,13 @@
         <svg id="chart" class="w-full block" role="img" aria-label="Value over time for the selected players"></svg>
         <div id="chartTip" class="hidden absolute top-0 z-10 rounded-lg border border-white/10 bg-[#0b0c0f] px-3 py-2 text-[12px] shadow-lg"></div>
       </div>
-      <p class="text-[11px] text-zinc-400 mt-2">KeepTradeCut value in your league's format, one point per day. Pick a preset or your own dates; hover or tap the chart for exact values.</p>
+      <p class="text-[12px] text-zinc-400 mt-2">KeepTradeCut value in your league's format, one point per day. Pick a preset or your own dates; hover or tap the chart for exact values.</p>
     </section>
 
     <section class="card rounded-vault-sm p-5">
       <h2 class="text-[15px] font-semibold text-zinc-100 mb-3">Head to head</h2>
       <div class="overflow-x-auto"><table id="h2h" class="w-full text-[13px]"></table></div>
-      <p class="text-[11px] text-zinc-400 mt-2">The best value in each row is marked with its player's color. Age, experience, and price swing aren't marked — which is better depends on your plan.</p>
+      <p class="text-[12px] text-zinc-400 mt-2">The best value in each row is marked with its player's color. Age, experience, and price swing aren't marked — which is better depends on your plan.</p>
     </section>
 
     <section class="card rounded-vault-sm p-5">
@@ -78,7 +78,7 @@
         <div class="flex flex-wrap items-center gap-2">
           <select id="seasonPick" aria-label="Season" class="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-zinc-300"></select>
           <div class="relative">
-            <button id="statsPickBtn" type="button" onclick="document.getElementById('statsPanel').classList.toggle('hidden')" class="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Stats ▾</button>
+            <button id="statsPickBtn" type="button" onclick="document.getElementById('statsPanel').classList.toggle('hidden')" class="text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Stats ▾</button>
             <div id="statsPanel" class="hidden fixed left-4 right-4 top-20 z-40 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-1 sm:w-[560px] max-h-[70vh] overflow-y-auto rounded-xl border border-white/10 bg-[#111317] p-4 shadow-lg scrollbar"></div>
           </div>
           <div id="modeBtns" class="flex gap-1.5"></div>
@@ -86,7 +86,7 @@
       </div>
       <div id="weekChips" class="hidden flex flex-wrap items-center gap-1 mb-3"></div>
       <div class="overflow-x-auto"><table id="stats" class="w-full text-[13px]"></table></div>
-      <p id="statsNote" class="text-[11px] text-zinc-400 mt-2"></p>
+      <p id="statsNote" class="text-[12px] text-zinc-400 mt-2"></p>
       <div id="gameLogWrap" class="hidden">
         <h3 class="text-[13px] font-semibold text-zinc-200 mt-5 mb-2">Game log <span class="text-zinc-400 font-normal">— fantasy points in your scoring</span></h3>
         <div class="overflow-x-auto"><table id="gameLog" class="w-full text-[13px]"></table></div>
@@ -206,7 +206,7 @@ function defaultPlayers() {
 }
 
 function setupControls() {
-  $('windowBtns').innerHTML = WINDOWS.map(([l, d]) => `<button data-days="${d}" class="win-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
+  $('windowBtns').innerHTML = WINDOWS.map(([l, d]) => `<button data-days="${d}" class="win-btn text-[12px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
   document.querySelectorAll('.win-btn').forEach(b => b.onclick = () => { windowDays = +b.dataset.days; customRange = null; renderChart(); });
   const minD = histSnaps[0]?.date, maxD = histSnaps[histSnaps.length - 1]?.date;
   ['dateFrom', 'dateTo'].forEach(id => { $(id).min = minD; $(id).max = maxD; });
@@ -218,7 +218,7 @@ function setupControls() {
   };
   $('dateFrom').onchange = onDate; $('dateTo').onchange = onDate;
 
-  $('modeBtns').innerHTML = [['game', 'Per game'], ['total', 'Totals']].map(([k, l]) => `<button data-mode="${k}" class="mode-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
+  $('modeBtns').innerHTML = [['game', 'Per game'], ['total', 'Totals']].map(([k, l]) => `<button data-mode="${k}" class="mode-btn text-[12px] px-2.5 py-1 rounded-lg border transition-colors">${l}</button>`).join('');
   document.querySelectorAll('.mode-btn').forEach(b => b.onclick = () => { statMode = b.dataset.mode; renderStats(); });
   $('seasonPick').onchange = () => { statSeason = $('seasonPick').value; selWeeks = null; renderStats(); };
   // Close the stat picker when clicking anywhere outside it.
@@ -249,7 +249,7 @@ function wirePicker(box, i) {
     const taken = new Set(picked.filter((_, k) => k !== i));
     const matches = universe.filter(p => !taken.has(p.norm) && (!q || p.norm.includes(q))).sort((a, b) => b.value - a.value).slice(0, 12);
     list.innerHTML = matches.map(p => `<button type="button" data-norm="${p.norm}" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[13px] hover:bg-white/5">
-        <span class="flex items-center gap-2 min-w-0"><span class="inline-flex px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span><span class="truncate">${Vault.escapeHtml(p.name)}</span><span class="text-zinc-500 text-[11px]">${p.team}</span></span>
+        <span class="flex items-center gap-2 min-w-0"><span class="inline-flex px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span><span class="truncate">${Vault.escapeHtml(p.name)}</span><span class="text-zinc-500 text-[12px]">${p.team}</span></span>
         <span class="mono text-[12px] text-zinc-400">${fmt(p.value)}</span></button>`).join('') || '<div class="px-3 py-2 text-[12px] text-zinc-400">No match</div>';
     list.classList.remove('hidden');
     list.querySelectorAll('button').forEach(b => b.onmousedown = e => { e.preventDefault(); choose(b.dataset.norm); });
@@ -311,7 +311,7 @@ function renderTradeLink(ps) {
 function ownerLine(p) {
   if (!p.owner) return 'Free agent in your league';
   const mine = Vault.myTeam(teamsBuilt);
-  return `On ${Vault.escapeHtml(p.owner.teamName)}${mine === p.owner ? ' <span class="align-middle ml-1 text-[10px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}`;
+  return `On ${Vault.escapeHtml(p.owner.teamName)}${mine === p.owner ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}`;
 }
 
 function renderCards(ps) {
@@ -322,7 +322,7 @@ function renderCards(ps) {
              class="size-14 rounded-full object-cover bg-white/5 shrink-0" onerror="this.onerror=null; this.src='https://sleepercdn.com/images/v2/icons/player_default.webp';"/>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 mb-1">
-            <span class="inline-flex px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span>
+            <span class="inline-flex px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span>
             <span class="text-[12px] text-zinc-400">${p.team}${p.rookie ? ' · Rookie' : ''}</span>
           </div>
           <div class="text-[20px] font-semibold text-zinc-100 leading-tight break-words">${Vault.escapeHtml(p.name)}</div>
@@ -330,13 +330,13 @@ function renderCards(ps) {
         </div>
         <div class="text-right shrink-0">
           <div class="mono text-[22px] font-semibold text-zinc-100">${fmt(p.value)}</div>
-          <div class="text-[11px] text-zinc-400">${p.pos}${p.valueRank} by value</div>
+          <div class="text-[12px] text-zinc-400">${p.pos}${p.valueRank} by value</div>
         </div>
       </div>
       <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/5 text-center">
-        <div><div class="mono text-[14px]">${Number.isFinite(p.age) ? p.age.toFixed(1) : '—'}</div><div class="text-[11px] text-zinc-400">Age</div></div>
-        <div><div class="mono text-[14px]">${p.exp != null ? (p.exp === 0 ? 'Rookie' : p.exp + ' yr') : '—'}</div><div class="text-[11px] text-zinc-400">NFL exp</div></div>
-        <div><div class="mono text-[14px]">${Number.isFinite(p.ppg) ? p.ppg.toFixed(1) : '—'}</div><div class="text-[11px] text-zinc-400">Proj. PPG</div></div>
+        <div><div class="mono text-[14px]">${Number.isFinite(p.age) ? p.age.toFixed(1) : '—'}</div><div class="text-[12px] text-zinc-400">Age</div></div>
+        <div><div class="mono text-[14px]">${p.exp != null ? (p.exp === 0 ? 'Rookie' : p.exp + ' yr') : '—'}</div><div class="text-[12px] text-zinc-400">NFL exp</div></div>
+        <div><div class="mono text-[14px]">${Number.isFinite(p.ppg) ? p.ppg.toFixed(1) : '—'}</div><div class="text-[12px] text-zinc-400">Proj. PPG</div></div>
       </div>
     </div>`).join('');
 }
@@ -352,7 +352,7 @@ function renderChart() {
   if (ps.length < 2) return;
   document.querySelectorAll('.win-btn').forEach(btn => {
     const on = !customRange && +btn.dataset.days === windowDays;
-    btn.className = `win-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
+    btn.className = `win-btn text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
   });
   const all = ps.map(p => seriesFor(p.norm));
   const lastDate = histSnaps.length ? histSnaps[histSnaps.length - 1].date : '';
@@ -389,7 +389,7 @@ function renderChart() {
   const y = v => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
 
   const grid = [];
-  for (let v = lo; v <= hi + 1e-9; v += step) grid.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(255,255,255,0.06)"/><text x="${m.l - 8}" y="${y(v) + 4}" fill="#a1a1aa" font-size="11" text-anchor="end" font-family="JetBrains Mono, monospace">${Math.round(v).toLocaleString()}</text>`);
+  for (let v = lo; v <= hi + 1e-9; v += step) grid.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(255,255,255,0.06)"/><text x="${m.l - 8}" y="${y(v) + 4}" fill="#a1a1aa" font-size="11" text-anchor="end" font-family="Inter, sans-serif">${Math.round(v).toLocaleString()}</text>`);
   const spanDays = (new Date(dates[dates.length - 1]) - new Date(dates[0])) / 864e5;
   const fmtTick = d => new Date(d + 'T12:00:00').toLocaleDateString(undefined, spanDays < 120 ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' });
   const nTicks = W < 500 ? 3 : 5;
@@ -628,8 +628,8 @@ function renderStatsPanel(ps) {
     const list = StatCatalog.STATS.filter(s => s.cat === cat && s.pos.some(p => posSet.has(p)));
     if (!list.length) return '';
     return `<div class="mb-3"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">${label}</div><div class="flex flex-wrap gap-1.5">${list.map(s =>
-      `<button type="button" data-stat="${s.id}" title="${Vault.escapeHtml(s.tip || '')}" class="text-[11px] px-2 py-1 rounded-md border transition-colors ${shown.has(s.id) ? 'bg-amber-500/15 border-amber-500/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${s.label}</button>`).join('')}</div></div>`;
-  }).join('') + `<div class="flex justify-between items-center pt-2 border-t border-white/5"><button type="button" id="statsDefaults" class="text-[11px] text-zinc-400 hover:text-white">Reset to defaults</button><button type="button" id="statsDone" class="text-[11px] px-3 py-1 rounded-lg btn-gold-solid">Done</button></div>`;
+      `<button type="button" data-stat="${s.id}" title="${Vault.escapeHtml(s.tip || '')}" class="text-[12px] px-2 py-1 rounded-md border transition-colors ${shown.has(s.id) ? 'bg-amber-500/15 border-amber-500/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${s.label}</button>`).join('')}</div></div>`;
+  }).join('') + `<div class="flex justify-between items-center pt-2 border-t border-white/5"><button type="button" id="statsDefaults" class="text-[12px] text-zinc-400 hover:text-white">Reset to defaults</button><button type="button" id="statsDone" class="text-[12px] px-3 py-1 rounded-lg btn-gold-solid">Done</button></div>`;
   $('statsPanel').querySelectorAll('[data-stat]').forEach(b => b.onclick = () => {
     const set = new Set(shownStats(players()).map(s => s.id));
     set.has(b.dataset.stat) ? set.delete(b.dataset.stat) : set.add(b.dataset.stat);
@@ -657,9 +657,9 @@ function renderWeekChips(sd, ps) {
   const all = Array.from({ length: sd.maxWeek }, (_, i) => i + 1);
   const on = wk => !selWeeks || selWeeks.has(wk);
   const quick = [['All', null], ['Last 4', all.slice(-4)], ['Last 8', all.slice(-8)]];
-  box.innerHTML = `<span class="text-[11px] text-zinc-400 mr-1">Games</span>` +
-    all.map(wk => `<button type="button" data-wk="${wk}" aria-pressed="${on(wk)}" class="size-7 text-[11px] rounded-md border transition-colors ${on(wk) ? 'bg-amber-500/15 border-amber-500/40 text-amber-100' : 'border-white/10 text-zinc-500 hover:text-white'}">${wk}</button>`).join('') +
-    quick.map(([l, wks], i) => `<button type="button" data-quick="${i}" class="text-[11px] px-2 py-1 rounded-md border border-white/10 text-zinc-400 hover:text-white ml-${i ? 1 : 2}">${l}</button>`).join('');
+  box.innerHTML = `<span class="text-[12px] text-zinc-400 mr-1">Games</span>` +
+    all.map(wk => `<button type="button" data-wk="${wk}" aria-pressed="${on(wk)}" class="size-7 text-[12px] rounded-md border transition-colors ${on(wk) ? 'bg-amber-500/15 border-amber-500/40 text-amber-100' : 'border-white/10 text-zinc-500 hover:text-white'}">${wk}</button>`).join('') +
+    quick.map(([l, wks], i) => `<button type="button" data-quick="${i}" class="text-[12px] px-2 py-1 rounded-md border border-white/10 text-zinc-400 hover:text-white ml-${i ? 1 : 2}">${l}</button>`).join('');
   box.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => {
     const set = new Set(selWeeks || all), wk = +b.dataset.wk;
     set.has(wk) ? set.delete(wk) : set.add(wk);
@@ -677,7 +677,7 @@ async function renderStats() {
   const token = ++statsToken;
   document.querySelectorAll('.mode-btn').forEach(btn => {
     const on = btn.dataset.mode === statMode;
-    btn.className = `mode-btn text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
+    btn.className = `mode-btn text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
   });
   const single = statSeason !== 'career';
   $('gameLogWrap').classList.toggle('hidden', !single);
@@ -704,7 +704,7 @@ async function renderStats() {
     StatCatalog.CATS.forEach(([cat, catLabel]) => {
       const list = stats.filter(s => s.cat === cat);
       if (!list.length) return;
-      body += `<tr><td colspan="${ps.length + 1}" class="px-3 pt-4 pb-1 text-[11px] uppercase tracking-wider text-amber-300/70">${catLabel}</td></tr>`;
+      body += `<tr><td colspan="${ps.length + 1}" class="px-3 pt-4 pb-1 text-[11px] uppercase tracking-wider text-zinc-400">${catLabel}</td></tr>`;
       list.forEach(stat => {
         const vals = ps.map((p, i) => stat.pos.includes(p.pos) ? (stat.id === 'finish' ? (aggs[i]?.finish ?? null) : modeValue(stat, aggs[i])) : null);
         // Best among the compared players (only if they all share the stat's scale).
@@ -717,7 +717,7 @@ async function renderStats() {
           const v = vals[i];
           const r = single && stat.better && v != null ? rankOf(ranksByPos.get(p.pos)?.byStat.get(stat.id), stat, p.pid) : null;
           const heat = r && r.n > 1 ? Vault.heatColor(1 - (r.rank - 1) / (r.n - 1)).replace('rgb(', 'rgba(').replace(')', ',0.7)') : 'rgba(255,255,255,0.08)';
-          const rankTxt = r && stat.kind !== 'rank' ? `<span class="text-[10px] text-zinc-500 w-9 inline-block text-left" title="${r.rank} of ${r.n} qualified ${p.pos}s">#${r.rank}</span>` : `<span class="w-9 inline-block"></span>`;
+          const rankTxt = r && stat.kind !== 'rank' ? `<span class="text-[11px] text-zinc-500 w-9 inline-block text-left" title="${r.rank} of ${r.n} qualified ${p.pos}s">#${r.rank}</span>` : `<span class="w-9 inline-block"></span>`;
           return `<td class="px-3 py-1.5 text-right mono whitespace-nowrap ${i === best ? 'win' : 'text-zinc-300'}"><span class="inline-flex items-center gap-1.5 justify-end">${i === best ? `<span class="sw sw${i + 1}" title="Best of these players"></span>` : ''}<span class="inline-block min-w-[3.6rem] px-1.5 py-0.5 rounded border" style="border-color:${v == null ? 'transparent' : heat}">${fmtStat(stat, v)}</span>${single ? rankTxt : ''}</span></td>`;
         }).join('');
         body += `<tr class="border-t border-white/5"><td class="px-3 py-1.5 text-zinc-400 whitespace-nowrap" title="${Vault.escapeHtml(stat.tip || '')}">${stat.id === 'fp' && statMode === 'game' ? 'Fantasy points per game' : stat.label}${stat.kind === 'weeks' && statMode === 'game' ? ' <span class="text-zinc-500">(% of games)</span>' : ''}</td>${cells}</tr>`;
@@ -744,7 +744,7 @@ function renderGameLog(ps, sd) {
     const pts = games.map(g => g ? g.pts : NaN), f = pts.filter(Number.isFinite);
     const top = f.length >= 2 ? Math.max(...f) : NaN, topIdx = pts.filter(v => v === top).length === 1 ? pts.indexOf(top) : -1;
     return `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${wk}</td>${games.map((g, i) => g
-      ? `<td class="px-3 py-2 text-right mono ${i === topIdx ? 'win' : 'text-zinc-300'} whitespace-nowrap"><span class="inline-flex items-center gap-2 justify-end">${i === topIdx ? `<span class="sw sw${i + 1}" title="Top score this week"></span>` : ''}<span class="text-zinc-500 text-[11px]">${g.away ? '@' : 'vs'} ${g.opp}</span>${g.pts.toFixed(1)}<span class="text-zinc-500 text-[11px]">${ps[i].pos}${g.finish}</span></span></td>`
+      ? `<td class="px-3 py-2 text-right mono ${i === topIdx ? 'win' : 'text-zinc-300'} whitespace-nowrap"><span class="inline-flex items-center gap-2 justify-end">${i === topIdx ? `<span class="sw sw${i + 1}" title="Top score this week"></span>` : ''}<span class="text-zinc-500 text-[12px]">${g.away ? '@' : 'vs'} ${g.opp}</span>${g.pts.toFixed(1)}<span class="text-zinc-500 text-[12px]">${ps[i].pos}${g.finish}</span></span></td>`
       : '<td class="px-3 py-2 text-right mono text-zinc-500">—</td>').join('')}</tr>`;
   }).join('');
   $('gameLog').innerHTML = rows ? headRow(ps, 'Week') + '<tbody>' + rows + '</tbody>' : '<tbody><tr><td class="px-3 py-2 text-zinc-400">No games in the weeks picked.</td></tr></tbody>';
@@ -755,7 +755,7 @@ function renderBySeason(ps) {
   const cell = (p, yr) => {
     const st = p.seasons?.[yr]; if (!st || !st.gp) return '<td class="px-3 py-2 text-right mono text-zinc-500">—</td>';
     const f = seasonFinish.get(`${p.pid}-${yr}`);
-    return `<td class="px-3 py-2 text-right mono text-zinc-300 whitespace-nowrap">${Vault.playerSeasonPpg(st, scoring).toFixed(1)} <span class="text-zinc-500 text-[11px]">${f ? `${p.pos}${f.posRank}` : ''} · ${st.gp} gp</span></td>`;
+    return `<td class="px-3 py-2 text-right mono text-zinc-300 whitespace-nowrap">${Vault.playerSeasonPpg(st, scoring).toFixed(1)} <span class="text-zinc-500 text-[12px]">${f ? `${p.pos}${f.posRank}` : ''} · ${st.gp} gp</span></td>`;
   };
   $('bySeason').innerHTML = years.length ? headRow(ps, 'Season') + '<tbody>' + years.map(yr => `<tr class="border-t border-white/5"><td class="px-3 py-2 text-zinc-400">${yr}</td>${ps.map(p => cell(p, yr)).join('')}</tr>`).join('') + '</tbody>'
     : '<tbody><tr><td class="px-3 py-2 text-zinc-400">No completed seasons yet.</td></tr></tbody>';

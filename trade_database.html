@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trade Database — The Vault</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
 <link rel="stylesheet" href="tailwind.css">
 </head>
@@ -34,10 +34,10 @@
     <span class="text-[11px] text-zinc-400 uppercase tracking-wider shrink-0">for</span>
     <input id="searchSideB" type="text" autocomplete="off" placeholder="e.g. Brock Purdy"
       class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
-    <button id="searchClear" class="hidden shrink-0 text-[11px] text-zinc-400 hover:text-white px-2">Clear</button>
+    <button id="searchClear" class="hidden shrink-0 text-[12px] text-zinc-400 hover:text-white px-2">Clear</button>
   </div>
 
-  <div id="resultCount" class="text-[11px] text-zinc-400 mb-3"></div>
+  <div id="resultCount" class="text-[12px] text-zinc-400 mb-3"></div>
   <div id="list" class="space-y-4"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
@@ -84,7 +84,7 @@ function assetChips(ids, playerMap, pickMap) {
   if (!ids.length) return '<span class="text-zinc-400">Nothing</span>';
   return ids.map(id => {
     const a = assetLabel(id, playerMap, pickMap);
-    return `<span class="inline-flex items-center gap-1.5 mr-3 mb-1">${a.pos ? `<span class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span>` : ''}<span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span>${a.value > 0 ? `<span class="text-zinc-400 text-[12px] mono">${Math.round(a.value).toLocaleString()}</span>` : ''}</span>`;
+    return `<span class="inline-flex items-center gap-1.5 mr-3 mb-1">${a.pos ? `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span>` : ''}<span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span>${a.value > 0 ? `<span class="text-zinc-400 text-[12px] mono">${Math.round(a.value).toLocaleString()}</span>` : ''}</span>`;
   }).join('');
 }
 
@@ -110,7 +110,7 @@ function renderCard(t, playerMap, pickMap) {
     <div class="card rounded-vault-sm p-5">
       <div class="flex items-center justify-between gap-3 mb-3">
         <div class="text-[12px] text-zinc-400 mono">${date}</div>
-        ${m ? `<div class="flex items-center gap-2" title="At today's KTC prices, with KTC's consolidation adjustment — the same math as the Trade Calculator"><span class="text-[11px] text-zinc-400">${Math.floor(Math.min(100, m.pct))}% off${Math.abs(m.signed) >= 1 ? ` · favors Team ${m.signed > 0 ? 2 : 1}` : ''}</span><span class="text-[11px] px-2 py-0.5 rounded-md border ${BUCKET_PILL[m.bucket]}">${m.bucket}</span></div>` : ''}
+        ${m ? `<div class="flex items-center gap-2" title="At today's KTC prices, with KTC's consolidation adjustment — the same math as the Trade Calculator"><span class="text-[12px] text-zinc-400">${Math.floor(Math.min(100, m.pct))}% off${Math.abs(m.signed) >= 1 ? ` · favors Team ${m.signed > 0 ? 2 : 1}` : ''}</span><span class="text-[12px] px-2 py-0.5 rounded-md border ${BUCKET_PILL[m.bucket]}">${m.bucket}</span></div>` : ''}
       </div>
       ${m ? `<div class="max-w-xs mb-3">${Vault.fairnessBarHtml(m.signed, 0)}</div>` : ''}
       <div class="grid md:grid-cols-2 gap-4">
@@ -192,7 +192,7 @@ async function init() {
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <div class="text-[13px] font-medium text-zinc-200">${sig.teams}-team, ${isSF ? 'Superflex' : '1QB'}, ${pprLabel(sig.ppr)}, ${tepLabel(sig.tep)}, ${sig.starters} starters</div>
-          <div class="text-[11px] text-amber-300/70 mt-1">${TIER_LABEL[tier]}</div>
+          <div class="text-[12px] text-amber-300/70 mt-1">${TIER_LABEL[tier]}</div>
         </div>
         <div class="text-[12px] text-zinc-400 shrink-0">${pool.length.toLocaleString()} matching trade${pool.length === 1 ? '' : 's'} found</div>
       </div>

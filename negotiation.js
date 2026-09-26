@@ -467,19 +467,19 @@ function negAskHtml(r, i) {
   const theirs = teamOf(r.R).assets;
   const nfl = [...new Set(theirs.filter(a => a.type === 'player' && a.nfl && a.value >= 500).map(a => a.nfl))].sort();
   const on = p => r.ask && r.ask.pref === p;
-  const chip = (p, label) => `<button onclick="negAsk(${i}, '${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on(p) ? 'bg-violet-500/15 border-violet-500/40 text-violet-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`;
+  const chip = (p, label) => `<button onclick="negAsk(${i}, '${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on(p) ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`;
   const res = r.ask ? (r.ask.list.length ? `${r.ask.closest ? `<div class="text-[12px] text-amber-300 mt-2">Nothing Fair works with ${Vault.escapeHtml(r.ask.label)}. The closest they'd take:</div>` : ''}<div class="grid gap-2 sm:grid-cols-3 mt-2">${r.ask.list.map((o, k) => {
       const lop = o.edge >= VAULT_CONFIG.FAIR_PCT;
       return `<div class="p-2.5 rounded-lg border ${lop ? 'border-amber-500/20' : 'border-white/10'} bg-black/30 flex flex-col">
         <div class="text-[12px] text-zinc-300">They'd send <span class="text-zinc-100 font-medium">${negNames(negAssets(r.R, o.keys))}</span></div>
-        <div class="text-[11px] mt-1 ${lop ? 'text-amber-300' : 'text-zinc-400'}">${negLean(-o.edge)}</div>
-        <button onclick="negAskOffer(${i}, ${k})" class="mt-2 self-start text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid">Offer this</button>
+        <div class="text-[12px] mt-1 ${lop ? 'text-amber-300' : 'text-zinc-400'}">${negLean(-o.edge)}</div>
+        <button onclick="negAskOffer(${i}, ${k})" class="mt-2 self-start text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Offer this</button>
       </div>`;
     }).join('')}</div>` : `<div class="text-[12px] text-zinc-400 mt-2">They wouldn't do any ${Vault.escapeHtml(r.ask.label)} deal for what you're offering, even a lopsided one.</div>`) : '';
   return `<div class="mt-3 pt-3 border-t border-white/5">
-      <div class="text-[11px] text-zinc-400 mb-1.5">Ask for something else for ${negNames(negAssets(r.O, r.offer[r.O]))}:</div>
+      <div class="text-[12px] text-zinc-400 mb-1.5">Ask for something else for ${negNames(negAssets(r.O, r.offer[r.O]))}:</div>
       <div class="flex flex-wrap gap-1.5 items-center">${NEG_ASKS.map(([p, l]) => chip(p, l)).join('')}
-        ${nfl.length ? `<select onchange="negAsk(${i}, 'nfl', this.value)" class="text-[11px] px-2 py-1 rounded-lg border ${on('nfl') ? 'border-violet-500/40 text-violet-200 bg-violet-500/15' : 'border-white/10 text-zinc-400 bg-black/40'}">
+        ${nfl.length ? `<select onchange="negAsk(${i}, 'nfl', this.value)" class="text-[12px] px-2 py-1 rounded-lg border ${on('nfl') ? 'border-amber-400/40 text-amber-100 bg-amber-400/10' : 'border-white/10 text-zinc-400 bg-black/40'}">
           <option value="">From an NFL team…</option>${nfl.map(n => `<option value="${n}" ${on('nfl') && r.ask.arg === n ? 'selected' : ''}>${n}</option>`).join('')}</select>` : ''}
       </div>
       ${res}
@@ -528,18 +528,18 @@ function negLean(you) {
 // other workable moves after it, each one click.
 function negReasonsHtml(r) {
   const R = r.reasons;
-  const list = (title, items, dot) => items.length ? `<div class="mb-1.5"><div class="text-[11px] text-zinc-500 mb-0.5">${title}</div><ul class="space-y-0.5">${items.map(t => `<li class="text-[12px] text-zinc-300 flex gap-2"><span class="${dot} mt-[7px] size-1.5 shrink-0 rounded-full"></span><span>${t}</span></li>`).join('')}</ul></div>` : '';
+  const list = (title, items, dot) => items.length ? `<div class="mb-1.5"><div class="text-[12px] text-zinc-500 mb-0.5">${title}</div><ul class="space-y-0.5">${items.map(t => `<li class="text-[12px] text-zinc-300 flex gap-2"><span class="${dot} mt-[7px] size-1.5 shrink-0 rounded-full"></span><span>${t}</span></li>`).join('')}</ul></div>` : '';
   const yes = list('What they like', R.yes, 'bg-emerald-400/80'), no = list('What gives them pause', R.no, 'bg-rose-400/80');
   return `<div class="mb-2">${r.decision === 'accept' ? yes + no : no + yes}
       <div class="text-[12px] text-zinc-200">${R.summary}</div>
-      ${R.style ? `<div class="text-[11px] text-zinc-500 mt-0.5">${R.style}</div>` : ''}
+      ${R.style ? `<div class="text-[12px] text-zinc-500 mt-0.5">${R.style}</div>` : ''}
     </div>`;
 }
 
 function negCoachHtml(r, i) {
   const c = r.coach;
   if (!c) return '';
-  const btn = (label, onclick, primary) => `<button onclick="${onclick}" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg ${primary ? 'btn-gold-solid' : 'border border-white/10 text-zinc-300 hover:text-white'}">${label}</button>`;
+  const btn = (label, onclick, primary) => `<button onclick="${onclick}" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg ${primary ? 'btn-gold-solid' : 'border border-white/10 text-zinc-300 hover:text-white'}">${label}</button>`;
   const items = {
     send: c.send && { title: 'Send this offer as is', detail: `They'd take it. ${negLean(c.send.you)}`, action: primary => btn('Copy trade link', 'shareTrade(this)', primary) },
     accept: c.accept && { title: 'Accept their counter', detail: `${negLean(c.accept.you)}${c.accept.tone === 'bad' ? ' It grades as a poor deal for your team, though.' : ''}`, action: primary => btn('Accept their counter', `negAcceptCounter(${i})`, primary) },
@@ -550,12 +550,12 @@ function negCoachHtml(r, i) {
   if (c.primary === 'walk') items.walk.detail = 'Nothing that works for them is fair for you right now — keep what you have.';
   const order = [c.primary, ...['send', 'accept', 'cb', 'shop', 'walk'].filter(k => k !== c.primary)].filter(k => items[k]);
   const row = (k, primary) => `<div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${primary ? '' : 'py-1.5 border-t border-white/5'}">
-      <div class="min-w-0"><div class="text-[12px] ${primary ? 'text-zinc-100 font-medium' : 'text-zinc-300'}">${items[k].title}</div><div class="text-[11px] text-zinc-400">${items[k].detail}</div></div>
+      <div class="min-w-0"><div class="text-[12px] ${primary ? 'text-zinc-100 font-medium' : 'text-zinc-300'}">${items[k].title}</div><div class="text-[12px] text-zinc-400">${items[k].detail}</div></div>
       ${items[k].action(primary)}</div>`;
-  return `<div class="mt-3 p-3 rounded-lg border border-sky-500/25 bg-sky-500/[0.05]">
-      <div class="text-[11px] uppercase tracking-wider text-sky-300/80 mb-1.5">Recommended next step</div>
+  return `<div class="mt-3 p-3 rounded-lg border border-white/10 bg-white/[0.03]">
+      <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">Recommended next step</div>
       ${row(order[0], true)}
-      ${order.length > 1 ? `<div class="text-[11px] text-zinc-500 mt-3 mb-0.5">Other options</div>${order.slice(1).map(k => row(k, false)).join('')}` : ''}
+      ${order.length > 1 ? `<div class="text-[12px] text-zinc-500 mt-3 mb-0.5">Other options</div>${order.slice(1).map(k => row(k, false)).join('')}` : ''}
     </div>`;
 }
 
@@ -575,32 +575,32 @@ function negRender() {
   box.innerHTML = `
     <div class="flex items-center justify-between gap-3 flex-wrap mb-1">
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Negotiating with ${who} <span class="normal-case tracking-normal text-zinc-500">· ${Vault.MODE_LABEL[Vault.teamMode(rTeam)]}${ctx.style && ctx.style.trades ? ` · ${Vault.escapeHtml(ctx.style.style)}` : ''}</span></div>
-      <button onclick="negReset()" class="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-400 hover:text-white">Start over</button>
+      <button onclick="negReset()" class="text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-400 hover:text-white">Start over</button>
     </div>
-    <p class="text-[11px] text-zinc-500 mb-3">Send the real offer in Sleeper.</p>
+    <p class="text-[12px] text-zinc-500 mb-3">Send the real offer in Sleeper.</p>
     <div class="space-y-3">${Negotiation.rounds.map((r, i) => {
       const [label, cls] = NEG_PILL[r.decision];
       if (r.decision === 'deal') return `<div class="p-3 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20">
-          <div class="flex items-center gap-2 mb-1"><span class="text-[11px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-300">You accepted their counter.</span></div>
+          <div class="flex items-center gap-2 mb-1"><span class="text-[12px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-300">You accepted their counter.</span></div>
           <div class="text-[12px]">${negTradeLine(r.offer, r.O)}</div>
-          <div class="text-[11px] text-zinc-400 mt-1.5">It's loaded in the calculator above — use Share to send yourself the link, then make the offer in Sleeper.</div></div>`;
-      if (r.decision === 'walk') return `<div class="p-3 rounded-xl bg-black/30"><div class="flex items-center gap-2"><span class="text-[11px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">No deal with ${who}. Try Suggest a Trade for other partners, or Start over.</span></div></div>`;
+          <div class="text-[12px] text-zinc-400 mt-1.5">It's loaded in the calculator above — use Share to send yourself the link, then make the offer in Sleeper.</div></div>`;
+      if (r.decision === 'walk') return `<div class="p-3 rounded-xl bg-black/30"><div class="flex items-center gap-2"><span class="text-[12px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">No deal with ${who}. Try Suggest a Trade for other partners, or Start over.</span></div></div>`;
       const last = i === Negotiation.rounds.length - 1;
       return `<div class="p-3 rounded-xl bg-black/30">
-        <div class="text-[11px] text-zinc-500 mb-1">Round ${i + 1} · your offer</div>
+        <div class="text-[12px] text-zinc-500 mb-1">Round ${i + 1} · your offer</div>
         <div class="text-[12px] mb-2">${negTradeLine(r.offer, r.O)}</div>
-        <div class="flex items-center gap-2 mb-1.5"><span class="text-[11px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">${who}</span></div>
+        <div class="flex items-center gap-2 mb-1.5"><span class="text-[12px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">${who}</span></div>
         ${r.reply ? `<div class="mb-2.5 px-3 py-2 rounded-lg rounded-tl-sm bg-white/[0.04] border border-white/10 text-[13px] text-zinc-100">"${r.reply}"</div>` : ''}
         ${negReasonsHtml(r)}
         ${r.decision === 'accept' && r.edge >= VAULT_CONFIG.FAIR_PCT ? `<div class="text-[12px] text-amber-300 mb-1.5">Heads up: they'd accept because it now leans ${capPct(r.edge).toFixed(0)}% their way — ${r.edge >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided'} for you.${negAssets(r.O, r.offer[r.O]).length < negAssets(r.R, r.offer[r.R]).length ? ' On KTC\'s math, extra smaller pieces on your side count for less than the premium on the best player in the deal, so asking for a throw-in can make it worse for you.' : ''}</div>` : ''}
-        ${r.decision === 'accept' ? `<div class="text-[11px] text-zinc-400">They'd take this as offered — make the offer in Sleeper.</div>` : ''}
-        ${r.interests?.length ? `<div class="text-[11px] text-zinc-400 mb-1.5">On your roster, they'd be more interested in:</div>
-          <div class="flex flex-wrap gap-1.5 mb-2">${negAssets(r.O, r.interests).map(a => `<button onclick="negAddInterest('${a.key}')" title="Add to your side" class="text-[11px] px-2 py-1 rounded-md border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40">+ ${Vault.escapeHtml(a.name)} <span class="mono text-zinc-500">${Math.round(a.value).toLocaleString()}</span></button>`).join('')}</div>` : ''}
+        ${r.decision === 'accept' ? `<div class="text-[12px] text-zinc-400">They'd take this as offered — make the offer in Sleeper.</div>` : ''}
+        ${r.interests?.length ? `<div class="text-[12px] text-zinc-400 mb-1.5">On your roster, they'd be more interested in:</div>
+          <div class="flex flex-wrap gap-1.5 mb-2">${negAssets(r.O, r.interests).map(a => `<button onclick="negAddInterest('${a.key}')" title="Add to your side" class="text-[12px] px-2 py-1 rounded-md border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40">+ ${Vault.escapeHtml(a.name)} <span class="mono text-zinc-500">${Math.round(a.value).toLocaleString()}</span></button>`).join('')}</div>` : ''}
         ${r.counter ? `<div class="mt-2 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.04]">
             <div class="text-[12px] text-amber-200 mb-1">${r.counter.text}</div>
             <div class="text-[12px] mb-1">${negTradeLine(r.counter, r.O)}</div>
-            <div class="text-[11px] text-zinc-400 mb-2">Leans ${capPct(Math.abs(r.counter.edge)).toFixed(0)}% ${r.counter.edge >= 0 ? 'their way' : 'your way'} — still Fair for you.</div>
-            ${last ? `<div class="flex flex-wrap gap-2">${r.coach ? '' : `<button onclick="negAcceptCounter(${i})" class="text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid">Accept their counter</button>`}<button onclick="negEditCounter(${i})" class="text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Edit it and counter back</button></div>` : ''}
+            <div class="text-[12px] text-zinc-400 mb-2">Leans ${capPct(Math.abs(r.counter.edge)).toFixed(0)}% ${r.counter.edge >= 0 ? 'their way' : 'your way'} — still Fair for you.</div>
+            ${last ? `<div class="flex flex-wrap gap-2">${r.coach ? '' : `<button onclick="negAcceptCounter(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Accept their counter</button>`}<button onclick="negEditCounter(${i})" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Edit it and counter back</button></div>` : ''}
           </div>` : ''}
         ${last ? negAskHtml(r, i) : ''}
         ${last ? negCoachHtml(r, i) : ''}
@@ -619,5 +619,5 @@ function renderOfferButton() {
   const O = negOfferingSide(), R = negOther(O);
   const done = Negotiation.rounds.length && ['deal', 'walk'].includes(Negotiation.rounds[Negotiation.rounds.length - 1].decision);
   const label = done ? 'Negotiate again' : Negotiation.rounds.length ? 'Send revised offer' : `Offer to ${Vault.escapeHtml(teamOf(R).teamName)}`;
-  el.innerHTML = `<button onclick="${done ? 'negReset(); negOffer(this)' : 'negOffer(this)'}" title="See how ${Vault.escapeHtml(teamOf(R).teamName)} would likely respond — accept, decline, or counter" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors">${label}</button>`;
+  el.innerHTML = `<button onclick="${done ? 'negReset(); negOffer(this)' : 'negOffer(this)'}" title="See how ${Vault.escapeHtml(teamOf(R).teamName)} would likely respond — accept, decline, or counter" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors">${label}</button>`;
 }

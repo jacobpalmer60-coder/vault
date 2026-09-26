@@ -1974,23 +1974,35 @@ const Vault = {
       </div>`;
   },
 
-  // The three per-factor mini bars under the overall bar — what the overall
-  // number is made of. Value is labeled "KTC value" on purpose: it's the one a
-  // manager can go check, and the other two are clearly labeled as ours.
-  fairnessBreakdownHtml(fair, teamAName, teamBName) {
-    const who = x => Math.abs(x) < 1 ? 'Even'
-      : `${Vault.escapeHtml(x > 0 ? teamBName : teamAName)} +${Math.floor(Math.min(Math.abs(x), VAULT_CONFIG.FAIRNESS_FACTOR_CAP))}${Math.abs(x) > VAULT_CONFIG.FAIRNESS_FACTOR_CAP ? '+' : ''}`;
-    const w = VAULT_CONFIG.FAIRNESS_WEIGHTS;
+  // The overall bar and the three factor bars it's made of (KTC value, roster
+  // fit, timeline) in ONE grid, so all four share the same width and center.
+  // Each team's full name labels its end of the bars once, above them, and each
+  // row's number just points toward the side it favors, so nothing truncates.
+  // Value is labeled "KTC value" on purpose: it's the one a manager can go
+  // check; the other two are clearly labeled as ours.
+  fairnessPanelHtml(fair, bandPct, teamAName, teamBName, overallText) {
+    const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, w = VAULT_CONFIG.FAIRNESS_WEIGHTS, esc = Vault.escapeHtml;
+    const lean = x => {
+      if (Math.abs(x) < 1) return 'Even';
+      const n = `${Math.floor(Math.min(Math.abs(x), cap))}${Math.abs(x) > cap ? '+' : ''}`;
+      return x > 0 ? `${n} →` : `← ${n}`;
+    };
     const row = (label, weight, x, title) => `
-      <div class="grid grid-cols-[92px_minmax(0,1fr)_minmax(0,120px)] items-center gap-2" title="${title}">
-        <div class="text-[11px] text-zinc-400">${label} <span class="text-zinc-500">${weight}%</span></div>
-        ${Vault.fairnessBarHtml(x, 0, true)}
-        <div class="text-[11px] text-zinc-400 text-right truncate">${who(x)}</div>
-      </div>`;
-    return `<div class="space-y-1">
+      <div class="text-[12px] text-zinc-400 whitespace-nowrap" title="${title}">${label} <span class="text-zinc-500">${weight}%</span></div>
+      <div title="${title}">${Vault.fairnessBarHtml(x, 0, true)}</div>
+      <div class="text-[12px] text-zinc-300 text-right tabular-nums whitespace-nowrap">${lean(x)}</div>`;
+    return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
+      <div></div>
+      <div class="flex justify-between items-end gap-4 text-[12px] leading-snug text-zinc-400">
+        <span class="min-w-0">← ${esc(teamAName)}</span><span class="min-w-0 text-right">${esc(teamBName)} →</span>
+      </div>
+      <div></div>
+      <div class="text-[13px] font-medium text-zinc-100 whitespace-nowrap">Overall</div>
+      <div>${Vault.fairnessBarHtml(fair.overallSigned, bandPct)}</div>
+      <div class="text-[13px] font-medium text-zinc-100 text-right tabular-nums whitespace-nowrap">${overallText}</div>
       ${row('KTC value', w.value, fair.value, "KTC's own consolidation-adjusted value — the number you can check on KeepTradeCut.")}
       ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}
-      ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend mode, archetype, and contention window.')}
+      ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend timeline, archetype, and contention window.')}
     </div>`;
   },
 

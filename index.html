@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Vault — Sleeper x KeepTradeCut</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vault.css">
   <link rel="stylesheet" href="tailwind.css">
 </head>
@@ -14,11 +14,9 @@
   <main class="min-h-screen flex items-center justify-center px-4 py-12">
     <div class="w-full max-w-xl fade-in">
       <div class="text-center mb-8">
-        <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-amber-300 to-yellow-600 p-[1.5px] shadow-[0_0_30px_rgba(250,204,21,0.3)]">
-          <div class="size-full rounded-2xl bg-black grid place-items-center"><span class="display text-xl gold-text">V</span></div>
-        </div>
-        <h1 class="display mt-4 text-[42px] font-bold gold-text">The Vault</h1>
-        <p class="mt-1 text-sm uppercase tracking-widest text-amber-400/90">Sleeper x KeepTradeCut</p>
+        <div class="size-14 mx-auto rounded-2xl bg-amber-400 grid place-items-center"><span class="text-[26px] font-bold text-[#1c1406] leading-none">V</span></div>
+        <h1 class="display mt-5 text-[42px] font-semibold gold-text">The Vault</h1>
+        <p class="mt-2 text-[15px] text-zinc-400 max-w-md mx-auto text-balance">Dynasty trade grades, rankings, and league insight for your Sleeper league, priced with KeepTradeCut values.</p>
       </div>
 
       <div class="card rounded-vault-sm p-7 sm:p-9">
@@ -26,7 +24,7 @@
         <div id="step-username">
           <label class="block text-sm font-medium text-zinc-300 mb-2">Sleeper Username</label>
           <div class="flex gap-2">
-            <input id="username" type="text" placeholder="Username" class="flex-1 min-w-0 h-12 px-4 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 focus:shadow-[0_0_0_3px_rgba(250,204,21,0.1)] outline-none transition-shadow" />
+            <input id="username" type="text" placeholder="Username" class="flex-1 min-w-0 h-12 px-4 rounded-xl bg-black/40 border border-white/10 focus:border-amber-400/60 outline-none transition-colors" />
             <button id="loadBtn" class="btn-gold-solid h-12 px-5">Load Leagues</button>
           </div>
           <p id="errorMsg" class="hidden mt-3 text-sm text-red-400"></p>
@@ -36,7 +34,7 @@
         <div class="mt-6 pt-6 border-t border-white/5">
           <label class="block text-sm font-medium text-zinc-300 mb-2">Or enter a Sleeper League ID directly</label>
           <div class="flex gap-2">
-            <input id="directLeagueId" type="text" placeholder="Enter league id here" class="flex-1 min-w-0 h-12 px-4 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 outline-none mono text-sm" />
+            <input id="directLeagueId" type="text" placeholder="Enter league id here" class="flex-1 min-w-0 h-12 px-4 rounded-xl bg-black/40 border border-white/10 focus:border-amber-400/60 outline-none mono text-sm" />
             <button id="directBtn" class="btn-gold h-12 px-5 text-sm text-zinc-300">Go</button>
           </div>
         </div>
@@ -44,7 +42,7 @@
         <!-- League Select -->
         <div id="step-league" class="hidden mt-8 pt-8 border-t border-white/5">
           <label class="block text-sm font-medium text-zinc-300 mb-2">Select League</label>
-          <select id="leagueSelect" class="w-full h-12 px-4 rounded-xl bg-black/50 border border-white/10"></select>
+          <select id="leagueSelect" class="w-full h-12 px-4 rounded-xl bg-black/40 border border-white/10"></select>
         </div>
 
         <!-- Actions -->

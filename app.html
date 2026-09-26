@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>THE VAULT • Gold Dynasty</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css">
 <link rel="stylesheet" href="tailwind.css">
 </head>
@@ -16,7 +16,7 @@
 <main class="max-w-[1800px] mx-auto px-6 py-10 fade-in">
   <div class="flex items-center justify-between mb-8">
     <div>
-      <h1 class="display text-[28px] gold-text">League Overview</h1>
+      <h1 class="display text-[28px] font-semibold gold-text">League Overview</h1>
       <div id="status" class="mt-2 flex items-center gap-3 text-zinc-300 text-sm">
         <div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>
       </div>
@@ -31,24 +31,24 @@
       <table class="w-full text-[14px]">
         <thead class="bg-black/40 border-b border-white/5 sticky top-0">
           <tr class="text-[12px] uppercase tracking-wider text-zinc-400">
-            <th class="text-left px-6 py-4 font-semibold sortable" data-sort="teamName">Team</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="recordWinPct">Record</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="projWins">Proj. Record</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="playoffPct">Playoff %</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="championshipPct">Title %</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="overall">Overall</th>
-            <th class="text-left px-3 py-4 font-semibold min-w-[170px] sortable" data-sort="posConcentration" title="Sorts by how concentrated a roster's value is in its single biggest position">Position Split</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="total">Players</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="qb">QB</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="rb">RB</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="wr">WR</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="te">TE</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="picksValue">Picks</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="age">Age</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="opt">Opt PPG</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Opt PPG)">VORP</th>
-            <th class="text-right px-3 py-4 font-semibold sortable" data-sort="longevity">Longevity</th>
-            <th class="text-left pl-6 pr-10 py-4 font-semibold sortable" data-sort="archSort">Archetype</th>
+            <th class="text-left px-6 py-3.5 font-semibold sortable" data-sort="teamName">Team</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="recordWinPct">Record</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="projWins">Proj. Record</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="playoffPct">Playoff %</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="championshipPct">Title %</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="overall">Overall</th>
+            <th class="text-left px-3 py-3.5 font-semibold min-w-[170px] sortable" data-sort="posConcentration" title="Sorts by how concentrated a roster's value is in its single biggest position">Position Split</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="total">Players</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="qb">QB</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="rb">RB</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="wr">WR</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="te">TE</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="picksValue">Picks</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="age">Age</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="opt">Opt PPG</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Opt PPG)">VORP</th>
+            <th class="text-right px-3 py-3.5 font-semibold sortable" data-sort="longevity">Longevity</th>
+            <th class="text-left pl-6 pr-10 py-3.5 font-semibold sortable" data-sort="archSort">Archetype</th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.04]"></tbody>
@@ -63,7 +63,7 @@
       <div class="flex items-center gap-3 flex-wrap">
         <div id="valueHistoryToggle" class="flex gap-1.5"></div>
         <div id="trendWindowToggle" class="flex items-center bg-black/40 border border-white/10 rounded-lg p-1"></div>
-        <span id="valueHistoryMeta" class="text-[11px] text-zinc-400"></span>
+        <span id="valueHistoryMeta" class="text-[12px] text-zinc-400"></span>
       </div>
     </div>
     <p id="valueHistoryDesc" class="text-[12px] text-zinc-400 mb-4">Each team's total dynasty value, snapshotted daily.</p>
@@ -112,7 +112,7 @@ const POS_COLOR = { QB: 'bg-fuchsia-400/60', RB: 'bg-emerald-400/60', WR: 'bg-sk
 // Static reference (doesn't depend on this league's teams), so it renders once up front.
 document.getElementById('archGuide').innerHTML = Object.entries(Vault.ARCHETYPE_INFO).map(([name, info]) => `
   <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]">
-    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border bg-gradient-to-r mb-1.5 ${info.cls}">${name}</span>
+    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[12px] border bg-gradient-to-r mb-1.5 ${info.cls}">${name}</span>
     <div class="text-zinc-400 text-[12px]">${Vault.escapeHtml(info.desc)}</div>
   </div>`).join('');
 
@@ -148,7 +148,8 @@ function microBar(val, min, max) {
   return `<div class="mt-1.5 h-[4px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%; background:${Vault.heatColor(t)}"></div></div>`;
 }
 
-const POS_TEXT = { QB: 'text-fuchsia-300/80', RB: 'text-emerald-300/80', WR: 'text-sky-300/80', TE: 'text-amber-300/80' };
+// Numbers stay neutral; each position's color lives on its bar, not its digits.
+const POS_TEXT = { QB: 'text-zinc-100', RB: 'text-zinc-100', WR: 'text-zinc-100', TE: 'text-zinc-100' };
 
 // Short display labels for roster_positions slot codes, and the fixed skill-first
 // order to list them in (mirrors player_rankings.html's startersLabel grouping) —
@@ -164,12 +165,12 @@ const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? p
 function bestLineupPanel(t) {
   const rows = [...t.lineup].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot));
   const lines = rows.map(s => `<div class="flex justify-between text-[12px]">
-    <span class="inline-flex items-center justify-center w-9 shrink-0 px-1 py-px rounded text-[9px] font-semibold border uppercase ${POS_BADGE(s.pos || '')}">${SLOT_LABEL[s.slot] || s.slot}</span>
+    <span class="inline-flex items-center justify-center w-9 shrink-0 px-1 py-px rounded text-[11px] font-semibold border uppercase ${POS_BADGE(s.pos || '')}">${SLOT_LABEL[s.slot] || s.slot}</span>
     <span class="text-zinc-300 truncate flex-1 mr-2">${Vault.escapeHtml(s.name) || '—'}</span>
     <span class="font-mono text-zinc-400">${s.name ? s.ppg.toFixed(1) : '—'}</span>
   </div>`).join('');
   return `<div>
-    <div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">Best Lineup <span class="text-zinc-400 normal-case">— ${t.opt.toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` • ${t.vorpTotal.toFixed(1)} VORP` : ''}</span></div>
+    <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Best Lineup <span class="text-zinc-400 normal-case">— ${t.opt.toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` • ${t.vorpTotal.toFixed(1)} VORP` : ''}</span></div>
     <div class="space-y-1.5">${lines || '<div class="text-zinc-400">—</div>'}</div>
   </div>`;
 }
@@ -179,7 +180,7 @@ function posSplitBar(t) {
   const sum = parts.reduce((s, p) => s + p.val, 0) || 1;
   const segs = parts.map(p => `<div class="h-full ${POS_COLOR[p.pos]}" style="width:${p.val / sum * 100}%" title="${p.pos}: ${Math.round(p.val).toLocaleString()}"></div>`).join('');
   const labels = parts.map(p => `<span class="${POS_TEXT[p.pos]}">${p.pos} ${Math.round(p.val / sum * 100)}%</span>`).join(' ');
-  return `<div class="h-[7px] w-full max-w-[160px] rounded-full overflow-hidden flex bg-white/[0.06]">${segs}</div><div class="mt-1 flex gap-2 text-[10px] font-mono whitespace-nowrap">${labels}</div>`;
+  return `<div class="h-[7px] w-full max-w-[160px] rounded-full overflow-hidden flex bg-white/[0.06]">${segs}</div><div class="mt-1 flex gap-2 text-[11px] font-mono whitespace-nowrap">${labels}</div>`;
 }
 
 // One color per team line, cycled if there are more teams than colors.
@@ -212,11 +213,11 @@ function renderValueHistory(history, currentTeams) {
   lastValueHistory = history; lastValueHistoryTeams = currentTeams;
   const toggle = document.getElementById('valueHistoryToggle');
   toggle.innerHTML = Object.entries(VALUE_METRICS).map(([key, m]) =>
-    `<button onclick="setValueHistoryMetric('${key}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${valueHistoryMetric === key ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${m.label}</button>`
+    `<button onclick="setValueHistoryMetric('${key}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${valueHistoryMetric === key ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${m.label}</button>`
   ).join('');
   document.getElementById('valueHistoryDesc').textContent = VALUE_METRICS[valueHistoryMetric].desc;
   document.getElementById('trendWindowToggle').innerHTML = TREND_WINDOWS.map(w =>
-    `<button onclick="setTrendWindow(${w.days})" class="text-[11px] px-2.5 py-1 rounded-lg transition-colors ${trendWindowDays === w.days ? 'bg-amber-500/15 text-amber-200' : 'text-zinc-400 hover:text-white'}">${w.label}</button>`
+    `<button onclick="setTrendWindow(${w.days})" class="text-[12px] px-2.5 py-1 rounded-lg transition-colors ${trendWindowDays === w.days ? 'bg-amber-500/15 text-amber-200' : 'text-zinc-400 hover:text-white'}">${w.label}</button>`
   ).join('');
 
   const mount = document.getElementById('valueHistoryChart');
@@ -319,7 +320,7 @@ function renderValueHistory(history, currentTeams) {
     <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" id="valueHistorySvg">${gridLines}${lines}${hoverRect}${dateTicks}</svg>
     <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1.5">
       ${legendRows.map(({ s, last, delta }) => `
-        <div class="flex items-center gap-1.5 text-[11px] px-1.5 py-1 rounded-lg cursor-default legend-row" data-series="${s.id}">
+        <div class="flex items-center gap-1.5 text-[12px] px-1.5 py-1 rounded-lg cursor-default legend-row" data-series="${s.id}">
           <span class="size-2 rounded-full shrink-0" style="background:${s.color}"></span>
           <span class="text-zinc-300 truncate">${Vault.escapeHtml(s.name)}</span>
           <span class="text-zinc-400 mono ml-auto">${last != null ? fmt(last) : '—'}</span>
@@ -341,7 +342,7 @@ function renderValueHistory(history, currentTeams) {
 function wireChartHover() {
   const tooltip = document.createElement('div');
   tooltip.id = 'chartTooltip';
-  tooltip.className = 'hidden fixed z-50 pointer-events-none bg-black/90 border border-white/10 rounded-lg px-3 py-2 text-[11px] text-zinc-200 shadow-lg max-w-[280px]';
+  tooltip.className = 'hidden fixed z-50 pointer-events-none bg-black/90 border border-white/10 rounded-lg px-3 py-2 text-[12px] text-zinc-200 shadow-lg max-w-[280px]';
   document.body.appendChild(tooltip);
   let guideEl = null;
 
@@ -445,7 +446,7 @@ async function load() {
 // Shared expanded detail (best lineup + top players by position + picks) — used
 // by both the desktop table row and the mobile card, so they can't drift apart.
 function teamDetailPanel(t) {
-  return `<div class="grid lg:grid-cols-6 gap-6 pt-4">${bestLineupPanel(t)}${['QB', 'RB', 'WR', 'TE'].map(pos => { const ps = t.plist.filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8); return `<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${pos}</div><div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-300 truncate mr-2">${Vault.escapeHtml(p.name) || '—'}</span><span class="font-mono text-zinc-400">${Math.round(p.value).toLocaleString()}</span></div>`).join('') || '<div class="text-zinc-400">—</div>'}</div></div>`; }).join('')}<div><div class="text-[11px] uppercase tracking-widest text-amber-300/60 mb-2">${t.picks.length ? Math.min(...t.picks.map(p => p.season)) + '-' + String(Math.max(...t.picks.map(p => p.season))).slice(-2) : ''} Picks</div><div class="space-y-1.5 max-h-[180px] overflow-auto pr-2 scrollbar">${t.picks.sort((a, b) => a.season - b.season || a.round - b.round).map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-400">${p.season} R${p.round} <span class="text-zinc-400">(orig ${p.original})</span></span><span class="font-mono ${p.tier === 'early' ? 'text-emerald-400' : p.tier === 'mid' ? 'text-amber-300' : 'text-rose-400'}">${p.tier}</span></div>`).join('') || '<div class="text-zinc-400">—</div>'}</div></div></div>`;
+  return `<div class="grid lg:grid-cols-6 gap-6 pt-4">${bestLineupPanel(t)}${['QB', 'RB', 'WR', 'TE'].map(pos => { const ps = t.plist.filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8); return `<div><div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">${pos}</div><div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-300 truncate mr-2">${Vault.escapeHtml(p.name) || '—'}</span><span class="font-mono text-zinc-400">${Math.round(p.value).toLocaleString()}</span></div>`).join('') || '<div class="text-zinc-400">—</div>'}</div></div>`; }).join('')}<div><div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">${t.picks.length ? Math.min(...t.picks.map(p => p.season)) + '-' + String(Math.max(...t.picks.map(p => p.season))).slice(-2) : ''} Picks</div><div class="space-y-1.5 max-h-[180px] overflow-auto pr-2 scrollbar">${t.picks.sort((a, b) => a.season - b.season || a.round - b.round).map(p => `<div class="flex justify-between text-[12px]"><span class="text-zinc-400">${p.season} R${p.round} <span class="text-zinc-400">(orig ${p.original})</span></span><span class="font-mono ${p.tier === 'early' ? 'text-emerald-400' : p.tier === 'mid' ? 'text-amber-300' : 'text-rose-400'}">${p.tier}</span></div>`).join('') || '<div class="text-zinc-400">—</div>'}</div></div></div>`;
 }
 
 // Card view for narrow screens — same data as the table, no horizontal scroll.
@@ -453,7 +454,7 @@ function teamDetailPanel(t) {
 // Small "You" tag on your own team (Vault.myTeam — the nav's Your team pick).
 function youTag(t) {
   const mine = Vault.myTeam(teams);
-  return mine && mine.rosterId === t.rosterId ? ' <span class="align-middle ml-1 text-[10px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : '';
+  return mine && mine.rosterId === t.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : '';
 }
 
 function renderMobileCards(data, minOverall, maxOverall) {
@@ -464,11 +465,11 @@ function renderMobileCards(data, minOverall, maxOverall) {
     return `<div class="card card-hover rounded-vault-sm p-4 mobile-team-card" data-id="${t.rosterId}">
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2.5 min-w-0">
-          <span class="w-5 text-right text-[11px] font-mono text-zinc-400 shrink-0">${t.rank}</span>
+          <span class="w-5 text-right text-[12px] font-mono text-zinc-400 shrink-0">${t.rank}</span>
           <div class="min-w-0">
             <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
-            <div class="text-[11px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
-            ${careerRecordText(t) ? `<div class="text-[11px] text-zinc-400 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
+            <div class="text-[12px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
+            ${careerRecordText(t) ? `<div class="text-[12px] text-zinc-400 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>
         </div>
         <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
@@ -480,22 +481,22 @@ function renderMobileCards(data, minOverall, maxOverall) {
           <div class="font-mono text-[16px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
           ${microBar(t.overall, minOverall, maxOverall)}
         </div>
-        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
+        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
       </div>
 
       <div class="mt-3.5">${posSplitBar(t)}</div>
 
       <div class="grid grid-cols-4 gap-2 text-center py-3 mt-3.5 border-y border-white/5">
-        <div><div class="font-mono text-[13px] text-zinc-200">${t.age.toFixed(1)}</div><div class="text-[11px] text-zinc-400">Age</div></div>
-        <div><div class="font-mono text-[13px] text-zinc-200">${t.opt.toFixed(1)}</div><div class="text-[11px] text-zinc-400">Opt PPG</div></div>
-        <div><div class="font-mono text-[13px] text-violet-300">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div><div class="text-[11px] text-zinc-400">VORP</div></div>
-        <div><div class="font-mono text-[13px] text-zinc-200">${t.windowYears}yr</div><div class="text-[11px] text-zinc-400">Longevity</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-200">${t.age.toFixed(1)}</div><div class="text-[12px] text-zinc-400">Age</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-200">${t.opt.toFixed(1)}</div><div class="text-[12px] text-zinc-400">Opt PPG</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-200">${t.windowYears}yr</div><div class="text-[12px] text-zinc-400">Longevity</div></div>
       </div>
 
       <div class="grid grid-cols-3 gap-2 text-center py-3 border-b border-white/5">
-        <div><div class="font-mono text-[13px] text-zinc-200">${proj?.rec ?? '—'}</div><div class="text-[11px] text-zinc-400">Proj. Record</div></div>
-        <div><div class="font-mono text-[13px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-200'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</div><div class="text-[11px] text-zinc-400">Playoff %</div></div>
-        <div><div class="font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-200'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</div><div class="text-[11px] text-zinc-400">Title %</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-200">${proj?.rec ?? '—'}</div><div class="text-[12px] text-zinc-400">Proj. Record</div></div>
+        <div><div class="font-mono text-[13px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-200'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</div><div class="text-[12px] text-zinc-400">Playoff %</div></div>
+        <div><div class="font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-200'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</div><div class="text-[12px] text-zinc-400">Title %</div></div>
       </div>
 
       ${exp ? `<div class="pt-4">${teamDetailPanel(t)}</div>` : ''}
@@ -539,7 +540,7 @@ function render() {
     const exp = expanded.has(t.rosterId);
     const proj = projectedText(t);
     return `<tr class="team-row" data-id="${t.rosterId}">
-      <td class="px-6 py-4">
+      <td class="px-6 py-3.5">
         <div class="flex items-center gap-3">
           <span class="w-5 text-right text-[12px] font-mono text-zinc-400">${t.rank}</span>
           <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
@@ -550,55 +551,55 @@ function render() {
           </div>
         </div>
       </td>
-      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-200">${recordText(t)}</td>
-      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-200">${proj?.rec ?? '—'}</td>
-      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-300'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
-      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-300'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
-      <td class="px-3 py-4 text-right">
+      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-200">${recordText(t)}</td>
+      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-200">${proj?.rec ?? '—'}</td>
+      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-300'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</td>
+      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-300'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</td>
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono font-semibold text-[15px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
         ${microBar(t.overall, minOverall, maxOverall)}
       </td>
-      <td class="px-3 py-4">${posSplitBar(t)}</td>
-      <td class="px-3 py-4 text-right">
+      <td class="px-3 py-3.5">${posSplitBar(t)}</td>
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-100">${Math.round(t.total).toLocaleString()}</div>
         ${microBar(t.total, minTotal, maxTotal)}
       </td>
-      <td class="px-3 py-4 text-right">
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] ${POS_TEXT.QB}">${Math.round(t.qb).toLocaleString()}</div>
         ${microBar(t.qb, minQb, maxQb)}
       </td>
-      <td class="px-3 py-4 text-right">
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] ${POS_TEXT.RB}">${Math.round(t.rb).toLocaleString()}</div>
         ${microBar(t.rb, minRb, maxRb)}
       </td>
-      <td class="px-3 py-4 text-right">
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] ${POS_TEXT.WR}">${Math.round(t.wr).toLocaleString()}</div>
         ${microBar(t.wr, minWr, maxWr)}
       </td>
-      <td class="px-3 py-4 text-right">
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] ${POS_TEXT.TE}">${Math.round(t.te).toLocaleString()}</div>
         ${microBar(t.te, minTe, maxTe)}
       </td>
-      <td class="px-3 py-4 text-right">
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${Math.round(t.picksValue).toLocaleString()}</div>
         ${microBar(t.picksValue, minPicks, maxPicks)}
       </td>
-      <td class="px-3 py-4 text-right font-mono font-semibold text-[14px] text-zinc-300">${t.age.toFixed(1)}</td>
-      <td class="px-3 py-4 text-right">
+      <td class="px-3 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-300">${t.age.toFixed(1)}</td>
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.opt.toFixed(1)}</div>
         ${microBar(t.opt, minOpt, maxOpt)}
       </td>
-      <td class="px-3 py-4 text-right">
-        <div class="font-mono font-semibold text-[14px] text-violet-300">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div>
+      <td class="px-3 py-3.5 text-right">
+        <div class="font-mono font-semibold text-[14px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div>
         ${microBar(t.vorpTotal || 0, minVorp, maxVorp)}
       </td>
-      <td class="px-3 py-4 text-right">
+      <td class="px-3 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.windowYears}yr</div>
         ${microBar(t.longevity, minLongevity, maxLongevity)}
       </td>
-      <td class="pl-6 pr-10 py-4">
+      <td class="pl-6 pr-10 py-3.5">
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap bg-white/[0.03] border ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
-        <div class="text-[11px] text-zinc-400 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
+        <div class="text-[12px] text-zinc-400 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
       </td>
     </tr>
     ${exp ? `<tr><td colspan="17" class="px-6 pb-6 bg-black/40">${teamDetailPanel(t)}</td></tr>` : ''}`;
