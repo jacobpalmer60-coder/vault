@@ -342,7 +342,7 @@ function renderValueHistory(history, currentTeams) {
 function wireChartHover() {
   const tooltip = document.createElement('div');
   tooltip.id = 'chartTooltip';
-  tooltip.className = 'hidden fixed z-50 pointer-events-none bg-black/90 border border-white/10 rounded-lg px-3 py-2 text-[12px] text-zinc-200 shadow-lg max-w-[280px]';
+  tooltip.className = 'hidden fixed z-50 pointer-events-none bg-black/90 border border-white/10 rounded-lg px-3 py-2 text-[12px] text-zinc-200 shadow-lg whitespace-nowrap';
   document.body.appendChild(tooltip);
   let guideEl = null;
 
@@ -382,8 +382,11 @@ function wireChartHover() {
       .join('');
     tooltip.innerHTML = `<div class="text-zinc-400 mb-1">${snap.date}${snap.estimated ? ' (estimated)' : ''}</div>${rows || '<div class="text-zinc-400">No data this day</div>'}`;
     tooltip.classList.remove('hidden');
-    tooltip.style.left = `${e.clientX + 14}px`;
-    tooltip.style.top = `${e.clientY + 14}px`;
+    // Right of and below the cursor, flipping to the other side when it would
+    // run off the window (it used to get cut off near the right edge).
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    tooltip.style.left = `${e.clientX + 14 + tw <= innerWidth - 8 ? e.clientX + 14 : Math.max(8, e.clientX - 14 - tw)}px`;
+    tooltip.style.top = `${e.clientY + 14 + th <= innerHeight - 8 ? e.clientY + 14 : Math.max(8, e.clientY - 14 - th)}px`;
   });
   document.addEventListener('mouseleave', clear);
 }

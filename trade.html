@@ -326,6 +326,7 @@ async function init() {
       if (resolveDup(selA.value, selB, prevA)) { prevB = selB.value; selectedB.clear(); filterB = 'ALL'; renderPosFilter('B'); render('B'); }
       prevA = selA.value;
       selectedA.clear(); filterA = 'ALL'; renderPosFilter('A'); render('A');
+      if (typeof coachStart === 'function') coachStart(); // trade options for the new team
     };
     selB.onchange = () => {
       if (typeof negReset === 'function') negReset();

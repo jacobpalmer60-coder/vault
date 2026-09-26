@@ -721,6 +721,7 @@ const Vault = {
     const pickByDate = new Map(pickHist.snapshots.map(s => [s.date, s.picks || {}]));
     const playerDates = [...playerByDate.keys()].sort();
     const pickDates = [...pickByDate.keys()].sort();
+    const firstPick = Vault.firstPickPrices(pickHist.snapshots, isSF, bonusRecTe);
     function latestOnOrBefore(sortedDates, target) {
       let best = null;
       for (const d of sortedDates) { if (d <= target) best = d; else break; }
@@ -759,6 +760,16 @@ const Vault = {
     // ---- Pick replay: who held which pick on which day ----
     const pickYears = Vault.futurePickYears(league, drafts);
     const PICK_ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
+    // Pick years whose rookie draft already happened inside this history (the
+    // 2026 picks before the 2026-05-02 draft): those picks existed and held
+    // value until their draft, then became the drafted players. Leaving them
+    // out made every team jump on draft day, when the rookies appeared.
+    const draftDay = new Map();
+    (drafts || []).forEach(d => {
+      if (d.status !== 'complete' || !d.start_time || (d.settings?.rounds || 99) > PICK_ROUNDS.length || +d.start_time <= dayZero) return;
+      draftDay.set(+d.season, Math.max(draftDay.get(+d.season) || 0, +d.start_time));
+    });
+    const histYears = [...new Set([...pickYears, ...draftDay.keys()])];
     function currentOptPpg(r) {
       const plist = (r.players || []).map(pid => {
         const p = players[String(pid)];
@@ -771,31 +782,19 @@ const Vault = {
     const draftRank = new Map(draftOrder.map((r, i) => [r.roster_id, nTeams - i]));
 
     const pickAssets = [];
-    pickYears.forEach(season => PICK_ROUNDS.forEach(round => rosters.forEach(r => {
+    histYears.forEach(season => PICK_ROUNDS.forEach(round => rosters.forEach(r => {
       const rank = draftRank.get(r.roster_id);
       const overall = (round - 1) * nTeams + rank;
       const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
       pickAssets.push({ season, round, originalRoster: r.roster_id, label: `${season}-${ktcRound}-${tier}` });
     })));
 
-    // KTC's pick grid can lag this league's tracked years (e.g. no 2029 pricing
-    // yet) — fall back each asset's label to the nearest season KTC actually
-    // prices, same reasoning as Vault.buildKtcPickMap.
-    const todayPickRow = pickHist.snapshots[pickHist.snapshots.length - 1]?.picks || {};
-    const pricedSeasons = [...new Set(Object.keys(todayPickRow).map(k => +k.split('-')[0]))].sort((a, b) => a - b);
-    if (pricedSeasons.length) {
-      pickAssets.forEach(a => {
-        if (todayPickRow[a.label]) return;
-        const [season, round, tier] = a.label.split('-');
-        const nearest = pricedSeasons.reduce((best, y) => Math.abs(y - (+season)) < Math.abs(best - (+season)) ? y : best, pricedSeasons[0]);
-        a.label = `${nearest}-${round}-${tier}`;
-      });
-    }
-
+    // Years KTC doesn't price on a given day are handled per day by
+    // Vault.pickValueFromRow (first known price, else the nearest priced year).
     const ownerOf = new Map(pickAssets.map(a => [`${a.season}-${a.round}-${a.originalRoster}`, a.originalRoster]));
     const pickEvents = [];
     transactions.forEach(t => (t.draft_picks || []).forEach(pk => {
-      if (!pickYears.includes(+pk.season)) return;
+      if (!histYears.includes(+pk.season)) return;
       pickEvents.push({ date: new Date(t.created), key: `${pk.season}-${pk.round}-${pk.roster_id}`, newOwner: pk.owner_id });
     }));
     pickEvents.sort((a, b) => a.date - b.date);
@@ -850,10 +849,12 @@ const Vault = {
 
         let picksValue = 0;
         pickAssets.forEach(a => {
+          if (draftDay.has(a.season) && cursor >= draftDay.get(a.season)) return; // drafted: now players
           const ownerKey = `${a.season}-${a.round}-${a.originalRoster}`;
           const owner = isToday ? realPickOwner.get(ownerKey) : ownerOf.get(ownerKey);
           if (owner !== r.roster_id) return;
-          const v = pickVals ? Vault.resolveHistoricalValue(pickVals[a.label], isSF, bonusRecTe) : null;
+          const [ls, lr, lt] = a.label.split('-');
+          const v = Vault.pickValueFromRow(pickVals, +ls, lr, lt, isSF, bonusRecTe, firstPick);
           picksValue += v || 0;
         });
 
@@ -2047,12 +2048,43 @@ const Vault = {
   // latest snapshot on or before that date. Returns null when there's no snapshot
   // that early or the asset/format isn't in it (early history is 1QB-only), so
   // callers can fall back to today's price instead of guessing.
+  // A pick's value from one day's pick snapshot. KTC adds a new draft year to
+  // its grid partway through (2029 picks were first priced 2026-09-22). On days
+  // before that, the pick takes its own first known KTC price (`first`, from
+  // Vault.firstPickPrices); a year KTC has never priced is valued like the
+  // nearest year it prices that day, the same rule today's values use
+  // (Vault.buildKtcPickMap). Before this, those picks counted as 0 and every
+  // team's value history jumped the day KTC added the year.
+  _pickRowSeasons: new WeakMap(),
+  firstPickPrices(snaps, isSF, bonusRecTe) {
+    const first = new Map();
+    [...(snaps || [])].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach(s => Object.keys(s.picks || {}).forEach(k => {
+      if (first.has(k)) return;
+      const v = Vault.resolveHistoricalValue(s.picks[k], isSF, bonusRecTe);
+      if (v != null) first.set(k, v);
+    }));
+    return first;
+  },
+  pickValueFromRow(row, season, round, tier, isSF, bonusRecTe, first) {
+    if (!row) return null;
+    const key = `${season}-${round}-${tier}`;
+    const exact = Vault.resolveHistoricalValue(row[key], isSF, bonusRecTe);
+    if (exact != null) return exact;
+    if (first && first.has(key)) return first.get(key);
+    let seasons = Vault._pickRowSeasons.get(row);
+    if (!seasons) { seasons = [...new Set(Object.keys(row).map(k => +k.split('-')[0]))]; Vault._pickRowSeasons.set(row, seasons); }
+    if (!seasons.length) return null;
+    const nearest = seasons.reduce((b, y) => Math.abs(y - season) < Math.abs(b - season) ? y : b, seasons[0]);
+    return Vault.resolveHistoricalValue(row[`${nearest}-${round}-${tier}`], isSF, bonusRecTe);
+  },
+
   buildHistoricalPricer(playerSnaps, pickSnaps, isSF, bonusRecTe) {
     const index = snaps => {
       const sorted = [...(snaps || [])].sort((a, b) => a.date < b.date ? -1 : 1);
       return { sorted, times: sorted.map(s => new Date(s.date + 'T23:59:59Z').getTime()) };
     };
     const P = index(playerSnaps), K = index(pickSnaps);
+    const firstPick = Vault.firstPickPrices(pickSnaps, isSF, bonusRecTe);
     const at = ({ sorted, times }, ms) => {
       let lo = 0, hi = times.length - 1, found = -1;
       while (lo <= hi) { const mid = (lo + hi) >> 1; if (times[mid] <= ms) { found = mid; lo = mid + 1; } else hi = mid - 1; }
@@ -2066,7 +2098,7 @@ const Vault = {
       },
       pick(season, ktcRound, tier, ms) {
         const s = at(K, ms);
-        return s ? num(Vault.resolveHistoricalValue(s.picks?.[`${season}-${ktcRound}-${tier}`], isSF, bonusRecTe)) : null;
+        return s ? num(Vault.pickValueFromRow(s.picks, +season, ktcRound, tier, isSF, bonusRecTe, firstPick)) : null;
       }
     };
   },

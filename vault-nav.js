@@ -98,7 +98,14 @@
       const mine = Vault.myTeam(teams, leagueId);
       sel.innerHTML = `<option value="">Your team…</option>` + teams.map(t => `<option value="${t.rosterId}" ${mine && mine.rosterId === t.rosterId ? 'selected' : ''}>${Vault.escapeHtml(t.name)}</option>`).join('');
       sel.classList.remove('hidden');
-      sel.onchange = () => { Vault.setMyTeamId(leagueId, sel.value || null); location.reload(); };
+      // Reload onto the new team: drop a shared trade's own team params (a/b/give_a/
+      // give_b/by), or the Trade Calculator would reopen on the old team from the URL.
+      sel.onchange = () => {
+        Vault.setMyTeamId(leagueId, sel.value || null);
+        const u = new URL(location.href);
+        ['a', 'b', 'give_a', 'give_b', 'by'].forEach(k => u.searchParams.delete(k));
+        location.href = u.toString();
+      };
     } catch (e) { /* picker is optional; the page works without it */ }
   }
 
