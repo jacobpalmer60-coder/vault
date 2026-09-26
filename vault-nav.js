@@ -9,7 +9,7 @@
     { key: 'overview', label: 'League Overview', href: 'app.html' },
     { key: 'analyzer', label: 'Team Analyzer', href: 'team-analyzer.html' },
     { key: 'rankings', label: 'Player Rankings', href: 'player_rankings.html' },
-    { key: 'compare', label: 'Compare', href: 'compare.html' },
+    { key: 'compare', label: 'Compare Players', href: 'compare.html' },
     { key: 'trade', label: 'Trade Calculator', href: 'trade.html' },
     { key: 'grades', label: 'Trade Grades', href: 'trade_grades.html' },
     { key: 'database', label: 'Trade Database', href: 'trade_database.html' },
