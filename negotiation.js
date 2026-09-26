@@ -62,8 +62,8 @@ function negOfferingSide() {
 
 // How this manager leans: their real trading style if we have it, else the
 // roster's own rebuild/contend read.
-function negContext(R) {
-  const team = teamOf(R);
+function negContext(R) { return negContextFor(teamOf(R)); }
+function negContextFor(team) {
   const style = Negotiation.styles?.get(team.rosterId) || null;
   let lean = Vault.teamMode(team);
   if (style && /youth & picks/.test(style.style)) lean = 'rebuild';
@@ -92,8 +92,8 @@ function negInterestMult(a, ctx) {
 // Their concerns and pluses about the specific pieces moving. Each carries a
 // weight in "% of value" terms (w), so a concern actually costs willingness —
 // the decision and the reasons shown can never disagree.
-function negConcerns(aAssets, bAssets, R, ctx, drops) {
-  const [out, inc] = R === 'A' ? [aAssets, bAssets] : [bAssets, aAssets];
+// out = what the judging manager gives up, inc = what they receive.
+function negConcerns(out, inc, ctx, drops) {
   const list = [];
   out.forEach(o => {
     const pos = (o.pos || '').toLowerCase();
@@ -115,15 +115,20 @@ function negConcerns(aAssets, bAssets, R, ctx, drops) {
 // The receiving manager's read of a trade. edge = % they come out ahead on the
 // site's overall fairness; will = edge plus their specific concerns/pluses.
 function negJudge(aAssets, bAssets, R, ctx) {
-  const { valueA, valueB } = Vault.tradeSideValues(aAssets, bAssets);
-  const an = computeTradeAnalysis(teamOf('A'), teamOf('B'), aAssets, bAssets, valueA, valueB);
-  const edge = (R === 'B' ? 1 : -1) * an.fairness.overallSigned;
-  const [out, inc] = R === 'A' ? [aAssets, bAssets] : [bAssets, aAssets];
-  const drops = rosterCap ? Math.max(0, projectedRosterCount(teamOf(R), out, inc) - rosterCap) : 0;
-  const concerns = negConcerns(aAssets, bAssets, R, ctx, drops);
+  return R === 'B' ? negJudgeFor(teamOf('A'), aAssets, teamOf('B'), bAssets, ctx)
+                   : negJudgeFor(teamOf('B'), bAssets, teamOf('A'), aAssets, ctx);
+}
+// Works for any pair of teams (not just the two loaded) — the coach uses it to
+// shop your piece around the league. teamO/oAssets = the offering side.
+function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
+  const { valueA, valueB } = Vault.tradeSideValues(oAssets, rAssets);
+  const an = computeTradeAnalysis(teamO, teamR, oAssets, rAssets, valueA, valueB);
+  const edge = an.fairness.overallSigned; // positive favors the receiving team (side B here)
+  const drops = rosterCap ? Math.max(0, projectedRosterCount(teamR, rAssets, oAssets) - rosterCap) : 0;
+  const concerns = negConcerns(rAssets, oAssets, ctx, drops);
   const will = edge + concerns.reduce((t, c) => t + c.w, 0);
   const accepts = will >= ctx.ask && drops <= 1;
-  return { an, edge, will, drops, concerns, accepts };
+  return { an, edge, will, drops, concerns, accepts, headO: an.heads.A };
 }
 
 function negReasons(j, ctx) {
@@ -193,6 +198,95 @@ function negCounterText(c, R, ctx) {
   return `They'd rather send ${Vault.escapeHtml(c.sub.name)} than ${Vault.escapeHtml(c.pieces[0].name)}.`;
 }
 
+/* ---------- Coach: your best next move after each response ----------
+   Weighs, from YOUR side: accepting their counter, countering back with the
+   offer closest to even they'd still take, shopping the same piece(s) to the
+   team that would give the most, or walking away — and highlights the one
+   that leaves you best off (certainty breaks near-ties). "You come out X%"
+   below is always your side of the site's overall grade. */
+const sumValue = list => list.reduce((t, a) => t + a.value, 0);
+
+// Closest-to-even version of `base` they'd still accept: ask for one more of
+// their least-wanted pieces, pull one of yours back out, or swap one of
+// yours for a cheaper piece they still want. One change per round.
+function negCounterBack(baseA, baseB, O, R, ctx) {
+  const [oGive, rGive] = O === 'A' ? [baseA, baseB] : [baseB, baseA];
+  const build = (oList, rList) => (O === 'A' ? { A: oList, B: rList } : { A: rList, B: oList });
+  const baseEdge = negJudge(baseA, baseB, R, ctx).edge;
+  const inTrade = new Set(negKeys([...baseA, ...baseB]));
+  const cands = [];
+  const rVal = sumValue(rGive);
+  teamOf(R).assets.filter(a => !inTrade.has(a.key) && a.value >= rVal * 0.05 && a.value <= rVal)
+    .sort((x, y) => negInterestMult(x, ctx) - negInterestMult(y, ctx)).slice(0, 25)
+    .forEach(a => cands.push({ text: `Ask for their ${Vault.escapeHtml(a.name)} too.`, ...build(oGive, [...rGive, a]) }));
+  // Any piece you give can come back out or be swapped for a cheaper one they still like.
+  oGive.forEach(a => {
+    if (oGive.length > 1) cands.push({ text: `Keep your ${Vault.escapeHtml(a.name)}.`, ...build(oGive.filter(x => x !== a), rGive) });
+    teamOf(O).assets.filter(s => !inTrade.has(s.key) && s.value < a.value && s.value >= a.value * 0.4)
+      .sort((x, y) => negInterestMult(y, ctx) * y.value - negInterestMult(x, ctx) * x.value).slice(0, 6)
+      .forEach(s => cands.push({ text: `Offer your ${Vault.escapeHtml(s.name)} instead of ${Vault.escapeHtml(a.name)}.`, ...build(oGive.map(x => (x === a ? s : x)), rGive) }));
+  });
+  let best = null;
+  cands.forEach(c => {
+    const j = negJudge(c.A, c.B, R, ctx);
+    if (!j.accepts || j.edge >= baseEdge - 1) return; // must still work for them AND be better for you
+    if (!best || j.edge < best.edge) best = { ...c, edge: j.edge };
+  });
+  return best;
+}
+
+// The same piece(s) you're offering, shopped to every other team: their best
+// single or pair they'd accept for it (and that's still Fair for them).
+// Returns the one that leaves you best off.
+function negShop(O, R, coreAssets) {
+  const oTeam = teamOf(O), rTeam = teamOf(R);
+  const core = sumValue(coreAssets);
+  let best = null;
+  teams.filter(t => t !== oTeam && t !== rTeam).forEach(t => {
+    const ctxT = negContextFor(t);
+    // Their singles and pairs worth roughly what you're shopping; keep the
+    // package that's best for you among the ones they'd actually accept.
+    const pool = t.assets.filter(a => a.value >= core * 0.1 && a.value <= core * 1.3).sort((x, y) => y.value - x.value).slice(0, 12);
+    const packs = pool.map(a => [a]);
+    pool.forEach((a, i) => pool.slice(i + 1).forEach(b => { const s = a.value + b.value; if (s >= core * 0.6 && s <= core * 1.4) packs.push([a, b]); }));
+    packs.forEach(pack => {
+      const j = negJudgeFor(oTeam, coreAssets, t, pack, ctxT);
+      if (!j.accepts || j.edge >= VAULT_CONFIG.FAIR_PCT) return;
+      if (!best || j.edge < best.edge) {
+        const plus = j.concerns.filter(c => c.w > 0).map(c => c.text)[0] || '';
+        best = { team: t, oKeys: negKeys(coreAssets), tKeys: negKeys(pack), edge: j.edge, why: plus };
+      }
+    });
+  });
+  return best;
+}
+
+function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys) {
+  const you = e => -e; // their edge -> your edge
+  const opts = {};
+  const oGive = O === 'A' ? aAssets : bAssets;
+  const core = negAssets(O, originalOKeys).length ? negAssets(O, originalOKeys) : oGive;
+  if (j.accepts) opts.send = { you: you(j.edge) };
+  if (counter) {
+    const cj = negJudge(counter.A, counter.B, R, ctx);
+    opts.accept = { you: you(counter.edge), tone: cj.headO.tone };
+  }
+  const base = counter ? [counter.A, counter.B] : j.accepts ? [aAssets, bAssets] : null;
+  if (base) { const cb = negCounterBack(base[0], base[1], O, R, ctx); if (cb) opts.cb = { you: you(cb.edge), A: negKeys(cb.A), B: negKeys(cb.B), text: cb.text }; }
+  const shop = negShop(O, R, core);
+  if (shop) opts.shop = { you: you(shop.edge), team: shop.team.rosterId, name: shop.team.teamName, oKeys: shop.oKeys, tKeys: shop.tKeys, why: shop.why };
+
+  // Pick the recommendation: the option that leaves you best off. Sending an
+  // offer they already accept (or taking their counter) wins near-ties over
+  // counter-backs and shopping, since those aren't guaranteed.
+  const score = { send: opts.send ? opts.send.you + 2 : -Infinity, accept: opts.accept && opts.accept.tone !== 'bad' ? opts.accept.you + 2 : -Infinity, cb: opts.cb ? opts.cb.you : -Infinity, shop: opts.shop ? opts.shop.you - 1 : -Infinity };
+  // Never recommend sending an offer that's Lopsided against you.
+  if (opts.send && opts.send.you <= -VAULT_CONFIG.FAIR_PCT) score.send = -Infinity;
+  let primary = Object.entries(score).sort((x, y) => y[1] - x[1])[0];
+  primary = primary[1] === -Infinity ? 'walk' : primary[0];
+  return { primary, ...opts };
+}
+
 // Send the calculator's current trade as the next offer.
 async function negOffer(btn) {
   const aAssets = negAssets('A', [...selectedA]), bAssets = negAssets('B', [...selectedB]);
@@ -211,16 +305,48 @@ async function negOffer(btn) {
   const ctx = negContext(R);
   const j = negJudge(aAssets, bAssets, R, ctx);
   const round = { offer: { A: negKeys(aAssets), B: negKeys(bAssets) }, O, R, edge: j.edge, reasons: negReasons(j, ctx) };
+  let c = null;
   if (j.accepts) round.decision = 'accept';
   else {
-    const c = negCounter(aAssets, bAssets, O, R, ctx);
+    c = negCounter(aAssets, bAssets, O, R, ctx);
     const inTrade = new Set(negKeys([...aAssets, ...bAssets]));
     round.interests = negKeys(negInterests(O, ctx, inTrade));
     if (c) { round.decision = 'counter'; round.counter = { A: negKeys(c.A), B: negKeys(c.B), text: negCounterText(c, R, ctx), edge: c.edge }; }
     else round.decision = 'decline';
   }
+  // What you offered in round 1 is "your core" — the coach never trims it.
+  const firstOffer = Negotiation.rounds.find(r => r.offer && r.O === O);
+  const originalOKeys = firstOffer ? firstOffer.offer[O] : round.offer[O];
+  round.coach = negCoach(aAssets, bAssets, O, R, ctx, j, c, originalOKeys);
   Negotiation.rounds.push(round);
   negRender();
+}
+
+// Coach actions.
+function negSendCounterBack(i) {
+  const cb = Negotiation.rounds[i]?.coach?.cb;
+  if (!cb) return;
+  negLoad(cb.A, cb.B);
+  negOffer(document.querySelector('#offerBtn button'));
+}
+
+function negShopTo(i) {
+  const r = Negotiation.rounds[i], s = r?.coach?.shop;
+  if (!s) return;
+  const sel = document.getElementById('team' + r.R);
+  sel.value = String(s.team);
+  sel.onchange(); // switches the partner (and resets this negotiation)
+  const O = r.O;
+  negLoad(O === 'A' ? s.oKeys : s.tKeys, O === 'A' ? s.tKeys : s.oKeys);
+  Negotiation.offering = O;
+  negOffer(document.querySelector('#offerBtn button'));
+}
+
+function negWalk(i) {
+  const r = Negotiation.rounds[i];
+  Negotiation.rounds.push({ decision: 'walk', O: r.O, R: r.R });
+  negRender();
+  renderOfferButton();
 }
 
 function negLoad(keysA, keysB) {
@@ -235,6 +361,7 @@ function negAcceptCounter(i) {
   negLoad(c.A, c.B);
   Negotiation.rounds.push({ decision: 'deal', offer: { A: c.A, B: c.B }, O: Negotiation.rounds[i].O, R: Negotiation.rounds[i].R });
   negRender();
+  renderOfferButton();
 }
 
 function negEditCounter(i) {
@@ -255,8 +382,41 @@ const NEG_PILL = {
   accept: ['Would accept', 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'],
   counter: ['Counters', 'bg-amber-500/10 text-amber-300 border-amber-500/25'],
   decline: ['Declines', 'bg-rose-500/10 text-rose-300 border-rose-500/25'],
-  deal: ['Deal reached', 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25']
+  deal: ['Deal reached', 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'],
+  walk: ['Walked away', 'bg-white/5 text-zinc-400 border-white/10']
 };
+
+// How a deal lands for you, as a sentence: "You'd come out about 4% ahead."
+function negLean(you) {
+  if (Math.abs(you) < 1) return 'About even on value for you.';
+  const p = capPct(Math.abs(you)).toFixed(0);
+  return you > 0 ? `You'd come out about ${p}% ahead on value.` : `You'd give up about ${p}% more value than you get${you > -VAULT_CONFIG.FAIR_PCT ? ' — still Fair' : ''}.`;
+}
+
+// The coach's box under the latest round: the recommended move first, the
+// other workable moves after it, each one click.
+function negCoachHtml(r, i) {
+  const c = r.coach;
+  if (!c) return '';
+  const btn = (label, onclick, primary) => `<button onclick="${onclick}" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg ${primary ? 'btn-gold-solid' : 'border border-white/10 text-zinc-300 hover:text-white'}">${label}</button>`;
+  const items = {
+    send: c.send && { title: 'Send this offer as is', detail: `They'd take it. ${negLean(c.send.you)}`, action: primary => btn('Copy trade link', 'shareTrade(this)', primary) },
+    accept: c.accept && { title: 'Accept their counter', detail: `${negLean(c.accept.you)}${c.accept.tone === 'bad' ? ' It grades as a poor deal for your team, though.' : ''}`, action: primary => btn('Accept their counter', `negAcceptCounter(${i})`, primary) },
+    cb: c.cb && { title: c.cb.text, detail: `They'd likely still take it. ${negLean(c.cb.you)}`, action: primary => btn('Send this counter', `negSendCounterBack(${i})`, primary) },
+    shop: c.shop && { title: `Shop it to ${Vault.escapeHtml(c.shop.name)} instead`, detail: `${c.shop.why ? c.shop.why + ' ' : ''}They'd give ${negNames(c.shop.tKeys.map(k => teams.find(t => t.rosterId === c.shop.team)?.assets.find(a => a.key === k)).filter(Boolean))}. ${negLean(c.shop.you)}`, action: primary => btn(`Open with ${Vault.escapeHtml(c.shop.name)}`, `negShopTo(${i})`, primary) },
+    walk: { title: 'Walk away', detail: 'Keep what you have and try someone else later.', action: primary => btn('Walk away', `negWalk(${i})`, primary) }
+  };
+  if (c.primary === 'walk') items.walk.detail = 'Nothing that works for them is fair for you right now — keep what you have.';
+  const order = [c.primary, ...['send', 'accept', 'cb', 'shop', 'walk'].filter(k => k !== c.primary)].filter(k => items[k]);
+  const row = (k, primary) => `<div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${primary ? '' : 'py-1.5 border-t border-white/5'}">
+      <div class="min-w-0"><div class="text-[12px] ${primary ? 'text-zinc-100 font-medium' : 'text-zinc-300'}">${items[k].title}</div><div class="text-[11px] text-zinc-400">${items[k].detail}</div></div>
+      ${items[k].action(primary)}</div>`;
+  return `<div class="mt-3 p-3 rounded-lg border border-sky-500/25 bg-sky-500/[0.05]">
+      <div class="text-[11px] uppercase tracking-wider text-sky-300/80 mb-1.5">Recommended next step</div>
+      ${row(order[0], true)}
+      ${order.length > 1 ? `<div class="text-[11px] text-zinc-500 mt-3 mb-0.5">Other options</div>${order.slice(1).map(k => row(k, false)).join('')}` : ''}
+    </div>`;
+}
 
 function negTradeLine(tr, O) {
   const R = negOther(O);
@@ -283,6 +443,7 @@ function negRender() {
           <div class="flex items-center gap-2 mb-1"><span class="text-[11px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-300">You accepted their counter.</span></div>
           <div class="text-[12px]">${negTradeLine(r.offer, r.O)}</div>
           <div class="text-[11px] text-zinc-400 mt-1.5">It's loaded in the calculator above — use Share to send yourself the link, then make the offer in Sleeper.</div></div>`;
+      if (r.decision === 'walk') return `<div class="p-3 rounded-xl bg-black/30"><div class="flex items-center gap-2"><span class="text-[11px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">No deal with ${who}. Try Suggest a Trade for other partners, or Start over.</span></div></div>`;
       const last = i === Negotiation.rounds.length - 1;
       return `<div class="p-3 rounded-xl bg-black/30">
         <div class="text-[11px] text-zinc-500 mb-1">Round ${i + 1} · your offer</div>
@@ -297,9 +458,10 @@ function negRender() {
             <div class="text-[12px] text-amber-200 mb-1">${r.counter.text}</div>
             <div class="text-[12px] mb-1">${negTradeLine(r.counter, r.O)}</div>
             <div class="text-[11px] text-zinc-400 mb-2">Leans ${capPct(Math.abs(r.counter.edge)).toFixed(0)}% ${r.counter.edge >= 0 ? 'their way' : 'your way'} — still Fair for you.</div>
-            ${last ? `<div class="flex flex-wrap gap-2"><button onclick="negAcceptCounter(${i})" class="text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid">Accept their counter</button><button onclick="negEditCounter(${i})" class="text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Edit it and counter back</button></div>` : ''}
+            ${last ? `<div class="flex flex-wrap gap-2">${r.coach ? '' : `<button onclick="negAcceptCounter(${i})" class="text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid">Accept their counter</button>`}<button onclick="negEditCounter(${i})" class="text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Edit it and counter back</button></div>` : ''}
           </div>` : ''}
         ${r.decision === 'decline' ? `<div class="text-[11px] text-zinc-400">Nothing close to this works for them. Try building around the pieces above.</div>` : ''}
+        ${last ? negCoachHtml(r, i) : ''}
       </div>`;
     }).join('')}</div>`;
   box.classList.remove('hidden');
@@ -313,7 +475,7 @@ function renderOfferButton() {
   const bothSides = selectedA.size && selectedB.size;
   if (!bothSides) { el.innerHTML = ''; return; }
   const O = negOfferingSide(), R = negOther(O);
-  const done = Negotiation.rounds.length && Negotiation.rounds[Negotiation.rounds.length - 1].decision === 'deal';
+  const done = Negotiation.rounds.length && ['deal', 'walk'].includes(Negotiation.rounds[Negotiation.rounds.length - 1].decision);
   const label = done ? 'Negotiate again' : Negotiation.rounds.length ? 'Send revised offer' : `Offer to ${Vault.escapeHtml(teamOf(R).teamName)}`;
   el.innerHTML = `<button onclick="${done ? 'negReset(); negOffer(this)' : 'negOffer(this)'}" title="See how ${Vault.escapeHtml(teamOf(R).teamName)} would likely respond — accept, decline, or counter" class="shrink-0 text-[11px] px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors">${label}</button>`;
 }
