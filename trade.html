@@ -29,7 +29,7 @@
 
   <!-- Setup: just your team. The partner is picked on the page, or filled in
        by a trade option, so tools never switch your side out from under you. -->
-  <div id="setup" class="min-h-[60vh] flex items-center justify-center">
+  <div id="setup" class="hidden min-h-[60vh] flex items-center justify-center">
     <div class="card rounded-vault-sm p-8 sm:p-9 w-full max-w-md fade-in">
       <h2 class="text-[20px] display gold-text mb-2 text-center">Which team is yours?</h2>
       <p class="text-[13px] text-zinc-400 text-center mb-6">You'll see the best trade options for it, and can build, check, or negotiate any trade from there.</p>
@@ -354,7 +354,12 @@ async function init() {
       if (typeof coachStart === 'function') coachStart(); // trade options for your team, on the page
     };
     // A shared link opens that trade; otherwise, if we know your team, skip setup.
-    if (!applyTradeFromUrl() && Vault.myTeam(teams)) document.getElementById('loadRostersBtn').onclick();
+    // Hidden until we know it's needed, so it never flashes before opening on
+    // your team: only shown when there's no trade link and no saved team.
+    if (!applyTradeFromUrl()) {
+      if (Vault.myTeam(teams)) document.getElementById('loadRostersBtn').onclick();
+      else document.getElementById('setup').classList.remove('hidden');
+    }
   } catch (e) {
     document.getElementById('status').textContent = e.message || 'Failed to load';
     document.getElementById('status').className = 'text-[13px] text-rose-400 mt-1';
