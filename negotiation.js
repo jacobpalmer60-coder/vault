@@ -67,8 +67,9 @@ function negContext(R) { return negContextFor(teamOf(R)); }
 function negContextFor(team) {
   const style = Negotiation.styles?.get(team.rosterId) || null;
   let lean = Vault.teamMode(team);
-  if (style && /youth & picks/.test(style.style)) lean = 'rebuild';
-  if (style && /win-now/.test(style.style)) lean = 'contend';
+  const chosen = Vault.planOverride[team.rosterId]; // a timeline you set for them wins
+  if (!chosen && style && /youth & picks/.test(style.style)) lean = 'rebuild';
+  if (!chosen && style && /win-now/.test(style.style)) lean = 'contend';
   const { needs, surpluses } = Vault.positionalProfile(team, teams);
   // Rarely-trading managers want to come out ahead; active ones will take a bit less.
   let ask = NEG.ACCEPT_EDGE;

@@ -37,32 +37,15 @@ const Coach = { option: 'target', targetKey: null, pos: null, results: {}, busy:
 const coachTick = () => new Promise(r => setTimeout(r, 0));
 
 /* ---------- Your timeline ----------
-   Auto reads contend/rebuild from your roster (Vault.teamMode). Win now or
-   Rebuild overrides it for your team everywhere on this page (the Trade
-   Analysis too, via Vault.planOverride), so a rebuilder going all-in isn't
-   graded as spending picks "a rebuild needed". Saved per league in this
-   browser only; storage can be blocked, so every access is guarded. */
-const COACH_PLAN_KEY = () => 'vault_timeline_' + Vault.getLeagueId();
-try { Object.assign(Vault.planOverride, JSON.parse(localStorage.getItem(COACH_PLAN_KEY()) || '{}')); } catch {}
+   The same per-team timeline as the calculator's Timeline picker
+   (setTeamTimeline in trade.html). Go all-in and Rebuild set yours to match,
+   so a rebuilder going all-in isn't graded as spending picks "a rebuild
+   needed". */
 const COACH_PLAN_FOR = { contend: 'contend', rebuild: 'rebuild' }; // options that imply a timeline
-function coachAutoMode(team) {
-  const chosen = Vault.planOverride[team.rosterId];
-  delete Vault.planOverride[team.rosterId];
-  const mode = Vault.teamMode(team);
-  if (chosen) Vault.planOverride[team.rosterId] = chosen;
-  return mode;
-}
-function coachSetPlan(mode, quiet) {
-  const me = coachMe();
-  if (mode === 'auto') delete Vault.planOverride[me.rosterId]; else Vault.planOverride[me.rosterId] = mode;
-  try { localStorage.setItem(COACH_PLAN_KEY(), JSON.stringify(Vault.planOverride)); } catch {}
-  Coach.results = {}; // grades depend on it
-  if (typeof updateTrade === 'function') updateTrade(); // the Trade Analysis re-reads your timeline
-  if (!quiet) renderCoach();
-}
+const coachSetPlan = mode => setTeamTimeline(coachMe().rosterId, mode);
 function coachPlanHtml(me, chip) {
   const chosen = Vault.planOverride[me.rosterId] || 'auto';
-  const auto = Vault.MODE_LABEL[coachAutoMode(me)];
+  const auto = Vault.MODE_LABEL[autoTimeline(me)];
   return `<div class="flex flex-wrap items-center gap-1.5 mb-2">
       <span class="text-[11px] text-zinc-500 mr-1">Your timeline</span>
       ${chip(chosen === 'auto', `Auto <span class="text-zinc-500">· reads as ${auto}</span>`, "coachSetPlan('auto')")}
@@ -272,7 +255,7 @@ async function coachFind() {
   const implied = COACH_PLAN_FOR[option];
   let planNote = '';
   if (implied && Vault.teamMode(me) !== implied) {
-    coachSetPlan(implied, true);
+    coachSetPlan(implied);
     planNote = `Your timeline is now set to ${implied === 'contend' ? 'Win now' : 'Rebuild'}, so these trades (and the Trade Analysis) grade your side as ${implied === 'contend' ? 'contending' : 'rebuilding'}. Switch back under Your timeline.`;
   }
   Coach.busy = true;
