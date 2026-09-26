@@ -199,7 +199,7 @@ async function init() {
       ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded with the Trade Calculator's own value math: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-amber-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(${priced.length.toLocaleString()} fully priced)</span></div>` : ''}`;
 
     status.textContent = `${tradesData.count.toLocaleString()} trades in database • updated ${new Date(tradesData.updated).toLocaleDateString()}`;
-    status.className = 'text-[13px] text-emerald-400/80 mt-1';
+    status.className = 'text-[13px] text-zinc-400 mt-1';
 
     const list = document.getElementById('list');
     const empty = document.getElementById('empty');

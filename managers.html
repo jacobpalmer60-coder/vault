@@ -205,7 +205,7 @@ async function init() {
     const stats = Vault.buildManagerStats(allGraded, teams);
 
     status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
-    status.className = 'text-[13px] text-emerald-400/80 mt-1';
+    status.className = 'text-[13px] text-zinc-400 mt-1';
     render(stats, teams);
   } catch (e) {
     console.error(e);

@@ -294,6 +294,7 @@ const COACH_RUN = { best: coachBest, shop: coachShop, target: coachTarget, posit
 
 async function coachFind() {
   if (Coach.busy) return;
+  Coach.collapsed = false;
   if (Coach.option === 'target' && !Coach.targetKey) return coachOpenPicker();
   if (Coach.option === 'shop' && !Coach.shopKey) return;
   const me = coachMe(), option = Coach.option;
@@ -344,7 +345,7 @@ function coachSync() {
   if (neg) neg.classList.toggle('hidden', !(Coach.option === 'negotiate' && Negotiation.rounds.length));
 }
 function coachReset() { Coach.results = {}; if (coachOpen()) renderCoach(); }
-function coachSetOption(o) { Coach.option = o; renderCoach(); }
+function coachSetOption(o) { Coach.option = o; Coach.collapsed = false; renderCoach(); }
 function coachSetPos(p) { Coach.pos = p; renderCoach(); }
 function coachSetShop(key) { Coach.shopKey = key || null; renderCoach(); if (key) coachFind(); }
 // From a roster row: Shop (your piece) or Get (their player), then search.
@@ -369,6 +370,9 @@ function coachLoad(i) {
   const selB = document.getElementById('teamB');
   if (selB.value !== String(o.partner.rosterId)) { selB.value = String(o.partner.rosterId); selB.onchange(); }
   negLoad(negKeys(o.give), negKeys(o.get));
+  // Fold the list away so the trade is right there (mostly for phones).
+  Coach.collapsed = true;
+  renderCoach();
   document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -502,6 +506,7 @@ function renderCoach() {
 }
 
 function coachResultsHtml(r) {
+  if (Coach.collapsed && r.list && r.list.length) return `<button onclick="Coach.collapsed = false; renderCoach()" class="mt-2 w-full text-left text-[12px] px-3 py-2 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Show options again (${r.list.length}) ▾</button>`;
   if (!r.list || !r.list.length) return `<div class="mt-3 p-3 rounded-xl bg-black/30 text-[12px] text-zinc-300">${r.empty || 'No trades found.'}${coachHasMine() ? ' Your side or Their side rules out some pieces, so try loosening them.' : ''}</div>`;
   const over = r.list.some(o => o.edge >= VAULT_CONFIG.FAIR_PCT);
   return `
