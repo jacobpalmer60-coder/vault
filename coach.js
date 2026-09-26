@@ -22,7 +22,8 @@ const COACH = {
   SELL_AGE: { QB: 30, RB: 26, WR: 28, TE: 29 }, // roughly where each position's value starts sliding
   MIN_GAIN: 1,       // pts/week a trade has to add to your best lineup
   UPGRADE_BY: 2,     // a target must out-score your weakest starter there by 2 pts/week
-  SHOW: 5            // suggestions per list
+  SHOW: 5,           // suggestions per list
+  TARGET_SHOW: 8     // offers for one player (Get a player)
 };
 const COACH_OPTIONS = {
   negotiate: { label: 'Negotiate a trade', blurb: 'Offer the trade loaded in the calculator. Their manager answers in their own words, and you can steer what you ask for next.' },
@@ -65,9 +66,11 @@ const coachPartnerOK = t => !Coach.theirs.must.length || coachTheirMust(t).lengt
 const coachTheirOff = a => !Coach.theirs.must.includes(a.key) && (Coach.theirs.keep.includes(a.key) || Coach.theirs.never.includes(coachGroup(a)));
 
 // Packages of your pieces for `get` that `partner` would accept, best for you
-// first, one per lead piece so the list isn't the same offer plus filler.
-// Every package includes your must-include pieces and nothing off limits.
-function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CONFIG.FAIR_PCT, limit = 1 } = {}) {
+// first, at most `perLead` per lead piece so the list isn't the same offer
+// with different filler. Every package includes your must-include pieces and
+// nothing off limits. When they'd take a package that overpays them, they add
+// one of their smaller pieces (not one you ruled out) to bring it back to Fair.
+function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CONFIG.FAIR_PCT, limit = 1, perLead = 1 } = {}) {
   if (!coachPartnerOK(partner)) return [];
   get = [...get, ...coachTheirMust(partner).filter(a => !get.includes(a))];
   const want = sumValue(get);
@@ -79,33 +82,56 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
     packs.push([...must, a]);
     pool.slice(i + 1).forEach(b => { const s = mustVal + a.value + b.value; if (s >= want * 0.7 && s <= want * 1.7) packs.push([...must, a, b]); });
   });
-  const judge = list => list.map(give => ({ give, j: negJudgeFor(me, give, partner, get, negContextFor(partner)) }))
-    .filter(x => x.j.accepts && x.j.edge < ceiling).map(x => ({ partner, give: x.give, get, edge: x.j.edge }));
-  let found = judge(packs);
+  const ctx = negContextFor(partner);
+  const judge = list => list.map(give => ({ give, j: negJudgeFor(me, give, partner, get, ctx) })).filter(x => x.j.accepts);
+  const offer = x => ({ partner, give: x.give, get, edge: x.j.edge });
+  let taken = judge(packs);
+  let found = taken.filter(x => x.j.edge < ceiling).map(offer);
   if (found.length < limit) {
     const top = pool.slice(0, 10), triples = [];
     top.forEach((a, i) => top.slice(i + 1).forEach((b, k) => top.slice(i + k + 2).forEach(c => {
       const s = mustVal + a.value + b.value + c.value;
       if (s >= want * 0.9 && s <= want * 2.2) triples.push([...must, a, b, c]);
     })));
-    found = found.concat(judge(triples));
+    const t3 = judge(triples);
+    taken = taken.concat(t3);
+    found = found.concat(t3.filter(x => x.j.edge < ceiling).map(offer));
   }
-  const seen = new Set();
+  // Balance it back: the closest overpays, each with the one piece of theirs
+  // that brings it to Fair while leaving you best off.
+  const over = taken.filter(x => x.j.edge >= VAULT_CONFIG.FAIR_PCT).sort((x, y) => x.j.edge - y.j.edge).slice(0, 12);
+  if (over.length) {
+    const inGet = new Set(negKeys(get));
+    const fillers = partner.assets.filter(a => !inGet.has(a.key) && !coachTheirOff(a) && a.value >= want * 0.05 && a.value <= want * 0.6)
+      .sort((x, y) => y.value - x.value).slice(0, 12);
+    over.forEach(x => {
+      let best = null;
+      fillers.forEach(fl => {
+        const g2 = [...get, fl];
+        const j = negJudgeFor(me, x.give, partner, g2, ctx);
+        if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || j.edge < best.edge)) best = { partner, give: x.give, get: g2, edge: j.edge, note: `They add ${Vault.escapeHtml(fl.name)} to even it out.` };
+      });
+      if (best) found.push(best);
+    });
+  }
+  const count = new Map();
   return found.sort((x, y) => x.edge - y.edge).filter(o => {
     const lead = ([...o.give].filter(a => !mustKeys.has(a.key)).sort((x, y) => y.value - x.value)[0] || { key: 'must' }).key;
-    if (seen.has(lead)) return false;
-    seen.add(lead);
+    const n = count.get(lead) || 0;
+    if (n >= perLead) return false;
+    count.set(lead, n + 1);
     return true;
   }).slice(0, limit);
 }
 
-// Fair offers first; when there are fewer than `min`, add the cheapest
-// Lopsided ones (flagged on the card).
+// Fair offers first; when there are fewer than `min`, add up to `min` of the
+// cheapest Lopsided ones (flagged on the card) so they don't crowd the list.
 async function coachPriced(run, min) {
   const fair = await run(VAULT_CONFIG.FAIR_PCT);
   if (fair.length >= min) return fair;
   const keys = new Set(fair.map(o => o.id));
-  return fair.concat((await run(VAULT_CONFIG.LOPSIDED_PCT)).filter(o => !keys.has(o.id)));
+  const extra = (await run(VAULT_CONFIG.LOPSIDED_PCT)).filter(o => !keys.has(o.id) && o.edge >= VAULT_CONFIG.FAIR_PCT);
+  return fair.concat(extra.slice(0, min));
 }
 
 /* ---------- The four lists ---------- */
@@ -116,8 +142,8 @@ async function coachTarget(me, progress) {
   const target = seller.assets.find(a => a.key === Coach.targetKey);
   progress(`Checking what ${seller.teamName} would take for ${target.name}…`);
   await coachTick();
-  const run = async ceiling => coachOffers(me, seller, [target], { ceiling, limit: COACH.SHOW }).map(o => ({ ...o, id: negKeys(o.give).join(), why: '' }));
-  const list = await coachPriced(run, 1);
+  const run = async ceiling => coachOffers(me, seller, [target], { ceiling, limit: COACH.TARGET_SHOW, perLead: 2 }).map(o => ({ ...o, id: negKeys(o.give).join() + '>' + negKeys(o.get).join(), why: o.note || '' }));
+  const list = (await coachPriced(run, 3)).slice(0, COACH.TARGET_SHOW);
   if (!list.length) return { empty: `${Vault.escapeHtml(seller.teamName)} wouldn't likely take anything on your roster for ${Vault.escapeHtml(target.name)} right now, even with a premium.` };
   return { title: `Offers for ${Vault.escapeHtml(target.name)}`, list };
 }
@@ -141,7 +167,7 @@ async function coachUpgrades(me, positions, protect, progress, pay) {
       if (!o) continue;
       const gain = coachAfter(me.rosterId, t.rosterId, o.give, o.get).opt - me.opt;
       if (gain < COACH.MIN_GAIN) continue;
-      out.push({ ...o, id: a.key, gain, why: `${Vault.escapeHtml(a.name)} starts for you: about +${gain.toFixed(1)} pts/week to your best lineup${pay ? `, ${pay}` : ''}.` });
+      out.push({ ...o, id: a.key, gain, why: `${Vault.escapeHtml(a.name)} starts for you: about +${gain.toFixed(1)} pts/week to your best lineup${pay ? `, ${pay}` : ''}.${o.note ? ' ' + o.note : ''}` });
     }
     return out;
   };
