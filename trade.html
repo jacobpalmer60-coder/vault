@@ -22,6 +22,7 @@
     <div class="flex items-center gap-2 flex-wrap justify-end">
       <button id="suggestBtn" onclick="suggestTrade()" title="Search the whole league for genuinely fair trades for Team A" class="hidden h-8 px-3 rounded-lg border border-emerald-500/25 text-[12px] text-emerald-300/80 hover:text-emerald-200 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3 11 7l4 1.5L11 10l-1.5 4L8 10l-4-1.5L8 7z"/><path d="M18 13l.9 2.1L21 16l-2.1.9L18 19l-.9-2.1L15 16l2.1-.9z"/></svg>Suggest a Trade</button>
       <button id="finderPickerBtn" onclick="openFinderPicker()" class="hidden h-8 px-3 rounded-lg border border-sky-500/25 text-[12px] text-sky-300/80 hover:text-sky-200 hover:border-sky-500/50 hover:bg-sky-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Find a Trade</button>
+      <button id="plannerBtn" onclick="openPlanner()" title="Pick a goal and get the trades to reach it, step by step" class="hidden h-8 px-3 rounded-lg border border-violet-500/25 text-[12px] text-violet-300/80 hover:text-violet-200 hover:border-violet-500/50 hover:bg-violet-500/5 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg>Plan Trades</button>
       <div class="h-8 px-3 rounded-lg bg-black/40 border border-white/[0.08] flex items-center gap-2 text-[12px] text-zinc-400">
         <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
         Live Values
@@ -91,6 +92,9 @@
     </div>
     <div id="gapClose" class="hidden mt-3 pt-3 border-t border-white/5"></div>
   </div>
+
+  <!-- Trade Planner: a goal turned into an ordered sequence of trades (planner.js) -->
+  <div id="planner" class="hidden mb-4 p-4 rounded-2xl card"></div>
 
   <!-- Negotiation: the other manager's predicted response, round by round (negotiation.js) -->
   <div id="negotiation" class="hidden mb-4 p-4 rounded-2xl card"></div>
@@ -370,7 +374,8 @@ async function init() {
     document.getElementById('status').className = 'text-[13px] text-emerald-400/80 mt-1';
 
     document.getElementById('loadRostersBtn').onclick = () => {
-      if (typeof negReset === 'function') { negReset(); negPreloadStyles(); } // trade history loads in the background for negotiations
+      if (typeof negReset === 'function') { negReset(); negPreloadStyles(); }
+      if (typeof planReset === 'function') planReset(); // trade history loads in the background for negotiations
       selA.value = setupA.value;
       selB.value = setupB.value;
       prevA = selA.value; prevB = selB.value;
@@ -380,6 +385,7 @@ async function init() {
       document.getElementById('workspace').classList.remove('hidden');
       document.getElementById('finderPickerBtn').classList.remove('hidden');
       document.getElementById('suggestBtn').classList.remove('hidden');
+      document.getElementById('plannerBtn').classList.remove('hidden');
       document.getElementById('offeredByWrap').classList.remove('hidden');
       renderPosFilter('A'); renderPosFilter('B');
       render('A'); render('B');
@@ -399,6 +405,8 @@ function backToSetup() {
   document.getElementById('setup').classList.remove('hidden');
   document.getElementById('finderPickerBtn').classList.add('hidden');
   document.getElementById('suggestBtn').classList.add('hidden');
+  document.getElementById('plannerBtn').classList.add('hidden');
+  if (typeof planReset === 'function') { planReset(); closePlanner(); }
   document.getElementById('suggestPanel').classList.add('hidden');
   closeFinder();
 }
@@ -2293,5 +2301,6 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js"></script>
+<script src="planner.js"></script>
 </body>
 </html>
