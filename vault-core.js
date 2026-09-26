@@ -3082,7 +3082,7 @@ const Vault = {
     const ensure = team => {
       if (!byTeam.has(team.rosterId)) byTeam.set(team.rosterId, {
         teamName: team.teamName, rosterId: team.rosterId, record: team.record,
-        trades: 0, won: 0, lost: 0, netValue: 0, netValueToday: 0, fitSum: 0,
+        trades: 0, won: 0, lost: 0, wonNow: 0, lostNow: 0, netValue: 0, netValueToday: 0, fitSum: 0,
         netPicks: 0, ageDeltaSum: 0, olderCount: 0, youngerCount: 0,
         fair: 0, lopsided: 0, unfair: 0, unfairFor: 0, unfairAgainst: 0,
         best: null, worst: null,
@@ -3120,6 +3120,7 @@ const Vault = {
         s.netPicks += timeline.dPicks; s.ageDeltaSum += timeline.dAge;
         if (timeline.dAge > 0.25) s.olderCount++; else if (timeline.dAge < -0.25) s.youngerCount++;
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
+        if (dValToday > 0) s.wonNow++; else if (dValToday < 0) s.lostNow++;
         if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
         if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
         // Piece count, not value: fewer pieces back than sent = consolidating.
@@ -3127,9 +3128,11 @@ const Vault = {
         const bucket = g.fairness.overallPct >= VAULT_CONFIG.LOPSIDED_PCT ? 'unfair' : g.fairness.overallPct >= VAULT_CONFIG.FAIR_PCT ? 'lopsided' : 'fair';
         s[bucket]++;
         if (bucket === 'unfair') { if (favor > 0) s.unfairFor++; else s.unfairAgainst++; }
-        const rec = { opp, dVal, pctDiff: g.pctDiff, created: g.tx.created };
-        if (!s.best || dVal > s.best.dVal) s.best = rec;
-        if (!s.worst || dVal < s.worst.dVal) s.worst = rec;
+        // Best/worst judged by how the deal turned out (today's prices), with
+        // the trade-day number kept alongside.
+        const rec = { opp, dVal, dValToday, pctDiff: g.pctDiff, created: g.tx.created };
+        if (!s.best || dValToday > s.best.dValToday) s.best = rec;
+        if (!s.worst || dValToday < s.worst.dValToday) s.worst = rec;
 
         // Which positions this manager nets toward/away from, across every trade.
         ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
@@ -3157,8 +3160,11 @@ const Vault = {
     return [...byTeam.values()].map(s => ({
       ...s,
       avgFit: s.trades ? s.fitSum / s.trades : 0,
-      avgAgeDelta: s.trades ? s.ageDeltaSum / s.trades : 0
-    })).sort((a, b) => b.netValue - a.netValue);
+      avgAgeDelta: s.trades ? s.ageDeltaSum / s.trades : 0,
+      aged: s.netValueToday - s.netValue // value their trades gained (or lost) after being made
+    // Ranked by how their trades turned out (Net Now), not how they looked on
+    // the day: a manager who bought before the market moved traded better.
+    })).sort((a, b) => b.netValueToday - a.netValueToday);
   },
 
   // Turns one manager's aggregated stats into plain-English tendency notes — the
@@ -3221,10 +3227,14 @@ const Vault = {
       if (s.trades >= leagueAvgTrades * 1.5) notes.push({ tone: 'neutral', text: `Active trader — ${s.trades} trades vs. a league average of ${leagueAvgTrades.toFixed(1)}.` });
       else if (s.trades <= leagueAvgTrades * 0.5) notes.push({ tone: 'neutral', text: `Rarely trades — just ${s.trades} vs. a league average of ${leagueAvgTrades.toFixed(1)}.` });
     }
+    // Hindsight: did their trades gain or lose value after being made?
+    const aged = s.netValueToday - s.netValue, fmtN = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n)).toLocaleString();
+    if (aged >= 1000) notes.push({ tone: 'good', text: `Their trades have gained ${fmtN(aged)} in value since they were made — they tend to buy before the market does.` });
+    else if (aged <= -1000) notes.push({ tone: 'bad', text: `Their trades have lost ${fmtN(aged).slice(1)} in value since they were made — they tend to buy high.` });
     if (s.trades >= 3) {
-      const winRate = s.won / s.trades;
-      if (winRate >= 0.65) notes.push({ tone: 'good', text: `Wins on value more often than not (${s.won}-${s.lost} record).` });
-      else if (s.lost > s.won && s.lost / s.trades >= 0.6) notes.push({ tone: 'bad', text: `Comes out behind on value more often than not (${s.won}-${s.lost} record).` });
+      const winRate = s.wonNow / s.trades;
+      if (winRate >= 0.65) notes.push({ tone: 'good', text: `Most of their trades have come out ahead at today's values (${s.wonNow}-${s.lostNow}).` });
+      else if (s.lostNow > s.wonNow && s.lostNow / s.trades >= 0.6) notes.push({ tone: 'bad', text: `Most of their trades have come out behind at today's values (${s.wonNow}-${s.lostNow}).` });
     }
     if (s.avgFit >= 1.5) notes.push({ tone: 'good', text: `Trades tend to fit the team's own timeline and needs, not just the sticker price.` });
     else if (s.avgFit <= -1.5) notes.push({ tone: 'bad', text: `Trades often work against the team's own timeline or needs, even when the dollars are close.` });
