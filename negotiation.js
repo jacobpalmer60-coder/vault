@@ -1,5 +1,5 @@
 /* ============================================================
-   NEGOTIATION (Trade Calculator)
+   NEGOTIATION (Trade Coach, Trade Calculator)
    Offer a trade and get the other manager's predicted response: accept,
    decline with reasons, what they'd rather have from your roster, and a
    concrete counter — then counter back as many rounds as you like.
@@ -44,6 +44,7 @@ function negReset() {
   Negotiation.rounds = [];
   const box = document.getElementById('negotiation');
   if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+  if (typeof renderPlanner === 'function') { Planner.fromStep = null; renderPlanner(); } // back to the Negotiate prompt in the coach
 }
 
 const negOther = s => (s === 'A' ? 'B' : 'A');
@@ -295,6 +296,7 @@ async function negOffer(btn) {
   Negotiation.offering = O;
   if (offeredBy !== O) { offeredBy = O; render('A'); render('B'); }
   const box = document.getElementById('negotiation');
+  if (typeof renderPlanner === 'function') openCoach('negotiate'); // negotiations live in the Trade Coach panel
   box.classList.remove('hidden');
   // Wait (briefly) for trading styles so the same offer always reads the same way.
   if (!Negotiation.styles) {
@@ -436,7 +438,7 @@ function negRender() {
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Negotiating with ${who} <span class="normal-case tracking-normal text-zinc-500">· ${Vault.MODE_LABEL[Vault.teamMode(rTeam)]}${ctx.style && ctx.style.trades ? ` · ${Vault.escapeHtml(ctx.style.style)}` : ''}</span></div>
       <button onclick="negReset()" class="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-400 hover:text-white">Start over</button>
     </div>
-    <p class="text-[11px] text-zinc-500 mb-3">Predicted from their roster, needs, timeline, value${Negotiation.styles?.size ? ', and trade history' : ''} — not the real manager. Send the real offer in Sleeper.</p>
+    <p class="text-[11px] text-zinc-500 mb-3">Send the real offer in Sleeper.</p>
     <div class="space-y-3">${Negotiation.rounds.map((r, i) => {
       const [label, cls] = NEG_PILL[r.decision];
       if (r.decision === 'deal') return `<div class="p-3 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20">
@@ -464,7 +466,7 @@ function negRender() {
         ${last ? negCoachHtml(r, i) : ''}
       </div>`;
     }).join('')}</div>`;
-  box.classList.remove('hidden');
+  if (typeof renderPlanner === 'function') renderPlanner(); else box.classList.remove('hidden');
   renderOfferButton();
 }
 

@@ -1,7 +1,8 @@
 /* ============================================================
-   TRADE PLANNER (Trade Calculator)
-   Pick a goal and get the trades to reach it, in order, with the next one
-   highlighted. Every step is checked the way Negotiate checks an offer: the
+   TRADE COACH (Trade Calculator)
+   One panel with a row of options: Negotiate a trade (negotiation.js) or
+   one of four goals below. A goal gets the trades to reach it, in order,
+   with the next one highlighted. Every step is checked the way Negotiate checks an offer: the
    other manager would likely accept it (negJudgeFor, same needs, timeline,
    and trading style) and it's Fair for you on the overall grade.
 
@@ -15,7 +16,7 @@
      saves you real value; one trade beats two otherwise).
    - Fix a position: the biggest lineup upgrade there you can afford without
      touching your other starters, then a second if it's still a need.
-   - Sell vets for youth: aging players sold, most valuable first, for the
+   - Rebuild: aging players sold, most valuable first, for the
      best picks and young players (24 or under) any team would give.
    - Go all-in: bench players and picks turned into starters, biggest lineup
      gain first.
@@ -34,12 +35,13 @@ const PLAN = {
   MAX_BUYS: 3
 };
 const PLAN_GOALS = {
+  negotiate: { label: 'Negotiate a trade', blurb: 'Offer the trade loaded in the calculator and see how their manager would likely respond, with a recommended next move after every reply.' },
   target: { label: 'Get a player', blurb: 'Pick any player on another team. The planner finds the cheapest fair offer their manager would take, or a two-trade path when setting it up through another team saves you real value.' },
   position: { label: 'Fix a position', blurb: 'Upgrades your weakest starter at a position, paid for without touching your other starters.' },
-  rebuild: { label: 'Sell vets for youth', blurb: 'Sells your aging players while they still hold value, most valuable first, for the best picks and young players (24 or under) anyone would give.' },
+  rebuild: { label: 'Rebuild', blurb: 'Sells your aging players while they still hold value, most valuable first, for the best picks and young players (24 or under) anyone would give.' },
   contend: { label: 'Go all-in', blurb: 'Turns bench players and picks into starters, biggest lineup gain first. Your starters stay put.' }
 };
-const Planner = { goal: 'target', targetKey: null, pos: null, result: null, busy: false, rejected: { partners: new Set(), deals: new Set() } };
+const Planner = { goal: 'target', fromStep: null, targetKey: null, pos: null, result: null, busy: false, rejected: { partners: new Set(), deals: new Set() } };
 
 const planTick = () => new Promise(r => setTimeout(r, 0));
 const planTeam = (world, id) => world.find(t => t.rosterId === id);
@@ -226,7 +228,7 @@ async function planGoalRebuild(world, meId, progress) {
   const vets = planTeam(world, meId).assets
     .filter(a => a.type === 'player' && PLAN.SELL_AGE[a.pos] && a.age >= PLAN.SELL_AGE[a.pos] && a.value >= 1500)
     .sort((x, y) => y.value - x.value);
-  if (!vets.length) return { steps, title: 'Sell vets for youth', empty: 'You don\'t have any aging players worth selling (RBs 26+, WRs 28+, TEs 29+, QBs 30+ with real value).' };
+  if (!vets.length) return { steps, title: 'Rebuild', empty: 'You don\'t have any aging players worth selling (RBs 26+, WRs 28+, TEs 29+, QBs 30+ with real value).' };
   for (const v of vets) {
     if (steps.length >= PLAN.MAX_SELLS) break;
     progress(`Shopping ${v.name}…`);
@@ -239,8 +241,8 @@ async function planGoalRebuild(world, meId, progress) {
     w = planApply(w, meId, s.partner.rosterId, s.give, s.get);
   }
   const note = unsold.length ? `No team would give fair value in picks or young players for ${unsold.map(Vault.escapeHtml).join(', ')} right now.` : '';
-  if (!steps.length) return { steps, title: 'Sell vets for youth', empty: note };
-  return { steps, title: 'Sell vets for youth', note, w };
+  if (!steps.length) return { steps, title: 'Rebuild', empty: note };
+  return { steps, title: 'Rebuild', note, w };
 }
 
 async function planGoalContend(world, meId, progress) {
@@ -298,22 +300,34 @@ async function planRun(world, from = 0) {
 
 /* ---------- Actions ---------- */
 
-function openPlanner() {
-  const box = document.getElementById('planner');
-  if (!box.classList.contains('hidden')) return closePlanner();
+// The coach button toggles the panel. It opens on Negotiate when a trade is
+// loaded (or already being negotiated), otherwise on the last goal picked.
+function openCoach(option) {
+  const box = document.getElementById('coach');
+  const wasOpen = !box.classList.contains('hidden');
+  if (!option && wasOpen) return closeCoach();
+  if (!option && (Negotiation.rounds.length || (selectedA.size && selectedB.size))) option = 'negotiate';
+  if (option) Planner.goal = option;
   box.classList.remove('hidden');
   if (!Planner.pos) Planner.pos = planDefaultPos();
   if (!Planner.targetKey) { const b = [...selectedB]; if (b.length === 1 && b[0].startsWith('p_')) Planner.targetKey = b[0]; }
   negPreloadStyles();
   renderPlanner();
-  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!wasOpen) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-function closePlanner() { document.getElementById('planner').classList.add('hidden'); }
+function closeCoach() { document.getElementById('coach').classList.add('hidden'); }
+const coachOpen = () => !document.getElementById('coach').classList.contains('hidden');
+
+// Negotiate shows the rounds (when there are any); goals show the planner.
+function coachSync() {
+  const neg = document.getElementById('negotiation');
+  if (neg) neg.classList.toggle('hidden', !(Planner.goal === 'negotiate' && Negotiation.rounds.length));
+}
+
 function planReset() {
   Planner.result = null;
   Planner.rejected = { partners: new Set(), deals: new Set() };
-  const box = document.getElementById('planner');
-  if (box && !box.classList.contains('hidden')) renderPlanner();
+  if (coachOpen()) renderPlanner();
 }
 
 function planDefaultPos() {
@@ -322,7 +336,8 @@ function planDefaultPos() {
   return (order.find(p => needs.includes(p)) || order[0] || 'rb').toUpperCase();
 }
 
-function planSetGoal(g) { Planner.goal = g; Planner.result = null; Planner.rejected = { partners: new Set(), deals: new Set() }; renderPlanner(); }
+// Switching options keeps a built plan and any negotiation, so you can flip back.
+function planSetGoal(g) { Planner.goal = g; renderPlanner(); }
 function planSetPos(p) { Planner.pos = p; Planner.result = null; renderPlanner(); }
 function planPickTarget(label) {
   const hit = planTargetOptions().find(o => o.label === label);
@@ -364,8 +379,10 @@ function planLoad(i) {
 }
 function planNegotiate(i) {
   planLoad(i);
+  Planner.fromStep = i;
   Negotiation.offering = 'A';
   negOffer(document.querySelector('#offerBtn button'));
+  document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /* ---------- Render ---------- */
@@ -377,10 +394,23 @@ function planTargetOptions() {
 }
 
 function renderPlanner() {
-  const box = document.getElementById('planner');
-  if (!box || box.classList.contains('hidden')) return;
+  const head = document.getElementById('coachHead'), box = document.getElementById('planner');
+  if (!head || !coachOpen()) return;
   const me = planMe();
   const chip = (on, label, onclick, extra = '') => `<button onclick="${onclick}" class="text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${on ? 'bg-violet-500/15 border-violet-500/40 text-violet-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}${extra}</button>`;
+  head.innerHTML = `
+    <div class="flex items-start justify-between gap-3 mb-3">
+      <div>
+        <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Trade Coach <span class="normal-case tracking-normal text-zinc-500">· for ${Vault.escapeHtml(me.teamName)}</span></div>
+        <div class="text-[12px] text-zinc-400 mt-1 max-w-[680px]">Every trade the coach suggests is Fair for you and one the other manager would likely take. Responses are predicted from their roster, needs, timeline, and trade history, not the real managers.</div>
+      </div>
+      <button onclick="closeCoach()" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
+    </div>
+    <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(PLAN_GOALS).map(([g, d]) => chip(Planner.goal === g, d.label, `planSetGoal('${g}')`)).join('')}</div>
+    <div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${PLAN_GOALS[Planner.goal].blurb}</div>`;
+  coachSync();
+
+  if (Planner.goal === 'negotiate') { box.innerHTML = coachNegotiateHtml(); return; }
   const opts = Planner.goal === 'target' ? planTargetOptions() : [];
   const cur = opts.find(o => o.key === Planner.targetKey);
   const needs = Vault.positionalProfile(me, teams).needs;
@@ -392,23 +422,31 @@ function renderPlanner() {
     position: `<div class="flex gap-1.5 flex-wrap">${['QB', 'RB', 'WR', 'TE'].map(p => chip(Planner.pos === p, p, `planSetPos('${p}')`, needs.includes(p.toLowerCase()) ? ' <span class="text-[10px] text-rose-300/80">need</span>' : '')).join('')}</div>`,
     rebuild: '', contend: ''
   }[Planner.goal];
-
+  const built = Planner.result && Planner.result.goal === Planner.goal;
   box.innerHTML = `
-    <div class="flex items-start justify-between gap-3 mb-3">
-      <div>
-        <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Trade Planner <span class="normal-case tracking-normal text-zinc-500">· for ${Vault.escapeHtml(me.teamName)}</span></div>
-        <div class="text-[12px] text-zinc-400 mt-1 max-w-[680px]">Pick a goal and get the trades to reach it, in order. Every step is Fair for you and one the other manager would likely take, predicted the same way as Negotiate (not the real managers).</div>
-      </div>
-      <button onclick="closePlanner()" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20">Close</button>
-    </div>
-    <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(PLAN_GOALS).map(([g, d]) => chip(Planner.goal === g, d.label, `planSetGoal('${g}')`)).join('')}</div>
-    <div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${PLAN_GOALS[Planner.goal].blurb}</div>
     <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
       ${input}
-      <button id="planBuildBtn" onclick="planBuild()" ${Planner.busy ? 'disabled' : ''} class="self-start sm:self-auto shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Planner.busy ? 'opacity-60' : ''}">${Planner.result ? 'Rebuild plan' : 'Build plan'}</button>
+      <button id="planBuildBtn" onclick="planBuild()" ${Planner.busy ? 'disabled' : ''} class="self-start sm:self-auto shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Planner.busy ? 'opacity-60' : ''}">${built ? 'Plan again' : 'Build plan'}</button>
     </div>
     <div id="planStatus" class="text-[12px] text-zinc-400 min-h-[18px] ${Planner.busy ? '' : 'hidden'}">Planning…</div>
     ${Planner.busy ? '' : planResultHtml()}`;
+}
+
+// Negotiate option: a prompt to offer the loaded trade, or (once rounds exist)
+// a link back to the plan step being negotiated. The rounds render below.
+function coachNegotiateHtml() {
+  const r = Planner.result, step = r && Planner.fromStep != null ? r.steps[Planner.fromStep] : null;
+  if (Negotiation.rounds.length) {
+    return step ? `<div class="flex items-center justify-between gap-3 flex-wrap mb-3 p-2.5 rounded-lg bg-violet-500/[0.06] border border-violet-500/20">
+        <span class="text-[12px] text-violet-200/90">Step ${Planner.fromStep + 1} of your plan: ${r.title}</span>
+        <button onclick="planSetGoal('${r.goal}')" class="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Back to plan</button>
+      </div>` : '';
+  }
+  const ready = selectedA.size && selectedB.size;
+  return `<div class="p-3 rounded-xl bg-black/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <span class="text-[12px] text-zinc-300">${ready ? `Ready: ${negNames(negAssets('A', [...selectedA]))} for ${negNames(negAssets('B', [...selectedB]))}.` : 'Add pieces to both sides of the calculator below, then offer it here.'}</span>
+      ${ready ? `<button onclick="negOffer(this)" class="self-start sm:self-auto shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid">Offer to ${Vault.escapeHtml(teamOf(negOther(negOfferingSide())).teamName)}</button>` : ''}
+    </div>`;
 }
 
 function planResultHtml() {
