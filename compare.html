@@ -64,7 +64,7 @@
       <div id="legend" class="flex flex-wrap gap-4 text-[12px] text-zinc-300 mb-2"></div>
       <div id="chartWrap" class="relative">
         <svg id="chart" class="w-full block" role="img" aria-label="Value over time for the selected players"></svg>
-        <div id="chartTip" class="hidden absolute top-0 z-10 rounded-lg border border-white/10 bg-[#0b0c0f] px-3 py-2 text-[12px] shadow-lg"></div>
+        <div id="chartTip" class="hidden absolute top-0 z-10 whitespace-nowrap rounded-lg border border-white/10 bg-[#0b0c0f] px-3 py-2 text-[12px] shadow-lg"></div>
       </div>
       <p class="text-[12px] text-zinc-400 mt-2">KeepTradeCut value in your league's format, one point per day. Pick a preset or your own dates; hover or tap the chart for exact values.</p>
     </section>
@@ -427,8 +427,13 @@ function renderChart() {
     tip.innerHTML = `<div class="text-zinc-400 mb-1">${new Date(dates[i] + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>` +
       ps.map((p, s) => `<div class="flex items-center gap-2">${legendMark(s)}<span class="text-zinc-300">${Vault.escapeHtml(p.name)}</span><span class="mono text-zinc-100 ml-auto pl-3">${fmt(series[s][i].v)}</span></div>`).join('');
     tip.classList.remove('hidden');
-    const left = (x(i) / W) * r.width;
-    tip.style.left = `${Math.min(Math.max(0, left + 12), r.width - tip.offsetWidth)}px`;
+    // Measure at its natural width first (an absolutely placed box near the right
+    // edge would otherwise shrink to the space left and cut its text off), then
+    // sit right of the cursor, or flip to the left when it wouldn't fit.
+    tip.style.left = '0px';
+    const left = (x(i) / W) * r.width, w = tip.offsetWidth;
+    const lx = left + 12 + w <= r.width ? left + 12 : left - 12 - w;
+    tip.style.left = `${Math.max(0, lx)}px`;
   };
   hit.onpointermove = move; hit.onpointerdown = move;
   hit.onpointerleave = () => { tip.classList.add('hidden'); svg.querySelector('#xhair').setAttribute('visibility', 'hidden'); ps.forEach((_, s) => svg.querySelector('#dot' + s).setAttribute('visibility', 'hidden')); };
