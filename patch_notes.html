@@ -36,6 +36,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-09-26', items: [
+    { kind: 'improved', page: 'League Overview', text: 'Projected records and playoff and title odds now factor in the points each team has actually scored this season, not just its best projected lineup. Real scoring counts more as the season goes on: a third after 2 weeks, half after 4, two thirds after 8. Teams outscoring their projection (Allen\'s Creamy Surprise, 179 a week vs 158 projected) move up; teams scoring well under it move down.' },
     { kind: 'changed', page: 'Managers', text: 'Managers are ranked by Net Now (what their trades are worth at today\'s values) instead of Net Then (what they looked like on the day). A manager whose deals looked bad at the time but have aged well, like buying a player before the price rose, now ranks higher. Each card leads with Net Now, shows Net Then and how much the trades have gained since, a W-L record both ways, best and worst moves judged by today\'s value, and the manager\'s trading style.' },
     { kind: 'improved', page: 'Managers', text: 'Sort the League at a glance table by Net Then, Net Now, Trades, or Manager: click a column header (click again to flip it). Managers with no trades stay at the bottom.' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'The "Which team is yours?" box no longer flashes up while the page loads when the site already knows your team. It opens straight onto your team.' },

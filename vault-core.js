@@ -115,6 +115,11 @@ const VAULT_CONFIG = {
   // move (always by one step), 80/10/10 barely registered (1.8%), 60/20/20
   // started flipping which team a trade favors (4.6%).
   FAIRNESS_WEIGHTS: { value: 70, roster: 15, timeline: 15 },
+  // Season simulation: how much a team's actual points this season count
+  // toward its strength for the games left, next to its projected best
+  // lineup. Weight = weeks played / (weeks played + this), so actual scoring
+  // counts for a third after 2 weeks, half after 4, two thirds after 8.
+  ACTUAL_POINTS_WEEKS: 4,
   // Converts a net fit-point gap between the two teams into "% off" units so it
   // can blend with value — each is the value gap's 75th-percentile spread
   // divided by that factor's own, from the same calibration sample.
@@ -3434,7 +3439,24 @@ const Vault = {
     const playoffSpots = Math.min(teams.length, league.settings?.playoff_teams || 6);
     const medianGame = league.settings?.league_average_match === 1;
     const rosterIds = teams.map(t => t.rosterId);
-    const strength = new Map(teams.map(t => [t.rosterId, t.opt]));
+    // Strength for the games left: projected best-lineup points blended with
+    // actual points per game so far. Both are taken relative to the league
+    // average (real lineups score below the best-possible projection), then
+    // put back on the projection's scale. Actual points weigh more as the
+    // season goes on (VAULT_CONFIG.ACTUAL_POINTS_WEEKS).
+    const gamesPerWeek = league.settings?.league_average_match === 1 ? 2 : 1;
+    const weeksPlayed = t => ((t.record?.wins || 0) + (t.record?.losses || 0) + (t.record?.ties || 0)) / gamesPerWeek;
+    const mean = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+    const avgOpt = mean(teams.map(t => t.opt || 0));
+    const played = teams.filter(t => weeksPlayed(t) > 0 && (t.record?.fpts || 0) > 0);
+    const avgActual = mean(played.map(t => t.record.fpts / weeksPlayed(t)));
+    const rating = t => {
+      const wk = weeksPlayed(t);
+      if (!avgOpt || !avgActual || !wk || !(t.record?.fpts > 0)) return t.opt;
+      const w = wk / (wk + VAULT_CONFIG.ACTUAL_POINTS_WEEKS);
+      return avgOpt * ((1 - w) * (t.opt / avgOpt) + w * ((t.record.fpts / wk) / avgActual));
+    };
+    const strength = new Map(teams.map(t => [t.rosterId, rating(t)]));
     const baseWins = new Map(teams.map(t => [t.rosterId, t.record?.wins || 0]));
     const baseLosses = new Map(teams.map(t => [t.rosterId, t.record?.losses || 0]));
     const baseTies = new Map(teams.map(t => [t.rosterId, t.record?.ties || 0]));
