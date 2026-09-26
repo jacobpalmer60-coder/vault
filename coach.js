@@ -164,36 +164,42 @@ async function coachContend(me, progress) {
   return { title: 'Win-now trades', list };
 }
 
-// Sells your must-include pieces first, then aging players not kept off limits.
+// With Sell these set, shops only those pieces, with several offers each
+// (one per team). Otherwise, the best offer for each aging player not kept
+// off limits, most valuable first.
 async function coachRebuild(me, progress) {
   const must = coachMust(me), off = coachOffLimits(me);
-  const vets = [...must, ...me.assets.filter(a => a.type === 'player' && !off.has(a.key) && !must.includes(a) && COACH.SELL_AGE[a.pos] && a.age >= COACH.SELL_AGE[a.pos] && a.value >= 1500).sort((x, y) => y.value - x.value)];
+  const vets = must.length ? must : me.assets.filter(a => a.type === 'player' && !off.has(a.key) && COACH.SELL_AGE[a.pos] && a.age >= COACH.SELL_AGE[a.pos] && a.value >= 1500).sort((x, y) => y.value - x.value).slice(0, 8);
   if (!vets.length) return { empty: 'You don\'t have aging players worth selling (RBs 26+, WRs 28+, TEs 29+, QBs 30+ with real value). Add anyone you want to move under Sell these.' };
+  const perPiece = must.length ? Math.max(2, Math.floor(6 / must.length)) : 1;
   const young = a => a.type === 'pick' || (a.age && a.age <= 24);
   const list = [];
-  for (const v of vets.slice(0, Math.max(8, must.length))) {
+  for (const v of vets) {
     progress(`Shopping ${v.name}…`);
     await coachTick();
-    let best = null;
+    const offers = [];
     teams.filter(t => t !== me && coachPartnerOK(t)).forEach(t => {
       const tm = coachTheirMust(t), tmVal = sumValue(tm);
       const pool = t.assets.filter(a => young(a) && !coachTheirOff(a) && !tm.includes(a) && a.value >= v.value * 0.1 && a.value + tmVal <= v.value * 1.3).sort((x, y) => y.value - x.value).slice(0, 10);
       const packs = tm.length ? [[...tm]] : [];
       pool.forEach(a => packs.push([...tm, a]));
       pool.forEach((a, i) => pool.slice(i + 1).forEach(b => { const s = tmVal + a.value + b.value; if (s >= v.value * 0.6 && s <= v.value * 1.5) packs.push([...tm, a, b]); }));
+      let best = null;
       packs.forEach(pack => {
         const j = negJudgeFor(me, [v], t, pack, negContextFor(t));
         if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || j.edge < best.edge)) best = { partner: t, give: [v], get: pack, edge: j.edge };
       });
+      if (best) offers.push(best);
     });
-    if (best) {
-      const age = Math.floor(v.age);
-      const why = must.includes(v) ? `You picked ${Vault.escapeHtml(v.name)} to sell.` : `At ${age}, ${Vault.escapeHtml(v.name)} is ${age > COACH.SELL_AGE[v.pos] ? 'past' : 'at'} the age ${v.pos}s usually start losing value.`;
-      list.push({ ...best, id: v.key, why });
-    }
+    const age = Math.floor(v.age);
+    const why = must.length
+      ? (v.type === 'player' && COACH.SELL_AGE[v.pos] && age >= COACH.SELL_AGE[v.pos] ? `At ${age}, ${Vault.escapeHtml(v.name)} is ${age > COACH.SELL_AGE[v.pos] ? 'past' : 'at'} the age ${v.pos}s usually start losing value.` : '')
+      : `At ${age}, ${Vault.escapeHtml(v.name)} is ${age > COACH.SELL_AGE[v.pos] ? 'past' : 'at'} the age ${v.pos}s usually start losing value.`;
+    offers.sort((x, y) => x.edge - y.edge).slice(0, perPiece).forEach(o => list.push({ ...o, id: v.key + o.partner.rosterId, why }));
   }
-  if (!list.length) return { empty: 'No team would give fair value in picks or young players for your veterans right now.' };
-  return { title: 'Rebuild trades', list: list.slice(0, 6) };
+  const names = must.map(a => Vault.escapeHtml(a.name)).join(', ');
+  if (!list.length) return { empty: must.length ? `No team would give fair value in picks or young players for ${names} right now.` : 'No team would give fair value in picks or young players for your veterans right now.' };
+  return { title: must.length ? `Offers for ${names}` : 'Rebuild trades', list: list.slice(0, must.length ? 12 : 6) };
 }
 
 const COACH_RUN = { target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
