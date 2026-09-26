@@ -38,7 +38,7 @@
     <a class="hover:text-amber-300" href="#managers">Manager styles</a>
     <a class="hover:text-amber-300" href="#playerstats">Player stats on Compare Players</a>
     <a class="hover:text-amber-300" href="#negotiation">Trade Coach: negotiating</a>
-    <a class="hover:text-amber-300" href="#planner">Trade Coach: planning</a>
+    <a class="hover:text-amber-300" href="#coach">Trade Coach: finding trades</a>
   </nav>
 
   <div class="space-y-5">
@@ -118,6 +118,8 @@
       <ul>
         <li><strong>They accept</strong> based on how the deal looks from their side: KTC value blended with what it does to their starting lineup and their timeline, using the same weights as the overall grade. A contender giving up a top scorer for picks sees a worse deal than KTC value alone says. Their specific concerns count too: losing a position they're already thin at, giving up a top scorer while contending, a pick while rebuilding, taking on a position they're deep at or an older player in a rebuild, or having to drop someone. Each concern costs a few points of willingness; filling a need adds some. Managers who rarely trade want to come out ahead; active traders will take a little less. They never accept an offer the Trade Analysis would tell them to decline.</li>
         <li>Each response lists <strong>what they like</strong> and <strong>what gives them pause</strong>, then which side wins.</li>
+        <li>They answer in their own words, built from the same reasons: what bothers them most, then what they'd do instead.</li>
+        <li><strong>Ask for something else</strong> keeps your side the same and looks through their roster for a different return: more value, a position, youth (24 or under), points now, picks (up to four), or players from one NFL team. It shows Fair deals they'd accept, best for you first. If none are Fair, it shows the one closest deal they'd take, labeled that way.</li>
         <li><strong>Their counter</strong> is the most realistic change they'd accept — you adding a piece they want, them keeping one of theirs, or them sending a lesser piece instead. Counters lean a few percent their way, like real ones do, but never past Fair for you.</li>
         <li>If they'd only say yes because a deal now leans past Fair against you, the response says so.</li>
       </ul>
@@ -131,16 +133,15 @@
       <p>Their trading style comes from their real trade history on Trade Grades. The same offer always gets the same answer — there's no randomness.</p>
     </section>
 
-    <section id="planner" class="card rounded-vault-sm p-5">
-      <h2>Trade Coach: planning</h2>
-      <p>The planner turns a goal into trades, in order. Every step has to pass the same test as a Negotiate offer: the other manager would likely accept it, and it's Fair for you on the overall grade. If nobody would take a Fair offer (contenders rarely sell starters at even value), the planner shows the cheapest deal they would take, flagged as Lopsided against you so you can see the premium. It never suggests an Unfair trade. Each step after the first is judged in the league as it would look after the steps before it, with both rosters, needs, and timelines re-read, so step 2 can spend what step 1 brings in.</p>
+    <section id="coach" class="card rounded-vault-sm p-5">
+      <h2>Trade Coach: finding trades</h2>
+      <p>Get a player, Fix a position, Rebuild, and Go all-in each list single trades to choose from, best for you first. Every one has to pass the same test as a Negotiate offer: the other manager would likely accept it, and it's Fair for you on the overall grade. If nobody would take a Fair offer (contenders rarely sell starters at even value), you'll see the cheapest deals they would take, flagged as Lopsided against you so the premium is visible. It never suggests an Unfair trade.</p>
       <ul>
-        <li><strong>Get a player</strong>: the cheapest offer the owner would take, using one or two of your pieces, or three if that's the only way. It also tries two-trade paths: first pick up a piece from another team that the owner wants more (a position they need, picks if they're rebuilding, starters if they're contending), then build the offer around it. One trade wins unless two save you at least 5% of the player's value.</li>
-        <li><strong>Fix a position</strong>: the biggest upgrade to your best lineup at that position, from players who out-score your weakest starter there by 2+ points a week, paid for without trading your other starters. If it's still a need afterward, a second upgrade.</li>
-        <li><strong>Rebuild</strong>: players at or past the age their position usually starts losing value (RB 26, WR 28, TE 29, QB 30), most valuable first. Each goes to whichever team would give the most in picks and players 24 or under. Up to four sales.</li>
-        <li><strong>Go all-in</strong>: bench players and picks turned into starters, biggest lineup gain first. Your starters stay put. Up to three buys.</li>
+        <li><strong>Get a player</strong>: offers of one, two, or three of your pieces the owner would take, one per lead piece so you get real alternatives.</li>
+        <li><strong>Fix a position</strong>: players who out-score your weakest starter there by 2+ points a week, paid for without trading your other starters, ranked by how much they add to your best lineup.</li>
+        <li><strong>Rebuild</strong>: your players at or past the age their position usually starts losing value (RB 26, WR 28, TE 29, QB 30), each with the best return in picks and players 24 or under that any team would give.</li>
+        <li><strong>Go all-in</strong>: starters paid for with picks, prospects, and bench players, ranked by how much they add to your best lineup. Your starters stay put.</li>
       </ul>
-      <p>If a plan opens a hole that wasn't there before (say it trades away your only good TE), it adds one more trade to refill it, or tells you it couldn't find one. "They said no" rules that trade out and re-plans from that step.</p>
     </section>
 
     <p class="text-[12px] text-zinc-400">Something here doesn't match what you're seeing? Changes to how grading works are always listed on <a id="patchLink" class="text-amber-300 hover:text-amber-200" href="patch_notes.html">Patch Notes</a>.</p>

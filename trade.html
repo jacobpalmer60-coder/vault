@@ -94,10 +94,10 @@
   </div>
 
   <!-- Trade Coach: one panel, pick an option — negotiate the trade above
-       (negotiation.js) or plan the trades toward a goal (planner.js). -->
+       (negotiation.js) or find trades toward a goal (coach.js). -->
   <div id="coach" class="hidden mb-4 p-4 rounded-2xl card">
     <div id="coachHead"></div>
-    <div id="planner"></div>
+    <div id="coachBody"></div>
     <div id="negotiation" class="hidden"></div>
   </div>
 
@@ -377,7 +377,7 @@ async function init() {
 
     document.getElementById('loadRostersBtn').onclick = () => {
       if (typeof negReset === 'function') { negReset(); negPreloadStyles(); }
-      if (typeof planReset === 'function') planReset(); // trade history loads in the background for negotiations
+      if (typeof coachReset === 'function') coachReset(); // trade history loads in the background for negotiations
       selA.value = setupA.value;
       selB.value = setupB.value;
       prevA = selA.value; prevB = selB.value;
@@ -408,7 +408,7 @@ function backToSetup() {
   document.getElementById('finderPickerBtn').classList.add('hidden');
   document.getElementById('suggestBtn').classList.add('hidden');
   document.getElementById('coachBtn').classList.add('hidden');
-  if (typeof planReset === 'function') { planReset(); closeCoach(); }
+  if (typeof coachReset === 'function') { coachReset(); closeCoach(); }
   document.getElementById('suggestPanel').classList.add('hidden');
   closeFinder();
 }
@@ -2303,6 +2303,6 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js"></script>
-<script src="planner.js"></script>
+<script src="coach.js"></script>
 </body>
 </html>

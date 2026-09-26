@@ -44,7 +44,7 @@ function negReset() {
   Negotiation.rounds = [];
   const box = document.getElementById('negotiation');
   if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
-  if (typeof renderPlanner === 'function') { Planner.fromStep = null; renderPlanner(); } // back to the Negotiate prompt in the coach
+  if (typeof renderCoach === 'function') { Coach.from = null; renderCoach(); } // back to the Negotiate prompt in the coach
 }
 
 const negOther = s => (s === 'A' ? 'B' : 'A');
@@ -98,18 +98,18 @@ function negConcerns(out, inc, ctx, drops) {
   const list = [];
   out.forEach(o => {
     const pos = (o.pos || '').toLowerCase();
-    if (o.type === 'pick' && ctx.lean === 'rebuild') list.push({ w: -3, text: `They're rebuilding, so their ${Vault.escapeHtml(o.name)} matters more to them than its trade value.` });
-    else if (o.type === 'player' && ctx.needs.includes(pos)) list.push({ w: -4, text: `${o.pos} is already thin for them — losing ${Vault.escapeHtml(o.name)} opens a hole.` });
-    else if (o.type === 'player' && ctx.lean === 'contend' && (o.ppg || 0) >= 14) list.push({ w: -3, text: `They're contending and ${Vault.escapeHtml(o.name)} is one of their better scorers.` });
+    if (o.type === 'pick' && ctx.lean === 'rebuild') list.push({ w: -3, text: `They're rebuilding, so their ${Vault.escapeHtml(o.name)} matters more to them than its trade value.`, say: `I'm rebuilding. My ${Vault.escapeHtml(o.name)} means more to me than its trade value.` });
+    else if (o.type === 'player' && ctx.needs.includes(pos)) list.push({ w: -4, text: `${o.pos} is already thin for them — losing ${Vault.escapeHtml(o.name)} opens a hole.`, say: `I'm already thin at ${o.pos}. I can't give up ${Vault.escapeHtml(o.name)}.` });
+    else if (o.type === 'player' && ctx.lean === 'contend' && (o.ppg || 0) >= 14) list.push({ w: -3, text: `They're contending and ${Vault.escapeHtml(o.name)} is one of their better scorers.`, say: `I'm trying to win now, and ${Vault.escapeHtml(o.name)} is one of my best scorers.` });
   });
   inc.forEach(i => {
     const pos = (i.pos || '').toLowerCase();
-    if (i.type === 'player' && ctx.surpluses.includes(pos)) list.push({ w: -3, text: `They're already deep at ${i.pos}, so ${Vault.escapeHtml(i.name)} doesn't fill a hole.` });
-    else if (i.type === 'player' && ctx.needs.includes(pos)) list.push({ w: 3, text: `${i.pos} is a need for them — ${Vault.escapeHtml(i.name)} helps.` });
-    if (i.type === 'player' && ctx.lean === 'rebuild' && i.age >= 28) list.push({ w: -3, text: `At ${i.age.toFixed(0)}, ${Vault.escapeHtml(i.name)} doesn't fit a rebuild.` });
-    if (i.type === 'pick' && ctx.lean === 'contend') list.push({ w: -2, text: `${Vault.escapeHtml(i.name)} doesn't help a contender win now.` });
+    if (i.type === 'player' && ctx.surpluses.includes(pos)) list.push({ w: -3, text: `They're already deep at ${i.pos}, so ${Vault.escapeHtml(i.name)} doesn't fill a hole.`, say: `I'm already deep at ${i.pos}. I don't need ${Vault.escapeHtml(i.name)}.` });
+    else if (i.type === 'player' && ctx.needs.includes(pos)) list.push({ w: 3, text: `${i.pos} is a need for them — ${Vault.escapeHtml(i.name)} helps.`, say: `I could use a ${i.pos} like ${Vault.escapeHtml(i.name)}.` });
+    if (i.type === 'player' && ctx.lean === 'rebuild' && i.age >= 28) list.push({ w: -3, text: `At ${i.age.toFixed(0)}, ${Vault.escapeHtml(i.name)} doesn't fit a rebuild.`, say: `I'm rebuilding. ${Vault.escapeHtml(i.name)} at ${i.age.toFixed(0)} doesn't help me.` });
+    if (i.type === 'pick' && ctx.lean === 'contend') list.push({ w: -2, text: `${Vault.escapeHtml(i.name)} doesn't help a contender win now.`, say: `${Vault.escapeHtml(i.name)} doesn't help me win this year.` });
   });
-  if (drops) list.push({ w: -2 * drops, text: `They'd have to drop ${drops} player${drops === 1 ? '' : 's'} to fit this.` });
+  if (drops) list.push({ w: -2 * drops, text: `They'd have to drop ${drops} player${drops === 1 ? '' : 's'} to fit this.`, say: `I'd have to cut ${drops === 1 ? 'someone' : drops + ' players'} to fit this.` });
   return list;
 }
 
@@ -141,6 +141,30 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   const siteSaysNo = an.heads.B.tone === 'bad';
   const accepts = will >= ctx.ask && drops <= 1 && !siteSaysNo;
   return { an, edge, own, will, drops, concerns, accepts, siteSaysNo, fair, headO: an.heads.A };
+}
+
+// The manager's reply in their own words: what bothers them most, then what
+// they'd do instead (their counter), or an opening to ask for something else.
+function negReply(j, oGive, rGive, c, ctx) {
+  const nm = a => Vault.escapeHtml(a.name);
+  const byVal = l => [...l].sort((x, y) => y.value - x.value);
+  const [yourMain] = byVal(oGive), [theirMain, ...theirRest] = byVal(rGive);
+  const worst = j.concerns.filter(x => x.w < 0 && x.say).sort((x, y) => x.w - y.w)[0];
+  const plus = j.concerns.find(x => x.w > 0 && x.say);
+  if (j.accepts) return worst ? `Deal. ${worst.say} But the value makes it worth it.` : plus ? `Deal. ${plus.say}` : 'Deal. That works for me.';
+  let lead;
+  if (theirRest.length && yourMain && theirMain && yourMain.value > theirMain.value) lead = `I don't think the difference between ${nm(yourMain)} and ${nm(theirMain)} is worth ${negNames(theirRest)}.`;
+  else if (j.fair.value <= -3) lead = `${negNames(oGive)} for ${negNames(rGive)}? That's not enough for me.`;
+  else if (worst) lead = worst.say;
+  else if (j.fair.roster <= -5) lead = 'This makes my lineup worse, and the value doesn\'t make up for it.';
+  else if (j.fair.timeline <= -5) lead = 'This doesn\'t fit where my team is headed.';
+  else if (ctx.ask >= 0) lead = 'I\'d need to come out clearly ahead to make a move.';
+  else lead = 'I\'ll pass on this one.';
+  let next = 'What else have you got?';
+  if (c && c.type === 'add') next = `Add ${negNames(c.pieces)} and we have a deal.`;
+  else if (c && c.type === 'keep') next = `I'd do it without ${negNames(c.pieces)}.`;
+  else if (c && c.type === 'swap') next = `I'd rather send ${nm(c.sub)} than ${nm(c.pieces[0])}.`;
+  return `${lead} ${next}`;
 }
 
 // What they like and what gives them pause, plus one line on which side wins,
@@ -284,7 +308,7 @@ function negShop(O, R, coreAssets) {
   return best;
 }
 
-function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys, fromPlan) {
+function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys, fromCoach) {
   const you = e => -e; // their edge -> your edge
   const opts = {};
   const oGive = O === 'A' ? aAssets : bAssets;
@@ -297,17 +321,17 @@ function negCoach(aAssets, bAssets, O, R, ctx, j, counter, originalOKeys, fromPl
   const base = counter ? [counter.A, counter.B] : j.accepts ? [aAssets, bAssets] : null;
   if (base) { const cb = negCounterBack(base[0], base[1], O, R, ctx); if (cb) opts.cb = { you: you(cb.edge), A: negKeys(cb.A), B: negKeys(cb.B), text: cb.text }; }
   // Shopping means selling your pieces elsewhere: only when you offered a player,
-  // and never mid-plan, where the goal is getting what this step brings in.
-  const shop = !fromPlan && core.some(a => a.type === 'player') ? negShop(O, R, core) : null;
+  // and not for a trade picked from a coach list, where the goal is what it brings in.
+  const shop = !fromCoach && core.some(a => a.type === 'player') ? negShop(O, R, core) : null;
   if (shop) opts.shop = { you: you(shop.edge), team: shop.team.rosterId, name: shop.team.teamName, oKeys: shop.oKeys, tKeys: shop.tKeys, why: shop.why };
 
   // Pick the recommendation: the option that leaves you best off. Sending an
   // offer they already accept (or taking their counter) wins near-ties over
   // counter-backs and shopping, since those aren't guaranteed.
   const score = { send: opts.send ? opts.send.you + 2 : -Infinity, accept: opts.accept && opts.accept.tone !== 'bad' ? opts.accept.you + 2 : -Infinity, cb: opts.cb ? opts.cb.you : -Infinity, shop: opts.shop ? opts.shop.you - 1 : -Infinity };
-  // Never recommend sending an offer that's Lopsided against you, unless it's a plan
-  // step that already chose to pay that premium (the step card says so).
-  if (opts.send && opts.send.you <= -VAULT_CONFIG.FAIR_PCT && !fromPlan) score.send = -Infinity;
+  // Never recommend sending an offer that's Lopsided against you, unless it's a coach
+  // suggestion that already showed that premium (its card says so).
+  if (opts.send && opts.send.you <= -VAULT_CONFIG.FAIR_PCT && !fromCoach) score.send = -Infinity;
   let primary = Object.entries(score).sort((x, y) => y[1] - x[1])[0];
   primary = primary[1] === -Infinity ? 'walk' : primary[0];
   return { primary, ...opts };
@@ -321,7 +345,7 @@ async function negOffer(btn) {
   Negotiation.offering = O;
   if (offeredBy !== O) { offeredBy = O; render('A'); render('B'); }
   const box = document.getElementById('negotiation');
-  if (typeof renderPlanner === 'function') openCoach('negotiate'); // negotiations live in the Trade Coach panel
+  if (typeof renderCoach === 'function') openCoach('negotiate'); // negotiations live in the Trade Coach panel
   box.classList.remove('hidden');
   // Wait (briefly) for trading styles so the same offer always reads the same way.
   if (!Negotiation.styles) {
@@ -333,18 +357,19 @@ async function negOffer(btn) {
   const j = negJudge(aAssets, bAssets, R, ctx);
   const round = { offer: { A: negKeys(aAssets), B: negKeys(bAssets) }, O, R, edge: j.edge, reasons: negReasons(j, ctx) };
   let c = null;
-  if (j.accepts) round.decision = 'accept';
+  if (j.accepts) { round.decision = 'accept'; round.reply = negReply(j, O === 'A' ? aAssets : bAssets, O === 'A' ? bAssets : aAssets, null, ctx); }
   else {
     c = negCounter(aAssets, bAssets, O, R, ctx);
     const inTrade = new Set(negKeys([...aAssets, ...bAssets]));
     round.interests = negKeys(negInterests(O, ctx, inTrade));
+    round.reply = negReply(j, O === 'A' ? aAssets : bAssets, O === 'A' ? bAssets : aAssets, c, ctx);
     if (c) { round.decision = 'counter'; round.counter = { A: negKeys(c.A), B: negKeys(c.B), text: negCounterText(c, R, ctx), edge: c.edge }; }
     else round.decision = 'decline';
   }
   // What you offered in round 1 is "your core" — the coach never trims it.
   const firstOffer = Negotiation.rounds.find(r => r.offer && r.O === O);
   const originalOKeys = firstOffer ? firstOffer.offer[O] : round.offer[O];
-  round.coach = negCoach(aAssets, bAssets, O, R, ctx, j, c, originalOKeys, typeof Planner !== 'undefined' && Planner.fromStep != null);
+  round.coach = negCoach(aAssets, bAssets, O, R, ctx, j, c, originalOKeys, typeof Coach !== 'undefined' && Coach.from != null);
   Negotiation.rounds.push(round);
   negRender();
 }
@@ -380,6 +405,83 @@ function negLoad(keysA, keysB) {
   selectedA.clear(); selectedB.clear();
   keysA.forEach(k => selectedA.add(k)); keysB.forEach(k => selectedB.add(k));
   render('A'); render('B');
+}
+
+// Ask for something else back for the same offer: more value, a position,
+// youth, points now, picks, or players from one NFL team. Their pieces that
+// fit, alone or with one smaller piece (picks: up to four picks), that they'd
+// accept and that are Fair for you, best for you first (most points for
+// "points now"). If nothing Fair works, the one closest deal they'd take,
+// labeled as such, so you see what it would really cost.
+const NEG_ASKS = [['value', 'More value'], ['QB', 'QB'], ['RB', 'RB'], ['WR', 'WR'], ['TE', 'TE'], ['youth', 'Youth'], ['ppg', 'Points now'], ['picks', 'Picks']];
+function negAsk(i, pref, arg) {
+  const r = Negotiation.rounds[i];
+  if (!r || (pref === 'nfl' && !arg)) return;
+  const O = r.O, R = r.R, ctx = negContext(R);
+  const oGive = negAssets(O, r.offer[O]), give = sumValue(oGive);
+  const fits = {
+    value: () => true,
+    youth: a => a.type === 'player' && a.age && a.age <= 24,
+    ppg: a => a.type === 'player' && (a.ppg || 0) >= 10,
+    picks: a => a.type === 'pick',
+    nfl: a => a.type === 'player' && a.nfl === arg
+  }[pref] || (a => a.type === 'player' && a.pos === pref);
+  const theirs = teamOf(R).assets;
+  const mains = theirs.filter(a => fits(a) && a.value >= give * 0.2 && a.value <= give * 1.3).sort((x, y) => y.value - x.value).slice(0, 12);
+  const fillers = theirs.filter(a => a.value >= give * 0.05 && a.value <= give * 0.6).sort((x, y) => y.value - x.value).slice(0, 12);
+  const packs = [];
+  if (pref === 'picks') {
+    const pk = theirs.filter(a => a.type === 'pick').sort((x, y) => y.value - x.value).slice(0, 8);
+    const grow = (from, pack, sum) => {
+      if (pack.length && sum >= give * 0.6 && sum <= give * 2.2) packs.push(pack);
+      if (pack.length < 4) for (let k = from; k < pk.length; k++) grow(k + 1, [...pack, pk[k]], sum + pk[k].value);
+    };
+    grow(0, [], 0);
+  } else mains.forEach(m => {
+    packs.push([m]);
+    fillers.forEach(f => { if (f !== m && f.value <= m.value) { const s = m.value + f.value; if (s >= give * 0.6 && s <= give * 1.5) packs.push([m, f]); } });
+  });
+  const build = pack => (O === 'A' ? [oGive, pack] : [pack, oGive]);
+  const ppg = p => p.reduce((t, a) => t + (a.ppg || 0), 0);
+  const seen = new Set();
+  const ok = packs.map(pack => ({ pack, j: negJudge(...build(pack), R, ctx) })).filter(x => x.j.accepts && x.j.edge < VAULT_CONFIG.LOPSIDED_PCT);
+  const fair = ok.filter(x => x.j.edge < VAULT_CONFIG.FAIR_PCT)
+    .sort((x, y) => (pref === 'ppg' ? ppg(y.pack) - ppg(x.pack) : 0) || x.j.edge - y.j.edge)
+    .filter(x => pref === 'picks' || (!seen.has(x.pack[0].key) && seen.add(x.pack[0].key)));
+  const closest = fair.length ? [] : ok.sort((x, y) => x.j.edge - y.j.edge).slice(0, 1);
+  const list = (fair.length ? fair : closest).slice(0, 3).map(x => ({ keys: negKeys(x.pack), edge: x.j.edge }));
+  const label = pref === 'nfl' ? `${arg} players` : (NEG_ASKS.find(a => a[0] === pref) || [])[1];
+  r.ask = { pref, arg, label, list, closest: !fair.length && list.length > 0 };
+  negRender();
+}
+function negAskOffer(i, k) {
+  const r = Negotiation.rounds[i], pick = r?.ask?.list[k];
+  if (!pick) return;
+  const O = r.O;
+  negLoad(O === 'A' ? r.offer.A : pick.keys, O === 'A' ? pick.keys : r.offer.B);
+  negOffer(document.querySelector('#offerBtn button'));
+}
+function negAskHtml(r, i) {
+  const theirs = teamOf(r.R).assets;
+  const nfl = [...new Set(theirs.filter(a => a.type === 'player' && a.nfl && a.value >= 500).map(a => a.nfl))].sort();
+  const on = p => r.ask && r.ask.pref === p;
+  const chip = (p, label) => `<button onclick="negAsk(${i}, '${p}')" class="text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on(p) ? 'bg-violet-500/15 border-violet-500/40 text-violet-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`;
+  const res = r.ask ? (r.ask.list.length ? `${r.ask.closest ? `<div class="text-[12px] text-amber-300 mt-2">Nothing Fair works with ${Vault.escapeHtml(r.ask.label)}. The closest they'd take:</div>` : ''}<div class="grid gap-2 sm:grid-cols-3 mt-2">${r.ask.list.map((o, k) => {
+      const lop = o.edge >= VAULT_CONFIG.FAIR_PCT;
+      return `<div class="p-2.5 rounded-lg border ${lop ? 'border-amber-500/20' : 'border-white/10'} bg-black/30 flex flex-col">
+        <div class="text-[12px] text-zinc-300">They'd send <span class="text-zinc-100 font-medium">${negNames(negAssets(r.R, o.keys))}</span></div>
+        <div class="text-[11px] mt-1 ${lop ? 'text-amber-300' : 'text-zinc-400'}">${negLean(-o.edge)}</div>
+        <button onclick="negAskOffer(${i}, ${k})" class="mt-2 self-start text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid">Offer this</button>
+      </div>`;
+    }).join('')}</div>` : `<div class="text-[12px] text-zinc-400 mt-2">They wouldn't do any ${Vault.escapeHtml(r.ask.label)} deal for what you're offering, even a lopsided one.</div>`) : '';
+  return `<div class="mt-3 pt-3 border-t border-white/5">
+      <div class="text-[11px] text-zinc-400 mb-1.5">Ask for something else for ${negNames(negAssets(r.O, r.offer[r.O]))}:</div>
+      <div class="flex flex-wrap gap-1.5 items-center">${NEG_ASKS.map(([p, l]) => chip(p, l)).join('')}
+        ${nfl.length ? `<select onchange="negAsk(${i}, 'nfl', this.value)" class="text-[11px] px-2 py-1 rounded-lg border ${on('nfl') ? 'border-violet-500/40 text-violet-200 bg-violet-500/15' : 'border-white/10 text-zinc-400 bg-black/40'}">
+          <option value="">From an NFL team…</option>${nfl.map(n => `<option value="${n}" ${on('nfl') && r.ask.arg === n ? 'selected' : ''}>${n}</option>`).join('')}</select>` : ''}
+      </div>
+      ${res}
+    </div>`;
 }
 
 function negAcceptCounter(i) {
@@ -486,6 +588,7 @@ function negRender() {
         <div class="text-[11px] text-zinc-500 mb-1">Round ${i + 1} · your offer</div>
         <div class="text-[12px] mb-2">${negTradeLine(r.offer, r.O)}</div>
         <div class="flex items-center gap-2 mb-1.5"><span class="text-[11px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">${who}</span></div>
+        ${r.reply ? `<div class="mb-2.5 px-3 py-2 rounded-lg rounded-tl-sm bg-white/[0.04] border border-white/10 text-[13px] text-zinc-100">"${r.reply}"</div>` : ''}
         ${negReasonsHtml(r)}
         ${r.decision === 'accept' && r.edge >= VAULT_CONFIG.FAIR_PCT ? `<div class="text-[12px] text-amber-300 mb-1.5">Heads up: they'd accept because it now leans ${capPct(r.edge).toFixed(0)}% their way — ${r.edge >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided'} for you.${negAssets(r.O, r.offer[r.O]).length < negAssets(r.R, r.offer[r.R]).length ? ' On KTC\'s math, extra smaller pieces on your side count for less than the premium on the best player in the deal, so asking for a throw-in can make it worse for you.' : ''}</div>` : ''}
         ${r.decision === 'accept' ? `<div class="text-[11px] text-zinc-400">They'd take this as offered — make the offer in Sleeper.</div>` : ''}
@@ -497,11 +600,11 @@ function negRender() {
             <div class="text-[11px] text-zinc-400 mb-2">Leans ${capPct(Math.abs(r.counter.edge)).toFixed(0)}% ${r.counter.edge >= 0 ? 'their way' : 'your way'} — still Fair for you.</div>
             ${last ? `<div class="flex flex-wrap gap-2">${r.coach ? '' : `<button onclick="negAcceptCounter(${i})" class="text-[11px] px-3 py-1.5 rounded-lg btn-gold-solid">Accept their counter</button>`}<button onclick="negEditCounter(${i})" class="text-[11px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white">Edit it and counter back</button></div>` : ''}
           </div>` : ''}
-        ${r.decision === 'decline' ? `<div class="text-[11px] text-zinc-400">Nothing close to this works for them. Try building around the pieces above.</div>` : ''}
+        ${last ? negAskHtml(r, i) : ''}
         ${last ? negCoachHtml(r, i) : ''}
       </div>`;
     }).join('')}</div>`;
-  if (typeof renderPlanner === 'function') renderPlanner(); else box.classList.remove('hidden');
+  if (typeof renderCoach === 'function') renderCoach(); else box.classList.remove('hidden');
   renderOfferButton();
 }
 
