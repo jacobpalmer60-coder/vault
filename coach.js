@@ -341,27 +341,17 @@ const coachInputKey = () => ({ shop: Coach.shopKey, target: Coach.targetKey, pos
 
 /* ---------- Panel ---------- */
 
-// The coach opens from the Trade Coach button (top middle) and starts closed,
-// so the calculator comes first. Opening it (or an offer from the trade bar)
-// shows the panel; Best trades searches the first time it's shown.
+// The coach is one of the tools on the Trade Calculator's start screen (and
+// the Trade Coach tab). Opening it on an option shows that option; Best trades
+// searches the first time, and Get a player opens its player picker.
 function openCoach(option) {
-  if (option) Coach.option = option;
-  const box = document.getElementById('coach');
-  const wasOpen = !box.classList.contains('hidden');
-  box.classList.remove('hidden');
-  coachToggleLabel();
+  if (option) { Coach.option = option; Coach.collapsed = false; }
+  const wasOpen = coachOpen();
+  setView('coach');
   renderCoach();
   if (Coach.option === 'best' && !Coach.results.best && !Coach.busy) coachFind();
-  if (!wasOpen) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-function closeCoach() { document.getElementById('coach').classList.add('hidden'); coachToggleLabel(); }
-function toggleCoach() { coachOpen() ? closeCoach() : openCoach(); }
-function coachToggleLabel() {
-  const btn = document.getElementById('coachToggle');
-  if (!btn) return;
-  const open = coachOpen();
-  btn.setAttribute('aria-expanded', String(open));
-  btn.querySelector('span').textContent = open ? 'Hide Trade Coach' : 'Trade Coach';
+  if (option === 'target' && !Coach.targetKey) coachOpenPicker();
+  if (!wasOpen) document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 // Called when the workspace opens on your team: fresh results; searches only once opened.
 function coachStart() {
@@ -373,7 +363,7 @@ function coachStart() {
   renderCoach();
   if (coachOpen() && Coach.option === 'best') coachFind();
 }
-const coachOpen = () => !document.getElementById('coach').classList.contains('hidden') && !document.getElementById('workspace').classList.contains('hidden');
+const coachOpen = () => view === 'coach' && !document.getElementById('workspace').classList.contains('hidden');
 function coachSync() {
   const neg = document.getElementById('negotiation');
   if (neg) neg.classList.toggle('hidden', !(Coach.option === 'negotiate' && Negotiation.rounds.length));
@@ -386,6 +376,7 @@ function coachSetShop(key) { Coach.shopKey = key || null; renderCoach(); if (key
 function coachShopFor(key) { Coach.option = 'shop'; Coach.shopKey = key; coachJump(); }
 function coachGetFor(key) { Coach.option = 'target'; Coach.targetKey = key; Coach.picker.open = false; coachJump(); }
 function coachJump() {
+  setView('coach');
   renderCoach();
   document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
   coachFind();
