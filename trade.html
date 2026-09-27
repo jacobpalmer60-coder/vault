@@ -39,10 +39,16 @@
   </div>
 
   <div id="workspace" class="hidden">
-  <button onclick="backToSetup()" class="mb-4 text-[12px] text-zinc-400 hover:text-white transition-colors">← Change your team</button>
+  <!-- Top row: change team (left), Trade Coach toggle (center). The coach
+       panel stays closed until opened, so the calculator comes first. -->
+  <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mb-4">
+    <button onclick="backToSetup()" class="justify-self-start text-[12px] text-zinc-400 hover:text-white transition-colors">← Change your team</button>
+    <button id="coachToggle" onclick="toggleCoach()" aria-expanded="false" aria-controls="coach" class="btn-gold-solid text-[14px] px-5 h-10 inline-flex items-center gap-2"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg><span>Trade Coach</span></button>
+    <span></span>
+  </div>
 
-  <!-- Trade options (Trade Coach): best trades for your team, goals, negotiation. Always on the page. -->
-  <div id="coach" class="mb-4 p-4 sm:p-5 rounded-2xl card">
+  <!-- Trade Coach: best trades for your team, goals, negotiation (coach.js). -->
+  <div id="coach" class="hidden mb-4 p-4 sm:p-5 rounded-2xl card">
     <div id="coachHead"></div>
     <div id="coachBody"></div>
     <div id="negotiation" class="hidden"></div>

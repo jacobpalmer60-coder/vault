@@ -341,12 +341,29 @@ const coachInputKey = () => ({ shop: Coach.shopKey, target: Coach.targetKey, pos
 
 /* ---------- Panel ---------- */
 
-// The coach is part of the page (top of the workspace), not a pop-open panel.
+// The coach opens from the Trade Coach button (top middle) and starts closed,
+// so the calculator comes first. Opening it (or an offer from the trade bar)
+// shows the panel; Best trades searches the first time it's shown.
 function openCoach(option) {
   if (option) Coach.option = option;
+  const box = document.getElementById('coach');
+  const wasOpen = !box.classList.contains('hidden');
+  box.classList.remove('hidden');
+  coachToggleLabel();
   renderCoach();
+  if (Coach.option === 'best' && !Coach.results.best && !Coach.busy) coachFind();
+  if (!wasOpen) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-// Called when the workspace opens on your team: fresh results, then Best trades.
+function closeCoach() { document.getElementById('coach').classList.add('hidden'); coachToggleLabel(); }
+function toggleCoach() { coachOpen() ? closeCoach() : openCoach(); }
+function coachToggleLabel() {
+  const btn = document.getElementById('coachToggle');
+  if (!btn) return;
+  const open = coachOpen();
+  btn.setAttribute('aria-expanded', String(open));
+  btn.querySelector('span').textContent = open ? 'Hide Trade Coach' : 'Trade Coach';
+}
+// Called when the workspace opens on your team: fresh results; searches only once opened.
 function coachStart() {
   Coach.results = {};
   Coach.pos = coachDefaultPos();
@@ -354,9 +371,9 @@ function coachStart() {
   if (Coach.option !== 'negotiate') Coach.option = 'best';
   negPreloadStyles();
   renderCoach();
-  if (Coach.option === 'best') coachFind();
+  if (coachOpen() && Coach.option === 'best') coachFind();
 }
-const coachOpen = () => !document.getElementById('workspace').classList.contains('hidden');
+const coachOpen = () => !document.getElementById('coach').classList.contains('hidden') && !document.getElementById('workspace').classList.contains('hidden');
 function coachSync() {
   const neg = document.getElementById('negotiation');
   if (neg) neg.classList.toggle('hidden', !(Coach.option === 'negotiate' && Negotiation.rounds.length));
