@@ -20,7 +20,7 @@
    ============================================================ */
 const COACH = {
   SELL_AGE: { QB: 30, RB: 26, WR: 28, TE: 29 }, // roughly where each position's value starts sliding
-  MIN_GAIN: 2,       // pts/week a trade has to add to your best lineup
+  MIN_GAIN: 3,       // pts/week a trade has to add to your best lineup
   UPGRADE_BY: 2,     // a target must out-score your weakest starter there by 2 pts/week
   SHOW: 5,           // suggestions per list
   TARGET_SHOW: 8     // offers for one player (Get a player)
