@@ -1185,54 +1185,14 @@ function fairnessBucket(pct, fitA, fitB) {
 // "extra-fair"), and a color family switch reads that distinction faster than a
 // brightness step would. `muted` selects the softer set used for small labels,
 // vs. the fuller-strength set for the big number.
-function bucketColor(bucket, muted) {
-  if (bucket === 'Great') return muted ? 'text-violet-400' : 'text-violet-300';
-  if (bucket === 'Good') return muted ? 'text-sky-400' : 'text-sky-300';
-  if (bucket === 'Fair') return muted ? 'text-emerald-400/70' : 'text-emerald-400';
-  if (bucket === 'Lopsided') return muted ? 'text-amber-400/70' : 'text-amber-400';
-  return 'text-zinc-400';
-}
-
-// The two-sided verdict's own tone (overallVerdict/historyVerdict's return, NOT
-// a per-side head.tone) turns out to line up exactly with the value+fit bucket:
-// tone 'good' requires BOTH sides' headline to read 'good', which — since a
-// side's headline can only be 'good' when it's even-or-ahead on value AND its
-// own fit clears the threshold, and one side being "ahead" forces the other
-// "behind" (dValueAdjA = -dValueAdjB) — is only possible when both sides are
-// exactly even (pctDiff < FAIR_PCT) and both clear the fit bar: precisely
-// Vault.fairnessBucket's Great condition. So tone 'good' ⟺ bucket 'Great',
-// always, for this two-sided verdict. Tone 'neutral' isn't as clean — it covers
-// both a genuine Good bucket (one side's fit clears the bar, the other doesn't)
-// AND a real "Fair, No Real Winner" (neither side's fit clears it), which the
-// plain three-tone system can't tell apart — hence checking bucket explicitly
-// rather than trying to derive it from tone alone.
-//
-// Also used for the offeredBy-reframed acceptance verdict, whose tone comes
-// from one side's own headline (heads[receivingSide].tone) instead — there
-// tone 'good' does NOT imply bucket 'Great' (only that THIS side did well), but
-// the bucket check here still can't misfire from that: Great forces both sides'
-// headline tone to 'good' (proven above), so a Great trade always paints violet
-// here too; a Good trade only paints blue when this side's own tone lands on
-// the neutral fallback, otherwise it correctly defers to plain accept/decline
-// coloring. A per-side head.tone used elsewhere (analysis card, notes list)
-// stays on the plain TONE/TONE_DOT maps — only these three helpers are bucket-
-// aware, where 'good' still just means "this side benefited," not "the whole
-// trade is Great."
-function verdictColor(tone, bucket) {
-  if (bucket === 'Great') return 'text-violet-300';
-  if (bucket === 'Good' && tone === 'neutral') return 'text-sky-400';
-  return TONE[tone];
-}
-function verdictDot(tone, bucket) {
-  if (bucket === 'Great') return 'bg-violet-400';
-  if (bucket === 'Good' && tone === 'neutral') return 'bg-sky-400';
-  return TONE_DOT[tone];
-}
-function verdictBanner(tone, bucket) {
-  if (bucket === 'Great') return 'bg-violet-500/[0.06] border-violet-500/25';
-  if (bucket === 'Good' && tone === 'neutral') return 'bg-sky-500/[0.06] border-sky-500/25';
-  return TONE_BANNER[tone];
-}
+// Grade colors come from Vault.BUCKET_STYLE, so every grade on the site uses
+// the same hue. The banner's accept/decline recommendation (when a side is
+// picked as offering) isn't a grade: it keeps green/amber/red for its advice
+// and shows the grade as a colored badge next to it.
+function bucketColor(bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).text; }
+function verdictColor(tone, bucket) { return offeredBy ? TONE[tone] : bucketColor(bucket); }
+function verdictDot(tone, bucket) { return offeredBy ? TONE_DOT[tone] : (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).dot; }
+function verdictBanner(tone, bucket) { return offeredBy ? TONE_BANNER[tone] : (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).banner; }
 
 // "% off" is a ratio against the average (or target) side value, not a bounded
 // percentage — it can mathematically clear 100 when one side gives up next to
@@ -1366,7 +1326,7 @@ function updateTrade() {
     ? `${bucket} · ${capPct(overallPct).toFixed(0)}% off · KTC ${capPct(pctDiff).toFixed(0)}%`
     : `${bucket} · ${capPct(pctDiff).toFixed(0)}% off`;
   diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than KTC value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side.`;
-  diffLabelEl.className = 'text-[12px] mt-0.5 ' + bucketColor(bucket, true);
+  diffLabelEl.className = 'text-[12px] mt-0.5 ' + bucketColor(bucket);
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(fairness.overallSigned, diffBandPct) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
 
@@ -1792,6 +1752,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
     <div class="flex items-center gap-3 mb-2">
       <span class="size-3.5 rounded-full shrink-0 ${verdictDot(displayVerdict.tone, bucket)}"></span>
       <div class="text-[28px] font-semibold leading-tight ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.label}</div>
+      ${offeredBy ? Vault.gradePill(bucket) : ''}
     </div>
     <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.text}</div>
     <div class="max-w-xl mt-4">${Vault.fairnessPanelHtml(fairness, bandPct, teamA.teamName, teamB.teamName, `${capPct(fairness.fitMovedIt ? overallPct : pctDiff).toFixed(0)}% off`)}</div>

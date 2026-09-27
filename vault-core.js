@@ -1895,6 +1895,31 @@ const Vault = {
   // out that it's ALSO a strong fit — for both sides (Great) or just one (Good) —
   // is a bonus signal, not a discount. A trade can never climb out of
   // Lopsided/Unfair by having great fit, only move from Fair up to Good or Great.
+  // One color per grade everywhere on the site, matching the fairness bar's
+  // bands: Great violet, Good blue, Fair green, Lopsided amber, Unfair red.
+  BUCKET_STYLE: {
+    Great: { text: 'text-violet-300', dot: 'bg-violet-400', banner: 'bg-violet-500/[0.06] border-violet-500/25', pill: 'bg-violet-500/10 text-violet-200 border-violet-500/30' },
+    Good: { text: 'text-sky-300', dot: 'bg-sky-400', banner: 'bg-sky-500/[0.06] border-sky-500/25', pill: 'bg-sky-500/10 text-sky-200 border-sky-500/30' },
+    Fair: { text: 'text-emerald-400', dot: 'bg-emerald-400', banner: 'bg-emerald-500/[0.06] border-emerald-500/25', pill: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25' },
+    Lopsided: { text: 'text-amber-400', dot: 'bg-amber-400', banner: 'bg-amber-500/[0.06] border-amber-500/25', pill: 'bg-amber-500/10 text-amber-300 border-amber-500/30' },
+    Unfair: { text: 'text-rose-400', dot: 'bg-rose-400', banner: 'bg-rose-500/[0.06] border-rose-500/25', pill: 'bg-rose-500/10 text-rose-300 border-rose-500/30' }
+  },
+  // A graded past trade (Vault.gradeTrade) re-graded at today's prices: today's
+  // KTC value blended with the roster fit and timeline read at the trade, same
+  // weights and "never closer to even than value" rule as the trade-day grade.
+  todayGrade(g) {
+    if (g.valuedAt !== 'trade' || !Number.isFinite(g.todaySignedPctDiff)) return null;
+    const w = VAULT_CONFIG.FAIRNESS_WEIGHTS, cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, clamp = x => Math.max(-cap, Math.min(cap, x));
+    const v = g.todaySignedPctDiff;
+    const blend = (w.value * clamp(v) + w.roster * clamp(g.fairness.roster) + w.timeline * clamp(g.fairness.timeline)) / 100;
+    const signed = Math.abs(blend) > Math.abs(v) ? blend : v;
+    return { signed, pct: Math.abs(signed), bucket: Vault.fairnessBucket(Math.abs(signed), g.combinedFitA, g.combinedFitB) };
+  },
+  gradePill(bucket, extra = '') {
+    const s = Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair;
+    return `<span class="inline-flex items-center text-[12px] font-medium px-2 py-0.5 rounded-md border ${s.pill}">${bucket}${extra}</span>`;
+  },
+
   fairnessBucket(pctDiff, fitA, fitB) {
     if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) return 'Unfair';
     if (pctDiff >= VAULT_CONFIG.FAIR_PCT) return 'Lopsided';
@@ -3090,6 +3115,7 @@ const Vault = {
         trades: 0, won: 0, lost: 0, wonNow: 0, lostNow: 0, netValue: 0, netValueToday: 0, fitSum: 0,
         netPicks: 0, ageDeltaSum: 0, olderCount: 0, youngerCount: 0,
         fair: 0, lopsided: 0, unfair: 0, unfairFor: 0, unfairAgainst: 0,
+        fairNow: 0, lopsidedNow: 0, unfairNow: 0,
         best: null, worst: null,
         posNet: { QB: 0, RB: 0, WR: 0, TE: 0 },
         youthIn: 0, youthOut: 0, veteranIn: 0, veteranOut: 0,
@@ -3132,10 +3158,13 @@ const Vault = {
         if (received.length < given.length) s.consolidateCount++; else if (received.length > given.length) s.splitCount++;
         const bucket = g.fairness.overallPct >= VAULT_CONFIG.LOPSIDED_PCT ? 'unfair' : g.fairness.overallPct >= VAULT_CONFIG.FAIR_PCT ? 'lopsided' : 'fair';
         s[bucket]++;
+        const tg = Vault.todayGrade(g);
+        const pctNow = tg ? tg.pct : g.fairness.overallPct;
+        s[pctNow >= VAULT_CONFIG.LOPSIDED_PCT ? 'unfairNow' : pctNow >= VAULT_CONFIG.FAIR_PCT ? 'lopsidedNow' : 'fairNow']++;
         if (bucket === 'unfair') { if (favor > 0) s.unfairFor++; else s.unfairAgainst++; }
         // Best/worst judged by how the deal turned out (today's prices), with
         // the trade-day number kept alongside.
-        const rec = { opp, dVal, dValToday, pctDiff: g.pctDiff, created: g.tx.created };
+        const rec = { opp, dVal, dValToday, pctDiff: g.pctDiff, created: g.tx.created, gradeThen: g.bucket, gradeNow: tg ? tg.bucket : g.bucket };
         if (!s.best || dValToday > s.best.dValToday) s.best = rec;
         if (!s.worst || dValToday < s.worst.dValToday) s.worst = rec;
 
