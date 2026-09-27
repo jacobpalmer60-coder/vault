@@ -184,3 +184,6 @@ select option { background: #121418; color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Trade Calculator: the "How it changes each team" section only shows once there's a trade. */
+#teamImpact:has(#analysisA.hidden) { display: none; }
