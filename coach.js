@@ -169,7 +169,10 @@ async function coachTarget(me, progress) {
 }
 
 // Lineup upgrades at these positions, paid for without anything in `protect`.
-async function coachUpgrades(me, positions, protect, progress, pay) {
+// valueMode (Fix a position): an upgrade is any lineup gain AND you end up
+// with the best asset in the deal (the most valuable single piece comes to
+// you). Otherwise (Go all-in): COACH.MIN_GAIN points a week.
+async function coachUpgrades(me, positions, protect, progress, pay, valueMode = false) {
   const starters = me.lineup.filter(s => s.id);
   const floor = {};
   positions.forEach(P => { const at = starters.filter(s => s.pos === P); floor[P] = at.length ? Math.min(...at.map(s => s.ppg)) : 0; });
@@ -193,7 +196,9 @@ async function coachUpgrades(me, positions, protect, progress, pay) {
         // offer is only worth it when it's paid with bench players and picks.
         if (cand.edge >= VAULT_CONFIG.FAIR_PCT && cand.give.some(x => starterKeys.has(x.key))) continue;
         const g = coachAfter(me.rosterId, t.rosterId, cand.give, cand.get).opt - me.opt;
-        if (g >= COACH.MIN_GAIN) { o = cand; gain = g; break; }
+        const top = list => Math.max(...list.map(x => x.value));
+        const betterAsset = top(cand.get) > top(cand.give);
+        if (valueMode ? g >= 0.5 && betterAsset : g >= COACH.MIN_GAIN) { o = cand; gain = g; break; }
       }
       if (!o) continue;
       out.push({ ...o, id: a.key, gain, why: `${Vault.escapeHtml(a.name)} starts for you: about +${gain.toFixed(1)} pts/week to your best lineup${pay ? `, ${pay}` : ''}.${o.note ? ' ' + o.note : ''}` });
@@ -210,7 +215,7 @@ async function coachPosition(me, progress) {
   // position can be part of the deal, as long as the trade really upgrades
   // your lineup (COACH.MIN_GAIN), not a sidegrade like one WR1 for another.
   const protect = new Set(me.lineup.filter(s => s.id && s.pos !== P).map(s => 'p_' + s.id));
-  const list = await coachUpgrades(me, [P], protect, progress, '');
+  const list = await coachUpgrades(me, [P], protect, progress, '', true);
   if (!list.length) return { empty: `No upgrade at ${P} found: nobody who'd out-score your weakest ${P} starter by ${COACH.UPGRADE_BY}+ pts/week is gettable without giving up your other starters.` };
   return { title: `Upgrades at ${P}`, list };
 }
