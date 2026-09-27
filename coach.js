@@ -20,7 +20,7 @@
    ============================================================ */
 const COACH = {
   SELL_AGE: { QB: 30, RB: 26, WR: 28, TE: 29 }, // roughly where each position's value starts sliding
-  MIN_GAIN: 1,       // pts/week a trade has to add to your best lineup
+  MIN_GAIN: 2,       // pts/week a trade has to add to your best lineup
   UPGRADE_BY: 2,     // a target must out-score your weakest starter there by 2 pts/week
   SHOW: 5,           // suggestions per list
   TARGET_SHOW: 8     // offers for one player (Get a player)
@@ -197,7 +197,13 @@ async function coachUpgrades(me, positions, protect, progress, pay) {
 
 async function coachPosition(me, progress) {
   const P = Coach.pos;
-  const protect = new Set(me.lineup.filter(s => s.id && s.pos !== P).map(s => 'p_' + s.id));
+  // Protect every starter except your weakest one at this position: that's
+  // the spot being fixed, so it (or bench and picks) can pay. Trading your
+  // best WR for a slightly better one isn't fixing WR.
+  const starters = me.lineup.filter(s => s.id);
+  const atP = starters.filter(s => s.pos === P).sort((a, b) => a.ppg - b.ppg);
+  const weakest = atP[0];
+  const protect = new Set(starters.filter(s => !weakest || s.id !== weakest.id).map(s => 'p_' + s.id));
   const list = await coachUpgrades(me, [P], protect, progress, '');
   if (!list.length) return { empty: `No upgrade at ${P} found: nobody who'd out-score your weakest ${P} starter by ${COACH.UPGRADE_BY}+ pts/week is gettable without giving up your other starters.` };
   return { title: `Upgrades at ${P}`, list };
