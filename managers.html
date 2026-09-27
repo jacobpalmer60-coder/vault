@@ -157,7 +157,9 @@ function renderSummaryTable(rows, teams) {
     if (key === 'teamName') return dir * a.teamName.localeCompare(b.teamName);
     const noA = key !== 'trades' && !a.trades, noB = key !== 'trades' && !b.trades;
     if (noA !== noB) return noA ? 1 : -1;
-    return dir * ((a[key] || 0) - (b[key] || 0));
+    // W-L columns sort by trades won minus trades lost.
+    const val = s => key === 'wlThen' ? s.won - s.lost : key === 'wlNow' ? s.wonNow - s.lostNow : (s[key] || 0);
+    return dir * (val(a) - val(b));
   });
   const th = (label, k, align, title = '', pad = 'px-3') => `<th class="${align} ${pad} py-2.5 sortable ${key === k ? 'active' : ''}" onclick="sortGlance('${k}')" ${title ? `title="${title}"` : ''} aria-sort="${key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${key === k ? (dir > 0 ? ' ↑' : ' ↓') : ''}</th>`;
   const nameOf = new Map((teams || []).map(t => [t.rosterId, t.username]));
@@ -167,13 +169,15 @@ function renderSummaryTable(rows, teams) {
     <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">League at a glance</div>
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full text-[13px] min-w-[860px]">
+        <table class="w-full text-[13px] min-w-[1000px]">
           <thead class="bg-black/40 border-b border-white/5">
             <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
               ${th('Manager', 'teamName', 'text-left', '', 'px-4')}
               <th class="text-left px-3 py-2.5">Trading style</th>
               <th class="text-left px-3 py-2.5">Description</th>
               ${th('Trades', 'trades', 'text-right')}
+              ${th('W-L Then', 'wlThen', 'text-right', "Trades ahead vs. behind on value at KTC prices on each trade's date")}
+              ${th('W-L Now', 'wlNow', 'text-right', "Trades ahead vs. behind on value at today's KTC prices")}
               ${th('Net Then', 'netValue', 'text-right', "Net value across every trade at KTC prices on each trade's date")}
               ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's KTC prices", 'px-4')}
             </tr>
@@ -190,6 +194,8 @@ function renderSummaryTable(rows, teams) {
                 <td class="px-3 py-3 whitespace-nowrap"><span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
                 <td class="px-3 py-3 text-zinc-300 leading-relaxed min-w-[320px]">${p.blurb}</td>
                 <td class="px-3 py-3 text-right mono text-zinc-400">${s.trades}</td>
+                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.won}-${s.lost}` : '—'}</td>
+                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.wonNow}-${s.lostNow}` : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValue) : '—'}</td>
                 <td class="px-4 py-3 text-right">${s.trades ? signedCell(s.netValueToday) : '—'}</td>
               </tr>`;
