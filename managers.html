@@ -66,6 +66,9 @@ function divergingBar(val, maxAbs) {
   </div>`;
 }
 
+// That manager's trades on Trade Grades.
+function tradesLink(rosterId) { const u = Vault.linkTo('trade_grades.html'); return u + (u.includes('?') ? '&' : '?') + 'team=' + rosterId; }
+
 function renderCard(s, rank, maxAbsNet) {
   const notes = Vault.managerTendencyNotes(s, window._avgTrades || 0).slice(0, 4);
   const p = Vault.managerProfile(s, window._avgTrades || 0);
@@ -75,7 +78,7 @@ function renderCard(s, rank, maxAbsNet) {
       <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div>
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider">${rank ? `Rank #${rank}` : 'No trades yet'}</div>
-          <h3 class="text-[16px] sm:text-[18px] font-semibold text-zinc-100 break-words">${Vault.escapeHtml(s.teamName)}</h3>
+          <h3 class="text-[16px] sm:text-[18px] font-semibold text-zinc-100 break-words">${s.trades ? `<a href="${tradesLink(s.rosterId)}" title="See only this manager's trades" class="hover:text-amber-200 hover:underline underline-offset-4">${Vault.escapeHtml(s.teamName)}</a>` : Vault.escapeHtml(s.teamName)}</h3>
           <div class="flex items-center gap-2 mt-1 flex-wrap">
             <span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span>
             ${s.record ? `<span class="text-[12px] mono text-zinc-400">${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''} season</span>` : ''}
@@ -181,7 +184,7 @@ function renderSummaryTable(rows, teams) {
               const user = nameOf.get(s.rosterId);
               return `<tr class="align-top">
                 <td class="px-4 py-3 min-w-[170px]">
-                  <div class="font-medium text-zinc-100">${Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
+                  <div class="font-medium text-zinc-100">${s.trades ? `<a href="${tradesLink(s.rosterId)}" title="See only this manager's trades" class="hover:text-amber-200 hover:underline underline-offset-4">${Vault.escapeHtml(s.teamName)}</a>` : Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
                   <div class="text-[12px] text-zinc-400">${[user ? '@' + Vault.escapeHtml(user) : '', s.record ? `${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''}` : ''].filter(Boolean).join(' • ')}</div>
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap"><span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>

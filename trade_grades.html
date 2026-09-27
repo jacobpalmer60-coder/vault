@@ -39,6 +39,7 @@
     </div>
   </div>
 
+  <div id="teamFilterBar" class="hidden mb-4"></div>
   <div id="list" class="space-y-4"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
@@ -306,10 +307,30 @@ function renderFilters() {
 }
 
 function setFairFilter(f) { fairFilter = f; renderFilters(); renderList(); }
+
+// One manager's trades only (?team=<rosterId>, e.g. from the Managers page).
+let teamFilter = new URLSearchParams(location.search).get('team');
+function clearTeamFilter() {
+  teamFilter = null;
+  const u = new URL(location.href); u.searchParams.delete('team'); history.replaceState(null, '', u.toString());
+  renderList();
+}
 function setSort(k) { sortKey = k; renderFilters(); renderList(); }
 
 function renderList() {
   let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => g.bucket === fairFilter);
+  const bar = document.getElementById('teamFilterBar');
+  const mine = g => String(g.teamA.rosterId) === String(teamFilter) || String(g.teamB.rosterId) === String(teamFilter);
+  const who = teamFilter && allGraded.find(mine);
+  if (teamFilter && who) {
+    items = items.filter(mine);
+    const name = String(who.teamA.rosterId) === String(teamFilter) ? who.teamA.teamName : who.teamB.teamName;
+    bar.innerHTML = `<div class="flex items-center justify-between gap-3 flex-wrap p-3 rounded-xl border border-amber-400/30 bg-amber-400/[0.06]">
+        <span class="text-[13px] text-zinc-200">Showing ${Vault.escapeHtml(name)}'s trades only (${allGraded.filter(mine).length})</span>
+        <button onclick="clearTeamFilter()" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Show all trades</button>
+      </div>`;
+    bar.classList.remove('hidden');
+  } else bar.classList.add('hidden');
   items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.fairness.overallPct - a.fairness.overallPct : b.created - a.created);
 
   const list = document.getElementById('list');
