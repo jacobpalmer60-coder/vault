@@ -187,7 +187,11 @@ async function coachUpgrades(me, positions, protect, progress, pay) {
       // really upgrades your lineup (a package built on one of your own
       // starters there may only be a sidegrade, so try the next one).
       let o = null, gain = 0;
+      const starterKeys = new Set(starters.map(s => 'p_' + s.id));
       for (const cand of coachOffers(me, t, [a], { protect, ceiling, limit: 4 })) {
+        // Never pay a premium to send away one of your starters: a Lopsided
+        // offer is only worth it when it's paid with bench players and picks.
+        if (cand.edge >= VAULT_CONFIG.FAIR_PCT && cand.give.some(x => starterKeys.has(x.key))) continue;
         const g = coachAfter(me.rosterId, t.rosterId, cand.give, cand.get).opt - me.opt;
         if (g >= COACH.MIN_GAIN) { o = cand; gain = g; break; }
       }
