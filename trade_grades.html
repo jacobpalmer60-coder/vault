@@ -140,11 +140,29 @@ function divergingBar(val, maxAbs) {
   </div>`;
 }
 
+// Click a header to sort (highest first; click again to flip). Starts in
+// buildManagerStats order (Net Now). W-L columns sort by trades won minus lost;
+// teams with no trades stay at the bottom either way.
+let summarySort = { key: null, dir: -1 }, summaryData = null;
+function sortSummary(key) {
+  summarySort = summarySort.key === key ? { key, dir: -summarySort.dir } : { key, dir: key === 'teamName' ? 1 : -1 };
+  renderTeamSummary(summaryData.graded, summaryData.teams);
+}
 function renderTeamSummary(graded, teams) {
+  summaryData = { graded, teams };
   const box = document.getElementById('teamSummary');
   if (!graded.length) { box.classList.add('hidden'); return; }
 
-  const rows = Vault.buildManagerStats(graded, teams);
+  const { key, dir } = summarySort;
+  const val = s => key === 'wlThen' ? s.won - s.lost : key === 'wlNow' ? s.wonNow - s.lostNow : (s[key] || 0);
+  const all = Vault.buildManagerStats(graded, teams);
+  const rows = !key ? all : [...all].sort((a, b) => {
+    if (key === 'teamName') return dir * a.teamName.localeCompare(b.teamName);
+    const noA = key !== 'trades' && !a.trades, noB = key !== 'trades' && !b.trades;
+    if (noA !== noB) return noA ? 1 : -1;
+    return dir * (val(a) - val(b));
+  });
+  const th = (label, k, align, title = '', pad = 'px-3') => `<th class="${align} ${pad} py-2.5 sortable ${key === k ? 'active' : ''}" onclick="sortSummary('${k}')" ${title ? `title="${title}"` : ''} aria-sort="${key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${key === k ? (dir > 0 ? ' ↑' : ' ↓') : ''}</th>`;
   // One shared scale for both net columns, so the bars are directly comparable.
   const maxAbsNet = Math.max(...rows.flatMap(s => [Math.abs(s.netValue), Math.abs(s.netValueToday)]), 1);
   const maxAbsFit = Math.max(...rows.map(s => Math.abs(s.fitSum)), 1);
@@ -160,13 +178,13 @@ function renderTeamSummary(graded, teams) {
         <table class="w-full text-[13px]">
           <thead class="bg-black/40 border-b border-white/5">
             <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
-              <th class="text-left px-4 py-2.5">Team</th>
-              <th class="text-right px-3 py-2.5">Trades</th>
-              <th class="text-right px-3 py-2.5" title="Trades ahead vs. behind on value at KTC prices on each trade's date (the same basis as Net Then)">W-L Then</th>
-              <th class="text-right px-3 py-2.5" title="Trades ahead vs. behind on value at today's prices (the same basis as Net Now)">W-L Now</th>
-              <th class="text-right px-3 py-2.5" title="Net value gained/lost across every trade, at KTC prices on each trade's date (KTC consolidation-adjusted)">Net Then</th>
-              <th class="text-right px-3 py-2.5" title="The same trades at today's KTC prices: how they've aged">Net Now</th>
-              <th class="text-right px-4 py-2.5" title="Positional need + rebuild/contend timeline fit, summed across every trade">Timeline/Need Fit</th>
+              ${th('Team', 'teamName', 'text-left', '', 'px-4')}
+              ${th('Trades', 'trades', 'text-right')}
+              ${th('W-L Then', 'wlThen', 'text-right', "Trades ahead vs. behind on value at KTC prices on each trade's date (the same basis as Net Then)")}
+              ${th('W-L Now', 'wlNow', 'text-right', "Trades ahead vs. behind on value at today's prices (the same basis as Net Now)")}
+              ${th('Net Then', 'netValue', 'text-right', "Net value gained/lost across every trade, at KTC prices on each trade's date (KTC consolidation-adjusted)")}
+              ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's KTC prices: how they've aged")}
+              ${th('Timeline/Need Fit', 'fitSum', 'text-right', 'Positional need + rebuild/contend timeline fit, summed across every trade', 'px-4')}
             </tr>
           </thead>
           <tbody class="divide-y divide-white/5">
