@@ -38,7 +38,7 @@ const COACH_OPTIONS = {
   rebuild: { label: 'Rebuild', blurb: 'Throw in the towel on this season: trades that turn your aging players into picks and players 24 or under while they still hold value.' },
   contend: { label: 'Go all-in', blurb: 'Win now: trades that spend picks, prospects, and bench players on starters for this season. Your starters stay put.' }
 };
-const Coach = { option: 'best', shopKey: null, targetKey: null, teamId: null, downKey: null, downSame: false, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [], groups: [] }, theirs: { must: [], keep: [], never: [], groups: [] }, picker: { open: false, q: '', pos: 'ALL' } };
+const Coach = { option: 'best', step: 'type', shopKey: null, targetKey: null, teamId: null, downKey: null, downSame: false, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [], groups: [] }, theirs: { must: [], keep: [], never: [], groups: [] }, picker: { open: false, q: '', pos: 'ALL' } };
 
 const coachTick = () => new Promise(r => setTimeout(r, 0));
 
@@ -262,7 +262,7 @@ async function coachShop(me, progress) {
   progress(`Shopping ${v.name} around the league…`);
   await coachTick();
   const list = coachSaleOffers(me, v, () => true).map(o => ({ ...o, id: o.partner.rosterId + '', why: '' }));
-  if (!list.length) return { empty: `No team would give fair value for ${Vault.escapeHtml(v.name)} right now${coachHasMine() ? ', within your Their side rules' : ''}.` };
+  if (!list.length) return { empty: `No team would give fair value for ${Vault.escapeHtml(v.name)} right now.` };
   return { title: `Offers for ${Vault.escapeHtml(v.name)}`, list };
 }
 
@@ -359,7 +359,7 @@ async function coachTeam(me, progress) {
   });
   const fair = varied.filter(o => o.edge < VAULT_CONFIG.FAIR_PCT);
   const list = (fair.length >= 3 ? fair : fair.concat(varied.filter(o => o.edge >= VAULT_CONFIG.FAIR_PCT).slice(0, 3))).slice(0, COACH.TARGET_SHOW);
-  if (!list.length) return { empty: `No trade with ${name} is one their manager would likely take right now${coachHasMine() ? ' within your Your side and Their side rules' : ''}.` };
+  if (!list.length) return { empty: `No trade with ${name} is one their manager would likely take right now.` };
   return { title: `Trades with ${name}`, list };
 }
 
@@ -407,7 +407,7 @@ async function coachDowntier(me, progress) {
       return { ...o, id: negKeys(o.give).join() + '>' + negKeys(o.get).join(),
         why: `Down from ${Vault.escapeHtml(v.name)} (${n(v.value)}) to ${Vault.escapeHtml(o.lead.name)} (${n(o.lead.value)}), plus ${negNames(rest)}: +${n(sumValue(o.get) - sent)} KTC value in total.` };
     });
-  if (!list.length) return { empty: `No team would give a lesser ${Coach.downSame ? v.pos + ' ' : ''}player plus more for ${Vault.escapeHtml(v.name)} right now${coachHasMine() ? ', within your Your side and Their side rules' : ''}.` };
+  if (!list.length) return { empty: `No team would give a lesser ${Coach.downSame ? v.pos + ' ' : ''}player plus more for ${Vault.escapeHtml(v.name)} right now.` };
   return { title: `Down-tier ${Vault.escapeHtml(v.name)}`, list };
 }
 
@@ -416,16 +416,17 @@ const COACH_RUN = { downtier: coachDowntier, team: coachTeam, best: coachBest, s
 async function coachFind() {
   if (Coach.busy) return;
   Coach.collapsed = false;
-  if (Coach.option === 'target' && !Coach.targetKey) return coachOpenPicker();
-  if (Coach.option === 'shop' && !Coach.shopKey) return;
-  if (Coach.option === 'team' && !Coach.teamId) return;
-  if (Coach.option === 'downtier' && !Coach.downKey) return;
+  if (!coachReady()) {
+    Coach.step = 'type';
+    return Coach.option === 'target' ? coachOpenPicker() : renderCoach();
+  }
+  Coach.step = 'results';
   const me = coachMe(), option = Coach.option;
   const implied = COACH_PLAN_FOR[option];
   let planNote = '';
   if (implied && Vault.teamMode(me) !== implied) {
     coachSetPlan(implied);
-    planNote = `Your timeline is now set to ${implied === 'contend' ? 'Contending' : 'Rebuilding'}, so these trades (and the Trade Analysis) grade your side as ${implied === 'contend' ? 'contending' : 'rebuilding'}. Switch back under Your timeline.`;
+    planNote = `Your timeline is now set to ${implied === 'contend' ? 'Contending' : 'Rebuilding'}, so these trades (and the Trade Analysis) grade your side as ${implied === 'contend' ? 'contending' : 'rebuilding'}. Switch back under Your timeline in step 1.`;
   }
   Coach.busy = true;
   renderCoach();
@@ -448,28 +449,43 @@ const coachInputKey = () => ({ shop: Coach.shopKey, target: Coach.targetKey, tea
 /* ---------- Panel ---------- */
 
 // The coach is one of the tools on the Trade Calculator's start screen (and
-// the Trade Coach tab). Opening it on an option shows that option; Best trades
-// searches the first time, and Get a player opens its player picker.
+// the Trade Coach tab). It's set up one step at a time: the trade type (and
+// its player, team, or position), then what every trade must include, what to
+// leave out, and position rules, each skippable, then the trades.
+const COACH_STEPS = [['type', 'Trade type'], ['include', 'Must include'], ['exclude', 'Leave out'], ['positions', 'Positions'], ['results', 'Trades']];
 function openCoach(option) {
-  if (option) { Coach.option = option; Coach.collapsed = false; }
+  if (option) { Coach.option = option; Coach.collapsed = false; if (option !== 'negotiate') Coach.step = 'type'; }
   const wasOpen = coachOpen();
   setView('coach');
   renderCoach();
-  if (Coach.option === 'best' && !Coach.results.best && !Coach.busy) coachFind();
   if (option === 'target' && !Coach.targetKey) coachOpenPicker();
   if (!wasOpen) document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-// Called when the workspace opens on your team: fresh results; searches only once opened.
+// The option's own input is filled in (a player, team, or position).
+const coachReady = () => ({ shop: !!Coach.shopKey, target: !!Coach.targetKey, team: !!Coach.teamId, downtier: !!Coach.downKey }[Coach.option] ?? true);
+// Anything set on a rule step.
+function coachStepHas(step) {
+  const n = list => Coach.mine[list].length + Coach.theirs[list].length;
+  return step === 'include' ? n('must') > 0 : step === 'exclude' ? n('keep') > 0 : step === 'positions' ? n('groups') + n('never') > 0 : false;
+}
+function coachGo(step) {
+  if (step === 'results') {
+    const r = Coach.results[Coach.option];
+    if (!(r && r.key === coachInputKey())) return coachFind();
+  }
+  Coach.step = step;
+  renderCoach();
+}
+// Called when the workspace opens on your team: fresh results, back to step 1.
 function coachStart() {
   Coach.results = {};
   Coach.pos = coachDefaultPos();
   Coach.targetKey = null;
   Coach.teamId = null;
   Coach.downKey = null;
-  if (Coach.option !== 'negotiate') Coach.option = 'best';
+  if (Coach.option !== 'negotiate') { Coach.option = 'best'; Coach.step = 'type'; }
   negPreloadStyles();
   renderCoach();
-  if (coachOpen() && Coach.option === 'best') coachFind();
 }
 const coachOpen = () => view === 'coach' && !document.getElementById('workspace').classList.contains('hidden');
 function coachSync() {
@@ -482,11 +498,11 @@ function coachSetOption(o) {
   if (o === 'team' && !Coach.teamId && teamOf('B')) Coach.teamId = String(teamOf('B').rosterId);
   renderCoach();
 }
-function coachSetDown(key) { Coach.downKey = key || null; renderCoach(); if (key) coachFind(); }
-function coachSetDownSame(same) { Coach.downSame = same; renderCoach(); if (Coach.downKey) coachFind(); }
-function coachSetTeam(id) { Coach.teamId = id || null; renderCoach(); if (id) coachFind(); }
+function coachSetDown(key) { Coach.downKey = key || null; renderCoach(); }
+function coachSetDownSame(same) { Coach.downSame = same; renderCoach(); }
+function coachSetTeam(id) { Coach.teamId = id || null; renderCoach(); }
 function coachSetPos(p) { Coach.pos = p; renderCoach(); }
-function coachSetShop(key) { Coach.shopKey = key || null; renderCoach(); if (key) coachFind(); }
+function coachSetShop(key) { Coach.shopKey = key || null; renderCoach(); }
 // From a roster row: Shop (your piece) or Get (their player), then search.
 function coachShopFor(key) { Coach.option = 'shop'; Coach.shopKey = key; coachJump(); }
 function coachGetFor(key) { Coach.option = 'target'; Coach.targetKey = key; Coach.picker.open = false; coachJump(); }
@@ -536,7 +552,15 @@ function coachSideGroup(side, g) {
 }
 function coachSideClear(side) { Coach[side] = { must: [], keep: [], never: [], groups: [] }; renderCoach(); }
 
-function coachSideHtml(side, me) {
+// The asset behind a rule key, on your roster or anyone else's.
+function coachRuleAsset(side, me, k) {
+  const pool = side === 'mine' ? me.assets : teams.filter(x => x !== me).flatMap(x => x.assets);
+  return pool.find(a => a.key === k);
+}
+
+// One side's rows for a rule step (include: pieces it must include; exclude:
+// pieces to leave out; positions: positions it must include or never include).
+function coachSideHtml(side, me, step) {
   const m = Coach[side], esc = Vault.escapeHtml, mine = side === 'mine';
   const others = teams.filter(x => x !== me);
   const find = k => (mine ? me.assets : others.flatMap(x => x.assets)).find(a => a.key === k);
@@ -555,20 +579,79 @@ function coachSideHtml(side, me) {
   const add = list => `<select onchange="coachSideAdd('${side}', '${list}', this.value)" aria-label="Add a player or pick" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[170px]"><option value="">+ Add…</option>${opts}</select>`;
   const group = g => `<button onclick="coachSideToggle('${side}', '${g}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${m.never.includes(g) ? 'bg-rose-500/10 border-rose-500/30 text-rose-200' : 'border-white/10 text-zinc-400 hover:text-white'}">${g === 'PICK' ? 'Picks' : g}</button>`;
   const need = g => `<button onclick="coachSideGroup('${side}', '${g}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${m.groups.includes(g) ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'border-white/10 text-zinc-400 hover:text-white'}">${g === 'PICK' ? 'Pick' : g}</button>`;
-  const row = (label, body) => `<div class="flex flex-wrap items-center gap-1.5"><span class="text-[12px] text-zinc-500 w-[96px] shrink-0">${label}</span>${body}</div>`;
-  const labels = mine
-    ? [Coach.option === 'rebuild' ? 'Sell these' : 'Must include', 'Must include a', 'Don\'t trade', 'Never trade any']
-    : ['Must get', 'Must get a', 'Don\'t want', 'Never take any'];
-  return `<div class="p-2.5 rounded-lg bg-black/30 border border-white/5 space-y-2 min-w-0">
-      <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-zinc-400 uppercase tracking-wider">${mine ? 'Your side' : 'Their side'}</span>${coachHasRules(side) ? `<button onclick="coachSideClear('${side}')" class="text-[12px] text-zinc-500 hover:text-white">Clear</button>` : ''}</div>
-      ${row(labels[0], m.must.map(k => tag(k, 'must')).join('') + add('must'))}
-      ${row(labels[1], ['QB', 'RB', 'WR', 'TE', 'PICK'].map(need).join(''))}
-      ${row(labels[2], m.keep.map(k => tag(k, 'keep')).join('') + add('keep'))}
-      ${row(labels[3], ['QB', 'RB', 'WR', 'TE', 'PICK'].map(group).join(''))}
+  const row = (label, body) => `<div class="flex flex-wrap items-center gap-1.5"><span class="text-[12px] text-zinc-500 w-[108px] shrink-0">${label}</span>${body}</div>`;
+  const G = ['QB', 'RB', 'WR', 'TE', 'PICK'];
+  const rows = {
+    include: row(mine ? (Coach.option === 'rebuild' ? 'Sell these' : 'You send') : 'You get', m.must.map(k => tag(k, 'must')).join('') + add('must')),
+    exclude: row(mine ? 'Don\'t trade' : 'Don\'t want', m.keep.map(k => tag(k, 'keep')).join('') + add('keep')),
+    positions: row(mine ? 'Must send a' : 'Must get a', G.map(need).join('')) + row(mine ? 'Never trade any' : 'Never take any', G.map(group).join(''))
+  }[step];
+  return `<div class="p-3 rounded-lg bg-black/30 border border-white/5 space-y-2 min-w-0">
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider">${mine ? 'Your side' : 'Their side'}</div>
+      ${rows}
     </div>`;
 }
-function coachMineHtml(me) {
-  return `<div class="grid gap-2 lg:grid-cols-2 mb-3">${coachSideHtml('mine', me)}${coachSideHtml('theirs', me)}</div>`;
+const COACH_STEP_HELP = {
+  include: 'Players or picks every trade has to include. Skip if anything goes.',
+  exclude: 'Players or picks to leave out of every trade. Skip if nothing is off limits.',
+  positions: 'Positions every trade has to include, or can never include. Skip to allow any.'
+};
+function coachRulesHtml(me, step) {
+  return `<div class="text-[13px] text-zinc-300 mb-3">${COACH_STEP_HELP[step]}</div>
+    <div class="grid gap-2 lg:grid-cols-2">${coachSideHtml('mine', me, step)}${coachSideHtml('theirs', me, step)}</div>`;
+}
+
+// Everything chosen so far, as chips that jump back to their step.
+function coachSummaryHtml(me) {
+  const esc = Vault.escapeHtml, find = (side, k) => coachRuleAsset(side, me, k);
+  const detail = {
+    shop: () => find('mine', Coach.shopKey)?.name,
+    target: () => find('theirs', Coach.targetKey)?.name,
+    team: () => teams.find(t => String(t.rosterId) === String(Coach.teamId))?.teamName,
+    downtier: () => { const a = find('mine', Coach.downKey); return a && a.name + (Coach.downSame ? `, same position` : ''); },
+    position: () => Coach.pos
+  }[Coach.option];
+  const d = detail && detail();
+  const chips = [[`<span class="text-zinc-100 font-medium">${COACH_OPTIONS[Coach.option].label}</span>${d ? `: ${esc(d)}` : ''}`, 'type']];
+  const names = (side, list) => Coach[side][list].map(k => find(side, k)).filter(Boolean).map(a => esc(a.name)).join(', ');
+  const grp = g => (g === 'PICK' ? 'Pick' : g);
+  const add = (label, text, step) => { if (text) chips.push([`${label}: ${text}`, step]); };
+  add(Coach.option === 'rebuild' ? 'Sell' : 'You send', names('mine', 'must'), 'include');
+  add('You get', names('theirs', 'must'), 'include');
+  add('Don\'t trade', names('mine', 'keep'), 'exclude');
+  add('Don\'t want', names('theirs', 'keep'), 'exclude');
+  add('Must send a', Coach.mine.groups.map(grp).join(', '), 'positions');
+  add('Must get a', Coach.theirs.groups.map(grp).join(', '), 'positions');
+  add('Never trade any', Coach.mine.never.map(grp).join(', '), 'positions');
+  add('Never take any', Coach.theirs.never.map(grp).join(', '), 'positions');
+  return `<div class="flex flex-wrap items-center gap-1.5">${chips.map(([html, step]) => `<button onclick="coachGo('${step}')" title="Change this" class="text-[12px] text-zinc-300 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/20 hover:text-white">${html}</button>`).join('')}
+    ${coachHasMine() ? `<button onclick="coachSideClear('mine'); coachSideClear('theirs')" class="text-[12px] text-zinc-500 hover:text-white px-1">Clear rules</button>` : ''}</div>`;
+}
+
+// Numbered steps along the top; any step can be reopened.
+function coachStepperHtml() {
+  const at = COACH_STEPS.findIndex(([s]) => s === Coach.step);
+  return `<ol class="flex flex-wrap items-center gap-1.5 text-[12px]">${COACH_STEPS.map(([s, label], i) => {
+    const cur = i === at, done = i < at || (s !== 'results' && s !== 'type' && coachStepHas(s));
+    const blocked = s !== 'type' && !coachReady();
+    return `<li class="flex items-center gap-1.5">${i ? '<span class="text-zinc-600" aria-hidden="true">›</span>' : ''}<button onclick="coachGo('${s}')" ${blocked ? 'disabled' : ''} ${cur ? 'aria-current="step"' : ''}
+      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${cur ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : blocked ? 'border-transparent text-zinc-600 cursor-default' : 'border-transparent text-zinc-400 hover:text-white'}">
+      <span class="size-4 rounded-full text-[10px] font-semibold flex items-center justify-center ${cur ? 'bg-amber-400 text-black' : done ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-zinc-400'}">${s === 'results' ? '✓' : i + 1}</span>${label}</button></li>`;
+  }).join('')}</ol>`;
+}
+
+// Back / Skip-or-Next / Find trades along the bottom of each step.
+function coachNavHtml() {
+  const i = COACH_STEPS.findIndex(([s]) => s === Coach.step), prev = COACH_STEPS[i - 1], next = COACH_STEPS[i + 1];
+  const ready = coachReady(), last = next[0] === 'results';
+  const back = prev ? `<button onclick="coachGo('${prev[0]}')" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white">← Back</button>` : '<span></span>';
+  const primaryLabel = last ? 'Find trades' : Coach.step === 'type' || coachStepHas(Coach.step) ? 'Next →' : 'Skip →';
+  const now = !last ? `<button onclick="coachFind()" ${ready ? '' : 'disabled'} class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 ${ready ? '' : 'opacity-50 cursor-default'}">Find trades now</button>` : '';
+  return `<div class="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-white/5">
+      ${back}
+      <div class="flex items-center gap-2">${now}<button onclick="coachGo('${next[0]}')" ${ready ? '' : 'disabled'} class="text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid">${primaryLabel}</button></div>
+    </div>
+    ${ready ? '' : `<div class="text-[12px] text-zinc-500 mt-2 text-right">${{ shop: 'Pick a player or pick to shop first.', target: 'Pick a player to get first.', team: 'Pick a team first.', downtier: 'Pick a player to down-tier first.' }[Coach.option]}</div>`}`;
 }
 
 /* ---------- Target picker ---------- */
@@ -578,7 +661,7 @@ function coachTargetOptions() {
   return teams.filter(t => t !== me).flatMap(t => t.assets.filter(a => a.type === 'player' && a.value >= 300).map(a => ({ key: a.key, value: a.value, name: a.name, pos: a.pos, team: t.teamName })))
     .sort((x, y) => y.value - x.value);
 }
-function coachPickTarget(key) { Coach.targetKey = key; Coach.picker.open = false; renderCoach(); coachFind(); }
+function coachPickTarget(key) { Coach.targetKey = key; Coach.picker.open = false; renderCoach(); }
 function coachOpenPicker() { Coach.picker = { open: true, q: '', pos: 'ALL' }; renderCoach(); document.getElementById('coachTargetSearch')?.focus(); }
 function coachClosePicker() { Coach.picker.open = false; renderCoach(); }
 function coachPickerPos(p) { Coach.picker.pos = p; renderCoach(); }
@@ -619,19 +702,22 @@ function renderCoach() {
   if (!head || !coachOpen()) return;
   const me = coachMe();
   const chip = (on, label, onclick, extra = '') => `<button onclick="${onclick}" class="text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${on ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}${extra}</button>`;
+  const neg = Coach.option === 'negotiate';
   head.innerHTML = `
-    <div class="flex items-start justify-between gap-3 mb-3">
-      <div>
-        <h2 class="text-[18px] font-semibold text-zinc-100">Trade options <span class="text-[13px] font-normal text-zinc-400">for ${Vault.escapeHtml(me.teamName)}</span></h2>
-        <div class="text-[12px] text-zinc-400 mt-1 max-w-[680px]">Every trade the coach suggests is one the other manager would likely take, and Fair for you unless it says otherwise. Responses are predicted from their roster, needs, timeline, and trade history, not the real managers.</div>
-      </div>
-    </div>
-    ${coachPlanHtml(me, chip)}
-    <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(COACH_OPTIONS).map(([o, d]) => chip(Coach.option === o, d.label, `coachSetOption('${o}')`)).join('')}</div>
-    <div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS[Coach.option].blurb}</div>`;
+    <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+      <h2 class="text-[18px] font-semibold text-zinc-100">Trade Coach <span class="text-[13px] font-normal text-zinc-400">for ${Vault.escapeHtml(me.teamName)}</span></h2>
+      ${neg ? `<button onclick="coachSetOption('best'); coachGo('type')" class="text-[12px] text-zinc-400 hover:text-white">← Other trade types</button>` : coachStepperHtml()}
+    </div>`;
   coachSync();
 
-  if (Coach.option === 'negotiate') { box.innerHTML = coachNegotiateHtml(); return; }
+  const typeChips = `${coachPlanHtml(me, chip)}
+    <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(COACH_OPTIONS).map(([o, d]) => chip(Coach.option === o, d.label, `coachSetOption('${o}')`)).join('')}</div>
+    <div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS[Coach.option].blurb}</div>`;
+  if (neg) { box.innerHTML = `<div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS.negotiate.blurb}</div>${coachNegotiateHtml()}`; return; }
+  if (Coach.step === 'include' || Coach.step === 'exclude' || Coach.step === 'positions') {
+    box.innerHTML = coachRulesHtml(me, Coach.step) + coachNavHtml();
+    return;
+  }
   const needs = Vault.positionalProfile(me, teams).needs;
   const input = {
     target: coachTargetHtml(chip),
@@ -653,22 +739,26 @@ function renderCoach() {
     position: `<div class="flex gap-1.5 flex-wrap">${['QB', 'RB', 'WR', 'TE'].map(p => chip(Coach.pos === p, p, `coachSetPos('${p}')`, needs.includes(p.toLowerCase()) ? ' <span class="text-[11px] text-rose-300/80">need</span>' : '')).join('')}</div>`,
     rebuild: '', contend: ''
   }[Coach.option];
+  if (Coach.step === 'type') {
+    box.innerHTML = typeChips + (input ? `<div class="mt-1">${input}</div>` : '') + coachNavHtml();
+    renderCoachTargetList();
+    return;
+  }
+  // Trades: what was chosen (each chip reopens its step), then the list.
   const r = Coach.results[Coach.option], fresh = r && r.key === coachInputKey();
-  // The pick (player, team, position) comes first; Your side / Their side below it.
   box.innerHTML = `
-    <div class="flex flex-col sm:flex-row sm:items-start gap-2 mb-3">
-      ${input}
-      <button onclick="coachFind()" ${Coach.busy ? 'disabled' : ''} class="self-start shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Coach.busy ? 'opacity-60' : ''}">${fresh ? 'Search again' : 'Find trades'}</button>
+    <div class="flex items-start justify-between gap-3 flex-wrap mb-2">
+      ${coachSummaryHtml(me)}
+      <button onclick="coachFind()" ${Coach.busy ? 'disabled' : ''} class="shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Coach.busy ? 'opacity-60' : ''}">${fresh ? 'Search again' : 'Find trades'}</button>
     </div>
-    ${coachMineHtml(me)}
+    <div class="text-[12px] text-zinc-500 mb-1 max-w-[680px]">Every trade here is one the other manager would likely take, and Fair for you unless it says otherwise. Predicted from their roster, needs, timeline, and trade history, not the real managers.</div>
     <div id="coachStatus" class="text-[12px] text-zinc-400 min-h-[18px] ${Coach.busy ? '' : 'hidden'}">Searching…</div>
     ${Coach.busy || !fresh ? '' : coachResultsHtml(r)}`;
-  renderCoachTargetList();
 }
 
 function coachResultsHtml(r) {
   if (Coach.collapsed && r.list && r.list.length) return `<button onclick="Coach.collapsed = false; renderCoach()" class="mt-2 w-full text-left text-[12px] px-3 py-2 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Show options again (${r.list.length}) ▾</button>`;
-  if (!r.list || !r.list.length) return `<div class="mt-3 p-3 rounded-xl bg-black/30 text-[12px] text-zinc-300">${r.empty || 'No trades found.'}${coachHasMine() ? ' Your side or Their side rules out some pieces, so try loosening them.' : ''}</div>`;
+  if (!r.list || !r.list.length) return `<div class="mt-3 p-3 rounded-xl bg-black/30 text-[12px] text-zinc-300">${r.empty || 'No trades found.'}${coachHasMine() ? ' Your must-include, leave-out, or position choices rule out some trades, so try loosening them (click one above to change it).' : ''}</div>`;
   const over = r.list.some(o => o.edge >= VAULT_CONFIG.FAIR_PCT);
   return `
     <div class="mt-3 mb-2 flex items-baseline justify-between gap-3 flex-wrap">
