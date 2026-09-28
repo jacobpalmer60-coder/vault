@@ -4,6 +4,7 @@
    - Negotiate a trade: the trade loaded in the calculator, answered by the
      other manager round by round (negotiation.js).
    - Get a player: several offers for one player their manager would take.
+   - Trade with a team: the trades one team's manager would take.
    - Fix a position: trades that upgrade your weakest starter there.
    - Rebuild: trades that turn your aging players into picks and youth.
    - Go all-in: trades that spend future value (picks, prospects, bench) on
@@ -30,11 +31,12 @@ const COACH_OPTIONS = {
   negotiate: { label: 'Negotiate a trade', blurb: 'Offer the trade loaded in the calculator. Their manager answers in their own words, and you can steer what you ask for next.' },
   shop: { label: 'Shop a player', blurb: 'Pick one of your players or picks and see the best offer from every team, any return.' },
   target: { label: 'Get a player', blurb: 'Pick any player on another team and see offers their manager would likely take for them.' },
+  team: { label: 'Trade with a team', blurb: 'Pick a team and see the trades their manager would likely take, best for you first.' },
   position: { label: 'Fix a position', blurb: 'Pick a position. These trades upgrade your weakest starter there without giving up your other starters.' },
   rebuild: { label: 'Rebuild', blurb: 'Throw in the towel on this season: trades that turn your aging players into picks and players 24 or under while they still hold value.' },
   contend: { label: 'Go all-in', blurb: 'Win now: trades that spend picks, prospects, and bench players on starters for this season. Your starters stay put.' }
 };
-const Coach = { option: 'best', shopKey: null, targetKey: null, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [] }, theirs: { must: [], keep: [], never: [] }, picker: { open: false, q: '', pos: 'ALL' } };
+const Coach = { option: 'best', shopKey: null, targetKey: null, teamId: null, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [] }, theirs: { must: [], keep: [], never: [] }, picker: { open: false, q: '', pos: 'ALL' } };
 
 const coachTick = () => new Promise(r => setTimeout(r, 0));
 
@@ -307,13 +309,62 @@ async function coachBest(me, progress) {
   return { title: 'Best trades for you', list };
 }
 
-const COACH_RUN = { best: coachBest, shop: coachShop, target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
+// Trades with one team: the league search (suggestionPool) narrowed to them,
+// plus offers for each of their most valuable pieces. Fair ones first; when
+// there are fewer than 3, the cheapest Lopsided ones they'd take are added
+// (flagged on the card). At most 2 offers built on the same piece of theirs.
+async function coachTeam(me, progress) {
+  const partner = teams.find(t => String(t.rosterId) === String(Coach.teamId));
+  if (!partner || partner === me) return { empty: 'Pick a team to trade with first.' };
+  const name = Vault.escapeHtml(partner.teamName);
+  if (!coachPartnerOK(partner)) return { empty: `${name} doesn't have any of the pieces you require under Their side.` };
+  progress(`Looking for trades with ${partner.teamName}…`);
+  await coachTick();
+  const must = coachMust(me), off = coachOffLimits(me), ctx = negContextFor(partner);
+  const seen = new Set(), found = [];
+  const add = (give, get, edge, why) => {
+    const id = negKeys(give).join() + '>' + negKeys(get).join();
+    if (seen.has(id)) return;
+    seen.add(id);
+    found.push({ partner, give, get, edge, id, why });
+  };
+  suggestionPool(me, partner).filter(c =>
+    must.every(m => c.giveA.includes(m)) && !c.giveA.some(a => off.has(a.key))
+    && !c.giveB.some(coachTheirOff) && coachTheirMust(partner).every(m => c.giveB.includes(m)))
+    .forEach(c => {
+      const j = negJudgeFor(me, c.giveA, partner, c.giveB, ctx);
+      if (j.accepts && j.edge < VAULT_CONFIG.LOPSIDED_PCT) add(c.giveA, c.giveB, j.edge, c.result.bucket === 'Great' ? 'A strong fit for both rosters.' : c.result.bucket === 'Good' ? 'A strong fit for one side.' : '');
+    });
+  const targets = partner.assets.filter(a => !coachTheirOff(a) && a.value >= 500).sort((x, y) => y.value - x.value).slice(0, 8);
+  for (const a of targets) {
+    progress(`Pricing ${a.name}…`);
+    await coachTick();
+    coachOffers(me, partner, [a], { ceiling: VAULT_CONFIG.LOPSIDED_PCT, limit: 2 }).forEach(o => add(o.give, o.get, o.edge, o.note || ''));
+  }
+  // Pick-for-pick swaps last, like the league search: they price almost even
+  // by construction, so closest-to-Fair says little about them.
+  const picksOnly = o => [...o.give, ...o.get].every(a => a.type === 'pick');
+  const perLead = new Map();
+  const varied = found.sort((x, y) => picksOnly(x) - picksOnly(y) || x.edge - y.edge).filter(o => {
+    const lead = [...o.get].sort((x, y) => y.value - x.value)[0].key, n = perLead.get(lead) || 0;
+    if (n >= 2) return false;
+    perLead.set(lead, n + 1);
+    return true;
+  });
+  const fair = varied.filter(o => o.edge < VAULT_CONFIG.FAIR_PCT);
+  const list = (fair.length >= 3 ? fair : fair.concat(varied.filter(o => o.edge >= VAULT_CONFIG.FAIR_PCT).slice(0, 3))).slice(0, COACH.TARGET_SHOW);
+  if (!list.length) return { empty: `No trade with ${name} is one their manager would likely take right now${coachHasMine() ? ' within your Your side and Their side rules' : ''}.` };
+  return { title: `Trades with ${name}`, list };
+}
+
+const COACH_RUN = { team: coachTeam, best: coachBest, shop: coachShop, target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
 
 async function coachFind() {
   if (Coach.busy) return;
   Coach.collapsed = false;
   if (Coach.option === 'target' && !Coach.targetKey) return coachOpenPicker();
   if (Coach.option === 'shop' && !Coach.shopKey) return;
+  if (Coach.option === 'team' && !Coach.teamId) return;
   const me = coachMe(), option = Coach.option;
   const implied = COACH_PLAN_FOR[option];
   let planNote = '';
@@ -337,7 +388,7 @@ async function coachFind() {
 }
 
 // Results belong to the inputs they were found for.
-const coachInputKey = () => ({ shop: Coach.shopKey, target: Coach.targetKey, position: Coach.pos }[Coach.option] || '') + '|' + JSON.stringify([Coach.mine, Coach.theirs, Vault.planOverride[coachMe().rosterId] || 'auto']);
+const coachInputKey = () => ({ shop: Coach.shopKey, target: Coach.targetKey, team: Coach.teamId, position: Coach.pos }[Coach.option] || '') + '|' + JSON.stringify([Coach.mine, Coach.theirs, Vault.planOverride[coachMe().rosterId] || 'auto']);
 
 /* ---------- Panel ---------- */
 
@@ -358,6 +409,7 @@ function coachStart() {
   Coach.results = {};
   Coach.pos = coachDefaultPos();
   Coach.targetKey = null;
+  Coach.teamId = null;
   if (Coach.option !== 'negotiate') Coach.option = 'best';
   negPreloadStyles();
   renderCoach();
@@ -369,7 +421,12 @@ function coachSync() {
   if (neg) neg.classList.toggle('hidden', !(Coach.option === 'negotiate' && Negotiation.rounds.length));
 }
 function coachReset() { Coach.results = {}; if (coachOpen()) renderCoach(); }
-function coachSetOption(o) { Coach.option = o; Coach.collapsed = false; renderCoach(); }
+function coachSetOption(o) {
+  Coach.option = o; Coach.collapsed = false;
+  if (o === 'team' && !Coach.teamId && teamOf('B')) Coach.teamId = String(teamOf('B').rosterId);
+  renderCoach();
+}
+function coachSetTeam(id) { Coach.teamId = id || null; renderCoach(); if (id) coachFind(); }
 function coachSetPos(p) { Coach.pos = p; renderCoach(); }
 function coachSetShop(key) { Coach.shopKey = key || null; renderCoach(); if (key) coachFind(); }
 // From a roster row: Shop (your piece) or Get (their player), then search.
@@ -514,6 +571,10 @@ function renderCoach() {
     shop: `<select onchange="coachSetShop(this.value)" aria-label="Player or pick to shop" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
         <option value="">Pick one of your players or picks…</option>
         ${me.assets.map(a => `<option value="${a.key}" ${a.key === Coach.shopKey ? 'selected' : ''}>${Vault.escapeHtml(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${Math.round(a.value).toLocaleString()}</option>`).join('')}
+      </select>`,
+    team: `<select onchange="coachSetTeam(this.value)" aria-label="Team to trade with" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
+        <option value="">Pick a team to trade with…</option>
+        ${teams.filter(t => t !== me).map(t => `<option value="${t.rosterId}" ${String(t.rosterId) === String(Coach.teamId) ? 'selected' : ''}>${Vault.escapeHtml(t.teamName)}</option>`).join('')}
       </select>`,
     position: `<div class="flex gap-1.5 flex-wrap">${['QB', 'RB', 'WR', 'TE'].map(p => chip(Coach.pos === p, p, `coachSetPos('${p}')`, needs.includes(p.toLowerCase()) ? ' <span class="text-[11px] text-rose-300/80">need</span>' : '')).join('')}</div>`,
     rebuild: '', contend: ''
