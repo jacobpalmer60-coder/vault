@@ -29,13 +29,14 @@
 </div>
 
 <script src="vault-core.js?v=a63b5e99"></script>
-<script src="vault-nav.js?v=12d580e0"></script>
+<script src="vault-nav.js?v=15e0492b"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-09-29', items: [
+    { kind: 'fixed', page: 'Everywhere', text: 'New visitors who open a page without having picked a league now land on the home page to choose theirs, instead of seeing someone else\'s league. League search on the home page also looks ahead a season, so next year\'s leagues show up as soon as they exist.' },
     { kind: 'removed', page: 'Trade Calculator', text: 'The FantasyPros experts view is gone (Buy-low / Sell-high tags, the Experts bar and row, and the Experts line on Trade Grades). One clear grade you can check against KTC is easier to act on than two that can disagree. The This season odds stay.' },
     { kind: 'new', page: 'Trade Calculator', text: 'An Experts bar: right under the grade\'s fairness bar (same width, same center) sits a slim bar for the FantasyPros experts\' read of the same trade, with a line saying who they favor and by how much. It also appears, with Trade Grades, as its own row in the fairness breakdown, set apart from the three parts of the grade since it isn\'t one of them.' },
     { kind: 'new', page: 'Trade Grades', text: 'Each trade now has an Experts line next to At the trade and Today: the same trade priced by the FantasyPros dynasty experts\' rankings today, on the same Fair / Lopsided / Unfair scale.' },

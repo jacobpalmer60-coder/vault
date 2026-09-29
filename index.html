@@ -84,8 +84,9 @@
           Vault.setSleeperUserId(u.user_id);
           store('vault_username', user); // filled in next time
           const allLeagues = await Promise.all(
-            [...Array(12)].map((_, i) =>
-              fetch(`https://api.sleeper.app/v1/user/${u.user_id}/leagues/nfl/${2026 - i}`).then(r => r.json()).catch(() => [])
+            // From next year back (new-season leagues appear before the calendar turns).
+            [...Array(13)].map((_, i) =>
+              fetch(`https://api.sleeper.app/v1/user/${u.user_id}/leagues/nfl/${new Date().getFullYear() + 1 - i}`).then(r => r.json()).catch(() => [])
             )
           ).then(a => a.flat());
           if (!allLeagues.length) throw new Error('No leagues found for that username');

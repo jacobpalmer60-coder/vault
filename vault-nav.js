@@ -5,6 +5,12 @@
    Usage: <div id="vault-nav"></div> then <script src="js/vault-nav.js"></script>
    ============================================================ */
 (function () {
+  // A visitor who hasn't picked a league (no league in the link, none saved)
+  // goes to the home page to choose theirs, instead of seeing a default league.
+  let saved = null;
+  try { saved = localStorage.getItem('vault_league_id'); } catch {}
+  if (!new URLSearchParams(location.search).get('league_id') && !saved) { location.replace('index.html'); return; }
+
   // Pages, grouped. The group name gives the context, so tabs use short names
   // (label is the full name, for the phone menu button and screen readers).
   const GROUPS = [
