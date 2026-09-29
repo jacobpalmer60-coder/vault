@@ -1,0 +1,39 @@
+name: FantasyPros API check
+
+# Which FantasyPros endpoints the FANTASYPROS_API_KEY secret can reach, and
+# what they return. Runs when this file or the check script changes, or by
+# hand from the Actions tab. Saves only status codes and field names to
+# data/fp-probe.txt; the key itself is never printed (GitHub also masks it).
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fantasypros-probe.yml
+      - scripts/fp-probe.mjs
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: node scripts/fp-probe.mjs > data/fp-probe.txt 2>&1 || true
+        env:
+          FANTASYPROS_API_KEY: ${{ secrets.FANTASYPROS_API_KEY }}
+
+      - run: |
+          cat data/fp-probe.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/fp-probe.txt
+          git diff --cached --quiet || git commit -m "FantasyPros API check results"
+          git pull --rebase
+          git push
