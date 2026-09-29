@@ -2966,7 +2966,9 @@ const Vault = {
     const bucket = Vault.fairnessBucket(fairness.overallPct, combinedFitA, combinedFitB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    return { tx, teamA, teamB, toA, toB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
+    // toAToday/toBToday: the same pieces at today's prices (Trade Grades' Experts and
+    // This season lines work from today's rosters and values).
+    return { tx, teamA, teamB, toA, toB, toAToday: toATodayPrices, toBToday: toBTodayPrices, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
   },
 
   // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
@@ -3004,7 +3006,7 @@ const Vault = {
      out once translation can't resolve their side — gradeTrade already returns
      null for any unresolved roster_id, nothing extra to filter here. */
   async fetchAndGradeAllTrades(leagueId) {
-    const { league, isSF, teams, slots, replacementLevels } = await Vault.buildLeagueTeams(leagueId);
+    const { league, isSF, teams, slots, replacementLevels, remainingWeeks } = await Vault.buildLeagueTeams(leagueId);
     const seasonChain = await Vault.fetchSeasonChain(leagueId, league);
 
     const [playersDb, ktcData, projData, rosters, traded, playerHist, pickHist] = await Promise.all([
@@ -3045,6 +3047,7 @@ const Vault = {
       const rawTrades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2);
       return rawTrades.map(tx => ({
         ...tx,
+        season: s.season, // which league season it happened in (Trade Grades' "This season")
         roster_ids: tx.roster_ids.map(translateRoster),
         adds: Object.fromEntries(Object.entries(tx.adds || {}).map(([pid, rid]) => [pid, translateRoster(rid)])),
         draft_picks: (tx.draft_picks || []).map(pk => ({
@@ -3097,7 +3100,7 @@ const Vault = {
     }
 
     const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels, playerVolatility, pricer)).filter(Boolean);
-    return { league, isSF, teams, slots, allGraded };
+    return { league, isSF, teams, slots, allGraded, remainingWeeks: remainingWeeks || [] };
   },
 
   /* ---------- Manager tendencies ----------

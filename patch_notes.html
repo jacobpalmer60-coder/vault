@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=c96efd0f">
+<link rel="stylesheet" href="tailwind.css?v=39e1cd9c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -28,7 +28,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=2316bd96"></script>
+<script src="vault-core.js?v=1edb6b1a"></script>
 <script src="vault-nav.js?v=12d580e0"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -36,6 +36,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-09-29', items: [
+    { kind: 'new', page: 'Trade Grades', text: 'Each trade now has an Experts line next to At the trade and Today: the same trade priced by the FantasyPros dynasty experts\' rankings today, on the same Fair / Lopsided / Unfair scale.' },
+    { kind: 'new', page: 'Trade Grades', text: 'This season\'s trades show what they are doing for each team right now: playoff and title odds with the trade against the same team with it undone (e.g. "Playoffs 65% vs 61% without, +4"), and the points per week it adds or costs. Trades that changed neither starting lineup say so. Skipped when a player involved has since moved on.' },
     { kind: 'new', page: 'Trade Calculator', text: 'This season: every trade now shows what it does to each team\'s playoff and title odds (e.g. "Title 40% → 32%"), how many points a week its best lineup gains or loses, and who moves into or out of the starting lineup. It runs the same season simulation as League Overview, before and after the trade on identical simulated games, so the change comes from the trade itself.' },
     { kind: 'new', page: 'Trade Calculator', text: 'Experts vs market, with FantasyPros: players the FantasyPros dynasty experts rank well above where the trade market (KTC) has them get a Buy-low tag, and the reverse get Sell-high, on your rosters and in the trade. The value table has a new Experts row: the same trade priced by the experts\' rankings, on KTC\'s scale, with a note when the experts see a trade the other way. The grade itself still uses KTC. Updated daily; superflex leagues use the experts\' superflex rankings.' },
     { kind: 'improved', page: 'League Overview', text: 'Opening a team now has an "Open in Team Analyzer" link that goes straight to that team\'s flaws, best trade partners, and contention window, with no need to pick the team again.' },

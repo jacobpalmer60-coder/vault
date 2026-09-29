@@ -6,7 +6,7 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=c96efd0f">
+<link rel="stylesheet" href="tailwind.css?v=39e1cd9c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -42,7 +42,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=2316bd96"></script>
+<script src="vault-core.js?v=1edb6b1a"></script>
 <script src="vault-nav.js?v=12d580e0"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
@@ -59,6 +59,9 @@ const FAIR_FILTERS = ['All', 'Great', 'Good', 'Fair', 'Lopsided', 'Unfair'];
 const SORTS = { recent: 'Most Recent', lopsided: 'Most Lopsided' };
 
 let allGraded = [];
+// For the Experts and This season lines: today's league, schedule, and the
+// FantasyPros expert read (loaded after the trades, then the list re-draws).
+let ctx = null, expertView = null;
 let fairFilter = 'All';
 let sortKey = 'recent';
 
@@ -161,6 +164,70 @@ function vorpDeltaHtml(dVorp) {
   return ` · VORP <span class="${color}" title="Real, scarcity-adjusted edge over replacement — see the VORP column on Player Rankings">${dVorp > 0 ? '+' : ''}${dVorp.toFixed(1)}</span>`;
 }
 
+// Experts: the same trade priced by FantasyPros' dynasty experts today (each player
+// at the KTC value of his expert rank, picks at KTC), on the same Fair/Lopsided/
+// Unfair scale, value only. Shown next to the At the trade / Today lines.
+function expertLine(g) {
+  if (!expertView) return '';
+  const ranked = [...g.toAToday, ...g.toBToday].some(a => Vault.expertFor(expertView, a));
+  if (!ranked) return '';
+  const asExperts = list => list.map(a => { const e = Vault.expertFor(expertView, a); return e ? { ...a, value: e.expertValue } : a; });
+  const ex = Vault.tradeSideValues(asExperts(g.toBToday), asExperts(g.toAToday)); // valueA = what A gave, valueB = what A got
+  const avg = (ex.valueA + ex.valueB) / 2 || 1;
+  const signed = (ex.valueA - ex.valueB) / avg * 100; // positive: A gave more, favoring B
+  const line = gradeLine('Experts', Vault.fairnessBucket(Math.abs(signed), 0, 0), signed, g);
+  return line.replace('<div class="flex', `<div title="FantasyPros dynasty experts today (${expertView.experts || 'several'} experts): each player at what KTC pays for the player ranked where the experts rank him, picks at KTC value. Value only." class="flex`);
+}
+
+/* This season: what the trade is doing for each team's playoff and title odds
+   right now. Undoes the trade on today's rosters (Vault.simulateTrade, sending each
+   side's pieces back) and re-runs the season simulation on the same seeded games
+   as the baseline, so the gap is the trade. Only this season's trades, only while
+   regular-season games remain, and only when every player involved is still on
+   the team that got him (otherwise "without this trade" isn't well defined). */
+const SEASON_TRIALS = 4000, SEASON_SEED = 20260929;
+let seasonBase = null;
+const seasonMemo = new Map();
+function seasonEffect(g) {
+  if (!ctx || !ctx.remainingWeeks.length || String(g.tx.season) !== String(ctx.league.season)) return null;
+  if (seasonMemo.has(g.tx.transaction_id)) return seasonMemo.get(g.tx.transaction_id);
+  const A = ctx.teams.find(t => t.rosterId === g.teamA.rosterId), B = ctx.teams.find(t => t.rosterId === g.teamB.rosterId);
+  const pA = g.toAToday.filter(a => a.type === 'player'), pB = g.toBToday.filter(a => a.type === 'player');
+  const has = (team, list) => list.every(p => team.plist.some(x => x.id === p.id));
+  let out = null;
+  if (A && B && (pA.length || pB.length) && has(A, pA) && has(B, pB)) {
+    seasonBase = seasonBase || Vault.simulateSeason(ctx.teams, ctx.league, ctx.remainingWeeks, { trials: SEASON_TRIALS, seed: SEASON_SEED });
+    const { before, after } = Vault.simulateTrade(ctx.teams, ctx.slots, A.rosterId, B.rosterId, pA, pB); // send it all back
+    const without = Vault.simulateSeason(ctx.teams, ctx.league, ctx.remainingWeeks, { trials: SEASON_TRIALS, seed: SEASON_SEED,
+      strengthDelta: new Map([[A.rosterId, after.A.opt - before.A.opt], [B.rosterId, after.B.opt - before.B.opt]]) });
+    const row = (team, d) => ({ team, now: seasonBase.get(team.rosterId), without: without.get(team.rosterId), ppw: -d });
+    out = [row(A, after.A.opt - before.A.opt), row(B, after.B.opt - before.B.opt)];
+  }
+  seasonMemo.set(g.tx.transaction_id, out);
+  return out;
+}
+function seasonHtml(g) {
+  const rows = seasonEffect(g);
+  if (!rows) return '';
+  if (rows.every(r => Math.abs(r.ppw) < 0.05)) {
+    return `<div class="mt-3 pt-3 border-t border-white/5 text-[12px] text-zinc-400"><span class="text-[11px] uppercase tracking-wider text-zinc-400 mr-2">This season</span>Neither starting lineup changed, so no effect on either team's odds this season.</div>`;
+  }
+  const pct = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
+  const chg = (now, was) => {
+    const d = Math.round(now) - Math.round(was);
+    return d ? `<span class="font-semibold ${d > 0 ? 'text-emerald-400' : 'text-rose-400'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>` : '<span class="text-zinc-500">±0</span>';
+  };
+  return `<div class="mt-3 pt-3 border-t border-white/5">
+      <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5" title="Each team as it is now, against the same team with this trade undone, over the ${ctx.remainingWeeks.length} regular-season weeks left (${SEASON_TRIALS.toLocaleString()} simulated seasons, same games both ways).">This season, because of this trade</div>
+      <div class="space-y-1 text-[12px]">${rows.map(r => `<div class="flex items-baseline gap-x-3 gap-y-0.5 flex-wrap">
+          <span class="text-zinc-200 w-[160px] shrink-0 truncate">${Vault.escapeHtml(r.team.teamName)}</span>
+          <span class="text-zinc-400">Playoffs <span class="mono text-zinc-200">${pct(r.now.playoffPct)}</span> vs ${pct(r.without.playoffPct)} without ${chg(r.now.playoffPct, r.without.playoffPct)}</span>
+          <span class="text-zinc-400">Title <span class="mono text-zinc-200">${pct(r.now.championshipPct)}</span> vs ${pct(r.without.championshipPct)} ${chg(r.now.championshipPct, r.without.championshipPct)}</span>
+          <span class="mono ${Math.abs(r.ppw) < 0.05 ? 'text-zinc-500' : r.ppw > 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.ppw >= 0 ? '+' : '−'}${Math.abs(r.ppw).toFixed(1)} pts/week</span>
+        </div>`).join('')}</div>
+    </div>`;
+}
+
 function renderCard(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const bucket = g.bucket;
@@ -202,11 +269,13 @@ function renderCard(g) {
         <div class="space-y-1.5 mt-2.5 text-[12px]" title="Overall % off: KTC value blended with roster fit and timeline (${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}), never closer to even than KTC value alone. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% Lopsided, ${VAULT_CONFIG.LOPSIDED_PCT}%+ Unfair. Great and Good are Fair trades that also fit both or one side well.">
           ${gradeLine(g.valuedAt === 'trade' ? 'At the trade' : 'Grade', bucket, g.fairness.overallSigned, g)}
           ${todayGrade(g) ? gradeLine('Today', todayGrade(g).bucket, todayGrade(g).signed, g) : ''}
+          ${expertLine(g)}
         </div>
         <div class="max-w-lg mt-2.5">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`)}</div>
         ${agedText(g) ? `<div class="text-[12px] text-zinc-400 mt-1.5">${agedText(g)}</div>` : ''}
         ${confidenceBandText(g)}
       </div>
+      ${seasonHtml(g)}
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
         <summary class="flex items-center gap-1.5 py-1 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
           <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
@@ -281,8 +350,11 @@ async function init() {
   try {
     const leagueId = Vault.getLeagueId();
     status.textContent = 'Loading player database and trade history…';
-    const { league, isSF, teams, allGraded: graded } = await Vault.fetchAndGradeAllTrades(leagueId);
+    const { league, isSF, teams, slots, remainingWeeks, allGraded: graded } = await Vault.fetchAndGradeAllTrades(leagueId);
     allGraded = graded;
+    ctx = { league, teams, slots, remainingWeeks };
+    // Expert read loads after; the list re-draws with the Experts lines once it's in.
+    Vault.buildExpertView(isSF, league.scoring_settings?.bonus_rec_te).then(v => { expertView = v; if (v) renderList(); }).catch(() => {});
 
     status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
