@@ -1689,19 +1689,21 @@ function classifyTrade(resA, resB, aAssets, bAssets, teamA, teamB) {
   const aBuysProd = resA.dOpt > 3 && resA.dPicks < -500;
   const bBuysProd = resB.dOpt > 3 && resB.dPicks < -500;
 
+  // Team names rather than letters (label is set as plain text; desc is HTML).
+  const A = teamA.teamName, B = teamB.teamName, a = Vault.escapeHtml(A), b = Vault.escapeHtml(B);
   let label, desc;
   if (resA.mode === 'rebuild' && resB.mode === 'contend' && aSellsProd && bBuysProd) {
     label = 'Rebuild-for-Contender Swap';
-    desc = `Team A cashes in current production for draft capital while Team B spends picks to win now — a textbook timeline-matched trade.`;
+    desc = `${a} cashes in current production for draft capital while ${b} spends picks to win now — a textbook timeline-matched trade.`;
   } else if (resB.mode === 'rebuild' && resA.mode === 'contend' && bSellsProd && aBuysProd) {
     label = 'Rebuild-for-Contender Swap';
-    desc = `Team B cashes in current production for draft capital while Team A spends picks to win now — a textbook timeline-matched trade.`;
+    desc = `${b} cashes in current production for draft capital while ${a} spends picks to win now — a textbook timeline-matched trade.`;
   } else if (resA.mode === 'rebuild' && aBuysProd) {
-    label = 'Off-Plan Buy — Team A';
-    desc = `Team A is rebuilding but is buying current production at the cost of picks or youth — worth double-checking this actually fits the plan.`;
+    label = `Off-Plan Buy — ${A}`;
+    desc = `${a} is rebuilding but is buying current production at the cost of picks or youth — worth double-checking this actually fits the plan.`;
   } else if (resB.mode === 'rebuild' && bBuysProd) {
-    label = 'Off-Plan Buy — Team B';
-    desc = `Team B is rebuilding but is buying current production at the cost of picks or youth — worth double-checking this actually fits the plan.`;
+    label = `Off-Plan Buy — ${B}`;
+    desc = `${b} is rebuilding but is buying current production at the cost of picks or youth — worth double-checking this actually fits the plan.`;
   } else if (resA.mode === 'contend' && resB.mode === 'contend') {
     label = 'Win-Now Swap';
     desc = `Both teams are contending — this reads as two playoff teams addressing complementary roster needs, not a timeline shift.`;
@@ -1713,14 +1715,14 @@ function classifyTrade(resA, resB, aAssets, bAssets, teamA, teamB) {
     desc = `No clear timeline mismatch between the two sides — this reads as a roster-fit trade rather than a buy or a sell.`;
   }
 
-  if (aAssets.length >= bAssets.length + 2) desc += ` Team A is also consolidating — ${aAssets.length} pieces down to ${bAssets.length} bigger ones from Team B.`;
-  else if (bAssets.length >= aAssets.length + 2) desc += ` Team B is also consolidating — ${bAssets.length} pieces down to ${aAssets.length} bigger ones from Team A.`;
+  if (aAssets.length >= bAssets.length + 2) desc += ` ${a} is also consolidating — ${aAssets.length} pieces down to ${bAssets.length} bigger ones from ${b}.`;
+  else if (bAssets.length >= aAssets.length + 2) desc += ` ${b} is also consolidating — ${bAssets.length} pieces down to ${aAssets.length} bigger ones from ${a}.`;
 
   if (rosterCap) {
     const newA = projectedRosterCount(teamA, aAssets, bAssets);
     const newB = projectedRosterCount(teamB, bAssets, aAssets);
-    if (newA > rosterCap) desc += ` This leaves Team A needing ${newA}/${rosterCap} active roster spots — they'll need to drop ${newA - rosterCap} (taxi/IR don't count unless the incoming piece actually qualifies).`;
-    if (newB > rosterCap) desc += ` This leaves Team B needing ${newB}/${rosterCap} active roster spots — they'll need to drop ${newB - rosterCap} (taxi/IR don't count unless the incoming piece actually qualifies).`;
+    if (newA > rosterCap) desc += ` This leaves ${a} needing ${newA}/${rosterCap} active roster spots — they'll need to drop ${newA - rosterCap} (taxi/IR don't count unless the incoming piece actually qualifies).`;
+    if (newB > rosterCap) desc += ` This leaves ${b} needing ${newB}/${rosterCap} active roster spots — they'll need to drop ${newB - rosterCap} (taxi/IR don't count unless the incoming piece actually qualifies).`;
   }
 
   return { label, desc };
