@@ -48,7 +48,7 @@
     <div class="grid sm:grid-cols-2 gap-4">
       <button onclick="openCoach('best')" class="card card-hover rounded-2xl p-5 text-left flex gap-4 items-start hover:bg-white/[0.02] transition-colors">
         <span class="size-10 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg></span>
-        <span class="min-w-0"><span class="block text-[16px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-1 leading-relaxed">The best trades for your team right now, trades with a certain team, plus goals: fix a position, rebuild, go all-in, or negotiate.</span></span>
+        <span class="min-w-0"><span class="block text-[16px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-1 leading-relaxed">The best trades for your team right now, trades with a certain team, or a goal: down-tier a player, fix a position, rebuild, or go all-in.</span></span>
       </button>
       <button onclick="openCoach('shop')" class="card card-hover rounded-2xl p-5 text-left flex gap-4 items-start hover:bg-white/[0.02] transition-colors">
         <span class="size-10 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span>
@@ -418,6 +418,14 @@ async function init() {
     document.getElementById('loadRostersBtn').onclick = () => {
       if (typeof negReset === 'function') { negReset(); negPreloadStyles(); }
       if (typeof coachReset === 'function') coachReset(); // trade history loads in the background for negotiations
+      // Picked on the "Which team is yours?" screen: remember it, like the nav's
+      // Your team menu, so no other page has to ask. (Not when a shared trade
+      // link opens this — its team is the sharer's, not necessarily yours.)
+      if (!document.getElementById('setup').classList.contains('hidden')) {
+        Vault.setMyTeamId(Vault.getLeagueId(), setupA.value);
+        const navPick = document.getElementById('myTeamPick');
+        if (navPick) navPick.value = setupA.value;
+      }
       selA.value = setupA.value;
       if (selB.value === selA.value) selB.value = '';
       prevA = selA.value; prevB = selB.value;

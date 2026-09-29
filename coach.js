@@ -645,13 +645,21 @@ function coachNavHtml() {
   const i = COACH_STEPS.findIndex(([s]) => s === Coach.step), prev = COACH_STEPS[i - 1], next = COACH_STEPS[i + 1];
   const ready = coachReady(), last = next[0] === 'results';
   const back = prev ? `<button onclick="coachGo('${prev[0]}')" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white">← Back</button>` : '<span></span>';
-  const primaryLabel = last ? 'Find trades' : Coach.step === 'type' || coachStepHas(Coach.step) ? 'Next →' : 'Skip →';
+  const hint = ready ? '' : `<div class="text-[12px] text-zinc-500 mt-2 text-right">${{ shop: 'Pick a player or pick to shop first.', target: 'Pick a player to get first.', team: 'Pick a team first.', downtier: 'Pick a player to down-tier first.' }[Coach.option]}</div>`;
+  // Step 1: most searches need no rules, so Find trades is the main button and
+  // the rule steps are an optional detour.
+  if (Coach.step === 'type') {
+    return `<div class="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-white/5">
+        <button onclick="coachGo('include')" ${ready ? '' : 'disabled'} class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 ${ready ? '' : 'opacity-50 cursor-default'}">Add rules (optional) →</button>
+        <button onclick="coachFind()" ${ready ? '' : 'disabled'} class="text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid">Find trades</button>
+      </div>${hint}`;
+  }
+  const primaryLabel = last ? 'Find trades' : coachStepHas(Coach.step) ? 'Next →' : 'Skip →';
   const now = !last ? `<button onclick="coachFind()" ${ready ? '' : 'disabled'} class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 ${ready ? '' : 'opacity-50 cursor-default'}">Find trades now</button>` : '';
   return `<div class="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-white/5">
       ${back}
       <div class="flex items-center gap-2">${now}<button onclick="coachGo('${next[0]}')" ${ready ? '' : 'disabled'} class="text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid">${primaryLabel}</button></div>
-    </div>
-    ${ready ? '' : `<div class="text-[12px] text-zinc-500 mt-2 text-right">${{ shop: 'Pick a player or pick to shop first.', target: 'Pick a player to get first.', team: 'Pick a team first.', downtier: 'Pick a player to down-tier first.' }[Coach.option]}</div>`}`;
+    </div>${hint}`;
 }
 
 /* ---------- Target picker ---------- */
@@ -711,7 +719,7 @@ function renderCoach() {
   coachSync();
 
   const typeChips = `${coachPlanHtml(me, chip)}
-    <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(COACH_OPTIONS).map(([o, d]) => chip(Coach.option === o, d.label, `coachSetOption('${o}')`)).join('')}</div>
+    <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(COACH_OPTIONS).filter(([o]) => o !== 'negotiate').map(([o, d]) => chip(Coach.option === o, d.label, `coachSetOption('${o}')`)).join('')}</div>
     <div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS[Coach.option].blurb}</div>`;
   if (neg) { box.innerHTML = `<div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS.negotiate.blurb}</div>${coachNegotiateHtml()}`; return; }
   if (Coach.step === 'include' || Coach.step === 'exclude' || Coach.step === 'positions') {
