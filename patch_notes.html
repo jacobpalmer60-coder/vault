@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=ca2d521c">
+<link rel="stylesheet" href="tailwind.css?v=ba28cb0c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -36,6 +36,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-09-29', items: [
+    { kind: 'new', page: 'Trade Calculator', text: 'Will they take it? Every trade now shows, right next to the grade, whether the other manager would likely accept: Likely yes, Probably yes, Probably not, or Unlikely, with the main reason. When it\'s a no, it names the smallest change that would get it done ("They\'d do it if you add Trey McBride") and a Make that change button. It\'s the same read the Offer button gives, so the two always agree.' },
+    { kind: 'improved', page: 'Trade Calculator', text: 'A calmer trade card: it now leads with the grade, whether they\'d take it, and what it does to this season. The KTC and adjusted values and the even-it-up suggestion are under Details.' },
     { kind: 'improved', page: 'Everywhere', text: 'The last "Team A" and "Team B" labels are gone: trade type descriptions on the Trade Calculator and the side headers on Trade Grades use the teams\' names. How We Grade now explains how a trade\'s effect on this season\'s odds is worked out.' },
     { kind: 'fixed', page: 'Everywhere', text: 'New visitors who open a page without having picked a league now land on the home page to choose theirs, instead of seeing someone else\'s league. League search on the home page also looks ahead a season, so next year\'s leagues show up as soon as they exist.' },
     { kind: 'removed', page: 'Trade Calculator', text: 'The FantasyPros experts view is gone (Buy-low / Sell-high tags, the Experts bar and row, and the Experts line on Trade Grades). One clear grade you can check against KTC is easier to act on than two that can disagree. The This season odds stay.' },

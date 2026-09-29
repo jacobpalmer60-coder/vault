@@ -402,6 +402,64 @@ function negWalk(i) {
   renderOfferButton();
 }
 
+/* ---------- Will they take it? (always on the trade card) ----------
+   The same judge Offer uses, run on the trade as it's built. Four plain levels
+   that always agree with what Offer would say: Likely yes / Probably yes (they'd
+   accept, comfortably or narrowly), Probably not / Unlikely (they'd decline,
+   narrowly or clearly). For a no, the smallest change they'd accept that's still
+   Fair for you (negCounter), with a button that makes it. The counter search is
+   the slow part, so it runs just after the card draws. */
+const ACCEPT_LEVELS = {
+  yes: { label: 'Likely yes', cls: 'text-emerald-300', box: 'border-emerald-500/30 bg-emerald-500/[0.06]' },
+  leanYes: { label: 'Probably yes', cls: 'text-emerald-300/90', box: 'border-emerald-500/20 bg-emerald-500/[0.04]' },
+  leanNo: { label: 'Probably not', cls: 'text-amber-300', box: 'border-amber-500/30 bg-amber-500/[0.06]' },
+  no: { label: 'Unlikely', cls: 'text-rose-300', box: 'border-rose-500/30 bg-rose-500/[0.06]' }
+};
+let acceptCounter = null, acceptToken = 0;
+function renderAcceptRead(aAssets, bAssets) {
+  const box = document.getElementById('acceptRead');
+  if (!box) return;
+  acceptCounter = null;
+  const token = ++acceptToken;
+  const O = negOfferingSide(), R = negOther(O), them = teamOf(R);
+  const shell = (cls, inner) => `<div class="rounded-xl border p-3.5 ${cls}">${inner}</div>`;
+  if (!them) { box.innerHTML = ''; return; }
+  if (R === 'A') { // they're offering it to you: the verdict below is the advice
+    box.innerHTML = shell('border-white/10 bg-black/20', `<div class="text-[11px] uppercase tracking-wider text-zinc-400">Offered to you</div><div class="text-[13px] text-zinc-300 mt-1">The verdict below says whether to take it.</div>`);
+    return;
+  }
+  const head = `<div class="text-[11px] uppercase tracking-wider text-zinc-400">Will ${Vault.escapeHtml(them.teamName)} take it?</div>`;
+  if (!aAssets.length || !bAssets.length) {
+    box.innerHTML = shell('border-white/10 bg-black/20', `${head}<div class="text-[13px] text-zinc-400 mt-1">Add pieces to both sides to see.</div>`);
+    return;
+  }
+  // Their trading history (how picky they are) loads in the background; re-read once it's in.
+  if (!Negotiation.styles) { const p = negPreloadStyles(); if (p) p.then(() => { if (token === acceptToken && typeof updateTrade === 'function') updateTrade(); }); }
+  const ctx = negContext(R);
+  const j = negJudge(aAssets, bAssets, R, ctx);
+  const margin = j.will - ctx.ask;
+  const level = j.accepts ? (margin >= 3 ? 'yes' : 'leanYes') : (j.drops > 1 || j.siteSaysNo || margin < -3 ? 'no' : 'leanNo');
+  const L = ACCEPT_LEVELS[level], r = negReasons(j, ctx);
+  const why = j.accepts ? (r.yes[0] || r.summary) : (j.drops > 1 || j.siteSaysNo ? r.summary : (r.no[0] || r.summary));
+  const draw = extra => { box.innerHTML = shell(L.box, `${head}<div class="text-[20px] font-semibold mt-0.5 ${L.cls}">${L.label}</div><div class="text-[12px] text-zinc-300 mt-1">${why}</div>${extra}`); };
+  if (j.accepts) { draw(''); return; }
+  draw('<div class="text-[12px] text-zinc-500 mt-2 pt-2 border-t border-white/5">Looking for what would get it done…</div>');
+  setTimeout(() => {
+    if (token !== acceptToken) return; // the trade changed; a newer read is on its way
+    const c = negCounter(aAssets, bAssets, O, R, ctx);
+    acceptCounter = c;
+    draw(c
+      ? `<div class="mt-2 pt-2 border-t border-white/5 flex items-start justify-between gap-3">
+          <span class="text-[12px] text-zinc-200">${negCounterText(c, R, ctx)}</span>
+          <button onclick="applyAcceptCounter()" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10 transition-colors">Make that change</button>
+        </div>`
+      : '<div class="text-[12px] text-zinc-500 mt-2 pt-2 border-t border-white/5">No single change would get this to a yes while staying Fair for you.</div>');
+  }, 0);
+}
+function applyAcceptCounter() {
+  if (acceptCounter) negLoad(negKeys(acceptCounter.A), negKeys(acceptCounter.B));
+}
+
 function negLoad(keysA, keysB) {
   selectedA.clear(); selectedB.clear();
   keysA.forEach(k => selectedA.add(k)); keysB.forEach(k => selectedB.add(k));
