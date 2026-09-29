@@ -2012,10 +2012,7 @@ const Vault = {
   // row's number just points toward the side it favors, so nothing truncates.
   // Value is labeled "KTC value" on purpose: it's the one a manager can go
   // check; the other two are clearly labeled as ours.
-  // expertsSigned (optional): FantasyPros experts' read of the same trade, as a
-  // signed % off (positive favors team B). Drawn below a divider, labeled as
-  // theirs, with no weight: a second opinion next to the grade, not part of it.
-  fairnessPanelHtml(fair, bandPct, teamAName, teamBName, overallText, expertsSigned = null) {
+  fairnessPanelHtml(fair, bandPct, teamAName, teamBName, overallText) {
     const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, w = VAULT_CONFIG.FAIRNESS_WEIGHTS, esc = Vault.escapeHtml;
     const lean = x => {
       if (Math.abs(x) < 1) return 'Even';
@@ -2038,25 +2035,7 @@ const Vault = {
       ${row('KTC value', w.value, fair.value, "KTC's own consolidation-adjusted value — the number you can check on KeepTradeCut.")}
       ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}
       ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend timeline, archetype, and contention window.')}
-      ${Number.isFinite(expertsSigned) ? (() => {
-        const t = 'FantasyPros dynasty experts: the same trade priced by their consensus rankings (each player at the KTC value of his expert rank). Value only, and not part of the grade.';
-        return `<div class="col-span-3 border-t border-white/5"></div>
-      <div class="text-[12px] text-sky-300/90 whitespace-nowrap" title="${t}">Experts <span class="text-zinc-500">FantasyPros</span></div>
-      <div title="${t}">${Vault.fairnessBarHtml(expertsSigned, 0, true)}</div>
-      <div class="text-[12px] text-zinc-300 text-right tabular-nums whitespace-nowrap">${lean(expertsSigned)}</div>`;
-      })() : ''}
     </div>`;
-  },
-  // A trade priced by the experts: each player at his expert value (picks and
-  // unranked players keep their KTC value), with KTC's consolidation rule.
-  // give / get are the two sides' pieces; signed > 0 means the give side is worth
-  // more, i.e. the trade favors whoever receives it. Null without expert data.
-  expertTradeRead(view, give, get) {
-    if (!view || ![...give, ...get].some(a => Vault.expertFor(view, a))) return null;
-    const asExperts = list => list.map(a => { const e = Vault.expertFor(view, a); return e ? { ...a, value: e.expertValue } : a; });
-    const { valueA, valueB } = Vault.tradeSideValues(asExperts(give), asExperts(get));
-    const avg = (valueA + valueB) / 2 || 1;
-    return { give: valueA, get: valueB, signed: (valueA - valueB) / avg * 100 };
   },
 
   /* ---------- Value confidence / uncertainty ----------
@@ -2987,8 +2966,8 @@ const Vault = {
     const bucket = Vault.fairnessBucket(fairness.overallPct, combinedFitA, combinedFitB);
     const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
 
-    // toAToday/toBToday: the same pieces at today's prices (Trade Grades' Experts and
-    // This season lines work from today's rosters and values).
+    // toAToday/toBToday: the same pieces at today's prices (Trade Grades' This season
+    // line works from today's rosters).
     return { tx, teamA, teamB, toA, toB, toAToday: toATodayPrices, toBToday: toBTodayPrices, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
   },
 
@@ -3593,56 +3572,6 @@ const Vault = {
     });
     return out;
   }
-};
-
-/* ============================================================
-   EXPERTS VS MARKET (FantasyPros dynasty consensus, shown with permission)
-   The market is KTC (real trades and crowd votes); the experts are
-   FantasyPros' consensus rankings (data/fp-dynasty.json, fetched daily).
-   Both lists are ranked over the same players, so "Market #12 · Experts #5"
-   compares like with like. A player's expert value is the KTC value of the
-   player the market ranks where the experts rank him: KTC's own scale, so
-   it sits next to KTC value in the same units.
-   ============================================================ */
-Vault.EXPERTS_URL = 'data/fp-dynasty.json';
-Vault.EXPERTS_LINK = 'https://www.fantasypros.com/nfl/rankings/dynasty-overall.php';
-// Buy-low / sell-high only when the gap is real: 5+ spots, and at least a
-// quarter of the rank (a 5-spot gap means a lot at #8, little at #180).
-Vault.expertLean = (marketRank, expertRank) => {
-  const gap = marketRank - expertRank, need = Math.max(5, Math.round(expertRank * 0.25));
-  return gap >= need ? 'buy' : gap <= -need ? 'sell' : null;
-};
-Vault.buildExpertView = async function (isSF, bonusRecTe) {
-  const [ktc, fp] = await Promise.all([
-    Vault.fetchKtcValues(),
-    fetch(Vault.EXPERTS_URL).then(r => (r.ok ? r.json() : null)).catch(() => null)
-  ]);
-  const list = fp && (isSF ? fp.superflex : fp.oneQb);
-  if (!list || !list.length) return null;
-  // FantasyPros uses a few nicknames where KTC (and the rest of the site) uses
-  // the full name; everything else matches by name as-is.
-  const ALIAS = { 'chig okonkwo': 'chigoziem okonkwo', 'kenny gainwell': 'kenneth gainwell', 'matt hibner': 'matthew hibner', 'hollywood brown': 'marquise brown' };
-  const norm = s => { const n = Vault.normalizeName(s); return ALIAS[n] || n; };
-  const valMap = Vault.buildKtcValueMap(ktc, isSF, bonusRecTe);
-  const both = list.filter(p => (valMap.get(norm(p.name)) || 0) > 0);
-  const byMarket = [...both].sort((a, b) => valMap.get(norm(b.name)) - valMap.get(norm(a.name)));
-  const marketRank = new Map(byMarket.map((p, i) => [norm(p.name), i + 1]));
-  const valueAtRank = byMarket.map(p => valMap.get(norm(p.name)));
-  const map = new Map();
-  [...both].sort((a, b) => a.ecr - b.ecr).forEach((p, i) => {
-    const k = norm(p.name), expertRank = i + 1, mr = marketRank.get(k);
-    map.set(k, { expertRank, marketRank: mr, posRank: p.posRank, tier: p.tier, best: p.best, worst: p.worst,
-      expertValue: valueAtRank[expertRank - 1], lean: Vault.expertLean(mr, expertRank) });
-  });
-  return { map, experts: fp.experts, updated: fp.updated, count: both.length };
-};
-// One player's expert read, or null (picks and players the experts don't rank).
-Vault.expertFor = (view, asset) => (view && asset && asset.type !== 'pick' ? view.map.get(Vault.normalizeName(asset.name)) || null : null);
-// Small Buy-low / Sell-high tag for a player, with the ranks on hover.
-Vault.expertTagHtml = (e) => {
-  if (!e || !e.lean) return '';
-  const buy = e.lean === 'buy';
-  return `<span class="text-[11px] px-1.5 py-px rounded border whitespace-nowrap ${buy ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' : 'border-amber-500/30 text-amber-300 bg-amber-500/10'}" title="Market (KTC) ranks him #${e.marketRank}; FantasyPros experts rank him #${e.expertRank}. ${buy ? 'Experts think the market undervalues him.' : 'The market values him above the experts.'}">${buy ? 'Buy-low' : 'Sell-high'}</span>`;
 };
 
 /* ============================================================

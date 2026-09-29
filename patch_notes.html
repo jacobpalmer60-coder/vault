@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=8dd7c768">
+<link rel="stylesheet" href="tailwind.css?v=ca2d521c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -28,7 +28,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=285de745"></script>
+<script src="vault-core.js?v=a63b5e99"></script>
 <script src="vault-nav.js?v=12d580e0"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -36,6 +36,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-09-29', items: [
+    { kind: 'removed', page: 'Trade Calculator', text: 'The FantasyPros experts view is gone (Buy-low / Sell-high tags, the Experts bar and row, and the Experts line on Trade Grades). One clear grade you can check against KTC is easier to act on than two that can disagree. The This season odds stay.' },
     { kind: 'new', page: 'Trade Calculator', text: 'An Experts bar: right under the grade\'s fairness bar (same width, same center) sits a slim bar for the FantasyPros experts\' read of the same trade, with a line saying who they favor and by how much. It also appears, with Trade Grades, as its own row in the fairness breakdown, set apart from the three parts of the grade since it isn\'t one of them.' },
     { kind: 'new', page: 'Trade Grades', text: 'Each trade now has an Experts line next to At the trade and Today: the same trade priced by the FantasyPros dynasty experts\' rankings today, on the same Fair / Lopsided / Unfair scale.' },
     { kind: 'new', page: 'Trade Grades', text: 'This season\'s trades show what they are doing for each team right now: playoff and title odds with the trade against the same team with it undone (e.g. "Playoffs 65% vs 61% without, +4"), and the points per week it adds or costs. Trades that changed neither starting lineup say so. Skipped when a player involved has since moved on.' },

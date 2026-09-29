@@ -6,7 +6,7 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=8dd7c768">
+<link rel="stylesheet" href="tailwind.css?v=ca2d521c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -42,7 +42,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=285de745"></script>
+<script src="vault-core.js?v=a63b5e99"></script>
 <script src="vault-nav.js?v=12d580e0"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
@@ -59,9 +59,8 @@ const FAIR_FILTERS = ['All', 'Great', 'Good', 'Fair', 'Lopsided', 'Unfair'];
 const SORTS = { recent: 'Most Recent', lopsided: 'Most Lopsided' };
 
 let allGraded = [];
-// For the Experts and This season lines: today's league, schedule, and the
-// FantasyPros expert read (loaded after the trades, then the list re-draws).
-let ctx = null, expertView = null;
+// For the This season lines: today's league and remaining schedule.
+let ctx = null;
 let fairFilter = 'All';
 let sortKey = 'recent';
 
@@ -164,18 +163,6 @@ function vorpDeltaHtml(dVorp) {
   return ` · VORP <span class="${color}" title="Real, scarcity-adjusted edge over replacement — see the VORP column on Player Rankings">${dVorp > 0 ? '+' : ''}${dVorp.toFixed(1)}</span>`;
 }
 
-// Experts: the same trade priced by FantasyPros' dynasty experts today (each player
-// at the KTC value of his expert rank, picks at KTC), on the same Fair/Lopsided/
-// Unfair scale, value only. Shown next to the At the trade / Today lines.
-// What A gave (toB) against what A got (toA): positive favors B, same as the bars.
-const expertSigned = g => Vault.expertTradeRead(expertView, g.toBToday, g.toAToday)?.signed ?? null;
-function expertLine(g) {
-  const signed = expertSigned(g);
-  if (signed == null) return '';
-  const line = gradeLine('Experts', Vault.fairnessBucket(Math.abs(signed), 0, 0), signed, g);
-  return line.replace('<div class="flex', `<div title="FantasyPros dynasty experts today (${expertView.experts || 'several'} experts): each player at what KTC pays for the player ranked where the experts rank him, picks at KTC value. Value only." class="flex`);
-}
-
 /* This season: what the trade is doing for each team's playoff and title odds
    right now. Undoes the trade on today's rosters (Vault.simulateTrade, sending each
    side's pieces back) and re-runs the season simulation on the same seeded games
@@ -266,9 +253,8 @@ function renderCard(g) {
         <div class="space-y-1.5 mt-2.5 text-[12px]" title="Overall % off: KTC value blended with roster fit and timeline (${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}), never closer to even than KTC value alone. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% Lopsided, ${VAULT_CONFIG.LOPSIDED_PCT}%+ Unfair. Great and Good are Fair trades that also fit both or one side well.">
           ${gradeLine(g.valuedAt === 'trade' ? 'At the trade' : 'Grade', bucket, g.fairness.overallSigned, g)}
           ${todayGrade(g) ? gradeLine('Today', todayGrade(g).bucket, todayGrade(g).signed, g) : ''}
-          ${expertLine(g)}
         </div>
-        <div class="max-w-lg mt-2.5">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`, expertSigned(g))}</div>
+        <div class="max-w-lg mt-2.5">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`)}</div>
         ${agedText(g) ? `<div class="text-[12px] text-zinc-400 mt-1.5">${agedText(g)}</div>` : ''}
         ${confidenceBandText(g)}
       </div>
@@ -350,8 +336,6 @@ async function init() {
     const { league, isSF, teams, slots, remainingWeeks, allGraded: graded } = await Vault.fetchAndGradeAllTrades(leagueId);
     allGraded = graded;
     ctx = { league, teams, slots, remainingWeeks };
-    // Expert read loads after; the list re-draws with the Experts lines once it's in.
-    Vault.buildExpertView(isSF, league.scoring_settings?.bonus_rec_te).then(v => { expertView = v; if (v) renderList(); }).catch(() => {});
 
     status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';

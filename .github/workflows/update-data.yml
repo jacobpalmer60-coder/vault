@@ -11,11 +11,6 @@ on:
     - cron: '0 6 * * *'  # midnight MDT (UTC-6)
     - cron: '0 7 * * *'  # midnight MST (UTC-7)
   workflow_dispatch: {}
-  # Also runs once when the FantasyPros fetch changes, so new data lands right away.
-  push:
-    branches: [main]
-    paths:
-      - scripts/fetch-fantasypros.mjs
 
 permissions:
   contents: write
@@ -40,16 +35,10 @@ jobs:
       # This season's week-by-week stats for every QB/RB/WR/TE (Compare page ranks,
       # team shares, weekly finishes). Past seasons were built once and don't change.
       - run: node scripts/build-weekly-stats.js
-      # FantasyPros dynasty expert rankings (the Trade Calculator's "Experts"
-      # read). Two requests; keeps the old file if the key or API is unavailable.
-      - run: node scripts/fetch-fantasypros.mjs
-        env:
-          FANTASYPROS_API_KEY: ${{ secrets.FANTASYPROS_API_KEY }}
 
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/ktc-values.json data/projections.json data/ktc-trades.json data/player-value-history.json data/pick-value-history.json data/history/ data/sleeper-players.json data/weekly/
-          if [ -f data/fp-dynasty.json ]; then git add data/fp-dynasty.json; fi
           git diff --cached --quiet || git commit -m "Update KTC values, projections, trade database, and value history"
           git push
