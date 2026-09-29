@@ -171,7 +171,7 @@ function renderTeamSummary(graded, teams) {
   box.innerHTML = `
     <div class="flex items-center justify-between gap-3 mb-2">
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider">League Trade Summary</div>
-      <a href="${Vault.linkTo('managers.html')}" class="text-[12px] text-amber-400/80 hover:text-amber-300">Full Manager Report →</a>
+      <a href="${Vault.linkTo('managers.html')}" class="py-1.5 text-[12px] text-amber-400/80 hover:text-amber-300">Full Manager Report →</a>
     </div>
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
@@ -297,7 +297,7 @@ function renderCard(g) {
         ${confidenceBandText(g)}
       </div>
       ${notes.length ? `<details class="group mt-3 pt-3 border-t border-white/5">
-        <summary class="flex items-center gap-1.5 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
+        <summary class="flex items-center gap-1.5 py-1 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
           <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
           <span>Full breakdown (${notes.length})</span>
         </summary>

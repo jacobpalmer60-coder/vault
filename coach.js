@@ -576,7 +576,7 @@ function coachSideHtml(side, me, step) {
   const opts = mine
     ? me.assets.filter(a => !used.has(a.key)).map(opt).join('')
     : others.map(x => `<optgroup label="${esc(x.teamName)}">${x.assets.filter(a => !used.has(a.key) && a.value >= 300).map(opt).join('')}</optgroup>`).join('');
-  const add = list => `<select onchange="coachSideAdd('${side}', '${list}', this.value)" aria-label="Add a player or pick" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[170px]"><option value="">+ Add…</option>${opts}</select>`;
+  const add = list => `<select data-search="+ Type a player or pick…" onchange="coachSideAdd('${side}', '${list}', this.value)" aria-label="Add a player or pick" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[170px]"><option value="">+ Add…</option>${opts}</select>`;
   const group = g => `<button onclick="coachSideToggle('${side}', '${g}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${m.never.includes(g) ? 'bg-rose-500/10 border-rose-500/30 text-rose-200' : 'border-white/10 text-zinc-400 hover:text-white'}">${g === 'PICK' ? 'Picks' : g}</button>`;
   const need = g => `<button onclick="coachSideGroup('${side}', '${g}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${m.groups.includes(g) ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'border-white/10 text-zinc-400 hover:text-white'}">${g === 'PICK' ? 'Pick' : g}</button>`;
   const row = (label, body) => `<div class="flex flex-wrap items-center gap-1.5"><span class="text-[12px] text-zinc-500 w-[108px] shrink-0">${label}</span>${body}</div>`;
@@ -636,7 +636,7 @@ function coachStepperHtml() {
     const blocked = s !== 'type' && !coachReady();
     return `<li class="flex items-center gap-1.5">${i ? '<span class="text-zinc-600" aria-hidden="true">›</span>' : ''}<button onclick="coachGo('${s}')" ${blocked ? 'disabled' : ''} ${cur ? 'aria-current="step"' : ''}
       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${cur ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : blocked ? 'border-transparent text-zinc-600 cursor-default' : 'border-transparent text-zinc-400 hover:text-white'}">
-      <span class="size-4 rounded-full text-[10px] font-semibold flex items-center justify-center ${cur ? 'bg-amber-400 text-black' : done ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-zinc-400'}">${s === 'results' ? '✓' : i + 1}</span>${label}</button></li>`;
+      <span class="size-[18px] rounded-full text-[11px] font-semibold flex items-center justify-center ${cur ? 'bg-amber-400 text-black' : done ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-zinc-400'}">${s === 'results' ? '✓' : i + 1}</span>${label}</button></li>`;
   }).join('')}</ol>`;
 }
 
@@ -721,18 +721,18 @@ function renderCoach() {
   const needs = Vault.positionalProfile(me, teams).needs;
   const input = {
     target: coachTargetHtml(chip),
-    shop: `<select onchange="coachSetShop(this.value)" aria-label="Player or pick to shop" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
+    shop: `<select data-search="Type one of your players or picks…" onchange="coachSetShop(this.value)" aria-label="Player or pick to shop" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
         <option value="">Pick one of your players or picks…</option>
         ${me.assets.map(a => `<option value="${a.key}" ${a.key === Coach.shopKey ? 'selected' : ''}>${Vault.escapeHtml(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${Math.round(a.value).toLocaleString()}</option>`).join('')}
       </select>`,
     downtier: `<div class="flex flex-col gap-2">
-        <select onchange="coachSetDown(this.value)" aria-label="Player to down-tier" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
+        <select data-search="Type one of your players…" onchange="coachSetDown(this.value)" aria-label="Player to down-tier" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
           <option value="">Pick one of your players…</option>
           ${me.assets.filter(a => a.type === 'player' && a.value >= 1000).map(a => `<option value="${a.key}" ${a.key === Coach.downKey ? 'selected' : ''}>${Vault.escapeHtml(a.name)} (${a.pos}) · ${Math.round(a.value).toLocaleString()}</option>`).join('')}
         </select>
         <div class="flex gap-1.5 flex-wrap">${chip(!Coach.downSame, 'Any position', 'coachSetDownSame(false)')}${chip(Coach.downSame, 'Same position', 'coachSetDownSame(true)')}</div>
       </div>`,
-    team: `<select onchange="coachSetTeam(this.value)" aria-label="Team to trade with" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
+    team: `<select data-search="Type a team…" onchange="coachSetTeam(this.value)" aria-label="Team to trade with" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
         <option value="">Pick a team to trade with…</option>
         ${teams.filter(t => t !== me).map(t => `<option value="${t.rosterId}" ${String(t.rosterId) === String(Coach.teamId) ? 'selected' : ''}>${Vault.escapeHtml(t.teamName)}</option>`).join('')}
       </select>`,
@@ -752,7 +752,7 @@ function renderCoach() {
       <button onclick="coachFind()" ${Coach.busy ? 'disabled' : ''} class="shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Coach.busy ? 'opacity-60' : ''}">${fresh ? 'Search again' : 'Find trades'}</button>
     </div>
     <div class="text-[12px] text-zinc-500 mb-1 max-w-[680px]">Every trade here is one the other manager would likely take, and Fair for you unless it says otherwise. Predicted from their roster, needs, timeline, and trade history, not the real managers.</div>
-    <div id="coachStatus" class="text-[12px] text-zinc-400 min-h-[18px] ${Coach.busy ? '' : 'hidden'}">Searching…</div>
+    <div id="coachStatus" role="status" class="text-[12px] text-zinc-400 min-h-[18px] ${Coach.busy ? '' : 'hidden'}">Searching…</div>
     ${Coach.busy || !fresh ? '' : coachResultsHtml(r)}`;
 }
 

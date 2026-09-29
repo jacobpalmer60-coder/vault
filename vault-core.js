@@ -3546,3 +3546,119 @@ const Vault = {
     return out;
   }
 };
+
+/* ============================================================
+   TYPE-TO-SEARCH PICKERS
+   Any <select data-search="Placeholder…"> that picks a team or player
+   becomes a box you can type in: it filters the options as you type
+   (team names in an <optgroup> match too), arrow keys move, Enter picks,
+   Escape backs out. The real <select> stays in the page, hidden, so the
+   page's own code still reads .value and gets its change event.
+   ============================================================ */
+(function () {
+  const valueDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  const indexDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'selectedIndex');
+  let uid = 0;
+
+  function enhance(sel) {
+    if (sel.dataset.searchReady) return;
+    sel.dataset.searchReady = '1';
+    const id = 'vs' + (++uid);
+    const wrap = document.createElement('div');
+    wrap.className = `vs-wrap relative flex items-center gap-1 ${sel.className}`;
+    wrap.innerHTML = `
+      <input type="text" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}"
+        class="vs-input flex-1 min-w-0 bg-transparent border-0 p-0 placeholder:text-zinc-500">
+      <svg class="size-3.5 shrink-0 text-zinc-500 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      <div id="${id}" role="listbox" class="vs-list hidden absolute left-0 top-full mt-1 z-50 min-w-full w-max max-w-[min(92vw,420px)] max-h-72 overflow-y-auto scrollbar rounded-lg border border-white/10 bg-[#121418] shadow-xl py-1 text-[13px] font-normal text-left"></div>`;
+    sel.classList.add('vs-native');
+    sel.after(wrap);
+    const input = wrap.querySelector('input'), list = wrap.querySelector('.vs-list');
+    input.setAttribute('aria-label', sel.getAttribute('aria-label') || sel.dataset.search);
+    if (sel.title) input.title = sel.title;
+
+    // Selectable options (the empty "Pick…" option is the placeholder instead).
+    const options = () => [...sel.options].filter(o => o.value !== '' && !o.disabled)
+      .map(o => ({ value: o.value, text: o.textContent.trim(), group: o.parentElement.tagName === 'OPTGROUP' ? o.parentElement.label : '' }));
+    const current = () => { const o = sel.options[sel.selectedIndex]; return o && o.value !== '' ? o.textContent.trim() : ''; };
+    const placeholder = () => { const blank = [...sel.options].find(o => o.value === ''); return sel.dataset.search || (blank && blank.textContent.trim()) || 'Type to search…'; };
+    const sync = () => {
+      // While the list is open the box holds what's being typed; otherwise the pick.
+      if (document.activeElement !== input || list.classList.contains('hidden')) input.value = current();
+      input.placeholder = placeholder();
+      wrap.classList.toggle('hidden', sel.classList.contains('hidden'));
+      input.disabled = sel.disabled;
+    };
+
+    let matches = [], active = -1;
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    function draw(q) {
+      const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      matches = options().filter(o => words.every(w => (o.text + ' ' + o.group).toLowerCase().includes(w))).slice(0, 80);
+      active = matches.length ? 0 : -1;
+      list.innerHTML = matches.length
+        ? matches.map((o, i) => `<div id="${id}-${i}" role="option" data-i="${i}" aria-selected="${o.value === sel.value}" class="px-3 py-2 cursor-pointer flex items-baseline justify-between gap-3 ${o.value === sel.value ? 'text-amber-200' : 'text-zinc-200'}"><span>${esc(o.text)}</span>${o.group ? `<span class="text-[11px] text-zinc-500 shrink-0">${esc(o.group)}</span>` : ''}</div>`).join('')
+        : '<div class="px-3 py-2 text-zinc-400">No matches</div>';
+      mark();
+    }
+    function mark() {
+      list.querySelectorAll('[role=option]').forEach((el, i) => el.classList.toggle('bg-white/[0.08]', i === active));
+      const el = list.querySelector(`[data-i="${active}"]`);
+      input.setAttribute('aria-activedescendant', el ? el.id : '');
+      if (el) el.scrollIntoView({ block: 'nearest' });
+    }
+    function open(q) {
+      draw(q);
+      list.classList.remove('hidden');
+      input.setAttribute('aria-expanded', 'true');
+      // Keep the list on screen: slide it left when it would run off the right edge.
+      list.style.left = '0px';
+      const over = list.getBoundingClientRect().right - (document.documentElement.clientWidth - 8);
+      if (over > 0) list.style.left = `${-over}px`;
+    }
+    function close() { list.classList.add('hidden'); input.setAttribute('aria-expanded', 'false'); input.value = current(); }
+    function pick(i) {
+      const o = matches[i];
+      if (!o) return;
+      const changed = o.value !== sel.value;
+      valueDesc.set.call(sel, o.value);
+      close();
+      if (changed) sel.dispatchEvent(new Event('change', { bubbles: true }));
+      sync();
+    }
+
+    input.addEventListener('focus', () => { input.select(); open(''); });
+    input.addEventListener('input', () => open(input.value));
+    input.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== input) close(); }, 120));
+    input.addEventListener('keydown', e => {
+      const shown = !list.classList.contains('hidden');
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!shown) return open('');
+        if (matches.length) { active = (active + (e.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length; mark(); }
+      } else if (e.key === 'Enter') {
+        if (shown && active >= 0) { e.preventDefault(); pick(active); }
+      } else if (e.key === 'Escape') {
+        if (shown) { e.preventDefault(); e.stopPropagation(); close(); input.select(); }
+      }
+    });
+    // mousedown, so the pick lands before the box loses focus.
+    list.addEventListener('mousedown', e => {
+      const el = e.target.closest('[role=option]');
+      e.preventDefault();
+      if (el) pick(+el.dataset.i);
+    });
+
+    // Keep the box in step when the page sets the value or rebuilds the options.
+    Object.defineProperty(sel, 'value', { configurable: true, get() { return valueDesc.get.call(this); }, set(v) { valueDesc.set.call(this, v); sync(); } });
+    Object.defineProperty(sel, 'selectedIndex', { configurable: true, get() { return indexDesc.get.call(this); }, set(v) { indexDesc.set.call(this, v); sync(); } });
+    new MutationObserver(sync).observe(sel, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled'] });
+    sel.addEventListener('change', sync);
+    sync();
+  }
+
+  const run = () => document.querySelectorAll('select[data-search]:not([data-search-ready])').forEach(enhance);
+  new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('DOMContentLoaded', run);
+  Vault.enhanceSearchSelects = run;
+})();

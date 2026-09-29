@@ -137,6 +137,12 @@ body {
 /* Keyboard focus: always visible, never on mouse click. */
 :focus { outline: none; }
 :focus-visible { outline: 2px solid rgba(227, 176, 75, 0.7); outline-offset: 2px; border-radius: 6px; }
+/* Table rows and cells can't show an outline offset cleanly; draw it inside. */
+tr:focus-visible, th:focus-visible { outline-offset: -2px; }
+/* "Skip to content" lands focus on the page body; no ring around the whole page. */
+#main:focus { outline: none; }
+/* Controls that set outline-none (bare selects, search boxes) still show keyboard focus. */
+select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid rgba(227, 176, 75, 0.7) !important; outline-offset: 2px; }
 
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable.active, th.sortable:hover { color: var(--gold); }
@@ -184,6 +190,14 @@ select option { background: #121418; color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Type-to-search pickers (vault-core.js): the real <select> stays hidden, the
+   box takes its look, and the focus ring goes on the whole box. */
+.vs-native { display: none !important; }
+.vs-input { color: inherit; font: inherit; letter-spacing: inherit; }
+input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
+.vs-wrap:focus-within { outline: 2px solid rgba(227, 176, 75, 0.7); outline-offset: 2px; }
+.vs-wrap { cursor: text; }
 
 /* Trade Calculator: the "How it changes each team" section only shows once there's a trade. */
 #teamImpact:has(#analysisA.hidden) { display: none; }

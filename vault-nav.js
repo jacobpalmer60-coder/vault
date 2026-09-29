@@ -44,9 +44,23 @@
                   : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'}">
         ${t.label}
       </a>`).join('');
-    const infoHtml = INFO.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" class="text-[12px] whitespace-nowrap transition-colors ${active === t.key ? 'text-white' : 'text-zinc-400 hover:text-white'}">${t.label}</a>`).join('');
+    const infoHtml = INFO.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''} class="text-[12px] whitespace-nowrap py-1.5 transition-colors ${active === t.key ? 'text-white' : 'text-zinc-400 hover:text-white'}">${t.label}</a>`).join('');
+
+    // The page's content (its <main>, or the block right after the nav) is the
+    // "Skip to content" target, so keyboard users don't tab through the nav on
+    // every page.
+    const main = document.querySelector('main') || mount.nextElementSibling;
+    if (main) {
+      if (!main.id) main.id = 'main';
+      if (main.tagName !== 'MAIN') main.setAttribute('role', 'main');
+      main.tabIndex = -1;
+    }
+    // Page load messages ("Loading league…", errors) are read out by screen readers.
+    const status = document.getElementById('status');
+    if (status && !status.hasAttribute('role')) status.setAttribute('role', 'status');
 
     mount.innerHTML = `
+      ${main ? `<a href="#${main.id}" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-amber-400 focus:text-black focus:font-semibold">Skip to content</a>` : ''}
       <header class="md:sticky md:top-0 z-40 border-b border-white/[0.07] bg-[#0c0d10]/95">
         <!-- Two rows: brand + settings on top, page tabs underneath (full width,
              scrolls sideways on phones), so adding a page never pushes the
@@ -61,7 +75,7 @@
           </a>
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
             ${infoHtml}
-            <select id="myTeamPick" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden max-w-[190px] bg-[#14161a] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-zinc-200"></select>
+            <select id="myTeamPick" data-search="Your team…" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden max-w-[190px] bg-[#14161a] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-zinc-200"></select>
             <a href="index.html" class="btn-ghost text-[12px] px-3 py-1.5">Switch League</a>
           </div>
         </div>
@@ -109,5 +123,28 @@
     } catch (e) { /* picker is optional; the page works without it */ }
   }
 
-  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); });
+  // Keyboard access for things that are clicked but aren't buttons or links
+  // (sortable headers, expandable team rows, player rows, trade pieces): Tab
+  // reaches them, and Enter or Space clicks them. Pages re-render these, so it
+  // re-runs whenever the page changes.
+  const NATIVE = 'a[href], button, input, select, textarea, summary, label, option, details';
+  const CLICKABLE = '[onclick], th.sortable, tr.team-row, .mobile-team-card, [data-kbd]';
+  function enhance() {
+    document.querySelectorAll(CLICKABLE.split(', ').map(s => s + ':not([tabindex])').join(', ')).forEach(el => {
+      if (el.matches(NATIVE)) return;
+      el.tabIndex = 0;
+      // Table rows and headers keep their table roles; anything else reads as a button.
+      if (!el.matches('tr, th, td') && !el.hasAttribute('role')) el.setAttribute('role', 'button');
+    });
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target;
+    if (!(el instanceof Element) || el.matches(NATIVE) || !el.matches(CLICKABLE)) return;
+    e.preventDefault();
+    el.click();
+  });
+  new MutationObserver(enhance).observe(document.documentElement, { childList: true, subtree: true });
+
+  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); });
 })();

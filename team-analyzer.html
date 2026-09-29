@@ -21,7 +21,7 @@
       <h1 class="display text-[28px] font-semibold gold-text">Team Analyzer</h1>
       <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
     </div>
-    <select id="teamSelect" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
+    <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
   </div>
 
   <section id="singleCard" class="mb-10"></section>
@@ -157,7 +157,7 @@ function renderSingle(t) {
               <div><div class="text-[13px]">${Vault.escapeHtml(p.teamName)}</div><div class="text-[12px] text-zinc-400">${p.arch}</div></div>
               <div class="text-[12px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0">${Math.min(10, p.fit)}/10 fit</div>
             </div>
-            <div class="mt-1.5 space-y-0.5">${p.reasons.map(r => `<div class="flex gap-1.5 text-[12px] text-zinc-400"><span class="text-emerald-500/60">•</span><span>${r}</span></div>`).join('')}</div>
+            <div class="mt-1.5 space-y-0.5">${p.reasons.map(r => `<div class="flex gap-1.5 text-[12px] text-zinc-400"><span class="text-emerald-400/80">•</span><span>${r}</span></div>`).join('')}</div>
           </div>`).join('')}</div>
       </div>
       <div class="bg-black/40 rounded-2xl p-4 border border-white/10">

@@ -479,7 +479,7 @@ function negAskHtml(r, i) {
   return `<div class="mt-3 pt-3 border-t border-white/5">
       <div class="text-[12px] text-zinc-400 mb-1.5">Ask for something else for ${negNames(negAssets(r.O, r.offer[r.O]))}:</div>
       <div class="flex flex-wrap gap-1.5 items-center">${NEG_ASKS.map(([p, l]) => chip(p, l)).join('')}
-        ${nfl.length ? `<select onchange="negAsk(${i}, 'nfl', this.value)" class="text-[12px] px-2 py-1 rounded-lg border ${on('nfl') ? 'border-amber-400/40 text-amber-100 bg-amber-400/10' : 'border-white/10 text-zinc-400 bg-black/40'}">
+        ${nfl.length ? `<select data-search="From an NFL team…" aria-label="Ask for a player from an NFL team" onchange="negAsk(${i}, 'nfl', this.value)" class="text-[12px] px-2 py-1 rounded-lg border ${on('nfl') ? 'border-amber-400/40 text-amber-100 bg-amber-400/10' : 'border-white/10 text-zinc-400 bg-black/40'}">
           <option value="">From an NFL team…</option>${nfl.map(n => `<option value="${n}" ${on('nfl') && r.ask.arg === n ? 'selected' : ''}>${n}</option>`).join('')}</select>` : ''}
       </div>
       ${res}
