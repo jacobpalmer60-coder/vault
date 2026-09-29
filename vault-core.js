@@ -3548,6 +3548,52 @@ const Vault = {
 };
 
 /* ============================================================
+   EXPERTS VS MARKET (FantasyPros dynasty consensus, shown with permission)
+   The market is KTC (real trades and crowd votes); the experts are
+   FantasyPros' consensus rankings (data/fp-dynasty.json, fetched daily).
+   Both lists are ranked over the same players, so "Market #12 · Experts #5"
+   compares like with like. A player's expert value is the KTC value of the
+   player the market ranks where the experts rank him: KTC's own scale, so
+   it sits next to KTC value in the same units.
+   ============================================================ */
+Vault.EXPERTS_URL = 'data/fp-dynasty.json';
+Vault.EXPERTS_LINK = 'https://www.fantasypros.com/nfl/rankings/dynasty-overall.php';
+// Buy-low / sell-high only when the gap is real: 5+ spots, and at least a
+// quarter of the rank (a 5-spot gap means a lot at #8, little at #180).
+Vault.expertLean = (marketRank, expertRank) => {
+  const gap = marketRank - expertRank, need = Math.max(5, Math.round(expertRank * 0.25));
+  return gap >= need ? 'buy' : gap <= -need ? 'sell' : null;
+};
+Vault.buildExpertView = async function (isSF, bonusRecTe) {
+  const [ktc, fp] = await Promise.all([
+    Vault.fetchKtcValues(),
+    fetch(Vault.EXPERTS_URL).then(r => (r.ok ? r.json() : null)).catch(() => null)
+  ]);
+  const list = fp && (isSF ? fp.superflex : fp.oneQb);
+  if (!list || !list.length) return null;
+  const norm = Vault.normalizeName, valMap = Vault.buildKtcValueMap(ktc, isSF, bonusRecTe);
+  const both = list.filter(p => (valMap.get(norm(p.name)) || 0) > 0);
+  const byMarket = [...both].sort((a, b) => valMap.get(norm(b.name)) - valMap.get(norm(a.name)));
+  const marketRank = new Map(byMarket.map((p, i) => [norm(p.name), i + 1]));
+  const valueAtRank = byMarket.map(p => valMap.get(norm(p.name)));
+  const map = new Map();
+  [...both].sort((a, b) => a.ecr - b.ecr).forEach((p, i) => {
+    const k = norm(p.name), expertRank = i + 1, mr = marketRank.get(k);
+    map.set(k, { expertRank, marketRank: mr, posRank: p.posRank, tier: p.tier, best: p.best, worst: p.worst,
+      expertValue: valueAtRank[expertRank - 1], lean: Vault.expertLean(mr, expertRank) });
+  });
+  return { map, experts: fp.experts, updated: fp.updated, count: both.length };
+};
+// One player's expert read, or null (picks and players the experts don't rank).
+Vault.expertFor = (view, asset) => (view && asset && asset.type !== 'pick' ? view.map.get(Vault.normalizeName(asset.name)) || null : null);
+// Small Buy-low / Sell-high tag for a player, with the ranks on hover.
+Vault.expertTagHtml = (e) => {
+  if (!e || !e.lean) return '';
+  const buy = e.lean === 'buy';
+  return `<span class="text-[11px] px-1.5 py-px rounded border whitespace-nowrap ${buy ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' : 'border-amber-500/30 text-amber-300 bg-amber-500/10'}" title="Market (KTC) ranks him #${e.marketRank}; FantasyPros experts rank him #${e.expertRank}. ${buy ? 'Experts think the market undervalues him.' : 'The market values him above the experts.'}">${buy ? 'Buy-low' : 'Sell-high'}</span>`;
+};
+
+/* ============================================================
    TEAM ROSTER PANEL
    One team's best lineup, its top players at each position, and its picks.
    Shared by League Overview (a team's expanded row) and Team Analyzer, so
