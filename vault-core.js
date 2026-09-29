@@ -3572,8 +3572,9 @@ const Vault = {
       </div>`).join('');
     const lineupHead = head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${t.vorpTotal.toFixed(1)} VORP` : ''}`);
     const positions = ['QB', 'RB', 'WR', 'TE'].map(pos => {
-      const ps = (t.plist || []).filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8);
-      return `<div>${head(pos)}<div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate">${esc(p.name) || '—'}</span><span class="mono text-zinc-400">${n(p.value)}</span></div>`).join('') || none}</div></div>`;
+      // Every player at the position, so real depth shows (not just the top few).
+      const ps = (t.plist || []).filter(p => p.pos === pos).sort((a, b) => b.value - a.value);
+      return `<div>${head(pos, ps.length ? String(ps.length) : '')}<div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate">${esc(p.name) || '—'}</span><span class="mono text-zinc-400">${n(p.value)}</span></div>`).join('') || none}</div></div>`;
     }).join('');
     const picks = [...(t.picks || [])].sort((a, b) => a.season - b.season || a.round - b.round);
     const years = picks.length ? [Math.min(...picks.map(p => p.season)), Math.max(...picks.map(p => p.season))] : null;
