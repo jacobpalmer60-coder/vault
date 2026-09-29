@@ -61,7 +61,7 @@
     // Phones: one button naming the current page; it opens the same groups as a list.
     const here = [...TABS, ...INFO].find(t => t.key === active);
     const menuHtml = `
-      <div class="md:hidden max-w-[1800px] mx-auto px-4 py-2 relative">
+      <div class="vn-menu max-w-[1800px] mx-auto px-4 py-2 relative">
         <button id="navMenuBtn" type="button" aria-expanded="false" aria-controls="navMenu"
           class="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-white/[0.05] border border-white/10 text-[14px] font-medium text-zinc-100">
           <span>${here ? here.label : 'Pages'}</span>
@@ -89,6 +89,16 @@
     const status = document.getElementById('status');
     if (status && !status.hasAttribute('role')) status.setAttribute('role', 'status');
 
+    // Which nav shows (tab row on wide screens, All pages menu on phones) is
+    // set here, not by the stylesheet: right after a deploy a browser can pair
+    // this script with a cached older stylesheet, and the nav must still show.
+    if (!document.getElementById('vn-style')) {
+      const st = document.createElement('style');
+      st.id = 'vn-style';
+      st.textContent = '.vn-row{display:none}.vn-menu{display:block}@media (min-width:768px){.vn-row{display:flex}.vn-menu{display:none}}';
+      document.head.appendChild(st);
+    }
+
     mount.innerHTML = `
       ${main ? `<a href="#${main.id}" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-amber-400 focus:text-black focus:font-semibold">Skip to content</a>` : ''}
       <header class="md:sticky md:top-0 z-40 border-b border-white/[0.07] bg-[#0c0d10]/95">
@@ -110,7 +120,7 @@
           </div>
         </div>
         <nav aria-label="Pages">
-          <div class="hidden md:flex max-w-[1800px] mx-auto px-4 sm:px-6 py-2 items-center overflow-x-auto scrollbar">${tabsHtml}</div>
+          <div class="vn-row max-w-[1800px] mx-auto px-4 sm:px-6 py-2 items-center overflow-x-auto scrollbar">${tabsHtml}</div>
           ${menuHtml}
         </nav>
       </header>`;
