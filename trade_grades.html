@@ -29,8 +29,6 @@
     <a id="methodLink" href="how_we_grade.html#grades" class="text-amber-300/80 hover:text-amber-200">How is this graded?</a>
   </p>
 
-  <div id="teamSummary" class="hidden mb-6"></div>
-
   <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
     <div id="posFilter" class="flex gap-1.5 flex-wrap"></div>
     <div class="flex items-center gap-1.5">
@@ -117,93 +115,6 @@ function synopsisColor(bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUC
 // resolveAssets/gradeTrade/historyVerdict now live in vault-core.js as
 // Vault.resolveTradeAssets/Vault.gradeTrade/Vault.historyVerdict — shared with the
 // Manager page so both grade the exact same real trades the exact same way.
-
-// League-wide "how are we doing" rollup — one row per team across every graded
-// trade, sorted by net value so it reads as a leaderboard. Built on
-// Vault.buildManagerStats, the same aggregation the Manager page uses.
-// Net Value and Timeline/Need Fit can land either side of zero — a plain 0-to-max
-// magnitude bar (like League Overview's microBar) would be misleading here, since
-// "longer bar" wouldn't consistently mean "better." A diverging bar centered on a
-// zero tick, filling right in emerald for a positive number or left in rose for a
-// negative one, matches what these two columns actually mean instead of forcing
-// them into the wrong bar shape just for visual consistency.
-function divergingBar(val, maxAbs) {
-  if (!maxAbs) return '';
-  const pct = Math.min(100, Math.abs(val) / maxAbs * 100) / 2;
-  // Yellow right at the zero tick, deepening into green or red as the magnitude
-  // grows — a true diverging read (barely-off-zero looks neutral, not already
-  // fully red/green) instead of a flat color the instant a number ticks off zero.
-  const gradient = val > 0 ? 'linear-gradient(to right, #fbbf24, #34d399)' : val < 0 ? 'linear-gradient(to left, #fbbf24, #fb7185)' : 'transparent';
-  return `<div class="mt-1 h-[4px] w-full max-w-[90px] ml-auto relative rounded-full bg-white/[0.06] overflow-hidden">
-    <div class="absolute inset-y-0 left-1/2 w-px bg-white/20"></div>
-    <div class="absolute inset-y-0 rounded-full" style="background:${gradient}; width:${pct}%; ${val >= 0 ? `left:50%` : `right:50%`}"></div>
-  </div>`;
-}
-
-// Click a header to sort (highest first; click again to flip). Starts in
-// buildManagerStats order (Net Now). W-L columns sort by trades won minus lost;
-// teams with no trades stay at the bottom either way.
-let summarySort = { key: null, dir: -1 }, summaryData = null;
-function sortSummary(key) {
-  summarySort = summarySort.key === key ? { key, dir: -summarySort.dir } : { key, dir: key === 'teamName' ? 1 : -1 };
-  renderTeamSummary(summaryData.graded, summaryData.teams);
-}
-function renderTeamSummary(graded, teams) {
-  summaryData = { graded, teams };
-  const box = document.getElementById('teamSummary');
-  if (!graded.length) { box.classList.add('hidden'); return; }
-
-  const { key, dir } = summarySort;
-  const val = s => key === 'wlThen' ? s.won - s.lost : key === 'wlNow' ? s.wonNow - s.lostNow : (s[key] || 0);
-  const all = Vault.buildManagerStats(graded, teams);
-  const rows = !key ? all : [...all].sort((a, b) => {
-    if (key === 'teamName') return dir * a.teamName.localeCompare(b.teamName);
-    const noA = key !== 'trades' && !a.trades, noB = key !== 'trades' && !b.trades;
-    if (noA !== noB) return noA ? 1 : -1;
-    return dir * (val(a) - val(b));
-  });
-  const th = (label, k, align, title = '', pad = 'px-3') => `<th class="${align} ${pad} py-2.5 sortable ${key === k ? 'active' : ''}" onclick="sortSummary('${k}')" ${title ? `title="${title}"` : ''} aria-sort="${key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${key === k ? (dir > 0 ? ' ↑' : ' ↓') : ''}</th>`;
-  // One shared scale for both net columns, so the bars are directly comparable.
-  const maxAbsNet = Math.max(...rows.flatMap(s => [Math.abs(s.netValue), Math.abs(s.netValueToday)]), 1);
-  const maxAbsFit = Math.max(...rows.map(s => Math.abs(s.fitSum)), 1);
-
-  box.classList.remove('hidden');
-  box.innerHTML = `
-    <div class="flex items-center justify-between gap-3 mb-2">
-      <div class="text-[11px] text-zinc-400 uppercase tracking-wider">League Trade Summary</div>
-      <a href="${Vault.linkTo('managers.html')}" class="py-1.5 text-[12px] text-amber-400/80 hover:text-amber-300">Full Manager Report →</a>
-    </div>
-    <div class="card rounded-vault-sm overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-[13px]">
-          <thead class="bg-black/40 border-b border-white/5">
-            <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
-              ${th('Team', 'teamName', 'text-left', '', 'px-4')}
-              ${th('Trades', 'trades', 'text-right')}
-              ${th('W-L Then', 'wlThen', 'text-right', "Trades ahead vs. behind on value at KTC prices on each trade's date (the same basis as Net Then)")}
-              ${th('W-L Now', 'wlNow', 'text-right', "Trades ahead vs. behind on value at today's prices (the same basis as Net Now)")}
-              ${th('Net Then', 'netValue', 'text-right', "Net value gained/lost across every trade, at KTC prices on each trade's date (KTC consolidation-adjusted)")}
-              ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's KTC prices: how they've aged")}
-              ${th('Timeline/Need Fit', 'fitSum', 'text-right', 'Positional need + rebuild/contend timeline fit, summed across every trade', 'px-4')}
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/5">
-            ${rows.map(s => `
-              <tr>
-                <td class="px-4 py-2.5 font-medium">${Vault.escapeHtml(s.teamName)}</td>
-                <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.trades}</td>
-                <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.won}-${s.lost}</td>
-                <td class="px-3 py-2.5 text-right mono text-zinc-400">${s.wonNow}-${s.lostNow}</td>
-                <td class="px-3 py-2.5 text-right"><div class="mono font-medium ${s.netValue > 0 ? 'text-emerald-400' : s.netValue < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(Math.round(s.netValue))}</div>${divergingBar(s.netValue, maxAbsNet)}</td>
-                <td class="px-3 py-2.5 text-right"><div class="mono font-medium ${s.netValueToday > 0 ? 'text-emerald-400' : s.netValueToday < 0 ? 'text-rose-400' : 'text-zinc-400'}">${fmtSigned(Math.round(s.netValueToday))}</div>${divergingBar(s.netValueToday, maxAbsNet)}</td>
-                <td class="px-4 py-2.5 text-right"><div class="mono ${s.fitSum > 0.5 ? 'text-emerald-400/80' : s.fitSum < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.fitSum, 1)}</div>${divergingBar(s.fitSum, maxAbsFit)}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>`;
-}
-function fmtSigned(n, decimals = 0) { return (n >= 0 ? '+' : '') + n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
 
 // Same colored position pill Player Rankings/Trade Calculator use (vault.css's
 // .pos-badge-*) — a bare player name with no position shown means a reader can't
@@ -375,7 +286,6 @@ async function init() {
 
     status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
-    renderTeamSummary(allGraded, teams);
     renderFilters();
     renderList();
   } catch (e) {
