@@ -1,0 +1,48 @@
+200  /public/v2/json/nfl/2026/consensus-rankings?position=ALL&type=dynasty&scoring=PPR
+      { sport, type, ranking_type_name, year, week, position_id, scoring, filters, count, total_experts, last_updated, players, … }
+      sample: {"player_id":19788,"player_name":"Ja'Marr Chase","sportsdata_id":"fa99e984-d63b-4ef4-a164-407f68a7eeaf","player_team_id":"CIN","player_position_id":"WR","player_positions":"WR","player_short_name":"J. Chase","player_eligibility":"WR","player_yahoo_positions":"WR","player_page_url":"https://www.fantasypros.com/nfl/players/jamarr-chase.php","player_filename":"jamarr-chase.php","player_yahoo_id":"33393","cbs_player_id":"2966320","player_bye_week":"6","player_owned_avg":99.8,"player_owned_espn":99.9
+200  /public/v2/json/nfl/players
+      { sport, count, season, week, players, public_api_limited, tier }
+      sample: {"player_id":8000,"player_name":"Arizona Cardinals","short_name":"Arizona","first_name":"Arizona","last_name":"Cardinals","reverse_name":"Cardinals, Arizona","position_id":"DST","positions":["DST"],"team_id":"ARI","filename":"https://www.fantasypros.com/nfl/teams/arizona-defense.php","sportsdata_player_id":"de760528-1dc0-416a-a978-b510d20692ff","rank_ecr":0,"rank_ecr_ppr":0,"rank_adp_ppr":315,"rank_ecr_half":0,"birthdate":"","birthdatetime":""}
+403  /public/v2/json/nfl/trade-values
+      {"message":"Missing Authentication Token"}
+403  /public/v2/json/nfl/2026/trade-values
+      {"message":"Missing Authentication Token"}
+403  /public/v2/json/nfl/trade-values/dynasty
+      {"message":"Missing Authentication Token"}
+403  /public/v2/json/nfl/2026/trade-values?type=dynasty
+      {"message":"Missing Authentication Token"}
+403  /public/v2/json/nfl/trade-market-values
+      {"message":"Missing Authentication Token"}
+403  /public/v2/json/nfl/2026/trade-market-values?type=dynasty
+      {"message":"Missing Authentication Token"}
+403  /public/v2/json/nfl/trade-market-values/dynasty
+      {"message":"Missing Authentication Token"}
+403  /public/v2/json/nfl/2026/trade-market?type=dynasty
+      {"message":"Missing Authentication Token"}
+403  /public/v2/json/nfl/dynasty/trade-market
+      {"message":"Missing Authentication Token"}
+403  /v2/json/nfl/2026/consensus-rankings?position=ALL&type=dynasty&scoring=PPR
+      {"message":"Forbidden"}
+403  /v2/json/nfl/players
+      {"message":"Forbidden"}
+403  /v2/json/nfl/trade-values
+      {"message":"Missing Authentication Token"}
+403  /v2/json/nfl/2026/trade-values
+      {"message":"Missing Authentication Token"}
+403  /v2/json/nfl/trade-values/dynasty
+      {"message":"Missing Authentication Token"}
+403  /v2/json/nfl/2026/trade-values?type=dynasty
+      {"message":"Missing Authentication Token"}
+403  /v2/json/nfl/trade-market-values
+      {"message":"Missing Authentication Token"}
+403  /v2/json/nfl/2026/trade-market-values?type=dynasty
+      {"message":"Missing Authentication Token"}
+403  /v2/json/nfl/trade-market-values/dynasty
+      {"message":"Missing Authentication Token"}
+403  /v2/json/nfl/2026/trade-market?type=dynasty
+      {"message":"Missing Authentication Token"}
+403  /v2/json/nfl/dynasty/trade-market
+      {"message":"Missing Authentication Token"}
+
+Paste this output back (it contains no key). 200 = reachable; 401/403 = not on your plan; 404 = no such endpoint; 429 = too fast (run again).
