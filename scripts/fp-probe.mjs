@@ -1,55 +1,45 @@
-// One-off check: which FantasyPros API endpoints your key can reach, and what
-// they return. Reads the key from the FANTASYPROS_API_KEY environment variable
-// and never prints it. Run from the DynastyTool folder:
+// FantasyPros API check: which dynasty consensus-ranking variants the key can
+// reach (1QB vs superflex, scoring), and which rank fields come back. Reads the
+// key from FANTASYPROS_API_KEY and never prints it. Run by the
+// fantasypros-probe workflow (results in data/fp-probe.txt), or locally:
 //   PowerShell:  $env:FANTASYPROS_API_KEY = "<your key>"; node scripts/fp-probe.mjs
-//   bash:        FANTASYPROS_API_KEY=<your key> node scripts/fp-probe.mjs
 const key = process.env.FANTASYPROS_API_KEY;
 if (!key) { console.error('Set FANTASYPROS_API_KEY first (see the top of this file).'); process.exit(1); }
 
 const Y = new Date().getFullYear();
-const BASES = ['https://api.fantasypros.com/public/v2/json', 'https://api.fantasypros.com/v2/json'];
-// Known endpoints (to confirm the key works) plus likely names for trade data.
-const PATHS = [
-  `nfl/${Y}/consensus-rankings?position=ALL&type=dynasty&scoring=PPR`,
-  `nfl/players`,
-  `nfl/trade-values`,
-  `nfl/${Y}/trade-values`,
-  `nfl/trade-values/dynasty`,
-  `nfl/${Y}/trade-values?type=dynasty`,
-  `nfl/trade-market-values`,
-  `nfl/${Y}/trade-market-values?type=dynasty`,
-  `nfl/trade-market-values/dynasty`,
-  `nfl/${Y}/trade-market?type=dynasty`,
-  `nfl/dynasty/trade-market`,
+const BASE = 'https://api.fantasypros.com/public/v2/json';
+// Superflex lists put QBs near the top; the top 8 of each variant shows which is which.
+const VARIANTS = [
+  `nfl/${Y}/consensus-rankings?type=dynasty&position=ALL&scoring=PPR`,
+  `nfl/${Y}/consensus-rankings?type=dynasty&position=OP&scoring=PPR`,
+  `nfl/${Y}/consensus-rankings?type=dynasty&position=SF&scoring=PPR`,
+  `nfl/${Y}/consensus-rankings?type=dynasty-superflex&position=ALL&scoring=PPR`,
+  `nfl/${Y}/consensus-rankings?type=dynasty-sf&position=ALL&scoring=PPR`,
+  `nfl/${Y}/consensus-rankings?type=dynasty&position=ALL&scoring=HALF`,
+  `nfl/${Y}/consensus-rankings?type=dynasty&position=QB&scoring=PPR`,
+  `nfl/${Y}/consensus-rankings?type=dynasty-rookies&position=ALL&scoring=PPR`,
 ];
 
-const shape = v => Array.isArray(v) ? `array(${v.length})${v.length ? ' of ' + shape(v[0]) : ''}`
-  : v && typeof v === 'object' ? `{ ${Object.keys(v).slice(0, 12).join(', ')}${Object.keys(v).length > 12 ? ', …' : ''} }` : typeof v;
-
-// Premium keys allow 1 request/second (500/day): space the calls out.
-const wait = ms => new Promise(r => setTimeout(r, ms));
-for (const base of BASES) {
-  for (const p of PATHS) {
-    const url = `${base}/${p}`;
-    await wait(1100);
-    try {
-      const r = await fetch(url, { headers: { 'x-api-key': key } });
-      const text = await r.text();
-      let body = '';
-      if (r.ok) {
-        try {
-          const j = JSON.parse(text);
-          // The shape, plus one sample row (the first item of the first list found).
-          const list = Array.isArray(j) ? j : Object.values(j || {}).find(Array.isArray);
-          body = shape(j) + (list && list.length ? `\n      sample: ${JSON.stringify(list[0]).slice(0, 500)}` : '');
-        } catch { body = '(not JSON)'; }
-      } else {
-        body = text.replace(/\s+/g, ' ').slice(0, 160); // the error message, e.g. which plan is needed
-      }
-      console.log(`${r.status}  ${url.replace('https://api.fantasypros.com', '')}${body ? '\n      ' + body : ''}`);
-    } catch (e) {
-      console.log(`ERR  ${url} — ${e.message}`);
+const wait = ms => new Promise(r => setTimeout(r, ms)); // Premium: 1 request/second
+let shownFields = false;
+for (const p of VARIANTS) {
+  await wait(1100);
+  try {
+    const r = await fetch(`${BASE}/${p}`, { headers: { 'x-api-key': key } });
+    const text = await r.text();
+    if (!r.ok) { console.log(`${r.status}  ${p}\n      ${text.replace(/\s+/g, ' ').slice(0, 160)}`); continue; }
+    const j = JSON.parse(text);
+    const ps = j.players || [];
+    console.log(`${r.status}  ${p}\n      ranking: ${j.ranking_type_name || '?'} · experts: ${j.total_experts ?? '?'} · players: ${ps.length} · updated: ${j.last_updated || '?'}`);
+    console.log('      top 8: ' + ps.slice(0, 8).map(x => `${x.player_name} (${x.player_position_id}) ${x.rank_ecr ?? '?'}`).join(' | '));
+    const qb = ps.find(x => x.player_position_id === 'QB');
+    if (qb) console.log(`      first QB: ${qb.player_name} at ${qb.rank_ecr}`);
+    if (!shownFields && ps[0]) {
+      shownFields = true;
+      const f = Object.fromEntries(Object.entries(ps[0]).filter(([k]) => /rank|tier|pos|age|team|sportsdata|yahoo|player_id|name/.test(k)));
+      console.log('      rank fields (first player): ' + JSON.stringify(f));
     }
+  } catch (e) {
+    console.log(`ERR  ${p} — ${e.message}`);
   }
 }
-console.log('\nPaste this output back (it contains no key). 200 = reachable; 401/403 = not on your plan; 404 = no such endpoint; 429 = too fast (run again).');
