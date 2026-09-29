@@ -3548,6 +3548,51 @@ const Vault = {
 };
 
 /* ============================================================
+   TEAM ROSTER PANEL
+   One team's best lineup, its top players at each position, and its picks.
+   Shared by League Overview (a team's expanded row) and Team Analyzer, so
+   the two always show the same thing. `teams` names a pick's original team.
+   ============================================================ */
+(function () {
+  const SLOT_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T', SUPER_FLEX: 'SFLX', K: 'K', DEF: 'DEF' };
+  const SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'WRRB_FLEX', 'REC_FLEX', 'SUPER_FLEX', 'K', 'DEF'];
+  // Colored by the player's real position, not the slot: a FLEX can hold several.
+  const badge = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+  const TIER_COLOR = { early: 'text-emerald-400', mid: 'text-amber-300', late: 'text-rose-400' };
+  const n = v => Math.round(v || 0).toLocaleString();
+  const head = (label, extra = '') => `<div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">${label}${extra ? ` <span class="normal-case tracking-normal text-zinc-500">${extra}</span>` : ''}</div>`;
+  const none = '<div class="text-[12px] text-zinc-500">—</div>';
+
+  Vault.teamRosterPanel = function (t, teams = []) {
+    const esc = Vault.escapeHtml;
+    const lineup = [...(t.lineup || [])].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)).map(s => `<div class="flex items-center gap-2 text-[12px]">
+        <span class="inline-flex items-center justify-center w-9 shrink-0 px-1 py-px rounded text-[11px] font-semibold border uppercase ${badge(s.pos || '')}">${SLOT_LABEL[s.slot] || s.slot}</span>
+        <span class="text-zinc-300 truncate flex-1">${esc(s.name) || '—'}</span>
+        <span class="mono text-zinc-400">${s.name ? s.ppg.toFixed(1) : '—'}</span>
+      </div>`).join('');
+    const lineupHead = head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${t.vorpTotal.toFixed(1)} VORP` : ''}`);
+    const positions = ['QB', 'RB', 'WR', 'TE'].map(pos => {
+      const ps = (t.plist || []).filter(p => p.pos === pos).sort((a, b) => b.value - a.value).slice(0, 8);
+      return `<div>${head(pos)}<div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate">${esc(p.name) || '—'}</span><span class="mono text-zinc-400">${n(p.value)}</span></div>`).join('') || none}</div></div>`;
+    }).join('');
+    const picks = [...(t.picks || [])].sort((a, b) => a.season - b.season || a.round - b.round);
+    const years = picks.length ? [Math.min(...picks.map(p => p.season)), Math.max(...picks.map(p => p.season))] : null;
+    const picksHead = head(years ? (years[0] === years[1] ? `${years[0]} picks` : `${years[0]}–${String(years[1]).slice(-2)} picks`) : 'Picks');
+    const nameOf = id => (teams.find(x => x.rosterId === id) || {}).teamName;
+    const pickRows = picks.map(p => {
+      const via = p.original !== t.rosterId && nameOf(p.original) ? `<span class="text-zinc-500"> via ${esc(nameOf(p.original))}</span>` : '';
+      const full = `${p.season} R${p.round}${via ? ` via ${nameOf(p.original)}` : ''}`;
+      return `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate" title="${esc(full)}">${p.season} R${p.round}${via}</span><span class="mono text-zinc-400 shrink-0">${n(p.value)}${p.tier ? ` <span class="${TIER_COLOR[p.tier] || 'text-zinc-400'}">${p.tier}</span>` : ''}</span></div>`;
+    }).join('');
+    return `<div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-6">
+        <div>${lineupHead}<div class="space-y-1.5">${lineup || none}</div></div>
+        ${positions}
+        <div>${picksHead}<div class="space-y-1.5 max-h-[220px] overflow-auto pr-1 scrollbar">${pickRows || none}</div></div>
+      </div>`;
+  };
+})();
+
+/* ============================================================
    TYPE-TO-SEARCH PICKERS
    Any <select data-search="Placeholder…"> that picks a team or player
    becomes a box you can type in: it filters the options as you type
