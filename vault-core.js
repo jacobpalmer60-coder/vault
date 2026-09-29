@@ -3571,7 +3571,11 @@ Vault.buildExpertView = async function (isSF, bonusRecTe) {
   ]);
   const list = fp && (isSF ? fp.superflex : fp.oneQb);
   if (!list || !list.length) return null;
-  const norm = Vault.normalizeName, valMap = Vault.buildKtcValueMap(ktc, isSF, bonusRecTe);
+  // FantasyPros uses a few nicknames where KTC (and the rest of the site) uses
+  // the full name; everything else matches by name as-is.
+  const ALIAS = { 'chig okonkwo': 'chigoziem okonkwo', 'kenny gainwell': 'kenneth gainwell', 'matt hibner': 'matthew hibner', 'hollywood brown': 'marquise brown' };
+  const norm = s => { const n = Vault.normalizeName(s); return ALIAS[n] || n; };
+  const valMap = Vault.buildKtcValueMap(ktc, isSF, bonusRecTe);
   const both = list.filter(p => (valMap.get(norm(p.name)) || 0) > 0);
   const byMarket = [...both].sort((a, b) => valMap.get(norm(b.name)) - valMap.get(norm(a.name)));
   const marketRank = new Map(byMarket.map((p, i) => [norm(p.name), i + 1]));
