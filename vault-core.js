@@ -2012,7 +2012,10 @@ const Vault = {
   // row's number just points toward the side it favors, so nothing truncates.
   // Value is labeled "KTC value" on purpose: it's the one a manager can go
   // check; the other two are clearly labeled as ours.
-  fairnessPanelHtml(fair, bandPct, teamAName, teamBName, overallText) {
+  // expertsSigned (optional): FantasyPros experts' read of the same trade, as a
+  // signed % off (positive favors team B). Drawn below a divider, labeled as
+  // theirs, with no weight: a second opinion next to the grade, not part of it.
+  fairnessPanelHtml(fair, bandPct, teamAName, teamBName, overallText, expertsSigned = null) {
     const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, w = VAULT_CONFIG.FAIRNESS_WEIGHTS, esc = Vault.escapeHtml;
     const lean = x => {
       if (Math.abs(x) < 1) return 'Even';
@@ -2035,7 +2038,25 @@ const Vault = {
       ${row('KTC value', w.value, fair.value, "KTC's own consolidation-adjusted value — the number you can check on KeepTradeCut.")}
       ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}
       ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend timeline, archetype, and contention window.')}
+      ${Number.isFinite(expertsSigned) ? (() => {
+        const t = 'FantasyPros dynasty experts: the same trade priced by their consensus rankings (each player at the KTC value of his expert rank). Value only, and not part of the grade.';
+        return `<div class="col-span-3 border-t border-white/5"></div>
+      <div class="text-[12px] text-sky-300/90 whitespace-nowrap" title="${t}">Experts <span class="text-zinc-500">FantasyPros</span></div>
+      <div title="${t}">${Vault.fairnessBarHtml(expertsSigned, 0, true)}</div>
+      <div class="text-[12px] text-zinc-300 text-right tabular-nums whitespace-nowrap">${lean(expertsSigned)}</div>`;
+      })() : ''}
     </div>`;
+  },
+  // A trade priced by the experts: each player at his expert value (picks and
+  // unranked players keep their KTC value), with KTC's consolidation rule.
+  // give / get are the two sides' pieces; signed > 0 means the give side is worth
+  // more, i.e. the trade favors whoever receives it. Null without expert data.
+  expertTradeRead(view, give, get) {
+    if (!view || ![...give, ...get].some(a => Vault.expertFor(view, a))) return null;
+    const asExperts = list => list.map(a => { const e = Vault.expertFor(view, a); return e ? { ...a, value: e.expertValue } : a; });
+    const { valueA, valueB } = Vault.tradeSideValues(asExperts(give), asExperts(get));
+    const avg = (valueA + valueB) / 2 || 1;
+    return { give: valueA, get: valueB, signed: (valueA - valueB) / avg * 100 };
   },
 
   /* ---------- Value confidence / uncertainty ----------

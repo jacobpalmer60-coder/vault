@@ -6,7 +6,7 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=39e1cd9c">
+<link rel="stylesheet" href="tailwind.css?v=8dd7c768">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -42,7 +42,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=1edb6b1a"></script>
+<script src="vault-core.js?v=285de745"></script>
 <script src="vault-nav.js?v=12d580e0"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
@@ -167,14 +167,11 @@ function vorpDeltaHtml(dVorp) {
 // Experts: the same trade priced by FantasyPros' dynasty experts today (each player
 // at the KTC value of his expert rank, picks at KTC), on the same Fair/Lopsided/
 // Unfair scale, value only. Shown next to the At the trade / Today lines.
+// What A gave (toB) against what A got (toA): positive favors B, same as the bars.
+const expertSigned = g => Vault.expertTradeRead(expertView, g.toBToday, g.toAToday)?.signed ?? null;
 function expertLine(g) {
-  if (!expertView) return '';
-  const ranked = [...g.toAToday, ...g.toBToday].some(a => Vault.expertFor(expertView, a));
-  if (!ranked) return '';
-  const asExperts = list => list.map(a => { const e = Vault.expertFor(expertView, a); return e ? { ...a, value: e.expertValue } : a; });
-  const ex = Vault.tradeSideValues(asExperts(g.toBToday), asExperts(g.toAToday)); // valueA = what A gave, valueB = what A got
-  const avg = (ex.valueA + ex.valueB) / 2 || 1;
-  const signed = (ex.valueA - ex.valueB) / avg * 100; // positive: A gave more, favoring B
+  const signed = expertSigned(g);
+  if (signed == null) return '';
   const line = gradeLine('Experts', Vault.fairnessBucket(Math.abs(signed), 0, 0), signed, g);
   return line.replace('<div class="flex', `<div title="FantasyPros dynasty experts today (${expertView.experts || 'several'} experts): each player at what KTC pays for the player ranked where the experts rank him, picks at KTC value. Value only." class="flex`);
 }
@@ -271,7 +268,7 @@ function renderCard(g) {
           ${todayGrade(g) ? gradeLine('Today', todayGrade(g).bucket, todayGrade(g).signed, g) : ''}
           ${expertLine(g)}
         </div>
-        <div class="max-w-lg mt-2.5">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`)}</div>
+        <div class="max-w-lg mt-2.5">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`, expertSigned(g))}</div>
         ${agedText(g) ? `<div class="text-[12px] text-zinc-400 mt-1.5">${agedText(g)}</div>` : ''}
         ${confidenceBandText(g)}
       </div>

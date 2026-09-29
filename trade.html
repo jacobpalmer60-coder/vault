@@ -6,7 +6,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=39e1cd9c">
+<link rel="stylesheet" href="tailwind.css?v=8dd7c768">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -103,6 +103,8 @@
       <div class="min-w-0">
         <div id="diffLabel" aria-live="polite"></div>
         <div id="diffBar" class="mt-2.5 max-w-[560px]"></div>
+        <!-- FantasyPros experts' read: a slim bar on the same scale and center, right under the grade's. -->
+        <div id="expertBar" class="max-w-[560px]"></div>
         <div id="diffConfidence" class="text-[12px] text-zinc-400 mt-2"></div>
       </div>
       <div id="valueTable" class="justify-self-start lg:justify-self-end"></div>
@@ -201,7 +203,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=1edb6b1a"></script>
+<script src="vault-core.js?v=285de745"></script>
 <script src="vault-nav.js?v=12d580e0"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1340,9 +1342,7 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
   const avg = (giveVal + getVal) / 2;
   // Experts: each player at the KTC value of his FantasyPros expert rank (picks and
   // unranked players keep their KTC value), with KTC's same consolidation rule.
-  const asExperts = list => list.map(a => { const e = Vault.expertFor(expertView, a); return e ? { ...a, value: e.expertValue } : a; });
-  const ex = expertView && [...giveAssets, ...getAssets].some(a => Vault.expertFor(expertView, a))
-    ? Vault.tradeSideValues(asExperts(giveAssets), asExperts(getAssets)) : null;
+  const ex = Vault.expertTradeRead(expertView, giveAssets, getAssets);
   const adjGive = avg * (1 + fairness.overallSigned / 200), adjGet = avg * (1 - fairness.overallSigned / 200);
   const n = v => Math.round(v).toLocaleString();
   const d = v => `<span class="${Math.abs(v) < 1 ? 'text-zinc-300' : v > 0 ? 'text-emerald-400' : 'text-rose-400'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${n(Math.abs(v))}</span>`;
@@ -1362,14 +1362,14 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
       <span class="text-[14px] text-zinc-100">${n(adjGet)}</span>
       <span class="text-[14px] font-medium">${d(adjGet - adjGive)}</span>
       ${ex ? `<span class="text-[12px] text-sky-300/90 text-left" title="FantasyPros' dynasty expert consensus (${expertView.experts || 'several'} experts): each player valued at what KTC pays for the player ranked where the experts rank him. Picks keep their KTC value.">Experts</span>
-      <span class="text-[14px] text-zinc-100">${n(ex.valueA)}</span>
-      <span class="text-[14px] text-zinc-100">${n(ex.valueB)}</span>
-      <span class="text-[14px] font-medium">${d(ex.valueB - ex.valueA)}</span>` : ''}
+      <span class="text-[14px] text-zinc-100">${n(ex.give)}</span>
+      <span class="text-[14px] text-zinc-100">${n(ex.get)}</span>
+      <span class="text-[14px] font-medium">${d(ex.get - ex.give)}</span>` : ''}
     </div>
     ${(() => {
       // Say so plainly when the experts see the trade the other way from the market.
       if (!ex) return '';
-      const ktcNet = getVal - giveVal, exNet = ex.valueB - ex.valueA, big = v => Math.abs(v) >= avg * 0.05;
+      const ktcNet = getVal - giveVal, exNet = ex.get - ex.give, big = v => Math.abs(v) >= avg * 0.05;
       return big(exNet) && Math.sign(exNet) !== Math.sign(ktcNet) && big(ktcNet)
         ? `<div class="mt-1.5 text-[12px] text-sky-300/90 text-left lg:text-right">FantasyPros experts see this one the other way: ${exNet > 0 ? 'you come out ahead' : `${Vault.escapeHtml(partner.teamName)} comes out ahead`}.</div>` : '';
     })()}
@@ -1509,6 +1509,10 @@ function updateTrade() {
   diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than KTC value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side.`;
   diffLabelEl.className = bucketColor(bucket);
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(fairness.overallSigned, diffBandPct) : '';
+  // Same width and center as the grade's bar, so the two read against each other.
+  const exRead = Vault.expertTradeRead(expertView, aAssets, bAssets);
+  document.getElementById('expertBar').innerHTML = exRead ? `<div class="mt-2">${Vault.fairnessBarHtml(exRead.signed, 0, true)}</div>
+    <div class="text-[12px] mt-1"><span class="text-sky-300/90">FantasyPros experts:</span> <span class="text-zinc-400">${Math.abs(exRead.signed) < 1 ? 'dead even' : `${capPct(Math.abs(exRead.signed)).toFixed(0)}% off, ${exRead.signed > 0 ? `in ${Vault.escapeHtml(teamB.teamName)}'s favor` : 'in your favor'}`}</span></div>` : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
   renderSeasonImpact(teamA, teamB, aAssets, bAssets);
 
@@ -1932,7 +1936,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
       ${offeredBy ? Vault.gradePill(bucket) : ''}
     </div>
     <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.text}</div>
-    <div class="max-w-xl mt-4">${Vault.fairnessPanelHtml(fairness, bandPct, teamA.teamName, teamB.teamName, `${capPct(fairness.fitMovedIt ? overallPct : pctDiff).toFixed(0)}% off`)}</div>
+    <div class="max-w-xl mt-4">${Vault.fairnessPanelHtml(fairness, bandPct, teamA.teamName, teamB.teamName, `${capPct(fairness.fitMovedIt ? overallPct : pctDiff).toFixed(0)}% off`, Vault.expertTradeRead(expertView, aAssets, bAssets)?.signed ?? null)}</div>
     <div class="text-[12px] text-zinc-400 mt-3">${[fairness.fitMovedIt ? `KTC value alone: ${capPct(pctDiff).toFixed(0)}% off` : '', confidenceText, needNote, `<a href="${Vault.linkTo('how_we_grade.html')}" class="text-amber-300/80 hover:text-amber-200">How is this graded?</a>`].filter(Boolean).join(' · ')}</div>`;
 }
 
