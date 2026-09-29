@@ -85,40 +85,42 @@
 
   <!-- Trade Builder: the trade bar, both rosters, and the verdict. -->
   <div id="builder">
-  <!-- Trade Bar -->
-  <div id="tradeBar" class="hidden mb-4 p-4 rounded-2xl card">
-    <!-- Who's offering: picking one turns the verdict into accept-or-decline advice. -->
-    <div id="offeredByWrap" class="hidden flex items-center gap-2 flex-wrap mb-3 pb-3 border-b border-white/5">
-      <span class="text-[12px] text-zinc-400">Who's offering?</span>
-      <div id="offeredByToggle" class="flex gap-1.5 flex-wrap"></div>
-      <span class="text-[12px] text-zinc-500">Pick one for accept-or-decline advice.</span>
+  <!-- Trade slip: the deal, side by side; the read (grade, fairness bar, KTC vs
+       adjusted); a suggestion to even it up; then every action in one row. -->
+  <div id="tradeBar" class="hidden mb-4 rounded-2xl card overflow-hidden">
+    <div class="grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-3 p-4 sm:p-5">
+      <section aria-label="You give" class="min-w-0 rounded-xl bg-black/25 border border-white/5 p-3">
+        <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">You give</div>
+        <div id="giveA" class="space-y-1"></div>
+      </section>
+      <div class="hidden md:flex items-center text-zinc-500" aria-hidden="true"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13l-4-4"/><path d="M17 17H4l4 4"/></svg></div>
+      <section aria-label="You get" class="min-w-0 rounded-xl bg-black/25 border border-white/5 p-3">
+        <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">You get</div>
+        <div id="giveB" class="space-y-1"></div>
+      </section>
     </div>
-    <div class="flex items-center justify-between flex-wrap gap-4">
-      <div class="flex items-center gap-6 flex-wrap">
-        <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">You give</div>
-          <div id="giveA" class="text-[16px] font-medium"></div>
-        </div>
-        <div class="text-zinc-400">⇄</div>
-        <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">You get</div>
-          <div id="giveB" class="text-[16px] font-medium"></div>
-        </div>
+    <div class="border-t border-white/5 px-4 sm:px-5 py-4 grid lg:grid-cols-[minmax(0,1fr)_auto] gap-x-8 gap-y-4 items-center">
+      <div class="min-w-0">
+        <div id="diffLabel" aria-live="polite"></div>
+        <div id="diffBar" class="mt-2.5 max-w-[560px]"></div>
+        <div id="diffConfidence" class="text-[12px] text-zinc-400 mt-2"></div>
       </div>
-      <div class="flex items-center gap-x-4 gap-y-2 flex-wrap justify-end">
-        <div class="text-right">
-          <div id="valueTable"></div>
-          <div id="diffLabel" aria-live="polite" class="text-[12px] mt-0.5"></div>
-          <div id="diffBar" class="w-36 ml-auto"></div>
-          <div id="diffConfidence" class="text-[11px] text-zinc-400 mt-0.5"></div>
-        </div>
+      <div id="valueTable" class="justify-self-start lg:justify-self-end"></div>
+    </div>
+    <div id="gapClose" class="hidden border-t border-white/5 px-4 sm:px-5 py-3"></div>
+    <div class="border-t border-white/5 bg-black/20 px-4 sm:px-5 py-3 flex flex-wrap items-center gap-3">
+      <!-- Who's offering: picking one turns the verdict into accept-or-decline advice. -->
+      <div id="offeredByWrap" class="hidden flex items-center gap-2 flex-wrap">
+        <span class="text-[12px] text-zinc-400" title="Pick one for accept-or-decline advice">Who's offering?</span>
+        <div id="offeredByToggle" class="flex gap-1.5 flex-wrap"></div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap ml-auto">
         <span id="balanceBtn"></span>
         <span id="offerBtn"></span>
-        <button onclick="shareTrade(this)" title="Copy a link to this exact trade — it opens with the same teams, pieces, and verdict" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Share</button>
+        <button onclick="shareTrade(this)" title="Copy a link to this exact trade — it opens with the same teams, pieces, and verdict" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Share</button>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
-    <div id="gapClose" class="hidden mt-3 pt-3 border-t border-white/5"></div>
   </div>
 
   <!-- Trade-wide verdict + archetype (applies to both sides, so spans full width) -->
@@ -1385,17 +1387,15 @@ function updateTrade() {
   empty.classList.add('hidden');
   bar.classList.remove('hidden');
 
-  const giveChip = (side, a) => `<button onclick="toggle('${side}','${a.key}')" title="Remove from trade" aria-label="Remove ${Vault.escapeHtml(a.name)} from the trade" class="group/give inline-flex items-center gap-1.5 mr-3 mb-1 hover:text-rose-300 transition-colors">
-      <span class="group-hover/give:line-through">${Vault.escapeHtml(a.name)}</span>
-      <span class="text-zinc-400 text-[13px] mono group-hover/give:text-rose-300/60">${Math.round(a.value).toLocaleString()}</span>
-      <span aria-hidden="true" class="text-zinc-500 group-hover/give:text-rose-300 text-[12px] transition-colors">✕</span>
-    </button>`;
-  document.getElementById('giveA').innerHTML = aAssets.length
-    ? aAssets.map(a => giveChip('A', a)).join('')
-    : '<span class="text-zinc-400">Nothing selected</span>';
-  document.getElementById('giveB').innerHTML = bAssets.length
-    ? bAssets.map(a => giveChip('B', a)).join('')
-    : '<span class="text-zinc-400">Nothing selected</span>';
+  const giveChip = (side, a) => `<div class="flex items-center gap-2 min-w-0">
+      <span class="text-[11px] font-semibold w-9 text-center py-0.5 rounded border shrink-0 ${POS_BADGE(a.type === 'pick' ? '' : a.pos)}">${a.type === 'pick' ? 'Pick' : a.pos}</span>
+      <span class="text-[14px] font-medium text-zinc-100 truncate min-w-0 flex-1">${Vault.escapeHtml(a.name)}</span>
+      <span class="text-[13px] mono text-zinc-400 shrink-0">${Math.round(a.value).toLocaleString()}</span>
+      <button onclick="toggle('${side}','${a.key}')" title="Remove from trade" aria-label="Remove ${Vault.escapeHtml(a.name)} from the trade" class="size-7 shrink-0 grid place-items-center rounded-md text-zinc-500 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"><span aria-hidden="true">✕</span></button>
+    </div>`;
+  const nothing = side => `<div class="text-[13px] text-zinc-500 py-1">Nothing yet. Pick from ${side === 'A' ? 'your roster' : 'their roster'} below.</div>`;
+  document.getElementById('giveA').innerHTML = aAssets.length ? aAssets.map(a => giveChip('A', a)).join('') : nothing('A');
+  document.getElementById('giveB').innerHTML = bAssets.length ? bAssets.map(a => giveChip('B', a)).join('') : nothing('B');
 
   // Computed once here and reused by renderAnalysis below instead of recomputing —
   // this already runs positionalFitNotes/archetypeFitNotes/simulateTrade, real work
@@ -1412,11 +1412,13 @@ function updateTrade() {
   const diffLabelEl = document.getElementById('diffLabel');
   // When roster fit/timeline pushed the overall read further than KTC value
   // alone, show both numbers so the gap to KTC is never hidden.
-  diffLabelEl.textContent = fairness.fitMovedIt
-    ? `${bucket} · ${capPct(overallPct).toFixed(0)}% off · KTC ${capPct(pctDiff).toFixed(0)}%`
-    : `${bucket} · ${capPct(pctDiff).toFixed(0)}% off`;
+  const offPct = capPct(fairness.fitMovedIt ? overallPct : pctDiff);
+  // Positive overallSigned = you send more (the adjusted "you give" is the bigger side).
+  const leans = offPct < 1 ? 'dead even' : fairness.overallSigned > 0 ? `in ${Vault.escapeHtml(teamB.teamName)}'s favor` : 'in your favor';
+  diffLabelEl.innerHTML = `<span class="text-[22px] font-semibold tracking-tight">${bucket}</span>
+    <span class="ml-2 text-[14px] text-zinc-300">${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">· KTC value alone ${capPct(pctDiff).toFixed(0)}%</span>` : ''}</span>`;
   diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than KTC value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side.`;
-  diffLabelEl.className = 'text-[12px] mt-0.5 ' + bucketColor(bucket);
+  diffLabelEl.className = bucketColor(bucket);
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(fairness.overallSigned, diffBandPct) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
 
@@ -1434,7 +1436,7 @@ function updateTrade() {
     const combo = best ? { combo: best.combo, sum: best.combo.reduce((s, a) => s + a.value, 0) } : null;
     if (combo) {
       gapBox.classList.remove('hidden');
-      gapBox.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Team ${behindSide} is behind by ${Math.round(neededAdj).toLocaleString()} (value-adjusted) — close the gap</div>
+      gapBox.innerHTML = `<div class="text-[12px] text-zinc-400 mb-2">To even it up, ${behindSide === 'A' ? 'you' : Vault.escapeHtml(behindTeam.teamName)} could add (${Math.round(neededAdj).toLocaleString()} short, value-adjusted):</div>
         <div class="flex flex-wrap gap-2">${combo.combo.map(a => `<button onclick="toggle('${behindSide}','${a.key}')" class="px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/50 hover:text-white text-[12px] text-zinc-300">+ ${Vault.escapeHtml(a.name)} <span class="mono text-zinc-400">${Math.round(a.value).toLocaleString()}</span></button>`).join('')}</div>`;
     } else gapBox.classList.add('hidden');
   } else gapBox.classList.add('hidden');
@@ -1547,7 +1549,7 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
   const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
 
   if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) {
-    return { tone: 'bad', label: `Unfair — Favors Team ${favored}`, text };
+    return { tone: 'bad', label: `Unfair — Favors ${favored === 'A' ? teamAName : teamBName}`, text };
   }
   if (pctDiff >= VAULT_CONFIG.FAIR_PCT) {
     // A fit-based label can misfire here too, not just past LOPSIDED_PCT — a
@@ -1558,15 +1560,15 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
     // genuinely Lopsided by value — the same badge-vs-label contradiction
     // Vault.historyVerdict had. Gated explicitly rather than trusting the
     // tone cascade to never reach a fit-based label out here.
-    return { tone: 'bad', label: `Lopsided — Favors Team ${favored}`, text };
+    return { tone: 'bad', label: `Lopsided — Favors ${favored === 'A' ? teamAName : teamBName}`, text };
   }
 
   // Below the Fair cutoff, fit decides the sub-label — the Fair/Lopsided/Unfair
   // badge next to this already communicates the price gap, this speaks to fit.
   if (toneA === 'good' && toneB === 'good') return { tone: 'good', label: 'Now That’s a Good Trade', text };
   if (toneA === 'bad' && toneB === 'bad') return { tone: 'bad', label: 'Bad Trade for Both Sides', text };
-  if (toneA === 'good' && toneB === 'bad') return { tone: 'neutral', label: 'Solid for Team A', text };
-  if (toneB === 'good' && toneA === 'bad') return { tone: 'neutral', label: 'Solid for Team B', text };
+  if (toneA === 'good' && toneB === 'bad') return { tone: 'neutral', label: `Better fit for ${teamAName}`, text };
+  if (toneB === 'good' && toneA === 'bad') return { tone: 'neutral', label: `Better fit for ${teamBName}`, text };
   // One side reads as a genuinely poor fit and the OTHER isn't good either (just
   // neutral) — distinct from the "fine for the other" case below, and from a full
   // "bad for both": naming which side it's bad for instead of burying it.

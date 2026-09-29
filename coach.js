@@ -764,6 +764,15 @@ function renderCoach() {
     ${Coach.busy || !fresh ? '' : coachResultsHtml(r)}`;
 }
 
+// One side of an offer: each piece on its own line with its position tag and value.
+function coachPieces(list) {
+  return list.map(a => `<div class="flex items-center gap-1.5 min-w-0 py-0.5">
+      <span class="text-[11px] font-semibold w-9 text-center rounded border shrink-0 ${POS_BADGE(a.type === 'pick' ? '' : a.pos)}">${a.type === 'pick' ? 'Pick' : a.pos}</span>
+      <span class="text-[13px] text-zinc-100 truncate min-w-0">${Vault.escapeHtml(a.name)}</span>
+      <span class="ml-auto pl-1 text-[12px] mono text-zinc-500 shrink-0">${Math.round(a.value).toLocaleString()}</span>
+    </div>`).join('');
+}
+
 function coachResultsHtml(r) {
   if (Coach.collapsed && r.list && r.list.length) return `<button onclick="Coach.collapsed = false; renderCoach()" class="mt-2 w-full text-left text-[12px] px-3 py-2 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Show options again (${r.list.length}) ▾</button>`;
   if (!r.list || !r.list.length) return `<div class="mt-3 p-3 rounded-xl bg-black/30 text-[12px] text-zinc-300">${r.empty || 'No trades found.'}${coachHasMine() ? ' Your must-include, leave-out, or position choices rule out some trades, so try loosening them (click one above to change it).' : ''}</div>`;
@@ -782,11 +791,14 @@ function coachResultsHtml(r) {
           <span class="text-[13px] text-zinc-100 font-medium">With ${Vault.escapeHtml(o.partner.teamName)}</span>
           <span class="text-[11px] px-1.5 py-0.5 rounded border ${lop ? 'border-amber-500/30 text-amber-300 bg-amber-500/10' : 'border-emerald-500/25 text-emerald-300 bg-emerald-500/10'}">${lop ? 'Lopsided for you' : 'Fair'}</span>
         </div>
-        <div class="text-[13px] text-zinc-300">You give <span class="text-zinc-100 font-medium">${negNames(o.give)}</span> · you get <span class="text-zinc-100 font-medium">${negNames(o.get)}</span></div>
+        <div class="grid grid-cols-2 gap-3 my-1">
+          <div class="min-w-0"><div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1">You give</div>${coachPieces(o.give)}</div>
+          <div class="min-w-0"><div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1">You get</div>${coachPieces(o.get)}</div>
+        </div>
         ${o.why ? `<div class="text-[12px] text-zinc-400 mt-1">${o.why}</div>` : ''}
         <div class="text-[12px] text-zinc-400 mt-1">They'd likely accept. ${negLean(-o.edge)}</div>
         <div class="flex flex-wrap gap-2 mt-auto pt-2.5">
-          <button onclick="coachLoad(${i})" class="text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Load in calculator</button>
+          <button onclick="coachLoad(${i})" class="text-[12px] px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10 transition-colors">Open in builder →</button>
         </div>
       </div>`;
     }).join('')}</div>`;

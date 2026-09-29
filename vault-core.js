@@ -2853,12 +2853,12 @@ const Vault = {
     const themeB = Vault.sideTheme(posResultB, timelineB.dAge, timelineB.dPicks, timelineB.mode);
     const text = Vault.tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB);
 
-    if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) return { tone: 'bad', label: `Unfair — Favored Team ${favored}`, text };
-    if (pctDiff >= VAULT_CONFIG.FAIR_PCT) return { tone: 'bad', label: `Lopsided — Favored Team ${favored}`, text };
+    if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) return { tone: 'bad', label: `Unfair — Favored ${favored === 'A' ? teamAName : teamBName}`, text };
+    if (pctDiff >= VAULT_CONFIG.FAIR_PCT) return { tone: 'bad', label: `Lopsided — Favored ${favored === 'A' ? teamAName : teamBName}`, text };
     if (good(fitA) && good(fitB)) return { tone: 'good', label: 'Great Trade — Worked for Both Sides', text };
     if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };
-    if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: 'Won for Team A', text };
-    if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: 'Won for Team B', text };
+    if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: `Better fit for ${teamAName}`, text };
+    if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: `Better fit for ${teamBName}`, text };
     if (good(fitA) || good(fitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
     return { tone: 'neutral', label: 'Fair Trade', text };
   },
