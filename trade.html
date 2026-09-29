@@ -6,7 +6,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=93140f64">
+<link rel="stylesheet" href="tailwind.css?v=c96efd0f">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -107,6 +107,8 @@
       </div>
       <div id="valueTable" class="justify-self-start lg:justify-self-end"></div>
     </div>
+    <!-- This season: playoff and title odds before → after, and who moves into each lineup. -->
+    <div id="seasonImpact" class="hidden border-t border-white/5 px-4 sm:px-5 py-4"></div>
     <div id="gapClose" class="hidden border-t border-white/5 px-4 sm:px-5 py-3"></div>
     <div class="border-t border-white/5 bg-black/20 px-4 sm:px-5 py-3 flex flex-wrap items-center gap-3">
       <!-- Who's offering: picking one turns the verdict into accept-or-decline advice. -->
@@ -199,10 +201,12 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=731f1beb"></script>
+<script src="vault-core.js?v=2316bd96"></script>
 <script src="vault-nav.js?v=12d580e0"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
+// Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
+let remainingWeeks = [];
 // FantasyPros expert consensus vs the KTC market (Vault.buildExpertView); null until loaded.
 let expertView = null;
 let playerTrend = new Map(), pickTrend = new Map(), playerVolatility = new Map();
@@ -367,6 +371,7 @@ async function init() {
   try {
     const built = await Vault.buildLeagueTeams(Vault.getLeagueId());
     league = built.league; slots = built.slots;
+    remainingWeeks = built.remainingWeeks || [];
     // The ACTIVE roster cap — taxi and IR are separate pools Sleeper tracks (see
     // team.taxiIds/reserveIds), but they're not generic overflow capacity a newly
     // -acquired trade piece can just slot into: taxi needs rookie/sophomore
@@ -1371,6 +1376,65 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
     <details class="mt-1 text-right"><summary class="py-1 text-[12px] text-zinc-400 hover:text-zinc-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">About these numbers ▾</summary><div class="text-[12px] text-zinc-400 mt-1">${bonusGive >= 1 || bonusGet >= 1 ? `KTC value includes KTC's +${n(Math.max(bonusGive, bonusGet))} adjustment on ${bonusGive >= bonusGet ? "your side" : "their side"} for the best player in the deal · ` : ""}Adjusted = need, fit, and timeline${held ? ` · fit favors ${Vault.escapeHtml(favored)}, but grades never read closer to even than KTC value` : ''}${ex ? ` · Experts = <a href="${Vault.EXPERTS_LINK}" target="_blank" rel="noopener" class="text-sky-300/90 hover:text-sky-200 underline underline-offset-2">FantasyPros</a> dynasty consensus (${expertView.experts || 'several'} experts${expertView.updated ? `, updated ${Vault.escapeHtml(expertView.updated)}` : ''}), priced on KTC's scale. The grade uses KTC.` : ''}</div></details>`;
 }
 
+/* ---------- This season: playoff and title odds, before → after ----------
+   The same season simulation as League Overview's odds (Vault.simulateSeason),
+   run twice on the same seed: once as things stand, once with each team's
+   strength moved by what the trade does to its best lineup. Same draws both
+   times, so the difference is the trade, not simulation noise. */
+const SEASON_TRIALS = 4000, SEASON_SEED = 20260929;
+let seasonBase = null, seasonBaseKey = '';
+const seasonCache = new Map();
+function seasonOdds(deltas) {
+  const key = [...deltas].map(([id, d]) => `${id}:${d.toFixed(2)}`).join('|');
+  if (!seasonCache.has(key)) {
+    if (seasonCache.size > 50) seasonCache.clear();
+    seasonCache.set(key, Vault.simulateSeason(teams, league, remainingWeeks, { trials: SEASON_TRIALS, seed: SEASON_SEED, strengthDelta: deltas }));
+  }
+  return seasonCache.get(key);
+}
+function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
+  const box = document.getElementById('seasonImpact');
+  // Nothing to project once the regular season is over (or before a schedule exists).
+  if (!remainingWeeks.length || !(aAssets.length || bAssets.length)) { box.classList.add('hidden'); return; }
+  const baseKey = teams.map(t => t.rosterId).join(',');
+  if (!seasonBase || seasonBaseKey !== baseKey) { seasonBase = seasonOdds(new Map()); seasonBaseKey = baseKey; }
+  const { before, after } = Vault.simulateTrade(teams, slots, teamA.rosterId, teamB.rosterId, aAssets, bAssets);
+  const dA = after.A.opt - before.A.opt, dB = after.B.opt - before.B.opt;
+  const next = seasonOdds(new Map([[teamA.rosterId, dA], [teamB.rosterId, dB]]));
+  const pct = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
+  const change = (b, a) => {
+    const d = Math.round(a) - Math.round(b);
+    return d ? `<span class="text-[12px] font-semibold ${d > 0 ? 'text-emerald-400' : 'text-rose-400'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>` : '<span class="text-[12px] text-zinc-500">no change</span>';
+  };
+  const stat = (label, b, a) => `<div><div class="text-[11px] uppercase tracking-wider text-zinc-500">${label}</div>
+      <div class="text-[15px] mono text-zinc-100 mt-0.5">${pct(b)} <span class="text-zinc-500">→</span> ${pct(a)}</div>${change(b, a)}</div>`;
+  // Who actually moves in or out of the starting lineup (not just who's traded).
+  const moves = (bef, aft) => {
+    const was = new Set(bef.lineup.filter(s => s.id).map(s => s.id)), now = new Set(aft.lineup.filter(s => s.id).map(s => s.id));
+    const name = s => `${Vault.escapeHtml(s.name)} <span class="text-zinc-500">${s.pos}</span>`;
+    const into = aft.lineup.filter(s => s.id && !was.has(s.id)).map(name), out = bef.lineup.filter(s => s.id && !now.has(s.id)).map(name);
+    return into.length || out.length
+      ? `${into.length ? `<div><span class="text-emerald-400/90">Starts:</span> ${into.join(', ')}</div>` : ''}${out.length ? `<div><span class="text-rose-400/90">Leaves the lineup:</span> ${out.join(', ')}</div>` : ''}`
+      : '<div class="text-zinc-500">Starting lineup unchanged</div>';
+  };
+  const side = (label, team, bef, aft, d) => {
+    const b = seasonBase.get(team.rosterId), a = next.get(team.rosterId);
+    if (!b || !a) return '';
+    return `<div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0">
+        <div class="flex items-baseline justify-between gap-2 mb-2"><span class="text-[13px] font-medium text-zinc-100 truncate">${label}</span>
+          <span class="text-[12px] mono shrink-0 ${Math.abs(d) < 0.05 ? 'text-zinc-500' : d > 0 ? 'text-emerald-400' : 'text-rose-400'}">${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)} pts/week</span></div>
+        <div class="grid grid-cols-2 gap-2">${stat('Playoffs', b.playoffPct, a.playoffPct)}${stat('Title', b.championshipPct, a.championshipPct)}</div>
+        <div class="mt-2.5 text-[12px] text-zinc-300 space-y-0.5">${moves(bef, aft)}</div>
+      </div>`;
+  };
+  box.innerHTML = `<div class="flex items-baseline justify-between gap-3 flex-wrap mb-2.5">
+      <span class="text-[11px] uppercase tracking-wider text-zinc-400">This season</span>
+      <span class="text-[11px] text-zinc-500">${remainingWeeks.length} regular-season week${remainingWeeks.length === 1 ? '' : 's'} left, simulated ${SEASON_TRIALS.toLocaleString()} times from projections and points scored so far</span>
+    </div>
+    <div class="grid md:grid-cols-2 gap-3">${side(`You · ${Vault.escapeHtml(teamA.teamName)}`, teamA, before.A, after.A, dA)}${side(Vault.escapeHtml(teamB.teamName), teamB, before.B, after.B, dB)}</div>`;
+  box.classList.remove('hidden');
+}
+
 function updateTrade() {
   syncTradeUrl();
   if (view === 'coach') document.getElementById('builder').classList.toggle('hidden', selectedA.size + selectedB.size === 0);
@@ -1446,6 +1510,7 @@ function updateTrade() {
   diffLabelEl.className = bucketColor(bucket);
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(fairness.overallSigned, diffBandPct) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
+  renderSeasonImpact(teamA, teamB, aAssets, bAssets);
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');

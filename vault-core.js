@@ -1328,6 +1328,7 @@ const Vault = {
     // (and everything downstream: Longevity, archetype) reflects real standings on
     // every page, not just League Overview — see contentionWindow. Best effort: if
     // the schedule can't be fetched, windows fall back to the paper projection.
+    let remainingWeeks = null; // returned too, so the Trade Calculator can re-run the season with a trade
     try {
       // Weeks already counted in the standings, read off the records themselves:
       // Sleeper only adds a week to wins/losses once it's final, so a week in
@@ -1335,7 +1336,7 @@ const Vault = {
       const gamesPerWeek = league.settings?.league_average_match === 1 ? 2 : 1;
       const gamesPlayed = Math.max(0, ...built.map(t => (t.record?.wins || 0) + (t.record?.losses || 0) + (t.record?.ties || 0)));
       const completedWeeks = Math.floor(gamesPlayed / gamesPerWeek);
-      const remainingWeeks = await Vault.fetchRemainingSchedule(leagueId, league, completedWeeks);
+      remainingWeeks = await Vault.fetchRemainingSchedule(leagueId, league, completedWeeks);
       const projections = Vault.simulateSeason(built, league, remainingWeeks);
       built.forEach(t => {
         const p = projections.get(t.rosterId) || null;
@@ -1419,7 +1420,7 @@ const Vault = {
     built.sort((a, b) => b.overall - a.overall);
     built.forEach((t, i) => t.rank = i + 1);
 
-    return { league, isSF, slots, startable, replacementLevels, teams: built };
+    return { league, isSF, slots, startable, replacementLevels, teams: built, remainingWeeks };
   },
 
   /* ---------- Trade simulation ----------
@@ -3413,6 +3414,25 @@ const Vault = {
     while (v === 0) v = Math.random();
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   },
+  // The same draws from a fixed seed (mulberry32). Running "before" and "after"
+  // a trade on the same seed means the gap in odds comes from the trade, not
+  // from two different sets of random games.
+  _seededRandn(seed) {
+    let s = seed >>> 0;
+    const uni = () => {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    return () => {
+      let u = 0, v = 0;
+      while (u === 0) u = uni();
+      while (v === 0) v = uni();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    };
+  },
 
   // One simulated single-elimination bracket from a seed list (best seed first).
   // Byes go to the top seeds when the field isn't a power of two — e.g. 6 seeds
@@ -3422,10 +3442,10 @@ const Vault = {
   // bracket's exact pairing ahead of the playoffs actually starting, so this is
   // an approximation — close enough that simulated title odds track team
   // strength correctly even if one specific pairing differs from Sleeper's own.
-  simulateBracket(seeds, strength, sigmaPct) {
+  simulateBracket(seeds, strength, sigmaPct, randn = Vault._randn) {
     const drawScore = id => {
       const mean = strength.get(id) || 0;
-      return Math.max(0, mean + Vault._randn() * mean * sigmaPct);
+      return Math.max(0, mean + randn() * mean * sigmaPct);
     };
     let remaining = seeds.slice();
     while (remaining.length > 1) {
@@ -3485,7 +3505,11 @@ const Vault = {
       const w = wk / (wk + VAULT_CONFIG.ACTUAL_POINTS_WEEKS);
       return avgOpt * ((1 - w) * (t.opt / avgOpt) + w * ((t.record.fpts / wk) / avgActual));
     };
-    const strength = new Map(teams.map(t => [t.rosterId, rating(t)]));
+    // opts.strengthDelta: rosterId -> pts/week added for the games left (a trade's
+    // change to that team's best lineup). opts.seed: fixed draws (see _seededRandn).
+    const delta = opts.strengthDelta || new Map();
+    const strength = new Map(teams.map(t => [t.rosterId, Math.max(0, rating(t) + (delta.get(t.rosterId) || 0))]));
+    const randn = opts.seed != null ? Vault._seededRandn(opts.seed) : Vault._randn;
     const baseWins = new Map(teams.map(t => [t.rosterId, t.record?.wins || 0]));
     const baseLosses = new Map(teams.map(t => [t.rosterId, t.record?.losses || 0]));
     const baseTies = new Map(teams.map(t => [t.rosterId, t.record?.ties || 0]));
@@ -3494,7 +3518,7 @@ const Vault = {
     const totals = new Map(rosterIds.map(id => [id, { winsSum: 0, lossesSum: 0, tiesSum: 0, playoffCount: 0, champCount: 0 }]));
     const drawScore = id => {
       const mean = strength.get(id) || 0;
-      return Math.max(0, mean + Vault._randn() * mean * sigmaPct);
+      return Math.max(0, mean + randn() * mean * sigmaPct);
     };
 
     for (let trial = 0; trial < trials; trial++) {
@@ -3530,7 +3554,7 @@ const Vault = {
         t.winsSum += wins.get(id); t.lossesSum += losses.get(id); t.tiesSum += ties.get(id);
       });
       if (seeds.length >= 2) {
-        const champ = Vault.simulateBracket(seeds, strength, sigmaPct);
+        const champ = Vault.simulateBracket(seeds, strength, sigmaPct, randn);
         totals.get(champ).champCount++;
       }
     }
