@@ -1,48 +1,25 @@
-200  /public/v2/json/nfl/2026/consensus-rankings?position=ALL&type=dynasty&scoring=PPR
-      { sport, type, ranking_type_name, year, week, position_id, scoring, filters, count, total_experts, last_updated, players, … }
-      sample: {"player_id":19788,"player_name":"Ja'Marr Chase","sportsdata_id":"fa99e984-d63b-4ef4-a164-407f68a7eeaf","player_team_id":"CIN","player_position_id":"WR","player_positions":"WR","player_short_name":"J. Chase","player_eligibility":"WR","player_yahoo_positions":"WR","player_page_url":"https://www.fantasypros.com/nfl/players/jamarr-chase.php","player_filename":"jamarr-chase.php","player_yahoo_id":"33393","cbs_player_id":"2966320","player_bye_week":"6","player_owned_avg":99.8,"player_owned_espn":99.9
-200  /public/v2/json/nfl/players
-      { sport, count, season, week, players, public_api_limited, tier }
-      sample: {"player_id":8000,"player_name":"Arizona Cardinals","short_name":"Arizona","first_name":"Arizona","last_name":"Cardinals","reverse_name":"Cardinals, Arizona","position_id":"DST","positions":["DST"],"team_id":"ARI","filename":"https://www.fantasypros.com/nfl/teams/arizona-defense.php","sportsdata_player_id":"de760528-1dc0-416a-a978-b510d20692ff","rank_ecr":0,"rank_ecr_ppr":0,"rank_adp_ppr":315,"rank_ecr_half":0,"birthdate":"","birthdatetime":""}
-403  /public/v2/json/nfl/trade-values
-      {"message":"Missing Authentication Token"}
-403  /public/v2/json/nfl/2026/trade-values
-      {"message":"Missing Authentication Token"}
-403  /public/v2/json/nfl/trade-values/dynasty
-      {"message":"Missing Authentication Token"}
-403  /public/v2/json/nfl/2026/trade-values?type=dynasty
-      {"message":"Missing Authentication Token"}
-403  /public/v2/json/nfl/trade-market-values
-      {"message":"Missing Authentication Token"}
-403  /public/v2/json/nfl/2026/trade-market-values?type=dynasty
-      {"message":"Missing Authentication Token"}
-403  /public/v2/json/nfl/trade-market-values/dynasty
-      {"message":"Missing Authentication Token"}
-403  /public/v2/json/nfl/2026/trade-market?type=dynasty
-      {"message":"Missing Authentication Token"}
-403  /public/v2/json/nfl/dynasty/trade-market
-      {"message":"Missing Authentication Token"}
-403  /v2/json/nfl/2026/consensus-rankings?position=ALL&type=dynasty&scoring=PPR
-      {"message":"Forbidden"}
-403  /v2/json/nfl/players
-      {"message":"Forbidden"}
-403  /v2/json/nfl/trade-values
-      {"message":"Missing Authentication Token"}
-403  /v2/json/nfl/2026/trade-values
-      {"message":"Missing Authentication Token"}
-403  /v2/json/nfl/trade-values/dynasty
-      {"message":"Missing Authentication Token"}
-403  /v2/json/nfl/2026/trade-values?type=dynasty
-      {"message":"Missing Authentication Token"}
-403  /v2/json/nfl/trade-market-values
-      {"message":"Missing Authentication Token"}
-403  /v2/json/nfl/2026/trade-market-values?type=dynasty
-      {"message":"Missing Authentication Token"}
-403  /v2/json/nfl/trade-market-values/dynasty
-      {"message":"Missing Authentication Token"}
-403  /v2/json/nfl/2026/trade-market?type=dynasty
-      {"message":"Missing Authentication Token"}
-403  /v2/json/nfl/dynasty/trade-market
-      {"message":"Missing Authentication Token"}
-
-Paste this output back (it contains no key). 200 = reachable; 401/403 = not on your plan; 404 = no such endpoint; 429 = too fast (run again).
+200  nfl/2026/consensus-rankings?type=dynasty&position=ALL&scoring=PPR
+      ranking: dynasty · experts: 4 · players: 449 · updated: 9/29
+      top 8: Ja'Marr Chase (WR) 1 | Jaxon Smith-Njigba (WR) 2 | Bijan Robinson (RB) 3 | Jahmyr Gibbs (RB) 4 | Amon-Ra St. Brown (WR) 5 | Puka Nacua (WR) 6 | Ashton Jeanty (RB) 7 | CeeDee Lamb (WR) 8
+      first QB: Josh Allen at 21
+      rank fields (first player): {"player_id":19788,"player_name":"Ja'Marr Chase","sportsdata_id":"fa99e984-d63b-4ef4-a164-407f68a7eeaf","player_team_id":"CIN","player_position_id":"WR","player_positions":"WR","player_short_name":"J. Chase","player_yahoo_positions":"WR","player_page_url":"https://www.fantasypros.com/nfl/players/jamarr-chase.php","player_filename":"jamarr-chase.php","player_yahoo_id":"33393","cbs_player_id":"2966320","player_owned_yahoo":100,"player_age":"26","rank_ecr":1,"rank_min":"1","rank_max":"1","rank_ave":"1.00","rank_std":"0.00","pos_rank":"WR1","tier":1}
+200  nfl/2026/consensus-rankings?type=dynasty&position=OP&scoring=PPR
+      ranking: dynasty · experts: 4 · players: 369 · updated: 9/29
+      top 8: Josh Allen (QB) 1 | Ja'Marr Chase (WR) 2 | Jaxon Smith-Njigba (WR) 3 | Joe Burrow (QB) 4 | Bijan Robinson (RB) 5 | Jahmyr Gibbs (RB) 6 | Lamar Jackson (QB) 7 | Puka Nacua (WR) 8
+      first QB: Josh Allen at 1
+400  nfl/2026/consensus-rankings?type=dynasty&position=SF&scoring=PPR
+      {"message":"Invalid Position","parameter":"position","valid_format":"QB, RB, WR, TE, K, OP, FLX, DST, IDP, DL, LB, DB, TK, TQB, TRB, TWR, TTE, TOL, HC, P, ALL"}
+400  nfl/2026/consensus-rankings?type=dynasty-superflex&position=ALL&scoring=PPR
+      {"message":"Invalid Position","parameter":"position","valid_format":"QB, RB, WR, TE, K, OP, FLX, DST, IDP, DL, LB, DB, TK, TQB, TRB, TWR, TTE, TOL, HC, P"}
+400  nfl/2026/consensus-rankings?type=dynasty-sf&position=ALL&scoring=PPR
+      {"message":"Invalid Position","parameter":"position","valid_format":"QB, RB, WR, TE, K, OP, FLX, DST, IDP, DL, LB, DB, TK, TQB, TRB, TWR, TTE, TOL, HC, P"}
+200  nfl/2026/consensus-rankings?type=dynasty&position=ALL&scoring=HALF
+      ranking: dynasty · experts: 4 · players: 449 · updated: 9/29
+      top 8: Ja'Marr Chase (WR) 1 | Jaxon Smith-Njigba (WR) 2 | Bijan Robinson (RB) 3 | Jahmyr Gibbs (RB) 4 | Amon-Ra St. Brown (WR) 5 | Puka Nacua (WR) 6 | Ashton Jeanty (RB) 7 | CeeDee Lamb (WR) 8
+      first QB: Josh Allen at 21
+200  nfl/2026/consensus-rankings?type=dynasty&position=QB&scoring=PPR
+      ranking: dynasty · experts: 4 · players: 84 · updated: 9/29
+      top 8: Josh Allen (QB) 1 | Lamar Jackson (QB) 2 | Joe Burrow (QB) 3 | Drake Maye (QB) 4 | Caleb Williams (QB) 5 | Jalen Hurts (QB) 6 | Patrick Mahomes II (QB) 7 | Trevor Lawrence (QB) 8
+      first QB: Josh Allen at 1
+400  nfl/2026/consensus-rankings?type=dynasty-rookies&position=ALL&scoring=PPR
+      {"message":"Invalid Position","parameter":"position","valid_format":"QB, RB, WR, TE, K, OP, FLX, DST, IDP, DL, LB, DB, TK, TQB, TRB, TWR, TTE, TOL, HC, P"}
