@@ -6,7 +6,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=ba28cb0c">
+<link rel="stylesheet" href="tailwind.css?v=487ac5af">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -212,7 +212,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=a63b5e99"></script>
+<script src="vault-core.js?v=10f238f4"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1386,7 +1386,12 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
   const baseKey = teams.map(t => t.rosterId).join(',');
   if (!seasonBase || seasonBaseKey !== baseKey) { seasonBase = seasonOdds(new Map()); seasonBaseKey = baseKey; }
   const { before, after } = Vault.simulateTrade(teams, slots, teamA.rosterId, teamB.rosterId, aAssets, bAssets);
-  const dA = after.A.opt - before.A.opt, dB = after.B.opt - before.B.opt;
+  // Weekly strength change: the healthy best lineup, plus depth (what bye and
+  // injury weeks cost it, Vault.depthShift, in full points: the odds are points).
+  const lineA = after.A.opt - before.A.opt, lineB = after.B.opt - before.B.opt;
+  const depA = Vault.depthShift('contend', before.A, after.A, slots).perWeek, depB = Vault.depthShift('contend', before.B, after.B, slots).perWeek;
+  const dA = lineA + depA, dB = lineB + depB;
+  const parts = { [teamA.rosterId]: [lineA, depA], [teamB.rosterId]: [lineB, depB] };
   const next = seasonOdds(new Map([[teamA.rosterId, dA], [teamB.rosterId, dB]]));
   const pct = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
   const change = (b, a) => {
@@ -1410,6 +1415,7 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
     return `<div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0">
         <div class="flex items-baseline justify-between gap-2 mb-2"><span class="text-[13px] font-medium text-zinc-100 truncate">${label}</span>
           <span class="text-[12px] mono shrink-0 ${Math.abs(d) < 0.05 ? 'text-zinc-500' : d > 0 ? 'text-emerald-400' : 'text-rose-400'}">${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)} pts/week</span></div>
+        <div class="text-[11px] text-zinc-500 -mt-1 mb-2">${(() => { const [l, dp] = parts[team.rosterId]; const s = v => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`; return `Lineup ${s(l)} · Depth ${s(dp)} <span title="Depth: what bye and injury weeks cost the lineup (each starter misses about ${VAULT_CONFIG.DEPTH_MISSED_GAMES} games a season)." class="cursor-help underline decoration-dotted underline-offset-2">?</span>`; })()}</div>
         <div class="grid grid-cols-2 gap-2">${stat('Playoffs', b.playoffPct, a.playoffPct)}${stat('Title', b.championshipPct, a.championshipPct)}</div>
         <div class="mt-2.5 text-[12px] text-zinc-300 space-y-0.5">${moves(bef, aft)}</div>
       </div>`;
@@ -1553,10 +1559,14 @@ function analyzeSide(before, after) {
   if (optNote) { notes.push({ tone: optNote.tone, text: optNote.text }); fit += optNote.fit; }
   const vorpNote = Vault.vorpShiftNote(mode, dVorp);
   if (vorpNote) { notes.push({ tone: vorpNote.tone, text: vorpNote.text }); fit += vorpNote.fit; }
+  // Depth: what bye and injury weeks cost the lineup, before vs after (Vault.depthShift).
+  const depth = Vault.depthShift(mode, before, after, slots);
+  if (depth.note) notes.push({ tone: depth.note.tone, text: depth.note.text });
+  fit += depth.fit;
 
   notes.push({ tone: dArchScore > 5 ? 'good' : dArchScore < -5 ? 'bad' : 'neutral', text: `Archetype: ${before.arch} → ${after.arch}`, isArchetype: true });
 
-  return { mode, dAge, dPicks, dOpt, dVorp, dValue, dArchScore, fit, notes };
+  return { mode, dAge, dPicks, dOpt, dVorp, dValue, dArchScore, fit, notes, depthFit: depth.fit, dDepth: depth.perWeek };
 }
 
 // dValue/avgSide are the same raw consolidation-adjusted swing that gates the
@@ -1777,7 +1787,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
   [['A', before.A, after.A, resA, dValueAdjA, bAssets, aAssets], ['B', before.B, after.B, resB, dValueAdjB, aAssets, bAssets]].forEach(([side, bef, aft, res, dValueAdj, incoming, outgoing]) => {
     // analyzeSide's fit so far = age/picks-vs-mode (timeline) + lineup PPG/VORP
     // shift (roster) — split back apart here for Vault.blendedFairness.
-    const lineupFit = (Vault.optShiftNote(res.mode, res.dOpt)?.fit || 0) + (Vault.vorpShiftNote(res.mode, res.dVorp)?.fit || 0);
+    const lineupFit = (Vault.optShiftNote(res.mode, res.dOpt)?.fit || 0) + (Vault.vorpShiftNote(res.mode, res.dVorp)?.fit || 0) + (res.depthFit || 0);
     const ageAndPicksFit = res.fit - lineupFit;
 
     // Positional need/surplus fit for the specific assets moving this direction —
@@ -1928,6 +1938,6 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js?v=456725cc"></script>
-<script src="coach.js?v=a587246a"></script>
+<script src="coach.js?v=0bc85909"></script>
 </body>
 </html>

@@ -107,6 +107,16 @@ const VAULT_CONFIG = {
   // "Fair". Same threshold headline()/historyVerdict() already used for their own
   // good()/bad() reads, just centralized so Vault.fairnessBucket can share it.
   GOOD_FIT_THRESHOLD: 2,
+  // Depth (Vault.missedGameCost): games each starter is assumed to miss a season
+  // (a bye plus injuries and rest). Set on the high side on purpose so depth
+  // carries real weight; spread over DEPTH_SEASON_WEEKS for a per-week figure.
+  DEPTH_MISSED_GAMES: 4,
+  DEPTH_SEASON_WEEKS: 17,
+  // In the grade and Trade Coach, a point of depth counts this many times a point
+  // of healthy-lineup gain: thin depth is a risk (one injury away from a hole),
+  // not just an average, and managers should very much value it. The This season
+  // odds use plain expected points (weight 1).
+  DEPTH_FIT_WEIGHT: 2,
   // Overall fairness = a weighted blend of three factors (see
   // Vault.blendedFairness): KTC value, roster fit (positional need + lineup
   // PPG/VORP shift), and timeline (age/picks vs. each team's mode, archetype,
@@ -2484,6 +2494,52 @@ const Vault = {
     return null;
   },
 
+  /* ---------- Depth: what missed games cost a lineup ----------
+     Every starter misses games (a bye, plus injuries and rest), so depth is what
+     fills in. For each starter in a team's best lineup: take them out, refill the
+     lineup from the bench using the league's real slots (flex and superflex
+     included, so a spare WR really does cover an RB bye when a flex can take
+     him), and see how many points the lineup drops. Times the games a starter
+     typically misses, summed: the season's missed-game cost. Scarcity comes out
+     of each roster and league on its own (a 6-WR lineup with 7 WRs has little
+     cover; a superflex QB's bye costs whatever the next-best superflex option
+     scores). Kept high on purpose (VAULT_CONFIG.DEPTH_MISSED_GAMES), since depth
+     is easy to undervalue. */
+  _missedCache: new WeakMap(),
+  missedGameCost(team, slots) {
+    const hit = Vault._missedCache.get(team);
+    if (hit && hit.slots === slots) return hit.out;
+    const plist = team.plist || [];
+    const base = Vault.optimalLineupDetail(plist, slots);
+    let perSeason = 0, hardest = null;
+    base.starters.filter(s => s.id).forEach(s => {
+      const drop = base.total - Vault.optimalLineupDetail(plist.filter(p => p.id !== s.id), slots).total;
+      perSeason += drop * VAULT_CONFIG.DEPTH_MISSED_GAMES;
+      if (!hardest || drop > hardest.drop) hardest = { name: s.name, pos: s.pos, drop };
+    });
+    const out = { perSeason, hardest };
+    Vault._missedCache.set(team, { slots, out });
+    return out;
+  },
+  // A trade's change in depth, in points per week (negative = bye and injury
+  // weeks cost the lineup more), plus a timeline-weighted note and fit on the same
+  // scale as optShiftNote: contenders count it fully, flexible teams 60%,
+  // rebuilders 30% (they aren't playing for this season's lineup).
+  depthShift(mode, beforeTeam, afterTeam, slots) {
+    const b = Vault.missedGameCost(beforeTeam, slots), a = Vault.missedGameCost(afterTeam, slots);
+    const perWeek = (b.perSeason - a.perSeason) / VAULT_CONFIG.DEPTH_SEASON_WEEKS;
+    const weight = mode === 'contend' ? 1 : mode === 'rebuild' ? 0.3 : 0.6;
+    const fit = Math.max(-3, Math.min(3, perWeek * weight * VAULT_CONFIG.DEPTH_FIT_WEIGHT));
+    let note = null;
+    if (Math.abs(perWeek) >= 0.5) {
+      const hard = a.hardest && perWeek < 0 ? ` ${Vault.escapeHtml(a.hardest.name)} would be the hardest starter to cover (${a.hardest.drop.toFixed(1)} points when out).` : '';
+      note = perWeek < 0
+        ? { tone: mode === 'rebuild' ? 'neutral' : 'bad', text: `Thinner depth: bye and injury weeks would cost the lineup about ${Math.abs(perWeek).toFixed(1)} more points a week.${hard}` }
+        : { tone: mode === 'rebuild' ? 'neutral' : 'good', text: `Better depth: bye and injury weeks would cost the lineup about ${perWeek.toFixed(1)} fewer points a week.` };
+    }
+    return { perWeek, fit, note };
+  },
+
   /* Position-aware young/prime/veteran read on a single PLAYER — 'young' (a rebuild
      target), 'veteran' (a contend target), or null for prime-years players, who are
      good for either timeline and so get no archetype adjustment. Unknown/missing age
@@ -2950,15 +3006,18 @@ const Vault = {
     const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
     const vorpNoteA = Vault.vorpShiftNote(timelineA.mode, dVorpA);
     const vorpNoteB = Vault.vorpShiftNote(timelineB.mode, dVorpB);
+    // Depth: pre-trade roster (sim.after, see above) → today's roster.
+    const depthA = Vault.depthShift(timelineA.mode, sim.after.A, teamA, slots);
+    const depthB = Vault.depthShift(timelineB.mode, sim.after.B, teamB, slots);
 
-    const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0);
-    const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0);
+    const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0) + depthA.fit;
+    const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0) + depthB.fit;
 
     // Same three-factor split as the Trade Calculator: roster = positional need +
     // lineup PPG/VORP shift, timeline = age/picks vs. mode + archetype. (No
     // contention-window term here — Trade Grades doesn't reconstruct windows.)
-    const rosterFitA = fitA.posFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0);
-    const rosterFitB = fitB.posFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0);
+    const rosterFitA = fitA.posFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0) + depthA.fit;
+    const rosterFitB = fitB.posFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0) + depthB.fit;
     const fairness = Vault.blendedFairness(signedPctDiff, rosterFitA, rosterFitB, timelineA.fit + archA.archFit, timelineB.fit + archB.archFit);
     const favored = fairness.overallSigned > 0 ? 'B' : 'A';
 
@@ -2968,7 +3027,7 @@ const Vault = {
 
     // toAToday/toBToday: the same pieces at today's prices (Trade Grades' This season
     // line works from today's rosters).
-    return { tx, teamA, teamB, toA, toB, toAToday: toATodayPrices, toBToday: toBTodayPrices, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, toAToday: toATodayPrices, toBToday: toBTodayPrices, depthA, depthB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
   },
 
   // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps

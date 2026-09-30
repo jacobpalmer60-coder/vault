@@ -6,7 +6,7 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=ba28cb0c">
+<link rel="stylesheet" href="tailwind.css?v=487ac5af">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -42,7 +42,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=a63b5e99"></script>
+<script src="vault-core.js?v=10f238f4"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
@@ -182,10 +182,13 @@ function seasonEffect(g) {
   if (A && B && (pA.length || pB.length) && has(A, pA) && has(B, pB)) {
     seasonBase = seasonBase || Vault.simulateSeason(ctx.teams, ctx.league, ctx.remainingWeeks, { trials: SEASON_TRIALS, seed: SEASON_SEED });
     const { before, after } = Vault.simulateTrade(ctx.teams, ctx.slots, A.rosterId, B.rosterId, pA, pB); // send it all back
+    // Weekly strength change from undoing it: best lineup plus depth (missed-game cover).
+    const dOf = side => (after[side].opt - before[side].opt) + Vault.depthShift('contend', before[side], after[side], ctx.slots).perWeek;
+    const dA = dOf('A'), dB = dOf('B');
     const without = Vault.simulateSeason(ctx.teams, ctx.league, ctx.remainingWeeks, { trials: SEASON_TRIALS, seed: SEASON_SEED,
-      strengthDelta: new Map([[A.rosterId, after.A.opt - before.A.opt], [B.rosterId, after.B.opt - before.B.opt]]) });
+      strengthDelta: new Map([[A.rosterId, dA], [B.rosterId, dB]]) });
     const row = (team, d) => ({ team, now: seasonBase.get(team.rosterId), without: without.get(team.rosterId), ppw: -d });
-    out = [row(A, after.A.opt - before.A.opt), row(B, after.B.opt - before.B.opt)];
+    out = [row(A, dA), row(B, dB)];
   }
   seasonMemo.set(g.tx.transaction_id, out);
   return out;
@@ -202,7 +205,7 @@ function seasonHtml(g) {
     return d ? `<span class="font-semibold ${d > 0 ? 'text-emerald-400' : 'text-rose-400'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>` : '<span class="text-zinc-500">±0</span>';
   };
   return `<div class="mt-3 pt-3 border-t border-white/5">
-      <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5" title="Each team as it is now, against the same team with this trade undone, over the ${ctx.remainingWeeks.length} regular-season weeks left (${SEASON_TRIALS.toLocaleString()} simulated seasons, same games both ways).">This season, because of this trade</div>
+      <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5" title="Each team as it is now, against the same team with this trade undone, over the ${ctx.remainingWeeks.length} regular-season weeks left (${SEASON_TRIALS.toLocaleString()} simulated seasons, same games both ways). Points per week include depth: what bye and injury weeks cost the lineup.">This season, because of this trade</div>
       <div class="space-y-1 text-[12px]">${rows.map(r => `<div class="flex items-baseline gap-x-3 gap-y-0.5 flex-wrap">
           <span class="text-zinc-200 w-[160px] shrink-0 truncate">${Vault.escapeHtml(r.team.teamName)}</span>
           <span class="text-zinc-400">Playoffs <span class="mono text-zinc-200">${pct(r.now.playoffPct)}</span> vs ${pct(r.without.playoffPct)} without ${chg(r.now.playoffPct, r.without.playoffPct)}</span>
@@ -221,11 +224,13 @@ function renderCard(g) {
     ...g.riskA.map(n => ({ ...n, who: g.teamA.teamName })),
     ...(g.optNoteA ? [{ ...g.optNoteA, who: g.teamA.teamName }] : []),
     ...(g.vorpNoteA ? [{ ...g.vorpNoteA, who: g.teamA.teamName }] : []),
+    ...(g.depthA?.note ? [{ ...g.depthA.note, who: g.teamA.teamName }] : []),
     ...Vault.mergeAssetNotes(g.archB.notes, g.fitB.notes).map(n => ({ ...n, who: g.teamB.teamName })),
     ...g.timelineB.notes.map(n => ({ ...n, who: g.teamB.teamName })),
     ...g.riskB.map(n => ({ ...n, who: g.teamB.teamName })),
     ...(g.optNoteB ? [{ ...g.optNoteB, who: g.teamB.teamName }] : []),
-    ...(g.vorpNoteB ? [{ ...g.vorpNoteB, who: g.teamB.teamName }] : [])
+    ...(g.vorpNoteB ? [{ ...g.vorpNoteB, who: g.teamB.teamName }] : []),
+    ...(g.depthB?.note ? [{ ...g.depthB.note, who: g.teamB.teamName }] : [])
   ];
   return `
     <div class="card rounded-vault-sm p-5">

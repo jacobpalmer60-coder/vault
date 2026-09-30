@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=ba28cb0c">
+<link rel="stylesheet" href="tailwind.css?v=487ac5af">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -28,7 +28,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=a63b5e99"></script>
+<script src="vault-core.js?v=10f238f4"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -36,6 +36,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-09-29', items: [
+    { kind: 'new', page: 'Everywhere', text: 'Depth now counts. For every trade, the site checks what your lineup loses when each starter misses a game (a bye plus injuries, about 4 games a season), refilling from your bench with your league\'s real lineup (3 WR and 3 flex, superflex, and so on). A trade that leaves you thinner is marked down, with depth counting double next to the healthy-lineup gain; you\'ll see a note like "Thinner depth: bye and injury weeks would cost the lineup about 1.9 more points a week." Rebuilding teams count it less. The This season odds include it, and Trade Coach no longer suggests trades that cost you more depth than they add to your lineup (e.g. selling your third QB in superflex).' },
     { kind: 'new', page: 'Trade Calculator', text: 'Will they take it? Every trade now shows, right next to the grade, whether the other manager would likely accept: Likely yes, Probably yes, Probably not, or Unlikely, with the main reason. When it\'s a no, it names the smallest change that would get it done ("They\'d do it if you add Trey McBride") and a Make that change button. It\'s the same read the Offer button gives, so the two always agree.' },
     { kind: 'improved', page: 'Trade Calculator', text: 'A calmer trade card: it now leads with the grade, whether they\'d take it, and what it does to this season. The KTC and adjusted values and the even-it-up suggestion are under Details.' },
     { kind: 'improved', page: 'Everywhere', text: 'The last "Team A" and "Team B" labels are gone: trade type descriptions on the Trade Calculator and the side headers on Trade Grades use the teams\' names. How We Grade now explains how a trade\'s effect on this season\'s odds is worked out.' },

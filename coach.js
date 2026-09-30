@@ -68,6 +68,18 @@ function coachAfter(meId, partnerId, give, get) {
   return pool.find(t => t.rosterId === meId);
 }
 
+// Depth guard for suggestions the coach picks on its own: never a trade that
+// thins your depth (bye and injury cover, Vault.depthShift) by more than it adds
+// to your healthy lineup, with depth at the grade's weight. Rebuilders are
+// exempt (they aren't playing for this season's lineup); trades that don't
+// touch depth are unaffected.
+function coachDepthOK(me, partner, give, get) {
+  if (Vault.teamMode(me) === 'rebuild') return true;
+  const aft = coachAfter(me.rosterId, partner.rosterId, give, get);
+  const dd = Vault.depthShift('contend', me, aft, slots).perWeek;
+  return !(dd < -0.25 && (aft.opt - me.opt) + dd * VAULT_CONFIG.DEPTH_FIT_WEIGHT < 0);
+}
+
 // Your side (the "Your side" box): pieces every suggestion must include,
 // pieces to keep, and whole groups (a position, or picks) never to trade.
 // Must-include wins over a group toggle, and over protecting your starters.
@@ -203,13 +215,17 @@ async function coachUpgrades(me, positions, protect, progress, pay, valueMode = 
         // Never pay a premium to send away one of your starters: a Lopsided
         // offer is only worth it when it's paid with bench players and picks.
         if (cand.edge >= VAULT_CONFIG.FAIR_PCT && cand.give.some(x => starterKeys.has(x.key))) continue;
-        const g = coachAfter(me.rosterId, t.rosterId, cand.give, cand.get).opt - me.opt;
+        // Net lineup gain: the healthy best lineup, minus any depth it costs
+        // (what bye and injury weeks cost the lineup, Vault.depthShift), with
+        // depth counted at the grade's weight.
+        const aft = coachAfter(me.rosterId, t.rosterId, cand.give, cand.get);
+        const g = aft.opt - me.opt + Vault.depthShift('contend', me, aft, slots).perWeek * VAULT_CONFIG.DEPTH_FIT_WEIGHT;
         const top = list => Math.max(...list.map(x => x.value));
         const betterAsset = top(cand.get) > top(cand.give);
         if (valueMode ? g >= 0.5 && betterAsset : g >= COACH.MIN_GAIN) { o = cand; gain = g; break; }
       }
       if (!o) continue;
-      out.push({ ...o, id: a.key, gain, why: `${Vault.escapeHtml(a.name)} starts for you: about +${gain.toFixed(1)} pts/week to your best lineup${pay ? `, ${pay}` : ''}.${o.note ? ' ' + o.note : ''}` });
+      out.push({ ...o, id: a.key, gain, why: `${Vault.escapeHtml(a.name)} starts for you: about +${gain.toFixed(1)} pts/week to your lineup, depth included${pay ? `, ${pay}` : ''}.${o.note ? ' ' + o.note : ''}` });
     }
     return out;
   };
@@ -297,7 +313,8 @@ async function coachBest(me, progress) {
   const must = coachMust(me), off = coachOffLimits(me);
   const pool = suggestionPool(me).filter(c =>
     coachPartnerOK(c.partner) && must.every(m => c.giveA.includes(m)) && !c.giveA.some(a => off.has(a.key))
-    && !c.giveB.some(coachTheirOff) && coachTheirMust(c.partner).every(m => c.giveB.includes(m)) && coachGroupsOK(c.giveA, c.giveB));
+    && !c.giveB.some(coachTheirOff) && coachTheirMust(c.partner).every(m => c.giveB.includes(m)) && coachGroupsOK(c.giveA, c.giveB)
+    && coachDepthOK(me, c.partner, c.giveA, c.giveB));
   progress('Checking which of those their managers would take…');
   await coachTick();
   const perPartner = new Map(), list = [];
@@ -330,7 +347,7 @@ async function coachTeam(me, progress) {
   const seen = new Set(), found = [];
   const add = (give, get, edge, why) => {
     const id = negKeys(give).join() + '>' + negKeys(get).join();
-    if (seen.has(id) || !coachGroupsOK(give, get)) return;
+    if (seen.has(id) || !coachGroupsOK(give, get) || !coachDepthOK(me, partner, give, get)) return;
     seen.add(id);
     found.push({ partner, give, get, edge, id, why });
   };
