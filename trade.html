@@ -212,7 +212,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=10f238f4"></script>
+<script src="vault-core.js?v=94bc33dc"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1566,7 +1566,7 @@ function analyzeSide(before, after) {
 
   notes.push({ tone: dArchScore > 5 ? 'good' : dArchScore < -5 ? 'bad' : 'neutral', text: `Archetype: ${before.arch} → ${after.arch}`, isArchetype: true });
 
-  return { mode, dAge, dPicks, dOpt, dVorp, dValue, dArchScore, fit, notes, depthFit: depth.fit, dDepth: depth.perWeek };
+  return { mode, dAge, dPicks, dOpt, dVorp, dValue, dArchScore, fit, notes, depthFit: depth.fit, dDepth: depth.perWeek, depth };
 }
 
 // dValue/avgSide are the same raw consolidation-adjusted swing that gates the
@@ -1661,7 +1661,8 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
   // "bad for both": naming which side it's bad for instead of burying it.
   if (toneA === 'bad') return { tone: 'bad', label: `Bad Fit for ${teamAName}`, text };
   if (toneB === 'bad') return { tone: 'bad', label: `Bad Fit for ${teamBName}`, text };
-  if (toneA === 'good' || toneB === 'good') return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
+  // Name the side it's solid for, so it never reads as good for the wrong team.
+  if (toneA === 'good' || toneB === 'good') return { tone: 'neutral', label: `Solid for ${toneA === 'good' ? teamAName : teamBName}, Fine for ${toneA === 'good' ? teamBName : teamAName}`, text };
   return { tone: 'neutral', label: 'Fair, No Real Winner', text };
 }
 
@@ -1815,6 +1816,8 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     const riskNotes = Vault.valueRiskNotes(outgoing);
 
     res.notes = [...Vault.mergeAssetNotes(archResult.notes, posResult.notes), ...riskNotes, ...(shift.note ? [shift.note] : []), ...res.notes];
+    // Costs more depth than it adds: can't read as a strong fit (same rule as Trade Coach).
+    res.fit = Vault.capFitForDepth(res.fit, res.depth);
     heads[side] = headline(dValueAdj, avgSideAdj, res.fit);
     wins[side] = win;
   });
@@ -1938,6 +1941,6 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js?v=456725cc"></script>
-<script src="coach.js?v=0bc85909"></script>
+<script src="coach.js?v=62bee229"></script>
 </body>
 </html>

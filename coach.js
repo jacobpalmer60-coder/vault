@@ -74,10 +74,8 @@ function coachAfter(meId, partnerId, give, get) {
 // exempt (they aren't playing for this season's lineup); trades that don't
 // touch depth are unaffected.
 function coachDepthOK(me, partner, give, get) {
-  if (Vault.teamMode(me) === 'rebuild') return true;
   const aft = coachAfter(me.rosterId, partner.rosterId, give, get);
-  const dd = Vault.depthShift('contend', me, aft, slots).perWeek;
-  return !(dd < -0.25 && (aft.opt - me.opt) + dd * VAULT_CONFIG.DEPTH_FIT_WEIGHT < 0);
+  return !Vault.depthShift(Vault.teamMode(me), me, aft, slots).veto; // the grade's own rule
 }
 
 // Your side (the "Your side" box): pieces every suggestion must include,

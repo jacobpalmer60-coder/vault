@@ -2530,14 +2530,26 @@ const Vault = {
     const perWeek = (b.perSeason - a.perSeason) / VAULT_CONFIG.DEPTH_SEASON_WEEKS;
     const weight = mode === 'contend' ? 1 : mode === 'rebuild' ? 0.3 : 0.6;
     const fit = Math.max(-3, Math.min(3, perWeek * weight * VAULT_CONFIG.DEPTH_FIT_WEIGHT));
+    // The one depth rule the grade and Trade Coach share: a trade that costs more
+    // depth than it adds to the healthy lineup (depth at DEPTH_FIT_WEIGHT) can't
+    // count as a strong fit for that team, and the coach never suggests it.
+    // Rebuilders are exempt; trades that don't cost depth are unaffected.
+    const dOpt = (afterTeam.opt || 0) - (beforeTeam.opt || 0);
+    const veto = mode !== 'rebuild' && perWeek < -0.25 && dOpt + perWeek * VAULT_CONFIG.DEPTH_FIT_WEIGHT < 0;
     let note = null;
-    if (Math.abs(perWeek) >= 0.5) {
+    if (Math.abs(perWeek) >= 0.5 || veto) {
       const hard = a.hardest && perWeek < 0 ? ` ${Vault.escapeHtml(a.hardest.name)} would be the hardest starter to cover (${a.hardest.drop.toFixed(1)} points when out).` : '';
+      const capped = veto ? ' It costs more depth than it adds to the lineup, so it can\'t count as a strong fit.' : '';
       note = perWeek < 0
-        ? { tone: mode === 'rebuild' ? 'neutral' : 'bad', text: `Thinner depth: bye and injury weeks would cost the lineup about ${Math.abs(perWeek).toFixed(1)} more points a week.${hard}` }
+        ? { tone: mode === 'rebuild' ? 'neutral' : 'bad', text: `Thinner depth: bye and injury weeks would cost the lineup about ${Math.abs(perWeek).toFixed(1)} more points a week.${hard}${capped}` }
         : { tone: mode === 'rebuild' ? 'neutral' : 'good', text: `Better depth: bye and injury weeks would cost the lineup about ${perWeek.toFixed(1)} fewer points a week.` };
     }
-    return { perWeek, fit, note };
+    return { perWeek, fit, note, veto };
+  },
+  // A side's combined fit, held just under the "strong fit" bar when the depth
+  // rule applies (see depthShift): the trade can still be Fair, not Good/Great.
+  capFitForDepth(fit, depth) {
+    return depth && depth.veto ? Math.min(fit, VAULT_CONFIG.GOOD_FIT_THRESHOLD - 0.01) : fit;
   },
 
   /* Position-aware young/prime/veteran read on a single PLAYER — 'young' (a rebuild
@@ -2916,7 +2928,7 @@ const Vault = {
     if (bad(fitA) && bad(fitB)) return { tone: 'bad', label: 'Questionable for Both Sides', text };
     if (good(fitA) && bad(fitB)) return { tone: 'neutral', label: `Better fit for ${teamAName}`, text };
     if (good(fitB) && bad(fitA)) return { tone: 'neutral', label: `Better fit for ${teamBName}`, text };
-    if (good(fitA) || good(fitB)) return { tone: 'neutral', label: 'Solid for One Side, Fine for the Other', text };
+    if (good(fitA) || good(fitB)) return { tone: 'neutral', label: `Solid for ${good(fitA) ? teamAName : teamBName}, Fine for ${good(fitA) ? teamBName : teamAName}`, text };
     return { tone: 'neutral', label: 'Fair Trade', text };
   },
 
@@ -3010,8 +3022,8 @@ const Vault = {
     const depthA = Vault.depthShift(timelineA.mode, sim.after.A, teamA, slots);
     const depthB = Vault.depthShift(timelineB.mode, sim.after.B, teamB, slots);
 
-    const combinedFitA = fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0) + depthA.fit;
-    const combinedFitB = fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0) + depthB.fit;
+    const combinedFitA = Vault.capFitForDepth(fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0) + depthA.fit, depthA);
+    const combinedFitB = Vault.capFitForDepth(fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0) + depthB.fit, depthB);
 
     // Same three-factor split as the Trade Calculator: roster = positional need +
     // lineup PPG/VORP shift, timeline = age/picks vs. mode + archetype. (No
