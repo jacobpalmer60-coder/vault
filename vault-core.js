@@ -2509,7 +2509,9 @@ const Vault = {
   missedGameCost(team, slots) {
     const hit = Vault._missedCache.get(team);
     if (hit && hit.slots === slots) return hit.out;
-    const plist = team.plist || [];
+    // Only players who can actually play: injured reserve can't cover a bye
+    // (taxi players can be promoted, so they count).
+    const plist = (team.plist || []).filter(p => !team.reserveIds?.has?.(p.id));
     const base = Vault.optimalLineupDetail(plist, slots);
     let perSeason = 0, hardest = null;
     base.starters.filter(s => s.id).forEach(s => {
