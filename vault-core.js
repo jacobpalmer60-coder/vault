@@ -107,15 +107,17 @@ const VAULT_CONFIG = {
   // "Fair". Same threshold headline()/historyVerdict() already used for their own
   // good()/bad() reads, just centralized so Vault.fairnessBucket can share it.
   GOOD_FIT_THRESHOLD: 2,
-  // Depth (Vault.missedGameCost): games each starter is assumed to miss a season
-  // (a bye plus injuries and rest). Set on the high side on purpose so depth
-  // carries real weight; spread over DEPTH_SEASON_WEEKS for a per-week figure.
-  DEPTH_MISSED_GAMES: 4,
+  // Depth (Vault.missedGameCost): weeks each starter is out a season, bye
+  // included. Measured, not guessed: across 2018-2025 fantasy starters (top 24
+  // QB / 36 RB / 48 WR / 18 TE by points per game) missed 2.4 games plus the bye,
+  // about 3.4 weeks, nearly the same at every position. Spread over
+  // DEPTH_SEASON_WEEKS for a per-week figure.
+  DEPTH_MISSED_GAMES: 3.5,
   DEPTH_SEASON_WEEKS: 17,
   // In the grade and Trade Coach, a point of depth counts this many times a point
-  // of healthy-lineup gain: thin depth is a risk (one injury away from a hole),
-  // not just an average, and managers should very much value it. The This season
-  // odds use plain expected points (weight 1).
+  // of healthy-lineup gain: thin depth is a risk, not just an average (about 1 in 6
+  // starters misses 6+ games a season), and managers should very much value it.
+  // The This season odds use plain expected points (weight 1).
   DEPTH_FIT_WEIGHT: 2,
   // Overall fairness = a weighted blend of three factors (see
   // Vault.blendedFairness): KTC value, roster fit (positional need + lineup

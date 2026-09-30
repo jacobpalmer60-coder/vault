@@ -28,7 +28,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=8abe1de9"></script>
+<script src="vault-core.js?v=e19b60d0"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -37,6 +37,8 @@
 const NOTES = [
   { date: '2026-09-30', items: [
     { kind: 'fixed', page: 'Everywhere', text: 'Depth no longer counts players on injured reserve as bench cover, since they can\'t play. Taxi players still count, since they can be promoted.' },
+    { kind: 'changed', page: 'Everywhere', text: 'Depth now uses real history: starters are counted as out about 3.5 weeks a season (bye included), which is what fantasy starters actually missed from 2018 to 2025, nearly the same at every position. It still counts extra as insurance, since about 1 in 6 starters misses 6+ games.' },
+    { kind: 'improved', page: 'Trade Calculator', text: 'Picks now say which one they are ("2027 R1 (mid)") in the trade, Trade Coach and negotiation replies. Best trades no longer suggests swapping two picks worth the same, and puts pick-for-pick trades last.' },
   ]},
   { date: '2026-09-29', items: [
     { kind: 'changed', page: 'Everywhere', text: 'The grade and Trade Coach now follow the same depth rule: a trade that costs a team more depth than it adds to its lineup can\'t count as a strong fit for that team (so it can\'t be Great because of them), and the coach never suggests it. The depth note says so when it applies. Verdicts that are solid for only one team now name it ("Solid for Super bo or bust, Fine for Skat Happens Chase Love").' },

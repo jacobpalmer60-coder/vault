@@ -316,9 +316,15 @@ async function coachBest(me, progress) {
   progress('Checking which of those their managers would take…');
   await coachTick();
   const perPartner = new Map(), list = [];
-  pool.map(c => ({ c, j: negJudgeFor(me, c.giveA, c.partner, c.giveB, negContextFor(c.partner)) }))
+  // Pick-for-pick trades go last (they price almost even by construction), and a
+  // swap of picks worth the same (same year, round and tier) is dropped: it
+  // changes nothing.
+  const picksOnly = c => [...c.giveA, ...c.giveB].every(a => a.type === 'pick');
+  const sameValue = c => picksOnly(c) && Math.round(sumValue(c.giveA)) === Math.round(sumValue(c.giveB));
+  pool.filter(c => !sameValue(c))
+    .map(c => ({ c, j: negJudgeFor(me, c.giveA, c.partner, c.giveB, negContextFor(c.partner)) }))
     .filter(x => x.j.accepts && x.j.edge < VAULT_CONFIG.FAIR_PCT)
-    .sort((x, y) => x.j.edge - y.j.edge)
+    .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || x.j.edge - y.j.edge)
     .forEach(({ c, j }) => {
       const n = perPartner.get(c.partner.rosterId) || 0;
       if (n >= 2 || list.length >= 10) return;
@@ -783,7 +789,7 @@ function renderCoach() {
 function coachPieces(list) {
   return list.map(a => `<div class="flex items-center gap-1.5 min-w-0 py-0.5">
       <span class="text-[11px] font-semibold w-9 text-center rounded border shrink-0 ${POS_BADGE(a.type === 'pick' ? '' : a.pos)}">${a.type === 'pick' ? 'Pick' : a.pos}</span>
-      <span class="text-[13px] text-zinc-100 truncate min-w-0">${Vault.escapeHtml(a.name)}</span>
+      <span class="text-[13px] text-zinc-100 truncate min-w-0">${Vault.escapeHtml(a.name)}${a.type === 'pick' && a.tier ? ` <span class="text-zinc-500">${a.tier}</span>` : ''}</span>
       <span class="ml-auto pl-1 text-[12px] mono text-zinc-500 shrink-0">${Math.round(a.value).toLocaleString()}</span>
     </div>`).join('');
 }

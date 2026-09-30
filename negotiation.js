@@ -50,7 +50,8 @@ function negReset() {
 const negOther = s => (s === 'A' ? 'B' : 'A');
 const negAssets = (side, keys) => keys.map(k => teamOf(side).assets.find(a => a.key === k)).filter(Boolean);
 const negKeys = list => list.map(a => a.key);
-const negNames = list => list.map(a => Vault.escapeHtml(a.name)).join(', ') || 'nothing';
+// Picks say which one ("2027 R1 (late)"), so two picks of the same year and round read differently.
+const negNames = list => list.map(a => Vault.escapeHtml(a.name) + (a.type === 'pick' && a.tier ? ` (${a.tier})` : '')).join(', ') || 'nothing';
 
 // Who's offering: an explicit "who's offering" pick, else your team, else Team A.
 function negOfferingSide() {
