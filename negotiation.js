@@ -48,6 +48,7 @@ const Negotiation = { offering: null, rounds: [], styles: null, stylesLoading: n
 function negPreloadStyles() {
   if (Negotiation.styles || Negotiation.stylesLoading) return Negotiation.stylesLoading;
   Negotiation.stylesLoading = Vault.fetchAndGradeAllTrades(Vault.getLeagueId()).then(({ teams: gt, allGraded }) => {
+    Negotiation.graded = allGraded; // Trade Coach's Sell high reads who pays up for which positions
     const stats = Vault.buildManagerStats(allGraded, gt);
     const avg = stats.length ? stats.reduce((t, s) => t + s.trades, 0) / stats.length : 0;
     // How far behind each manager has actually accepted, on KTC value at the time

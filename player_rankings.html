@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=72fdea1d">
+<link rel="stylesheet" href="tailwind.css?v=20258996">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -119,7 +119,7 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
-<script src="market-data.js?v=1f2ccfe3"></script>
+<script src="market-data.js?v=10901892"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -293,7 +293,8 @@
   let chartRegistrySeq = 0;
   const chartRegistry = new Map();
 
-  function playerChart(rawSeries, field = 'value', decimals = 0, market = null) {
+  // market: Map(date -> { value, n }) for the dots; trend: Map(date -> value) for the 30-day line.
+  function playerChart(rawSeries, field = 'value', decimals = 0, market = null, trend = null) {
     const W = 460, H = 150, ML = 48, MR = 12, MT = 10, MB = 22;
     const plotW = W - ML - MR, plotH = H - MT - MB;
     // Not every date has every field — the value backfill (KTC) covers years
@@ -305,7 +306,7 @@
     const series = rawSeries.filter(p => Number.isFinite(p[field]));
     if (series.length < 1) return `<div class="text-[12px] text-zinc-400 py-6 text-center">Not enough data yet.</div>`;
     const vals = series.map(p => p[field]);
-    const mVals = market ? series.map(p => market.get(p.date)?.value).filter(Number.isFinite) : [];
+    const mVals = [...(market ? series.map(p => market.get(p.date)?.value) : []), ...(trend ? series.map(p => trend.get(p.date)) : [])].filter(Number.isFinite);
     const minV = Math.min(...vals, ...mVals), maxV = Math.max(...vals, ...mVals);
     const pad = (maxV - minV) * 0.1 || maxV * 0.1 || (decimals ? 1 : 100);
     const yMin = Math.max(0, minV - pad), yMax = maxV + pad;
@@ -339,13 +340,17 @@
     if (market) {
       const pts = series.map((p, i) => [i, market.get(p.date)]).filter(([, m]) => m && Number.isFinite(m.value));
       // Faint joins only between trade days within a week of each other, so a gap never reads as a trend.
-      marketLines = pts.slice(1).map(([i, m], k) => { const [j, prev] = pts[k]; return i - j <= 7 ? `<line x1="${x(j)}" y1="${y(prev.value)}" x2="${x(i)}" y2="${y(m.value)}" stroke="#fbbf24" stroke-opacity="0.35" stroke-width="1.25"/>` : ''; }).join('')
+      // The 30-day trend through the dots when there's enough to draw one, else faint joins between nearby dots.
+      const runs = [[]];
+      if (trend) series.forEach((p, i) => { const v = trend.get(p.date); if (Number.isFinite(v)) runs[runs.length - 1].push(`${x(i)},${y(v)}`); else if (runs[runs.length - 1].length) runs.push([]); });
+      const trendLine = runs.filter(r => r.length > 1).map(r => `<polyline points="${r.join(' ')}" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+      marketLines = (trendLine || pts.slice(1).map(([i, m], k) => { const [j, prev] = pts[k]; return i - j <= 7 ? `<line x1="${x(j)}" y1="${y(prev.value)}" x2="${x(i)}" y2="${y(m.value)}" stroke="#fbbf24" stroke-opacity="0.35" stroke-width="1.25"/>` : ''; }).join(''))
         + pts.map(([i, m]) => `<circle cx="${x(i)}" cy="${y(m.value)}" r="${Math.min(5, 2.5 + Math.log2(m.n))}" fill="#fbbf24" stroke="#0c0d10" stroke-width="1"/>`).join('');
     }
     // A transparent rect over the whole plot area catches mousemove anywhere
     // in the chart, not just exactly on a 2.5px-radius circle.
     const hoverRect = `<rect x="${ML}" y="${MT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>`;
-    const legend = market ? `<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded ${up ? 'bg-emerald-400' : 'bg-rose-400'}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market value: what managers paid for him that day (each dot is a day with completed trades)</span></div>` : '';
+    const legend = market ? `<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded ${up ? 'bg-emerald-400' : 'bg-rose-400'}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400"></span>What managers paid for him that day</span>${trend && trend.size ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market trend (30-day median)</span>' : ''}</div>` : '';
     return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" data-chart-id="${chartId}">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${marketLines}${hoverRect}${dateTicks}</svg>${legend}`;
   }
 
@@ -498,7 +503,9 @@
       line.forEach(([day, pct, n]) => prem.set(new Date(start + day * 864e5).toISOString().slice(0, 10), { pct, n }));
       const market = new Map();
       r.windowedSeries.forEach(p => { const m = prem.get(p.date); if (m && Number.isFinite(p.value)) market.set(p.date, { value: Math.round(p.value * (1 + m.pct / 100)), n: m.n }); });
-      if (market.size) chart.innerHTML = playerChart(r.windowedSeries, 'value', 0, market);
+      const pct = marketTrend(daily, r.norm, r.windowedSeries.map(p => p.date)), trend = new Map();
+      r.windowedSeries.forEach(p => { if (pct.has(p.date) && Number.isFinite(p.value)) trend.set(p.date, Math.round(p.value * (1 + pct.get(p.date) / 100))); });
+      if (market.size || trend.size) chart.innerHTML = playerChart(r.windowedSeries, 'value', 0, market, trend);
     });
     marketLoad(leagueObj).then(() => {
       if (document.getElementById('pcMarket') !== box) return; // a different card opened meanwhile

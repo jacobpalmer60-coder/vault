@@ -286,6 +286,11 @@ function coachSaleOffers(me, v, filter) {
    Kept only when you come out at least MARKET_MIN_GAIN % ahead on KTC value,
    i.e. you actually sell above or buy below KTC; most ahead first. */
 const MARKET_SELL_AT = 8, MARKET_BUY_AT = 8, MARKET_MIN_VALUE = 1500, MARKET_MIN_GAIN = 3, MARKET_SHOW = 10;
+// Sell high goes to the managers who pay up first: a partner whose league trades
+// show them paying PAYS_UP_AT % or more over market for a position (in PAYS_UP_MIN
+// trades or more, market-data.js marketOverpay) ranks that much higher for it
+// (up to PAYS_UP_MAX points), and the card says so.
+const PAYS_UP_AT = 8, PAYS_UP_MIN = 2, PAYS_UP_MAX = 15;
 async function coachMarket(me, progress, kind) {
   if (typeof marketAdj !== 'function' || !Market.data || Market.data.failed) return { empty: 'Market prices aren\'t loaded yet. Try again in a moment.' };
   const must = coachMust(me), off = coachOffLimits(me);
@@ -303,15 +308,19 @@ async function coachMarket(me, progress, kind) {
   };
   const list = [];
   if (kind === 'sell') {
+    const pays = Negotiation.graded ? marketOverpay(league, Negotiation.graded) : new Map();
+    const payUp = (partner, a) => { const c = pays.get(partner.rosterId)?.[a.type === 'pick' ? 'Pick' : a.pos]; return c && c.n >= PAYS_UP_MIN && c.avg >= PAYS_UP_AT ? c : null; };
     const highs = (must.length ? must : me.assets.filter(x => !off.has(x.key) && x.value >= 1000 && adj(x) >= MARKET_SELL_AT))
       .sort((x, y) => adj(y) * y.value - adj(x) * x.value).slice(0, 8);
     if (!highs.length) return { empty: `None of your players or picks sells for ${MARKET_SELL_AT}%+ over KTC in completed trades right now. Check back as more trades come in, or pick pieces under Sell these.` };
     for (const v of highs) {
       progress(`Selling ${v.name} high…`);
       await coachTick();
-      coachSaleOffers(me, v, () => true).map(o => ({ ...o, gain: gainOf(o) })).filter(o => o.gain >= MARKET_MIN_GAIN)
-        .sort((x, y) => y.gain - x.gain).slice(0, 3)
-        .forEach(o => list.push({ ...o, id: 'sell:' + v.key + '>' + o.partner.rosterId + ':' + negKeys(o.get).join(), why: why(o) }));
+      coachSaleOffers(me, v, () => true).map(o => ({ ...o, gain: gainOf(o), pay: payUp(o.partner, v) })).filter(o => o.gain >= MARKET_MIN_GAIN)
+        .map(o => ({ ...o, rank: o.gain + (o.pay ? Math.min(PAYS_UP_MAX, o.pay.avg) : 0) }))
+        .sort((x, y) => y.rank - x.rank).slice(0, 3)
+        .forEach(o => list.push({ ...o, id: 'sell:' + v.key + '>' + o.partner.rosterId + ':' + negKeys(o.get).join(),
+          why: why(o) + (o.pay ? ` ${Vault.escapeHtml(o.partner.teamName)} has paid about ${Math.round(o.pay.avg)}% over market for ${v.type === 'pick' ? 'picks' : v.pos + 's'} in your league (${o.pay.n} trades).` : '') }));
     }
     if (!list.length) return { empty: `No team would pay more than KTC value for ${highs.map(x => Vault.escapeHtml(x.name)).join(', ')} in a deal they'd likely take right now.` };
   } else {
@@ -330,7 +339,7 @@ async function coachMarket(me, progress, kind) {
   // The same trade can come up twice: keep it once; most ahead first.
   const seen = new Set();
   const unique = list.filter(o => { const k = negKeys(o.give).sort().join() + '>' + negKeys(o.get).sort().join(); if (seen.has(k)) return false; seen.add(k); return true; });
-  return { title: kind === 'sell' ? 'Sell high' : 'Buy low', list: unique.sort((x, y) => y.gain - x.gain).slice(0, MARKET_SHOW) };
+  return { title: kind === 'sell' ? 'Sell high' : 'Buy low', list: unique.sort((x, y) => (y.rank ?? y.gain) - (x.rank ?? x.gain)).slice(0, MARKET_SHOW) };
 }
 const coachSellHigh = (me, progress) => coachMarket(me, progress, 'sell');
 const coachBuyLow = (me, progress) => coachMarket(me, progress, 'buy');

@@ -6,7 +6,7 @@
 <title>Data Status — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=72fdea1d">
+<link rel="stylesheet" href="tailwind.css?v=20258996">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -173,7 +173,7 @@ async function crawl() {
       </div>
       <div class="min-w-0">
         <div class="text-[12px] text-zinc-400 mb-1.5">By season</div>
-        <table class="w-full text-[12px]"><tbody>${seasons.map(([s, v]) => `<tr class="border-t border-white/5 first:border-t-0"><td class="py-1 mono text-zinc-300">${esc(s)}</td><td class="py-1 text-right mono text-zinc-100">${n(v.trades)}</td><td class="py-1 text-right text-zinc-500">${n(v.leagues)} leagues</td></tr>`).join('')}</tbody></table>
+        <table class="w-full text-[12px]"><tbody>${seasons.map(([s, v]) => `<tr class="border-t border-white/5 first:border-t-0"><td class="py-1 mono text-zinc-300">${esc(s)}</td><td class="py-1 text-right mono text-zinc-100">${n(v.trades)}</td><td class="py-1 text-right text-zinc-500">${n(v.leagues)} leagues${v.rookieDrafts ? `, ${n(v.rookieDrafts)} rookie drafts` : ''}</td></tr>`).join('')}</tbody></table>
       </div>
     </div>`;
 }

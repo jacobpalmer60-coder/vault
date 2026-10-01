@@ -250,3 +250,52 @@ function marketNet(league, give, get) {
 function marketMoverText(m) {
   return `${Vault.escapeHtml(m.a.name)} trades about ${Math.abs(Math.round(m.adj))}% ${m.adj > 0 ? 'above' : 'below'} his KTC value`;
 }
+
+/* ---------- Market trend line (player card, Player Market, Compare) ----------
+   A smooth read through the day-by-day market points (data/market-history/
+   daily-<sf|oneQB>.json, [daysSinceFrom, pct, trades]): for each date, the
+   median paid over KTC in the TREND_DAYS days ending that day, weighted by
+   trades, when there are at least TREND_MIN of them. Returns Map(date -> pct);
+   multiply a day's KTC value by (1 + pct / 100) for the line. */
+const TREND_DAYS = 30, TREND_MIN = 5;
+function marketTrend(daily, key, dates) {
+  const pts = daily?.players?.[key];
+  const out = new Map();
+  if (!pts || !pts.length || !daily.from) return out;
+  const start = new Date(daily.from + 'T00:00:00Z').getTime();
+  const sorted = [...pts].sort((a, b) => a[0] - b[0]);
+  let lo = 0, hi = 0;
+  dates.forEach(date => {
+    const day = Math.round((new Date(date + 'T00:00:00Z').getTime() - start) / 864e5);
+    while (hi < sorted.length && sorted[hi][0] <= day) hi++;
+    while (lo < hi && sorted[lo][0] <= day - TREND_DAYS) lo++;
+    const win = sorted.slice(lo, hi), total = win.reduce((t, p) => t + p[2], 0);
+    if (total < TREND_MIN) return;
+    const byPct = [...win].sort((a, b) => a[1] - b[1]);
+    let seen = 0;
+    for (const p of byPct) { seen += p[2]; if (seen >= total / 2) { out.set(date, p[1]); break; } }
+  });
+  return out;
+}
+
+/* ---------- Who pays up, by position (Managers, Trade Coach's Sell high) ----------
+   For every completed trade in a league (Vault.fetchAndGradeAllTrades), how
+   much each manager paid over market for what they got: their side's %
+   behind at market prices (marketEdge on today's values, consolidation
+   held; + = paid more than it's worth), filed under the position of the best
+   piece they got ('Pick' for picks). Map(rosterId -> { pos: { n, avg } }).
+   Today's market read applied to every trade, not the market on its day. */
+function marketOverpay(league, allGraded) {
+  const out = new Map();
+  const top = list => list.reduce((m, a) => (a.value > m.value ? a : m));
+  const posOf = a => (a.type === 'pick' ? 'Pick' : a.pos);
+  (allGraded || []).forEach(g => {
+    if (!g.toAToday?.length || !g.toBToday?.length) return;
+    const aEdge = marketEdge(league, g.toBToday, g.toAToday).market; // + = team A came out ahead at market
+    [[g.teamA.rosterId, g.toAToday, -aEdge], [g.teamB.rosterId, g.toBToday, aEdge]].forEach(([id, got, paid]) => {
+      const pos = posOf(top(got)), row = out.get(id) || out.set(id, {}).get(id), cell = (row[pos] ||= { n: 0, sum: 0 });
+      cell.n++; cell.sum += paid; cell.avg = cell.sum / cell.n;
+    });
+  });
+  return out;
+}

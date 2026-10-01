@@ -1,5 +1,6 @@
 /* ============================================================
    CRAWL SLEEPER TRADES
+   (Also each league-season's completed rookie drafts: fetchRookieDrafts.)
    KTC's trade database only goes back a few days, so this builds a longer
    history from Sleeper, where every league's trades are public by league
    id. Leagues come from two places:
@@ -120,8 +121,30 @@ async function crawlLeague(state, id, nfl) {
   const deadline = +league.settings?.trade_deadline || 99;
   const lastWeek = Math.min(deadline, season < nfl.season ? 18 : Math.max(1, Math.min(18, nfl.week)));
   if (!(await fetchWeeks(id, season, 1, lastWeek))) { if (stopped || calls >= CALL_BUDGET) { delete state.seenLeagues[id]; state.leagues.unshift(id); } return; }
+  await fetchRookieDrafts(id, season);
   // This season's leagues keep trading: come back for the new weeks (revisitDue).
   if (season === nfl.season && lastWeek < deadline) state.revisit[id] = { week: lastWeek, at: today(), dl: deadline };
+}
+
+/* The league's completed rookie drafts that season (ROOKIE_MAX_ROUNDS rounds or
+   fewer, so startup drafts are skipped): who went where, for real rookie
+   draft prices. Saved in the season file as
+     drafts: { draftHash: [date 'YYYY-MM-DD', leagueHash, teams, [[pickNo, round, sleeperId], ...]] }
+   Usually 2 calls (the draft list, then its picks). */
+const ROOKIE_MAX_ROUNDS = 6;
+async function fetchRookieDrafts(id, season) {
+  const doc = seasonDoc(season), lh = hash(id);
+  doc.drafts ||= {};
+  const drafts = await get(`/league/${id}/drafts`);
+  for (const d of drafts || []) {
+    const dh = hash(d.draft_id);
+    if (d.status !== 'complete' || !(+d.settings?.rounds <= ROOKIE_MAX_ROUNDS) || doc.drafts[dh]) continue;
+    const picks = await get(`/draft/${d.draft_id}/picks`);
+    if (!picks) return;
+    const when = d.last_picked || d.start_time;
+    const rows = picks.filter(p => p.player_id && p.pick_no && p.round).map(p => [p.pick_no, p.round, String(p.player_id)]);
+    if (rows.length && when) doc.drafts[dh] = [new Date(when).toISOString().slice(0, 10), lh, +d.settings?.teams || rows.filter(r => r[1] === 1).length, rows];
+  }
 }
 
 // One league's trades for weeks from..to; false if a call failed partway.
@@ -228,7 +251,7 @@ function writeStats(state, run) {
     const doc = seasonFiles.get(+f.slice(0, 4)) || loadGz(path.join(OUT, f), null);
     if (!doc) return;
     const t = Object.keys(doc.trades).length, l = Object.keys(doc.leagues).length;
-    seasons[doc.season] = { trades: t, leagues: l };
+    seasons[doc.season] = { trades: t, leagues: l, rookieDrafts: Object.keys(doc.drafts || {}).length };
     trades += t; leagues += l;
   });
   const newTrades = trades - (prev.totals?.trades || 0);

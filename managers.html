@@ -6,7 +6,7 @@
 <title>Managers — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=72fdea1d">
+<link rel="stylesheet" href="tailwind.css?v=20258996">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -27,13 +27,15 @@
   </p>
 
   <div id="summary" class="hidden mb-8"></div>
+  <!-- Who pays up: what each manager has paid over (or under) market, by the position of what they got. -->
+  <div id="paysUp" class="hidden mb-8"></div>
   <div id="grid" class="grid md:grid-cols-2 gap-5"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
-<script src="market-data.js?v=1f2ccfe3"></script>
+<script src="market-data.js?v=10901892"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
@@ -245,6 +247,34 @@ function marketLine(rows) {
   return `<div class="text-[12px] text-zinc-400 mb-2">At what players actually go for, <span class="text-emerald-300">${Vault.escapeHtml(top.teamName)}</span> has traded best (${pts(top.netMarket)} across ${top.trades} trade${top.trades === 1 ? '' : 's'}) and <span class="text-amber-300">${Vault.escapeHtml(low.teamName)}</span> has given up the most (${pts(low.netMarket)}). See the Market columns.</div>`;
 }
 
+/* ---------- Who pays up ----------
+   market-data.js marketOverpay: in this league's trades, how much each
+   manager paid over market (+) or got a bargain (−), filed under the
+   position of the best piece they got. Trade Coach's Sell high sends your
+   players to the managers who pay up for their position first. */
+const PAYS_POS = ['QB', 'RB', 'WR', 'TE', 'Pick'];
+function renderPaysUp(stats, allGraded, league) {
+  const box = document.getElementById('paysUp');
+  const pays = marketOverpay(league, allGraded);
+  const rows = stats.filter(s => s.trades && pays.get(s.rosterId));
+  if (!rows.length) { box.classList.add('hidden'); return; }
+  const cell = c => {
+    if (!c) return '<span class="text-zinc-600">—</span>';
+    const v = Math.round(c.avg), tone = Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-amber-300' : 'text-sky-300';
+    return `<span class="mono ${tone} ${c.n < 2 ? 'opacity-60' : ''}" title="${c.n} trade${c.n === 1 ? '' : 's'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}%</span> <span class="text-[11px] text-zinc-500">(${c.n})</span>`;
+  };
+  box.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Who pays up</div>
+    <div class="card rounded-vault-sm overflow-hidden">
+      <div class="px-4 pt-3 text-[12px] text-zinc-400 leading-relaxed">What each manager paid over market (<span class="text-amber-300">+</span>) or got as a bargain (<span class="text-sky-300">−</span>) in this league's trades, by the position of the best piece they got. Managers who pay up are who to sell to: Trade Coach's Sell high puts them first.</div>
+      <div class="overflow-x-auto"><table class="w-full text-[13px] min-w-[560px]">
+        <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left px-4 py-2.5">Manager</th>${PAYS_POS.map(p => `<th class="text-right px-3 py-2.5">${p === 'Pick' ? 'Picks' : p}</th>`).join('')}</tr></thead>
+        <tbody class="divide-y divide-white/5">${rows.map(s => `<tr><td class="px-4 py-2.5 text-zinc-100">${Vault.escapeHtml(s.teamName)}</td>${PAYS_POS.map(p => `<td class="px-3 py-2.5 text-right whitespace-nowrap">${cell(pays.get(s.rosterId)[p])}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>
+      <div class="px-4 pb-3 text-[11px] text-zinc-500">(n) = trades. Faded: only one trade. Today's market prices applied to every trade.</div>
+    </div>`;
+  box.classList.remove('hidden');
+}
+
 async function init() {
   const status = document.getElementById('status');
   try {
@@ -261,6 +291,7 @@ async function init() {
       if (!Market.data || Market.data.failed) return;
       addMarketStats(stats, allGraded, league);
       renderSummaryTable(glanceData.rows, glanceData.teams);
+      renderPaysUp(stats, allGraded, league);
     });
   } catch (e) {
     console.error(e);

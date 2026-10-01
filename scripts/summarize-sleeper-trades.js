@@ -41,6 +41,18 @@
    how many trades it's from. Premium = what the getter sent / what his side
    was worth, both consolidation-adjusted, minus 1, as a whole-number %:
      { from: 'YYYY-MM-DD', players: { normalizedName: [[daysSinceFrom, pct, trades], ...] } }
+   and data/market-history/rookies-<sf|oneQB>.json, from the crawl's rookie
+   drafts (crawl-sleeper-trades.js fetchRookieDrafts), per rookie class
+   (the league season) with at least ROOKIE_MIN_DRAFTS drafts:
+     { updated, seasons: { 'YYYY': { drafts,
+         players: [[sleeperId, name, pos, drafts, median, earliest, latest]],
+         buys: { '<round>-<early|mid|late>': [players, medianKtcValue] } } } }
+   A draft position is in rounds from the first pick, (round - 1) +
+   (slot - 1) / teams, so leagues of any size line up (0.25 = a quarter of
+   the way through round 1, "1.04" in a 12-team league). Players taken in at
+   least ROOKIE_MIN_PICKS drafts. "buys": the KTC value, on the draft's own
+   day in its league's format, of the players taken at each round's early /
+   mid / late third, as a median: what that pick actually bought.
    Summaries use lib-market.js, the same math as the KTC snapshot.
    ============================================================ */
 const fs = require('fs');
@@ -53,6 +65,7 @@ const IN = path.join(DATA, 'sleeper-trades');
 const OUT = path.join(DATA, 'market-history');
 const LOOKBACK = 14; // a missing day's price falls back to the last one within two weeks
 const RECENT_DAYS = 95, RECENT_MAX = 30000;
+const ROOKIE_MIN_DRAFTS = 5, ROOKIE_MIN_PICKS = 3, ROOKIE_SHOW = 96;
 
 const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 const tepSuffix = b => (b < 0.25 ? '' : b < 0.75 ? '_tep' : '_tepp'); // mirrors Vault.ktcTepSuffix
@@ -114,9 +127,10 @@ function main() {
   const negligible = id => (id[0] === 'p' ? +id.split('-')[1] >= 5 : ['K', 'DEF'].includes(sleeper[id]?.position));
 
   // Every crawled trade, grouped by its league's price format.
-  const byFormat = new Map(), leagues = new Map();
+  const byFormat = new Map(), leagues = new Map(), docs = [];
   files.forEach(f => {
     const doc = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(IN, f))).toString('utf8'));
+    docs.push(doc);
     Object.values(doc.trades).forEach(([date, lh, a, b]) => {
       const fmt = doc.leagues[lh];
       if (!fmt) return;
@@ -193,6 +207,41 @@ function main() {
     });
     fs.writeFileSync(path.join(OUT, `daily-${qb}.json`), JSON.stringify({ from, players }));
     console.log(`daily-${qb}: market points for ${Object.keys(players).length} players`);
+  });
+
+  // Rookie drafts: where each rookie went, and what each pick slot bought.
+  const priceCache = new Map(), pricesFor = f => priceCache.get(f) || priceCache.set(f, playerPrices(f)).get(f);
+  const rookies = { sf: new Map(), oneQB: new Map() };
+  const med = l => { const s = [...l].sort((a, b) => a - b); return s[Math.floor((s.length - 1) / 2)]; };
+  docs.forEach(doc => Object.values(doc.drafts || {}).forEach(([date, lh, teams, picks]) => {
+    const fmt = doc.leagues[lh];
+    if (!fmt || !teams) return;
+    const qb = fmt[0] === 2 ? 'sf' : 'oneQB', format = qb + tepSuffix(fmt[1]), season = String(doc.season);
+    const S = rookies[qb].get(season) || rookies[qb].set(season, { drafts: 0, players: new Map(), buys: new Map() }).get(season);
+    S.drafts++;
+    picks.forEach(([no, round, pid]) => {
+      const slot = no - (round - 1) * teams;
+      if (slot < 1 || slot > teams) return;
+      (S.players.get(pid) || S.players.set(pid, []).get(pid)).push((round - 1) + (slot - 1) / teams);
+      const pl = sleeper[pid], value = pl && pricesFor(format).at(normalizeName(`${pl.first_name || ''} ${pl.last_name || ''}`.trim()), date);
+      const tier = slot <= teams / 3 ? 'early' : slot <= (2 * teams) / 3 ? 'mid' : 'late';
+      if (value) (S.buys.get(`${round}-${tier}`) || S.buys.set(`${round}-${tier}`, []).get(`${round}-${tier}`)).push(value);
+    });
+  }));
+  Object.entries(rookies).forEach(([qb, bySeason]) => {
+    const seasons = {};
+    bySeason.forEach((S, season) => {
+      if (S.drafts < ROOKIE_MIN_DRAFTS) return;
+      const players = [...S.players.entries()].filter(([, l]) => l.length >= ROOKIE_MIN_PICKS).map(([pid, l]) => {
+        const pl = sleeper[pid] || {};
+        return [pid, `${pl.first_name || ''} ${pl.last_name || ''}`.trim(), pl.position || '', l.length, +med(l).toFixed(3), +Math.min(...l).toFixed(3), +Math.max(...l).toFixed(3)];
+      }).sort((a, b) => a[4] - b[4]).slice(0, ROOKIE_SHOW);
+      const buys = {};
+      S.buys.forEach((vals, k) => { buys[k] = [vals.length, Math.round(med(vals))]; });
+      seasons[season] = { drafts: S.drafts, players, buys };
+    });
+    fs.writeFileSync(path.join(OUT, `rookies-${qb}.json`), JSON.stringify({ updated: new Date().toISOString(), seasons }));
+    console.log(`rookies-${qb}: ${Object.entries(seasons).map(([s, v]) => `${s} (${v.drafts} drafts)`).join(', ') || 'none yet'}`);
   });
 
   // Recent trades for the pages to pool with KTC's feed, with names for the players in them.

@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=72fdea1d">
+<link rel="stylesheet" href="tailwind.css?v=20258996">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -36,6 +36,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'new', page: 'Player Market', text: 'Rookie drafts: where each rookie actually went in Sleeper dynasty rookie drafts in your QB format (his typical pick shown as in a 12-team draft, e.g. "1.04", with his earliest and latest), and what each pick slot bought: the KTC value on draft day of the players taken in each round\'s first, middle and last third (2026: an early 1st bought a median 5,728, a late 1st 3,580). One rookie class at a time; it fills in as more leagues are collected.' },
+    { kind: 'new', page: 'Managers', text: 'Who pays up: a table of what each manager has paid over market (or gotten as a bargain) in your league\'s trades, by the position of the best piece they got (e.g. Salt Factory +23% for RBs). Trade Coach\'s Sell high now goes to the managers who pay up for a player\'s position first, and the card says so ("Salt Factory has paid about 23% over market for RBs in your league").' },
+    { kind: 'improved', page: 'Player Market', text: 'Market trend lines: through the day-by-day dots, a line for the 30-day median of what managers paid (once there are 5+ trades in the window), on the player card, the Player Market lookup and Compare Players (dotted, in each player\'s color), so you can see whether the market is warming or cooling on him at a glance.' },
     { kind: 'new', page: 'Trade Grades', text: 'At market: each past trade now has a third grade under At the trade and Today, the same trade with every piece priced at what it actually goes for in completed trades (roster fit and timeline as in Today), so you can see which deals look better or worse once the market is counted.' },
     { kind: 'new', page: 'League Overview', text: 'This week on the Your market card: which of your players and picks moved most in what managers pay against KTC (the last 7 days against the 30 before), e.g. "Nico Collins ▲ +6 pts". It shows once there are enough completed trades to call it a move (3+ this week, 5+ before).' },
     { kind: 'new', page: 'Compare Players', text: 'The value chart now shows what managers paid: an open dot in each player\'s color for every day he headlined a completed trade, next to his KTC line. Hover for both numbers.' },

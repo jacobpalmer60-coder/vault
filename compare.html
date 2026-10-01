@@ -6,7 +6,7 @@
 <title>Compare Players — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=72fdea1d">
+<link rel="stylesheet" href="tailwind.css?v=20258996">
 <style>
   /* Up to four series, in the dataviz reference order for dark surfaces
      (blue, orange, aqua, yellow), validated on this card surface for adjacent
@@ -103,6 +103,7 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="market-data.js?v=10901892"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -384,12 +385,18 @@ function renderChart() {
     series[s].forEach((pt, i) => { const m = byDate.get(pt.date); if (m && pt.v != null) out.set(i, { v: Math.round(pt.v * (1 + m.pct / 100)), n: m.n }); });
     return out;
   });
-  const anyMarket = market.some(mp => mp.size);
+  // Each player's 30-day market trend (market-data.js marketTrend), on the KTC value of each day.
+  const trends = ps.map((p, s) => {
+    const pct = marketDaily ? marketTrend(marketDaily, p.norm, dates) : new Map();
+    return series[s].map(pt => (pct.has(pt.date) && pt.v != null ? Math.round(pt.v * (1 + pct.get(pt.date) / 100)) : null));
+  });
+  const anyMarket = market.some(mp => mp.size), anyTrend = trends.some(t => t.some(v => v != null));
   if (!customRange && dates.length) { $('dateFrom').value = dates[0]; $('dateTo').value = dates[dates.length - 1]; }
-  const vals = [...series.flat().map(x => x.v), ...market.flatMap(mp => [...mp.values()].map(m => m.v))].filter(v => v != null);
+  const vals = [...series.flat().map(x => x.v), ...market.flatMap(mp => [...mp.values()].map(m => m.v)), ...trends.flat()].filter(v => v != null);
 
   $('legend').innerHTML = ps.map((p, i) => `<span class="inline-flex items-center gap-2">${legendMark(i)}${Vault.escapeHtml(p.name)}</span>`).join('')
-    + (anyMarket ? '<span class="inline-flex items-center gap-2 text-zinc-400"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="none" stroke="#a1a1aa" stroke-width="1.5"/></svg>Open dots: what managers paid that day (completed trades)</span>' : '');
+    + (anyMarket ? '<span class="inline-flex items-center gap-2 text-zinc-400"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="none" stroke="#a1a1aa" stroke-width="1.5"/></svg>Open dots: what managers paid that day (completed trades)</span>' : '')
+    + (anyTrend ? '<span class="inline-flex items-center gap-2 text-zinc-400"><svg width="18" height="10" aria-hidden="true"><line x1="1" y1="5" x2="17" y2="5" stroke="#a1a1aa" stroke-width="1.75" stroke-dasharray="1 3" stroke-linecap="round"/></svg>Dotted: market trend (30-day median)</span>' : '');
   const svg = $('chart'), wrap = $('chartWrap');
   // Drawn at the real container width so text never gets scaled below 11px.
   const W = Math.max(240, wrap.clientWidth), H = W < 500 ? 230 : 290;
@@ -425,6 +432,7 @@ function renderChart() {
   if (overflow > 0) ends.forEach(e => { e.y -= overflow; });
   svg.innerHTML = `${grid.join('')}
     ${series.map((ser, i) => `<path d="${path(ser)}" fill="none" stroke="var(--p${i + 1})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" ${DASH[i] ? `stroke-dasharray="${DASH[i]}"` : ''}/>`).join('')}
+    ${trends.map((t, s) => `<path d="${path(t.map(v => ({ v })))}" fill="none" stroke="var(--p${s + 1})" stroke-width="1.75" stroke-dasharray="1 3" stroke-linecap="round" opacity="0.85"/>`).join('')}
     ${market.map((mp, s) => [...mp.entries()].map(([i, m]) => `<circle cx="${x(i).toFixed(1)}" cy="${y(m.v).toFixed(1)}" r="${Math.min(5.5, 3 + Math.log2(m.n)).toFixed(1)}" fill="none" stroke="var(--p${s + 1})" stroke-width="1.75"/>`).join('')).join('')}
     ${ends.map(e => `<text x="${e.x}" y="${e.y}" fill="#e4e4e7" font-size="11">${Vault.escapeHtml(ps[e.i].name.split(' ').slice(-1)[0])}</text>`).join('')}
     <line id="xhair" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" stroke="rgba(255,255,255,0.25)" visibility="hidden"/>

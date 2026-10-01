@@ -6,7 +6,7 @@
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=72fdea1d">
+<link rel="stylesheet" href="tailwind.css?v=20258996">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -65,6 +65,18 @@
     <div id="moversBody" class="px-5 pb-5"></div>
   </details>
 
+  <!-- Rookie drafts: where each rookie actually went, and what each pick slot bought. -->
+  <section id="rookies" class="card rounded-vault-sm mb-6 p-5">
+    <div class="flex items-baseline justify-between gap-3 flex-wrap">
+      <div>
+        <h2 class="text-[16px] font-semibold text-zinc-100">Rookie drafts</h2>
+        <p id="rookiesSub" class="text-[12px] text-zinc-400 mt-0.5">Where each rookie actually went in Sleeper dynasty rookie drafts, and what each pick slot bought.</p>
+      </div>
+      <div id="rookieSeasons" class="flex gap-1.5"></div>
+    </div>
+    <div id="rookiesBody" class="mt-3"></div>
+  </section>
+
   <!-- Every player KTC prices, ranked by market value (what managers pay), sortable. -->
   <section class="card rounded-vault-sm mb-6 p-5">
     <h2 class="text-[16px] font-semibold text-zinc-100">All players by market</h2>
@@ -85,7 +97,7 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
-<script src="market-data.js?v=1f2ccfe3"></script>
+<script src="market-data.js?v=10901892"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -231,6 +243,7 @@ async function lookUp(norm) {
   if (!who) { box.textContent = 'No KTC value for that player.'; return; }
   box.innerHTML = '<div class="text-zinc-500">Loading his history…</div>';
   const isPick = who.pos === 'Pick';
+  await marketLoad(league); // today's market value in the header (a ?p= link can arrive before the rest of the page loads it)
   if (isPick && !pickHistory) { pickHistoryLoading ||= Vault.fetchPickValueHistory(); pickHistory = await pickHistoryLoading; }
   if (!isPick && !history) { historyLoading ||= Vault.fetchPlayerValueHistory(isSF, bonusTe); history = await historyLoading; }
   if (lookupNorm !== norm) return; // another player was picked meanwhile
@@ -239,6 +252,9 @@ async function lookUp(norm) {
   const series = ((isPick ? pickHistory : history).snapshots || []).filter(s => s.date >= cutoff).map(s => ({ date: s.date, value: Vault.resolveHistoricalValue(entryOf(s), isSF, bonusTe) })).filter(p => Number.isFinite(p.value));
   const prem = new Map((daily?.players[norm] || []).map(([d, pct, n]) => [dayDate(d), { pct, n }]));
   const market = series.map((p, i) => { const m = prem.get(p.date); return m ? { i, date: p.date, value: Math.round(p.value * (1 + m.pct / 100)), pct: m.pct, n: m.n } : null; }).filter(Boolean);
+  // The 30-day market trend through the dots (market-data.js marketTrend).
+  const trendPct = daily ? marketTrend(daily, norm, series.map(p => p.date)) : new Map();
+  const trend = series.map((p, i) => (trendPct.has(p.date) ? { i, value: Math.round(p.value * (1 + trendPct.get(p.date) / 100)), pct: trendPct.get(p.date) } : null));
   // Today's market value (as on the player card and in the table).
   const mp = marketPlayer(league, who.key || who.name, who.pos), read = mp.read;
   const head = `<div class="flex items-center gap-2 flex-wrap mb-2">
@@ -248,26 +264,30 @@ async function lookUp(norm) {
     </div>`;
   if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
   const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
-  const all = [...series.map(p => p.value), ...market.map(m => m.value)];
+  const all = [...series.map(p => p.value), ...market.map(m => m.value), ...trend.filter(Boolean).map(t => t.value)];
   const lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * 0.08 || hi * 0.1;
   const yMin = Math.max(0, lo - pad), yMax = hi + pad;
   const x = i => ML + i / (series.length - 1) * pw, y = v => MT + ph - (v - yMin) / (yMax - yMin) * ph;
   const up = series[series.length - 1].value >= series[0].value, lineColor = up ? '#34d399' : '#f87171';
   const grid = [0, 0.5, 1].map(f => { const v = yMin + (yMax - yMin) * f; return `<line x1="${ML}" x2="${W - MR}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" class="text-white/[0.06]"/><text x="${ML - 6}" y="${y(v) + 3}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${Math.round(v).toLocaleString()}</text>`; }).join('');
-  const joins = market.slice(1).map((m, k) => (m.i - market[k].i <= 7 ? `<line x1="${x(market[k].i)}" y1="${y(market[k].value)}" x2="${x(m.i)}" y2="${y(m.value)}" stroke="#fbbf24" stroke-opacity="0.35" stroke-width="1.25"/>` : '')).join('');
+  const runs = [[]];
+  trend.forEach(t => { if (t) runs[runs.length - 1].push(`${x(t.i)},${y(t.value)}`); else if (runs[runs.length - 1].length) runs.push([]); });
+  const trendLine = runs.filter(r => r.length > 1).map(r => `<polyline points="${r.join(' ')}" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+  const joins = trendLine || market.slice(1).map((m, k) => (m.i - market[k].i <= 7 ? `<line x1="${x(market[k].i)}" y1="${y(market[k].value)}" x2="${x(m.i)}" y2="${y(m.value)}" stroke="#fbbf24" stroke-opacity="0.35" stroke-width="1.25"/>` : '')).join('');
   const dots = market.map(m => `<circle cx="${x(m.i)}" cy="${y(m.value)}" r="${Math.min(5.5, 2.5 + Math.log2(m.n))}" fill="#fbbf24" stroke="#0c0d10" stroke-width="1"/>`).join('');
   box.innerHTML = head + `<svg id="lookupChart" viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${esc(who.name)}: KTC value and market points">${grid}
       <polyline points="${series.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/>${joins}${dots}
       <text x="${ML}" y="${H - 6}" font-size="10" fill="currentColor" class="text-zinc-400">${series[0].date}</text><text x="${W - MR}" y="${H - 6}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${series[series.length - 1].date}</text>
       <rect x="${ML}" y="${MT}" width="${pw}" height="${ph}" fill="transparent" style="cursor:crosshair"/></svg>
-    <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded" style="background:${lineColor}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400"></span>What managers paid that day (bigger dot, more trades)</span>${market.length ? '' : '<span class="text-zinc-500">No completed trades with him as the main piece in this range yet.</span>'}</div>`;
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded" style="background:${lineColor}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400"></span>What managers paid that day (bigger dot, more trades)</span>${trendLine ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market trend (30-day median)</span>' : ''}${market.length ? '' : '<span class="text-zinc-500">No completed trades with him as the main piece in this range yet.</span>'}</div>`;
   const svg = document.getElementById('lookupChart'), byI = new Map(market.map(m => [m.i, m]));
   svg.addEventListener('mousemove', e => {
     const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) / r.width * W;
     const i = Math.max(0, Math.min(series.length - 1, Math.round((sx - ML) / pw * (series.length - 1))));
     let near = null; for (let k = 0; k <= 3 && !near; k++) near = byI.get(i + k) || byI.get(i - k) || null;
     const p = series[near ? near.i : i];
-    placeTip(e, `<div class="text-zinc-400">${p.date}</div><div class="mono">KTC ${Math.round(p.value).toLocaleString()}</div>${near ? `<div class="mono text-amber-300">Paid ${near.value.toLocaleString()} <span class="text-zinc-400">(${signed(near.pct)}, ${near.n} trade${near.n === 1 ? '' : 's'})</span></div>` : ''}`);
+    const tr = trend[near ? near.i : i];
+    placeTip(e, `<div class="text-zinc-400">${p.date}</div><div class="mono">KTC ${Math.round(p.value).toLocaleString()}</div>${tr ? `<div class="mono text-amber-200/80">Trend ${tr.value.toLocaleString()} <span class="text-zinc-400">(${signed(tr.pct)})</span></div>` : ''}${near ? `<div class="mono text-amber-300">Paid ${near.value.toLocaleString()} <span class="text-zinc-400">(${signed(near.pct)}, ${near.n} trade${near.n === 1 ? '' : 's'})</span></div>` : ''}`);
   });
   svg.addEventListener('mouseleave', hideTip);
 }
@@ -393,6 +413,48 @@ function drawAll() {
 // From a table row: chart the player at the top of the page.
 function openLookup(enc) { lookUp(decodeURIComponent(enc)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
+/* ---------- Rookie drafts ----------
+   data/market-history/rookies-<sf|oneQB>.json (scripts/summarize-sleeper-
+   trades.js): per rookie class, each rookie's typical draft position in
+   rounds from the first pick (0.25 = a quarter through round 1), shown as a
+   12-team pick ("1.04"), and the KTC value on draft day of the players taken
+   at each round's early / mid / late third: what that pick actually bought. */
+let rookieDoc = null, rookieSeason = null;
+const pickLabel = r => { const round = Math.floor(r + 1e-9), slot = Math.min(12, Math.round((r - round) * 12) + 1); return `${round + 1}.${String(slot).padStart(2, '0')}`; };
+function renderRookies() {
+  const box = document.getElementById('rookiesBody'), seasons = Object.keys(rookieDoc?.seasons || {}).sort().reverse();
+  if (!seasons.length) { document.getElementById('rookieSeasons').innerHTML = ''; box.innerHTML = collecting('Rookie classes appear once at least 5 leagues\' rookie drafts in your QB format are in.'); return; }
+  rookieSeason = seasons.includes(rookieSeason) ? rookieSeason : seasons[0];
+  document.getElementById('rookieSeasons').innerHTML = seasons.map(s => `<button onclick="rookieSeason='${s}'; renderRookies()" aria-pressed="${s === rookieSeason}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${s === rookieSeason ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${s}</button>`).join('');
+  const S = rookieDoc.seasons[rookieSeason];
+  const rows = S.players.map(([pid, name, pos, n, mid, lo, hi], i) => {
+    const today = byNorm.get(Vault.normalizeName(name));
+    return `<tr class="border-t border-white/5${today ? ' hover:bg-white/[0.02] cursor-pointer' : ''}" ${today ? `onclick="openLookup('${encodeURIComponent(Vault.normalizeName(name))}')"` : ''}>
+        <td class="py-1.5 pr-3 text-right mono text-zinc-500">${i + 1}</td>
+        <td class="py-1.5 pr-3"><span class="inline-flex items-center gap-2"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(pos)}">${esc(pos || '—')}</span><span class="text-zinc-100">${esc(name)}</span></span></td>
+        <td class="py-1.5 pr-3 text-right mono text-zinc-100">${pickLabel(mid)}</td>
+        <td class="py-1.5 pr-3 text-right mono text-zinc-400 whitespace-nowrap">${pickLabel(lo)}–${pickLabel(hi)}</td>
+        <td class="py-1.5 pr-3 text-right mono text-zinc-400">${n}</td>
+        <td class="py-1.5 text-right mono text-zinc-300">${today ? Vault.fmtInt(today.value) : '—'}</td>
+      </tr>`;
+  }).join('');
+  const tiers = ['early', 'mid', 'late'], rounds = [1, 2, 3, 4].filter(r => tiers.some(t => S.buys[`${r}-${t}`]));
+  const buys = `<table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 text-left">Round</th>${tiers.map(t => `<th class="font-normal pb-2 text-right capitalize">${t}</th>`).join('')}</tr></thead>
+    <tbody>${rounds.map(r => `<tr class="border-t border-white/5"><td class="py-1.5 text-zinc-300">${ORD(r)}</td>${tiers.map(t => { const b = S.buys[`${r}-${t}`]; return `<td class="py-1.5 text-right mono ${b ? 'text-zinc-100' : 'text-zinc-600'}" title="${b ? b[0] + ' players' : ''}">${b ? Vault.fmtInt(b[1]) : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
+  document.getElementById('rookiesSub').textContent = `Where each ${rookieSeason} rookie actually went in ${S.drafts} Sleeper dynasty rookie drafts in your QB format, and what each pick slot bought.`;
+  box.innerHTML = `<div class="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4">
+      <div class="min-w-0 overflow-x-auto max-h-[420px] overflow-y-auto scrollbar"><table class="w-full text-[12px]">
+        <thead class="sticky top-0 bg-[#14161a]"><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 pr-3 text-right">#</th><th class="font-normal pb-2 pr-3 text-left">Rookie</th><th class="font-normal pb-2 pr-3 text-right" title="Typical pick, as in a 12-team draft">Pick</th><th class="font-normal pb-2 pr-3 text-right">Range</th><th class="font-normal pb-2 pr-3 text-right">Drafts</th><th class="font-normal pb-2 text-right">KTC now</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <div class="min-w-0">
+        <div class="text-[13px] font-medium text-zinc-200">What each pick bought</div>
+        <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">KTC value, on draft day, of the players taken in each round's first, middle and last third (median).</div>
+        ${buys}
+      </div>
+    </div>
+    <div class="text-[11px] text-zinc-500 mt-2">Pick: each rookie's median spot across drafts, shown as in a 12-team draft. Range: his earliest to latest. Click a rookie to chart him.</div>`;
+}
+
 async function init() {
   const status = document.getElementById('status');
   try {
@@ -402,9 +464,10 @@ async function init() {
     sig = Vault.tradeFormatSig(league);
     isSF = sig.qbs === 2; bonusTe = league.scoring_settings?.bonus_rec_te;
     valueField = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusTe);
-    const [ktc, dailyDoc] = await Promise.all([
+    const [ktc, dailyDoc, rookiesDoc] = await Promise.all([
       Vault.fetchKtcValues(),
-      fetch(`data/market-history/daily-${isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null)
+      fetch(`data/market-history/daily-${isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetch(`data/market-history/rookies-${isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null)
     ]);
     daily = dailyDoc && dailyDoc.from && Object.keys(dailyDoc.players || {}).length ? dailyDoc : null;
     const playerMap = new Map();
@@ -433,6 +496,8 @@ async function init() {
     // ?p=<normalized name or k:season-round> (from League Overview's Your market) charts it.
     const want = new URLSearchParams(location.search).get('p');
     if (want && byNorm.has(want)) lookUp(want);
+    rookieDoc = rookiesDoc;
+    renderRookies();
     renderPositions();
     renderMoves();
     await renderMovers(league, playerMap);
