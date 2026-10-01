@@ -70,10 +70,18 @@ jobs:
       # The only job that writes these files.
       - name: Price and publish
         run: |
-          git pull --rebase --autostash --quiet   # today's price history from Update data (crawl-stats.json may be modified)
-          node --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # The crawl just rewrote crawl-stats.json, which is tracked: set it aside,
+          # pull main clean (today's price history, any newer publish), then put
+          # this run's stats back. (An autostash here can't commit without the
+          # identity above, and would conflict with the last run's stats anyway.)
+          cp data/market-history/crawl-stats.json "$RUNNER_TEMP/crawl-stats.json"
+          rm data/market-history/crawl-stats.json
+          git checkout -- data/market-history/
+          git pull --rebase --quiet
+          cp "$RUNNER_TEMP/crawl-stats.json" data/market-history/crawl-stats.json
+          node --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
           git add data/market-history/
           git diff --cached --quiet && exit 0
           git commit -m "Price Sleeper trades"
