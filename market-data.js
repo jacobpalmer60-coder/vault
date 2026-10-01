@@ -37,9 +37,9 @@ function marketLoad(league) {
     // Each trade keyed by its pieces: players by name ('n:' + normalized), picks by id.
     const byPlayer = new Map();
     let first = '9999', last = '';
-    const add = (date, s1, s2, fmt) => {
+    const add = (date, s1, s2, fmt, src) => {
       const key = marketKeyOf;
-      const trade = { date, k1: s1.map(key), k2: s2.map(key), s1, s2, fmt };
+      const trade = { date, k1: s1.map(key), k2: s2.map(key), s1, s2, fmt, src };
       if (date < first) first = date; if (date > last) last = date;
       [...trade.k1, ...trade.k2].forEach(k => { if (k) (byPlayer.get(k) || byPlayer.set(k, []).get(k)).push(trade); });
     };
@@ -51,7 +51,7 @@ function marketLoad(league) {
       if (s1.some(x => !x) || s2.some(x => !x)) return; // a piece KTC no longer prices
       const date = String(t.date).slice(0, 10);
       if (date < ktcFrom) ktcFrom = date;
-      add(date, s1, s2, { teams: t.teams, qbs: t.qbs, ppr: t.ppr, tep: t.tep });
+      add(date, s1, s2, { teams: t.teams, qbs: t.qbs, ppr: t.ppr, tep: t.tep }, 'ktc');
     });
     // Sleeper's trades from before KTC's feed starts, so none is counted twice.
     let sleeperCount = 0;
@@ -62,7 +62,7 @@ function marketLoad(league) {
         const [name, pos] = recent.names[id] || [];
         return { type: 'player', id, name: name || 'Unknown player', pos, value };
       });
-      add(date, side(a), side(b), f ? { teams: f[2], qbs, ppr: Vault.ktcPprCode(f[0]), tep: Vault.ktcTepCode(f[1]) } : { qbs });
+      add(date, side(a), side(b), f ? { teams: f[2], qbs, ppr: Vault.ktcPprCode(f[0]), tep: Vault.ktcTepCode(f[1]) } : { qbs }, 'sleeper');
       sleeperCount++;
     });
     const days = last >= first ? Math.round((new Date(last) - new Date(first)) / 864e5) + 1 : 0;
@@ -166,21 +166,32 @@ function marketPeerBaseline(even) {
   return out;
 }
 
-function marketValue(league, name, { even = false, min = MARKET_MIN_COMPS } = {}) {
+// The completed trades a market value is read from: the ones he headlined, in
+// the closest league match with enough of them ({ like, pool }), else { like: null, pool: [] , n }.
+function marketPool(league, name, { even = false, min = MARKET_MIN_COMPS } = {}) {
   const main = marketComps(name).filter(c => c.main && (!even || c.dir === 0));
   const tiers = Vault.tradeFormatTiers(Vault.tradeFormatSig(league));
   for (const [i, tier] of tiers.entries()) {
     const pool = main.filter(c => tier.match(c.t.fmt));
-    if (pool.length < (i === tiers.length - 1 ? min : Math.max(min, MARKET_MIN_NARROW))) continue;
-    const ratio = c => { const { valueA: vp, valueB: vo } = Vault.tradeSideValues(c.ps, c.os); return vp ? vo / vp : 1; };
-    const prem = pool.map(c => (ratio(c) - 1) * 100).sort((x, y) => x - y);
-    // vsPeers: each trade's premium minus what players at his position and value usually got, as a median.
-    const peer = marketPeerBaseline(even);
-    const vsPeers = peer ? marketQuantile(pool.map(c => (ratio(c) - 1) * 100 - peer.at(c.him.value, c.him.pos)).sort((x, y) => x - y), 0.5) : null;
-    return { n: pool.length, like: tier.label, even, days: spanDays(pool.map(c => c.t.date)),
-      premium: marketQuantile(prem, 0.5), low: marketQuantile(prem, 0.25), high: marketQuantile(prem, 0.75), vsPeers };
+    if (pool.length >= (i === tiers.length - 1 ? min : Math.max(min, MARKET_MIN_NARROW))) return { like: tier.label, pool };
   }
-  return { n: main.length, like: null, even };
+  return { like: null, pool: [], n: main.length };
+}
+// Each comp's premium: what the getter sent / what his side was worth, both consolidation-adjusted, minus 1, in %.
+function marketPremium(c) {
+  const { valueA: vp, valueB: vo } = Vault.tradeSideValues(c.ps, c.os);
+  return vp ? (vo / vp - 1) * 100 : 0;
+}
+
+function marketValue(league, name, { even = false, min = MARKET_MIN_COMPS } = {}) {
+  const { like, pool, n } = marketPool(league, name, { even, min });
+  if (!like) return { n, like: null, even };
+  const prem = pool.map(marketPremium).sort((x, y) => x - y);
+  // vsPeers: each trade's premium minus what players at his position and value usually got, as a median.
+  const peer = marketPeerBaseline(even);
+  const vsPeers = peer ? marketQuantile(pool.map(c => marketPremium(c) - peer.at(c.him.value, c.him.pos)).sort((x, y) => x - y), 0.5) : null;
+  return { n: pool.length, like, even, days: spanDays(pool.map(c => c.t.date)),
+    premium: marketQuantile(prem, 0.5), low: marketQuantile(prem, 0.25), high: marketQuantile(prem, 0.75), vsPeers };
 }
 
 /* ---------- A player's market value (everywhere on the site) ----------

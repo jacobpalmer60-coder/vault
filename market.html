@@ -40,6 +40,7 @@
       <select id="lookup" data-search="Type a player…" aria-label="Look up a player" class="w-full bg-transparent text-[14px] text-zinc-100 outline-none"></select>
     </div>
     <div id="lookupBody" class="text-[12px] text-zinc-500">Pick a player to see his market.</div>
+    <div id="lookupComps"></div>
   </section>
 
   <!-- How each position trades against KTC, month by month. -->
@@ -100,7 +101,7 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
-<script src="market-data.js?v=37cd0d8a"></script>
+<script src="market-data.js?v=1c57fb04"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -239,6 +240,7 @@ function drawRangeChips() {
 }
 function setRange(k) { lookupRange = k; drawRangeChips(); if (lookupNorm) lookUp(lookupNorm); }
 async function lookUp(norm) {
+  if (lookupNorm !== norm) compsAll = false;
   lookupNorm = norm;
   const sel = document.getElementById('lookup');
   if (sel.value !== norm) sel.value = norm;
@@ -250,6 +252,7 @@ async function lookUp(norm) {
   if (isPick && !pickHistory) { pickHistoryLoading ||= Vault.fetchPickValueHistory(); pickHistory = await pickHistoryLoading; }
   if (!isPick && !history) { historyLoading ||= Vault.fetchPlayerValueHistory(isSF, bonusTe); history = await historyLoading; }
   if (lookupNorm !== norm) return; // another player was picked meanwhile
+  renderComps(who);
   const cutoff = lookupRange === 'all' ? '' : new Date(Date.now() - +lookupRange * 864e5).toISOString().slice(0, 10);
   const entryOf = s => (isPick ? s.picks?.[`${who.season}-${who.round}-mid`] : s.players?.[norm]);
   const series = ((isPick ? pickHistory : history).snapshots || []).filter(s => s.date >= cutoff).map(s => ({ date: s.date, value: Vault.resolveHistoricalValue(entryOf(s), isSF, bonusTe) })).filter(p => Number.isFinite(p.value));
@@ -293,6 +296,54 @@ async function lookUp(norm) {
     placeTip(e, `<div class="text-zinc-400">${p.date}</div><div class="mono">KTC ${Math.round(p.value).toLocaleString()}</div>${tr ? `<div class="mono text-amber-200/80">Trend ${tr.value.toLocaleString()} <span class="text-zinc-400">(${signed(tr.pct)})</span></div>` : ''}${near ? `<div class="mono text-amber-300">Paid ${near.value.toLocaleString()} <span class="text-zinc-400">(${signed(near.pct)}, ${near.n} trade${near.n === 1 ? '' : 's'})</span></div>` : ''}`);
   });
   svg.addEventListener('mouseleave', hideTip);
+}
+
+/* ---------- Trade comps ----------
+   The completed trades behind a player's market value (market-data.js
+   marketPool: the trades he headlined, in leagues as much like yours as
+   there are enough of), newest first, so anyone can check the number by eye.
+   Each one's "paid vs KTC" is marketPremium, the same math as the value
+   (what the team getting him sent over what it got, with KTC's consolidation
+   adjustment); the market value is their median. */
+const COMPS_SHOW = 8;
+let compsAll = false;
+const tradeFormatLabel = f => {
+  const tiers = Vault.tradeFormatTiers({ teams: f.teams, qbs: f.qbs, ppr: f.ppr, tep: f.tep });
+  return (f.teams && f.ppr ? tiers[0] : f.ppr ? tiers[1] : f.tep != null ? tiers[2] : tiers[3]).label;
+};
+function renderComps(who) {
+  const box = document.getElementById('lookupComps');
+  const { like, pool } = marketPool(league, who.key || who.name);
+  if (!like) { box.innerHTML = ''; return; }
+  const list = [...pool].sort((a, b) => b.t.date.localeCompare(a.t.date));
+  // The most extreme tenth at each end (lopsided or partly recorded trades) are faded: a median barely moves for them.
+  const sorted = pool.map(marketPremium).sort((x, y) => x - y), lo = marketQuantile(sorted, 0.1), hi = marketQuantile(sorted, 0.9);
+  const shown = compsAll ? list : list.slice(0, COMPS_SHOW);
+  const piece = (a, him) => `<span class="whitespace-nowrap"><span class="${him ? 'text-zinc-100 font-medium' : 'text-zinc-300'}">${esc(a.type === 'pick' ? `${a.season} ${ORD(a.round)}` : a.name)}</span> <span class="mono text-zinc-500">${Vault.fmtInt(a.value)}</span></span>`;
+  const side = (s, him) => [...s].sort((x, y) => y.value - x.value).map(a => piece(a, a === him)).join('<span class="text-zinc-600">, </span>');
+  const rows = shown.map(c => {
+    const p = marketPremium(c), odd = pool.length >= 10 && (p < lo || p > hi);
+    return `<div class="py-2.5 border-t border-white/5 flex items-start gap-3${odd ? ' opacity-50' : ''}">
+        <div class="min-w-0 flex-1">
+          <div class="text-[11px] text-zinc-500">${new Date(c.t.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · ${esc(tradeFormatLabel(c.t.fmt))} · ${c.t.src === 'ktc' ? 'KTC trade database' : 'Sleeper league'}</div>
+          <div class="flex text-[12px] mt-1 leading-relaxed"><span class="text-zinc-500 w-9 shrink-0">Got</span><span class="min-w-0">${side(c.ps, c.him)}</span></div>
+          <div class="flex text-[12px] leading-relaxed"><span class="text-zinc-500 w-9 shrink-0">Sent</span><span class="min-w-0">${side(c.os, null)}</span></div>
+        </div>
+        <div class="text-right shrink-0">
+          <div class="mono text-[13px] ${Math.abs(p) < 5 ? 'text-zinc-200' : p > 0 ? 'text-emerald-300' : 'text-amber-300'}">${signed(p)}</div>
+          <div class="text-[11px] text-zinc-500">${odd ? 'outlier' : 'paid vs KTC'}</div>
+        </div>
+      </div>`;
+  }).join('');
+  box.innerHTML = `<div class="mt-5">
+      <div class="flex items-baseline justify-between gap-3 flex-wrap">
+        <h3 class="text-[13px] font-medium text-zinc-200">The trades behind it</h3>
+        <span class="text-[11px] text-zinc-500">${pool.length} completed trade${pool.length === 1 ? '' : 's'} ${who.pos === 'Pick' ? 'it' : 'he'} headlined · leagues like yours (${esc(like)})</span>
+      </div>
+      <p class="text-[11px] text-zinc-500 mt-0.5 mb-1">Newest first. Values are KTC's on the trade's own day for Sleeper trades, and today's for KTC's trade database (its last few days). Paid vs KTC: what the team getting ${who.pos === 'Pick' ? 'it' : 'him'} sent over what it got, with KTC's consolidation adjustment, as the grade measures it. ${who.pos === 'Pick' ? 'Its' : 'His'} market value is the median of these, so the faded outliers (the most extreme tenth at each end) barely move it.</p>
+      ${rows}
+      ${list.length > COMPS_SHOW ? `<button onclick="compsAll = !compsAll; renderComps(byNorm.get(lookupNorm))" class="mt-2 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors">${compsAll ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}
+    </div>`;
 }
 
 /* ---------- Market highs & lows ----------
@@ -506,8 +557,16 @@ function renderRookies() {
       </tr>`;
   }).join('');
   const tiers = ['early', 'mid', 'late'], rounds = [1, 2, 3, 4].filter(r => tiers.some(t => S.buys[`${r}-${t}`]));
-  const buys = `<table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 text-left">Round</th>${tiers.map(t => `<th class="font-normal pb-2 text-right capitalize">${t}</th>`).join('')}</tr></thead>
+  // buys: [players, median KTC value of who was taken, KTC's own value for that pick slot the same day (null when KTC's pick history lacks the year)].
+  const slots = rounds.flatMap(r => tiers.map(t => ({ r, t, b: S.buys[`${r}-${t}`] }))).filter(s => s.b);
+  const withKtc = slots.filter(s => s.b[2] > 0), vsKtc = b => (b[1] / b[2] - 1) * 100;
+  const buys = withKtc.length ? `<table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 text-left">Pick</th><th class="font-normal pb-2 pl-2 text-right" title="KTC's value for this pick on draft day">KTC said</th><th class="font-normal pb-2 pl-2 text-right" title="Median draft-day KTC value of the players taken here">Bought</th><th class="font-normal pb-2 pl-2 text-right">Diff</th></tr></thead>
+    <tbody>${slots.map(({ r, t, b }) => { const d = b[2] > 0 ? vsKtc(b) : null; return `<tr class="border-t border-white/5" title="${b[0]} players taken"><td class="py-1.5 text-zinc-300 whitespace-nowrap">${ORD(r)} <span class="text-zinc-500">${t}</span></td><td class="py-1.5 pl-2 text-right mono text-zinc-400">${b[2] > 0 ? Vault.fmtInt(b[2]) : '—'}</td><td class="py-1.5 pl-2 text-right mono text-zinc-100">${Vault.fmtInt(b[1])}</td><td class="py-1.5 pl-2 text-right mono ${d == null || Math.abs(d) < 5 ? 'text-zinc-300' : d > 0 ? 'text-emerald-300' : 'text-amber-300'}">${d == null ? '—' : signed(d)}</td></tr>`; }).join('')}</tbody></table>`
+    : `<table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 text-left">Round</th>${tiers.map(t => `<th class="font-normal pb-2 text-right capitalize">${t}</th>`).join('')}</tr></thead>
     <tbody>${rounds.map(r => `<tr class="border-t border-white/5"><td class="py-1.5 text-zinc-300">${ORD(r)}</td>${tiers.map(t => { const b = S.buys[`${r}-${t}`]; return `<td class="py-1.5 text-right mono ${b ? 'text-zinc-100' : 'text-zinc-600'}" title="${b ? b[0] + ' players' : ''}">${b ? Vault.fmtInt(b[1]) : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
+  // One line on the 1sts, the picks people argue about: did they buy what KTC priced them at?
+  const firsts = withKtc.filter(s => s.r === 1), firstsSaid = firsts.reduce((t, s) => t + s.b[2], 0), firstsGot = firsts.reduce((t, s) => t + s.b[1], 0);
+  const firstsLine = firsts.length ? (() => { const d = (firstsGot / firstsSaid - 1) * 100; return Math.abs(d) < 5 ? `${rookieSeason} 1sts bought about what KTC priced them at.` : `${rookieSeason} 1sts bought players worth ${Math.abs(Math.round(d))}% ${d > 0 ? 'more' : 'less'} than KTC priced the picks at on draft day.`; })() : '';
   document.getElementById('rookiesSub').textContent = `Where each ${rookieSeason} rookie actually went in ${S.drafts} Sleeper dynasty rookie drafts in your QB format, and what each pick slot bought.`;
   box.innerHTML = `<div class="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4">
       <div class="min-w-0 overflow-x-auto max-h-[420px] overflow-y-auto scrollbar"><table class="w-full text-[12px]">
@@ -515,7 +574,8 @@ function renderRookies() {
         <tbody>${rows}</tbody></table></div>
       <div class="min-w-0">
         <div class="text-[13px] font-medium text-zinc-200">What each pick bought</div>
-        <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">KTC value, on draft day, of the players taken in each round's first, middle and last third (median).</div>
+        <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${withKtc.length ? 'What KTC said each pick was worth on draft day, next to the KTC value of the players actually taken there (median, each round split in thirds).' : 'KTC value, on draft day, of the players taken in each round\'s first, middle and last third (median).'}</div>
+        ${firstsLine ? `<div class="text-[12px] text-zinc-200 mb-2">${firstsLine}</div>` : ''}
         ${buys}
       </div>
     </div>

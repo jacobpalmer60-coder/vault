@@ -47,13 +47,15 @@
    (the league season) with at least ROOKIE_MIN_DRAFTS drafts:
      { updated, seasons: { 'YYYY': { drafts,
          players: [[sleeperId, name, pos, drafts, median, earliest, latest]],
-         buys: { '<round>-<early|mid|late>': [players, medianKtcValue] } } } }
+         buys: { '<round>-<early|mid|late>': [players, medianKtcValue, medianKtcPickValue] } } } }
    A draft position is in rounds from the first pick, (round - 1) +
    (slot - 1) / teams, so leagues of any size line up (0.25 = a quarter of
    the way through round 1, "1.04" in a 12-team league). Players taken in at
    least ROOKIE_MIN_PICKS drafts. "buys": the KTC value, on the draft's own
    day in its league's format, of the players taken at each round's early /
-   mid / late third, as a median: what that pick actually bought.
+   mid / late third, as a median: what that pick actually bought. Next to it,
+   what KTC said that pick slot was worth on the same day (its last value
+   within PICK_TIER_LOOKBACK days; null for years KTC's pick history lacks).
    Summaries use lib-market.js, the same math as the KTC snapshot.
    ============================================================ */
 const fs = require('fs');
@@ -67,6 +69,7 @@ const OUT = path.join(DATA, 'market-history');
 const LOOKBACK = 14; // a missing day's price falls back to the last one within two weeks
 const RECENT_DAYS = 95, RECENT_MAX = 30000;
 const ROOKIE_MIN_DRAFTS = 5, ROOKIE_MIN_PICKS = 3, ROOKIE_SHOW = 96;
+const PICK_TIER_LOOKBACK = 45; // days back to find KTC's value for a drafted pick slot
 const DAILY_KEEP_DAYS = 400; // day-by-day market points kept; older ones by month (monthly-<sf|oneQB>.json)
 
 const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
@@ -120,6 +123,20 @@ function main() {
       if (!years.length) continue;
       const year = years.includes(+season) ? +season : years.reduce((b, y) => (Math.abs(y - season) < Math.abs(b - season) ? y : b), years[0]);
       const e = picks[`${year}-${round}-mid`];
+      const v = e && (e[format] ?? e[format.replace(/_tepp?$/, '')]);
+      if (v > 0) return v;
+    }
+    return null;
+  };
+  // KTC's value for one pick slot (season, round, early/mid/late) as of a day: the
+  // last snapshot on or before it that still lists that exact pick, within
+  // PICK_TIER_LOOKBACK days (KTC can drop a year's picks around its draft).
+  // Exact year only, unlike pickAt: this is what KTC said that very pick was worth.
+  const pickTierAt = (season, round, tier, format, d) => {
+    const i = dateIndex(pickDates, d);
+    for (let k = i; k >= 0; k--) {
+      if ((new Date(d) - new Date(pickDates[k])) / 864e5 > PICK_TIER_LOOKBACK) break;
+      const e = (pickSnaps[k].picks || {})[`${season}-${round}-${tier}`];
       const v = e && (e[format] ?? e[format.replace(/_tepp?$/, '')]);
       if (v > 0) return v;
     }
@@ -225,7 +242,7 @@ function main() {
     const fmt = doc.leagues[lh];
     if (!fmt || !teams) return;
     const qb = fmt[0] === 2 ? 'sf' : 'oneQB', format = qb + tepSuffix(fmt[1]), season = String(doc.season);
-    const S = rookies[qb].get(season) || rookies[qb].set(season, { drafts: 0, players: new Map(), buys: new Map() }).get(season);
+    const S = rookies[qb].get(season) || rookies[qb].set(season, { drafts: 0, players: new Map(), buys: new Map(), ktc: new Map() }).get(season);
     S.drafts++;
     picks.forEach(([no, round, pid]) => {
       const slot = no - (round - 1) * teams;
@@ -234,6 +251,8 @@ function main() {
       const pl = sleeper[pid], value = pl && pricesFor(format).at(normalizeName(`${pl.first_name || ''} ${pl.last_name || ''}`.trim()), date);
       const tier = slot <= teams / 3 ? 'early' : slot <= (2 * teams) / 3 ? 'mid' : 'late';
       if (value) (S.buys.get(`${round}-${tier}`) || S.buys.set(`${round}-${tier}`, []).get(`${round}-${tier}`)).push(value);
+      const said = round <= 4 && pickTierAt(season, round, tier, format, date);
+      if (said) (S.ktc.get(`${round}-${tier}`) || S.ktc.set(`${round}-${tier}`, []).get(`${round}-${tier}`)).push(said);
     });
   }));
   Object.entries(rookies).forEach(([qb, bySeason]) => {
@@ -245,7 +264,7 @@ function main() {
         return [pid, `${pl.first_name || ''} ${pl.last_name || ''}`.trim(), pl.position || '', l.length, +med(l).toFixed(3), +Math.min(...l).toFixed(3), +Math.max(...l).toFixed(3)];
       }).sort((a, b) => a[4] - b[4]).slice(0, ROOKIE_SHOW);
       const buys = {};
-      S.buys.forEach((vals, k) => { buys[k] = [vals.length, Math.round(med(vals))]; });
+      S.buys.forEach((vals, k) => { const said = S.ktc.get(k); buys[k] = [vals.length, Math.round(med(vals)), said ? Math.round(med(said)) : null]; });
       seasons[season] = { drafts: S.drafts, players, buys };
     });
     fs.writeFileSync(path.join(OUT, `rookies-${qb}.json`), JSON.stringify({ updated: new Date().toISOString(), seasons }));
