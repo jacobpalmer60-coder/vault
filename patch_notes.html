@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=efe8c574">
+<link rel="stylesheet" href="tailwind.css?v=d4302872">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -29,13 +29,14 @@
 </div>
 
 <script src="vault-core.js?v=3a68f3cb"></script>
-<script src="vault-nav.js?v=1890535d"></script>
+<script src="vault-nav.js?v=2bf0ac6e"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'new', page: 'Data status', text: 'A Data status page (top bar, next to Patch Notes) shows everything the site runs on: whether the daily update and the hourly trade crawl succeeded and when, how many players, picks and values are loaded and how fresh they are, KTC\'s trade feed, how many completed trades have been collected and priced in each format, how the crawl is going (leagues seen, still queued, new trades per run, trades per season), and how big the saved trade files are.' },
     { kind: 'new', page: 'Player Market', text: 'Draft picks are on the Player Market page: a Picks filter in the table and in Market highs & lows, a pick line in the position trends, and a chart for any pick in the lookup. Picks are tracked by year and round (e.g. 2027 1st), since Sleeper trades don\'t say early, mid or late and KTC\'s feed stores every pick as mid, so a pick\'s KTC value is that year\'s mid pick in the round. Early read: firsts go for less than KTC (2027 1st −14%), late-round picks for more (fourths about +25%). At market prices and Trade Coach now price picks at market too.' },
     { kind: 'new', page: 'Player Market', text: 'A new Player Market page (Players menu): look up any player to see his KTC value over time with a dot for every day he headlined a completed trade; how each position trades against KTC, month by month; who is rising and cooling (the last 30 days against the 30 before); Market highs & lows (moved here from the Trade Database); and every player ranked by market value, sortable, with his KTC rank beside it ("#6 ▲13 Jonathan Taylor, KTC 6,749, market 8,436, +25%").' },
     { kind: 'changed', page: 'Everywhere', text: 'Market value now counts every completed trade a player headlined, not just like-for-like ones. Like-for-like trades read every star low (a star\'s partner can only be worth less), while across all trades each value level comes out about even with KTC. Getting a star for more pieces is already in KTC\'s consolidation bonus: beyond it, buyers paid only about 6% more. The player card, the Player Market page and At market prices all use this one number.' },

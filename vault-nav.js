@@ -34,7 +34,8 @@
   // About-the-site pages: small links in the top row, not tabs.
   const INFO = [
     { key: 'method', label: 'How We Grade', href: 'how_we_grade.html' },
-    { key: 'patch', label: 'Patch Notes', href: 'patch_notes.html' }
+    { key: 'patch', label: 'Patch Notes', href: 'patch_notes.html' },
+    { key: 'status', label: 'Data status', href: 'status.html' }
   ];
 
   function currentPage() {

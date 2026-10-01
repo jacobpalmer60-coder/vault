@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Data Status — The Vault</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=89e3b3bd">
+<link rel="stylesheet" href="tailwind.css?v=d4302872">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[1100px] mx-auto p-6 lg:p-10">
+  <div class="mb-2">
+    <h1 class="display text-[28px] font-semibold gold-text">Data status</h1>
+    <p id="status" class="text-[13px] text-zinc-400 mt-1">Checking every data source…</p>
+  </div>
+  <p class="text-[12px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
+    Everything The Vault runs on: what's loaded, how fresh it is, and how the background jobs are doing.
+    Nothing here depends on your league; it's the same for everyone.
+  </p>
+
+  <section class="mb-6">
+    <h2 class="text-[13px] uppercase tracking-wider text-zinc-400 mb-2">Background jobs</h2>
+    <div id="jobs" class="grid md:grid-cols-2 gap-3"></div>
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-[13px] uppercase tracking-wider text-zinc-400 mb-2">Values and players</h2>
+    <div id="values" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-[13px] uppercase tracking-wider text-zinc-400 mb-2">Completed trades</h2>
+    <div id="trades" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+  </section>
+
+  <section class="mb-6 card rounded-vault-sm p-5">
+    <div class="flex items-baseline justify-between gap-3 flex-wrap">
+      <h2 class="text-[16px] font-semibold text-zinc-100">Sleeper trade crawl</h2>
+      <span id="crawlWhen" class="text-[12px] text-zinc-400"></span>
+    </div>
+    <div id="crawl" class="mt-3"></div>
+  </section>
+
+  <section class="mb-6 card rounded-vault-sm p-5">
+    <h2 class="text-[16px] font-semibold text-zinc-100">Priced trades by format</h2>
+    <p class="text-[12px] text-zinc-400 mt-0.5 mb-3">The crawl, priced at KTC values from each trade's own day, in each league's own format (Superflex or 1QB, and TE premium).</p>
+    <div id="formats" class="overflow-x-auto"></div>
+  </section>
+</div>
+
+<script src="vault-core.js?v=3a68f3cb"></script>
+<script src="vault-nav.js?v=2bf0ac6e"></script>
+<script>
+/* ============================================================
+   DATA STATUS
+   Reads every data file the site runs on and the public GitHub Actions
+   API, and shows counts and freshness. Each source loads on its own, so
+   one missing file never blanks the page.
+   ============================================================ */
+const REPO = 'jacobpalmer60-coder/vault';
+const FORMATS = [['sf', 'Superflex'], ['sf_tep', 'Superflex TE+'], ['sf_tepp', 'Superflex TE++'], ['oneQB', '1QB'], ['oneQB_tep', '1QB TE+'], ['oneQB_tepp', '1QB TE++']];
+const n = v => (Number.isFinite(v) ? Math.round(v).toLocaleString() : '—');
+const esc = s => Vault.escapeHtml(String(s ?? ''));
+const getJson = url => fetch(url).then(r => (r.ok ? r.json() : null)).catch(() => null);
+function ago(iso) {
+  if (!iso) return '—';
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.round(mins / 60);
+  if (h < 48) return `${h} hour${h === 1 ? '' : 's'} ago`;
+  return `${Math.round(h / 24)} days ago`;
+}
+// Fresh = updated within `hours`; the dot says so at a glance.
+const fresh = (iso, hours) => iso && (Date.now() - new Date(iso).getTime()) / 36e5 <= hours;
+const dot = ok => `<span class="inline-block size-2 rounded-full ${ok === true ? 'bg-emerald-400' : ok === false ? 'bg-amber-400' : 'bg-zinc-500'}" aria-hidden="true"></span>`;
+function tile(label, big, sub, ok) {
+  return `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
+      <div class="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-zinc-400">${ok !== undefined ? dot(ok) : ''}${label}</div>
+      <div class="text-[22px] font-semibold mono text-zinc-100 mt-1">${big}</div>
+      <div class="text-[12px] text-zinc-400 mt-0.5 leading-relaxed">${sub}</div>
+    </div>`;
+}
+
+async function jobs() {
+  const box = document.getElementById('jobs');
+  const job = async (file, name, every, hours) => {
+    const d = await getJson(`https://api.github.com/repos/${REPO}/actions/workflows/${file}/runs?per_page=6`);
+    const runs = d?.workflow_runs || [];
+    if (!runs.length) return tile(name, '—', d ? 'No runs yet.' : 'GitHub didn\'t answer (it allows 60 checks an hour).');
+    const last = runs[0], done = runs.find(r => r.status === 'completed');
+    const ok = done ? done.conclusion === 'success' && fresh(done.updated_at, hours) : false;
+    const state = last.status === 'completed' ? (last.conclusion === 'success' ? 'Succeeded' : `Ended: ${last.conclusion}`) : last.status === 'in_progress' ? 'Running now' : 'Queued';
+    const strip = runs.slice().reverse().map(r => `<span title="${esc(new Date(r.created_at).toLocaleString())}: ${esc(r.status === 'completed' ? r.conclusion : r.status)}" class="inline-block w-3 h-3 rounded-sm ${r.status !== 'completed' ? 'bg-sky-400/70' : r.conclusion === 'success' ? 'bg-emerald-400/70' : 'bg-rose-400/70'}"></span>`).join('');
+    return `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
+        <div class="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-zinc-400">${dot(ok)}${name} <span class="normal-case tracking-normal text-zinc-500">· ${every}</span></div>
+        <div class="text-[16px] font-semibold text-zinc-100 mt-1">${state}</div>
+        <div class="text-[12px] text-zinc-400 mt-0.5">Last started ${ago(last.created_at)}${done ? `; last finished ${ago(done.updated_at)}` : ''}. <a href="${esc(last.html_url)}" target="_blank" rel="noopener" class="text-amber-300/80 hover:text-amber-200">View on GitHub</a></div>
+        <div class="flex gap-1 mt-2" aria-label="Last runs, oldest first">${strip}</div>
+      </div>`;
+  };
+  box.innerHTML = (await Promise.all([job('update-data.yml', 'Update data', 'daily', 30), job('crawl-sleeper.yml', 'Crawl Sleeper trades', 'hourly', 3)])).join('');
+}
+
+async function values() {
+  const [ktc, proj, hist, picks, sleeper] = await Promise.all([
+    getJson('data/ktc-values.json'), getJson('data/projections.json'), getJson('data/history/players-sf.json'),
+    getJson('data/pick-value-history.json'), getJson('data/sleeper-players.json')
+  ]);
+  const histDates = hist?.dates || [], pickSnaps = picks?.snapshots || [];
+  document.getElementById('values').innerHTML = [
+    tile('KTC values', n(ktc?.players?.length), `players, plus ${n(ktc?.picks?.length)} picks · updated ${ago(ktc?.updated)}`, fresh(ktc?.updated, 30)),
+    tile('Projections', n(proj?.count ?? Object.keys(proj?.players || {}).length), `players · ${esc(proj?.season || '')} season · updated ${ago(proj?.updated)}`, fresh(proj?.updated, 30)),
+    tile('Value history', n(Object.keys(hist?.players || {}).length), `players, ${n(histDates.length)} days (${esc(histDates[0] || '—')} to ${esc(histDates[histDates.length - 1] || '—')}); picks ${n(pickSnaps.length)} days from ${esc(pickSnaps[0]?.date || '—')}`, fresh(histDates[histDates.length - 1] && histDates[histDates.length - 1] + 'T12:00:00Z', 36)),
+    tile('Sleeper players', n(sleeper ? Object.keys(sleeper).length : NaN), 'every NFL player Sleeper lists (names, positions, ages)')
+  ].join('');
+}
+
+async function trades() {
+  // KTC's daily summaries are one file per format and month, since September 2026.
+  const months = [];
+  for (let d = new Date('2026-09-01T00:00:00Z'); d <= new Date(); d.setUTCMonth(d.getUTCMonth() + 1)) months.push(d.toISOString().slice(0, 7));
+  const [ktcTrades, ...summaries] = await Promise.all([getJson('data/ktc-trades.json'), ...months.flatMap(m => ['sf', 'oneQB'].map(f => getJson(`data/market/${f}-${m}.json`)))]);
+  const days = new Set(), counted = summaries.reduce((t, doc) => { Object.entries(doc?.days || {}).forEach(([d, s]) => { days.add(d); t += s.n || 0; }); return t; }, 0);
+  const dates = (ktcTrades?.trades || []).map(t => String(t.date).slice(0, 10)).sort();
+  const [recent, daily] = await Promise.all([
+    Promise.all(['sf', 'oneQB'].map(f => getJson(`data/market-history/recent-${f}.json`))),
+    Promise.all(['sf', 'oneQB'].map(f => getJson(`data/market-history/daily-${f}.json`)))
+  ]);
+  // Players (and pick rounds, keyed 'k:') with day-by-day market points.
+  const keys = daily.map(d => Object.keys(d?.players || {}));
+  const players = k => k.filter(x => !x.startsWith('k:')).length, picks = keys.flat().filter(x => x.startsWith('k:')).length;
+  document.getElementById('trades').innerHTML = [
+    tile("KTC's trade feed", n(ktcTrades?.count), `latest trades, ${esc(dates[0] || '—')} to ${esc(dates[dates.length - 1] || '—')} · updated ${ago(ktcTrades?.updated)}`, fresh(ktcTrades?.updated, 30)),
+    tile('Daily KTC summaries', n(days.size), `days saved since ${esc([...days].sort()[0] || '—')}, ${n(counted)} priced trades in all`),
+    tile('Recent Sleeper trades', n(recent.reduce((t, r) => t + (r?.trades?.length || 0), 0)), `priced, last ~95 days (Superflex ${n(recent[0]?.trades?.length)}, 1QB ${n(recent[1]?.trades?.length)}) · for the market charts`, fresh(recent[0]?.updated, 3)),
+    tile('Market points', n(players(keys[0]) + players(keys[1])), `players with a day-by-day market (Superflex ${n(players(keys[0]))}, 1QB ${n(players(keys[1]))}), plus ${n(picks)} pick rounds`)
+  ].join('');
+}
+
+async function crawl() {
+  const [stats, release] = await Promise.all([getJson('data/market-history/crawl-stats.json'), getJson(`https://api.github.com/repos/${REPO}/releases/tags/sleeper-trades`)]);
+  const box = document.getElementById('crawl');
+  const assets = release?.assets || [], bytes = assets.reduce((t, a) => t + a.size, 0);
+  const size = bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : bytes ? `${Math.round(bytes / 1e3)} KB` : '—';
+  if (!stats) {
+    box.innerHTML = `<div class="text-[13px] text-zinc-400">Crawl stats appear after the next hourly run. Raw trades saved so far: ${size} across ${assets.length} season file${assets.length === 1 ? '' : 's'}.</div>`;
+    return;
+  }
+  document.getElementById('crawlWhen').textContent = `Updated ${ago(stats.updated)} · ${stats.settings.callsPerMinute} calls a minute, ${stats.settings.runMinutes} minutes an hour`;
+  const t = stats.totals, q = stats.queue;
+  const runs = stats.runs || [], maxNew = Math.max(1, ...runs.map(r => r.newTrades));
+  const last24 = runs.filter(r => Date.now() - new Date(r.at).getTime() < 864e5);
+  const bars = runs.slice(0, 48).reverse().map(r => `<div class="flex-1 h-full flex items-end" title="${esc(new Date(r.at).toLocaleString())}: ${n(r.newTrades)} new trades, ${n(r.calls)} calls${r.stopped ? ' (stopped: ' + esc(r.stopped) + ')' : ''}"><div class="w-full rounded-t-[2px] ${r.stopped ? 'bg-rose-400/70' : 'bg-sky-400/70'}" style="height:${Math.max(2, r.newTrades / maxNew * 100).toFixed(1)}%"></div></div>`).join('');
+  const seasons = Object.entries(stats.seasons || {}).sort(([a], [b]) => b.localeCompare(a));
+  box.innerHTML = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      ${tile('Trades collected', n(t.trades), `completed two-team trades in ${n(t.leagueSeasons)} league-seasons`, fresh(stats.updated, 3))}
+      ${tile('Leagues seen', n(t.leaguesSeen), `${n(t.managersSeen)} managers found along the way`)}
+      ${tile('Still to crawl', n(q.leagues), `leagues queued, plus ${n(q.managers)} managers to look up and ${n(q.revisits)} leagues to revisit weekly`)}
+      ${tile('Last 24 hours', n(last24.reduce((s, r) => s + r.newTrades, 0)), `new trades in ${last24.length} run${last24.length === 1 ? '' : 's'}; raw files ${size}`)}
+    </div>
+    <div class="grid lg:grid-cols-[minmax(0,1fr)_260px] gap-4 mt-4">
+      <div class="min-w-0">
+        <div class="text-[12px] text-zinc-400 mb-1.5">New trades per run, last ${Math.min(48, runs.length)} runs</div>
+        <div class="flex items-end gap-[2px] h-24 border-b border-white/10">${bars || '<span class="text-[12px] text-zinc-500">No runs recorded yet.</span>'}</div>
+      </div>
+      <div class="min-w-0">
+        <div class="text-[12px] text-zinc-400 mb-1.5">By season</div>
+        <table class="w-full text-[12px]"><tbody>${seasons.map(([s, v]) => `<tr class="border-t border-white/5 first:border-t-0"><td class="py-1 mono text-zinc-300">${esc(s)}</td><td class="py-1 text-right mono text-zinc-100">${n(v.trades)}</td><td class="py-1 text-right text-zinc-500">${n(v.leagues)} leagues</td></tr>`).join('')}</tbody></table>
+      </div>
+    </div>`;
+}
+
+async function formats() {
+  const docs = await Promise.all(FORMATS.map(([f]) => getJson(`data/market-history/${f}.json`)));
+  const rows = FORMATS.map(([f, label], i) => {
+    const d = docs[i];
+    if (!d) return `<tr class="border-t border-white/5"><td class="py-2 pr-3 text-zinc-300">${label}</td><td colspan="5" class="py-2 text-zinc-500">Nothing yet</td></tr>`;
+    const weeks = Object.keys(d.weeks || {}).sort(), years = Object.keys(d.years || {});
+    const share = d.trades.crawled ? Math.round(d.trades.priced / d.trades.crawled * 100) : 0;
+    return `<tr class="border-t border-white/5">
+        <td class="py-2 pr-3 text-zinc-200">${label}</td>
+        <td class="py-2 pr-3 text-right mono text-zinc-300">${n(d.leagues)}</td>
+        <td class="py-2 pr-3 text-right mono text-zinc-300">${n(d.trades.crawled)}</td>
+        <td class="py-2 pr-3 text-right mono text-zinc-100">${n(d.trades.priced)} <span class="text-zinc-500">(${share}%)</span></td>
+        <td class="py-2 pr-3 text-right mono text-zinc-400">${years.length ? `${esc(years[0])}–${esc(years[years.length - 1])}` : '—'}</td>
+        <td class="py-2 text-right text-zinc-400">${ago(d.updated)}</td>
+      </tr>`;
+  });
+  document.getElementById('formats').innerHTML = `<table class="w-full text-[12px]">
+      <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 pr-3 text-left">Format</th><th class="font-normal pb-2 pr-3 text-right">Leagues</th><th class="font-normal pb-2 pr-3 text-right">Trades</th><th class="font-normal pb-2 pr-3 text-right">Priced</th><th class="font-normal pb-2 pr-3 text-right">Seasons</th><th class="font-normal pb-2 text-right">Updated</th></tr></thead>
+      <tbody>${rows.join('')}</tbody></table>
+    <div class="text-[11px] text-zinc-500 mt-2">A trade can't be priced when a piece has no KTC price that day (pick prices start September 2023; some veterans KTC stopped tracking).</div>`;
+}
+
+(async () => {
+  const status = document.getElementById('status');
+  await Promise.allSettled([jobs(), values(), trades(), crawl(), formats()]);
+  status.textContent = `Checked ${new Date().toLocaleString()}`;
+})();
+</script>
+</body>
+</html>

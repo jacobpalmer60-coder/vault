@@ -34,6 +34,10 @@
    trade's own date (data/history/ has player prices back to 2020, picks to
    2023).
 
+   Also writes data/market-history/crawl-stats.json for the Data status page:
+   counts only (leagues seen and queued, managers, trades and leagues per
+   season, this run's calls, the last runs), never an id.
+
    node scripts/crawl-sleeper-trades.js                 one run (RUN_MINUTES)
    RUN_MINUTES=2 node scripts/crawl-sleeper-trades.js   a short test run
    ============================================================ */
@@ -206,10 +210,39 @@ async function main() {
     if (calls - lastSave >= 200) { save(state); lastSave = calls; } // survive a timeout mid-run
   }
   save(state);
+  writeStats(state, { calls, seconds: Math.round((Date.now() - start) / 1000), stopped, startedAt: new Date(start).toISOString() });
   const counts = [...seasonFiles.values()].map(d => `${d.season}: ${Object.keys(d.trades).length} trades / ${Object.keys(d.leagues).length} leagues`);
   console.log(`${calls} calls in ${Math.round((Date.now() - start) / 1000)}s${stopped ? ` (stopped: ${stopped})` : ''}`);
   console.log(`Queue: ${state.leagues.length} leagues, ${state.users.length} managers; ${Object.keys(state.seenLeagues).length} leagues seen`);
   counts.forEach(c => console.log(c));
+}
+
+// Public crawl stats: counts only, never an id. Every season file on disk (the
+// job downloads them all from the release first), plus this run and the last runs.
+function writeStats(state, run) {
+  const file = path.join(ROOT, 'data', 'market-history', 'crawl-stats.json');
+  const prev = loadJson(file, { runs: [] });
+  const seasons = {};
+  let trades = 0, leagues = 0;
+  (fs.existsSync(OUT) ? fs.readdirSync(OUT).filter(f => f.endsWith('.json.gz')) : []).forEach(f => {
+    const doc = seasonFiles.get(+f.slice(0, 4)) || loadGz(path.join(OUT, f), null);
+    if (!doc) return;
+    const t = Object.keys(doc.trades).length, l = Object.keys(doc.leagues).length;
+    seasons[doc.season] = { trades: t, leagues: l };
+    trades += t; leagues += l;
+  });
+  const newTrades = trades - (prev.totals?.trades || 0);
+  const out = {
+    updated: new Date().toISOString(),
+    totals: { trades, leagueSeasons: leagues, leaguesSeen: Object.keys(state.seenLeagues).length, managersSeen: Object.keys(state.seenUsers).length },
+    queue: { leagues: state.leagues.length, managers: state.users.length, revisits: Object.keys(state.revisit || {}).length },
+    seasons,
+    settings: { callsPerMinute: CALLS_PER_MIN, runMinutes: RUN_MINUTES, minSeason: MIN_SEASON },
+    ktcSeeded: state.ktcSeeded || null,
+    runs: [{ at: run.startedAt, calls: run.calls, seconds: run.seconds, newTrades: Math.max(0, newTrades), stopped: run.stopped || '' }, ...(prev.runs || [])].slice(0, 72)
+  };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(out));
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
