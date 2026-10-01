@@ -6,7 +6,7 @@
 <title>Trade Database — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=ff57f9cf">
+<link rel="stylesheet" href="tailwind.css?v=b2498b4a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -164,10 +164,13 @@ function findMatches(trades, sig) {
 }
 
 /* ---------- The market at a glance ----------
-   Every trade in the database in this league's QB format (the exact-format
-   match above is usually too few trades to split by shape or position),
-   priced at today's KTC values for this league with the Trade Calculator's
-   own math: consolidation-adjusted % off, the same Fair / Lopsided / Unfair
+   Every trade in this league's QB format (the exact-format match above is
+   usually too few trades to split by shape or position) from two sources
+   that never overlap: KTC's feed (its last ~5 days, priced at today's KTC
+   values for this league) and, for the RECENT_DAYS before that feed starts,
+   real trades from Sleeper dynasty leagues (scripts/summarize-sleeper-trades.js,
+   each priced at KTC values from its own day in its own league's format).
+   All with the Trade Calculator's own math: consolidation-adjusted % off, the same Fair / Lopsided / Unfair
    cutoffs. "Paid over KTC" is from the side getting fewer pieces (or the
    best piece): what they sent minus what they got, as a % of the two sides'
    average. Your league's trades (Trade Grades, KTC at the time of each
@@ -176,18 +179,20 @@ const MK_BIN = 5, MK_TOP = 80; // 5%-wide bars, the last one 80%+
 const MK_SHAPES = ['1-for-1', '1-for-2', '1-for-3', '1-for-4+', '2-for-2', '2-for-3', '2-for-4+', '3-for-3', '3-for-4+'];
 const MK_STARS = [[8000, Infinity, '8,000+'], [6000, 8000, '6,000–8,000'], [4000, 6000, '4,000–6,000'], [2000, 4000, '2,000–4,000'], [0, 2000, 'Under 2,000']];
 const MK_POS = ['QB', 'RB', 'WR', 'TE', 'Pick'];
-const BUCKET_FILL = { Fair: 'bg-emerald-400/70', Lopsided: 'bg-amber-400/70', Unfair: 'bg-rose-400/70' };
-const BUCKET_TEXT = { Fair: 'text-emerald-300', Lopsided: 'text-amber-300', Unfair: 'text-rose-300' };
+const BUCKET_FILL = { Great: 'bg-violet-400/70', Good: 'bg-sky-400/70', Fair: 'bg-emerald-400/70', Lopsided: 'bg-amber-400/70', Unfair: 'bg-rose-400/70' };
+const BUCKET_TEXT = { Great: 'text-violet-300', Good: 'text-sky-300', Fair: 'text-emerald-300', Lopsided: 'text-amber-300', Unfair: 'text-rose-300' };
+// Great and Good are Fair trades that also fit one or both rosters well: only
+// gradable with both teams' rosters at the time, so only your league's trades
+// (Trade Grades) have them; market trades stop at Fair.
+const BUCKETS = ['Great', 'Good', 'Fair', 'Lopsided', 'Unfair'];
+const fairOrBetter = rows => mkShare(rows.filter(r => ['Great', 'Good', 'Fair'].includes(r.bucket)).length, rows.length);
 const mkMedian = list => { if (!list.length) return null; const s = [...list].sort((a, b) => a - b); return s[Math.floor((s.length - 1) / 2)]; };
 const mkPct = v => `${Math.round(v)}%`;
 const mkSigned = v => `${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%`;
 const mkShare = (n, of) => of ? n / of * 100 : 0;
 
-function marketRows(trades, playerMap, pickMap) {
-  const rows = [];
-  trades.forEach(t => {
-    const s1 = t.t1.map(id => assetLabel(id, playerMap, pickMap)), s2 = t.t2.map(id => assetLabel(id, playerMap, pickMap));
-    if (!s1.length || !s2.length || [...s1, ...s2].some(a => !(a.value > 0))) return;
+// One trade's row. s1 / s2 = what each team received: [{ value, pos }] (pos null for picks).
+function marketRow(s1, s2) {
     const { valueA: v1, valueB: v2 } = Vault.tradeSideValues(s1, s2); // what team 1 / team 2 received
     const avg = (v1 + v2) / 2 || 1, pct = Math.abs(v1 - v2) / avg * 100;
     const best1 = Math.max(...s1.map(a => a.value)), best2 = Math.max(...s2.map(a => a.value));
@@ -196,23 +201,36 @@ function marketRows(trades, playerMap, pickMap) {
     // The consolidator (fewer pieces back) paid: what they sent minus what they got.
     const consolidator = s1.length < s2.length ? 1 : s2.length < s1.length ? 2 : 0;
     const paid = consolidator === 1 ? (v2 - v1) / avg * 100 : consolidator === 2 ? (v1 - v2) / avg * 100 : null;
-    rows.push({ pct, bucket: Vault.fairnessBucket(pct, 0, 0), shape: `${Math.min(few, 3)}-for-${many >= 4 ? '4+' : many}`,
-      oneForOne: few === 1 && many === 1, top: top.value, pos: top.pos || 'Pick', paid, topAlone: (topIn1 ? s1 : s2).length === 1 && consolidator !== 0 });
+    return { pct, bucket: Vault.fairnessBucket(pct, 0, 0), shape: `${Math.min(few, 3)}-for-${many >= 4 ? '4+' : many}`,
+      oneForOne: few === 1 && many === 1, top: top.value, pos: top.pos || 'Pick', paid, topAlone: (topIn1 ? s1 : s2).length === 1 && consolidator !== 0 };
+}
+function marketRows(trades, playerMap, pickMap) {
+  const rows = [];
+  trades.forEach(t => {
+    const s1 = t.t1.map(id => assetLabel(id, playerMap, pickMap)), s2 = t.t2.map(id => assetLabel(id, playerMap, pickMap));
+    if (!s1.length || !s2.length || [...s1, ...s2].some(a => !(a.value > 0))) return;
+    rows.push(marketRow(s1, s2));
   });
   return rows;
+}
+// Sleeper trades from before `before` (the day KTC's feed starts), already priced.
+function sleeperRows(recent, before) {
+  const side = s => s.map(([id, value]) => ({ value, pos: id[0] === 'p' ? null : (recent.names[id] || [])[1] || null }));
+  return (recent.trades || []).filter(([date]) => date < before).map(([, a, b]) => marketRow(side(a), side(b)));
 }
 
 // Market vs league share bar: Fair / Lopsided / Unfair, labeled.
 function mkSplitBar(rows) {
   const n = rows.length || 1;
-  return `<div class="flex h-2.5 rounded-full overflow-hidden gap-[2px]">${['Fair', 'Lopsided', 'Unfair'].map(b => {
+  return `<div class="flex h-2.5 rounded-full overflow-hidden gap-[2px]">${BUCKETS.map(b => {
     const w = mkShare(rows.filter(r => r.bucket === b).length, n);
     return w ? `<div class="${BUCKET_FILL[b]}" style="width:${w.toFixed(2)}%" title="${b}: ${mkPct(w)}"></div>` : '';
   }).join('')}</div>`;
 }
 function mkSplitText(rows) {
   const n = rows.length || 1;
-  return ['Fair', 'Lopsided', 'Unfair'].map(b => `<span class="${BUCKET_TEXT[b]}">${mkPct(mkShare(rows.filter(r => r.bucket === b).length, n))} ${b}</span>`).join(' <span class="text-zinc-600">·</span> ');
+  return BUCKETS.filter(b => !['Great', 'Good'].includes(b) || rows.some(r => r.bucket === b))
+    .map(b => `<span class="${BUCKET_TEXT[b]}">${mkPct(mkShare(rows.filter(r => r.bucket === b).length, n))} ${b}</span>`).join(' <span class="text-zinc-600">·</span> ');
 }
 // A labeled horizontal bar row: label | bar | value text.
 function mkBarRow(label, pct, max, valueHtml, title, fill = 'bg-sky-400/70') {
@@ -225,13 +243,15 @@ function mkBarRow(label, pct, max, valueHtml, title, fill = 'bg-sky-400/70') {
 }
 
 let marketState = null;
-function renderMarket(rows, fmt, exactShare, league) {
-  marketState = { rows, fmt, exactShare, league };
+function renderMarket(rows, fmt, exactShare, league, src) {
+  marketState = { rows, fmt, exactShare, league, src };
   const n = rows.length;
   const body = document.getElementById('marketBody');
   if (n < 200) { document.getElementById('market').classList.add('hidden'); return; }
   const med = mkMedian(rows.map(r => r.pct)), mean = rows.reduce((s, r) => s + r.pct, 0) / n;
-  document.getElementById('marketSub').textContent = `${n.toLocaleString()} real ${fmt} trades, priced at today's KTC values with the Trade Calculator's own math`;
+  document.getElementById('marketSub').textContent = src && src.sleeper
+    ? `${n.toLocaleString()} real ${fmt} trades: ${src.ktc.toLocaleString()} from KTC's feed (last ${src.ktcDays} days) and ${src.sleeper.toLocaleString()} from Sleeper dynasty leagues (the ${src.sleeperDays} days before), with the Trade Calculator's own math`
+    : `${n.toLocaleString()} real ${fmt} trades, priced at today's KTC values with the Trade Calculator's own math`;
 
   // Your league next to the market.
   const lg = league && league.length ? league : null;
@@ -326,14 +346,15 @@ function renderMarket(rows, fmt, exactShare, league) {
       <div class="text-[13px] font-medium text-zinc-200">Your league vs the market</div>
       <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">Your league's ${lg.length} completed trades, graded at KTC values from when each was made.</div>
       <div class="space-y-3">${[['Market', rows, med], ['Your league', lg, lgMed]].map(([label, r, m]) => `<div>
-          <div class="flex items-baseline justify-between gap-3 text-[12px] mb-1.5"><span class="text-zinc-200">${label}</span><span class="text-zinc-400">typical <span class="mono text-zinc-200">${mkPct(m)}</span> off</span></div>
+          <div class="flex items-baseline justify-between gap-3 text-[12px] mb-1.5"><span class="text-zinc-200">${label}</span><span class="text-zinc-400">typical <span class="mono text-zinc-200">${mkPct(m)}</span> off · <span class="mono text-zinc-200">${mkPct(fairOrBetter(r))}</span> Fair or better</span></div>
           ${mkSplitBar(r)}
           <div class="text-[11px] mt-1.5">${mkSplitText(r)}</div>
         </div>`).join('')}</div>
+      <div class="text-[11px] text-zinc-500 mt-3">Great and Good are Fair trades that also fit one or both teams' rosters well. That takes both rosters at the time of the trade, which only your league's history has, so market trades stop at Fair. Compare the two on Fair or better.</div>
     </div>` : '';
 
   body.innerHTML = `${tiles}${hist}<div class="grid lg:grid-cols-2 gap-3">${byShape}${byStar}</div>${byPos}${vs}
-    <div class="text-[11px] text-zinc-500">From KeepTradeCut's trade database (rolling, about the last week), every trade in your league's QB format where every piece still has a KTC price. Smaller groups (under 50 trades for a shape, 30 for a star level or position) are left out.</div>`;
+    <div class="text-[11px] text-zinc-500">From KeepTradeCut's trade database (rolling, about the last week) and, before that, real trades from Sleeper dynasty leagues: every trade in your league's QB format where every piece has a KTC price. Smaller groups (under 50 trades for a shape, 30 for a star level or position) are left out.</div>`;
 
   // Hover / focus readout for the histogram bars.
   const tip = document.getElementById('mkTip'), hist$ = document.getElementById('mkHist');
@@ -411,11 +432,35 @@ async function renderHistory(field) {
   box.classList.remove('hidden');
   const fmt = FORMAT_NAME[field] || field;
   document.getElementById('historySub').textContent = `${doc.trades.priced.toLocaleString()} real ${fmt} trades from ${doc.leagues.toLocaleString()} Sleeper dynasty leagues, each priced at KTC values from the day it happened`;
+  // Year by year: each year summarized whole by the pricing step, so its numbers are exact.
+  const yearRows = Object.entries(doc.years || {}).filter(([, s]) => s.n >= HIST_MIN).sort(([a], [b]) => b.localeCompare(a));
+  const years = !yearRows.length ? '' : `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
+      <div class="text-[13px] font-medium text-zinc-200">Year by year</div>
+      <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">Each year's trades, priced at KTC values from their own day. The current year is so far.</div>
+      <div class="overflow-x-auto"><table class="w-full text-[12px]">
+        <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500 text-left">
+          <th class="font-normal pb-2 pr-3">Year</th><th class="font-normal pb-2 pr-3 text-right">Trades</th><th class="font-normal pb-2 pr-3 text-right">Typical % off</th><th class="font-normal pb-2 pr-3 w-[34%]">Fair / Lopsided / Unfair</th><th class="font-normal pb-2 pr-3 text-right">1-for-1</th><th class="font-normal pb-2 text-right" title="In 1-for-2 trades: what the side getting one piece sent minus what it got, over KTC">2-for-1 premium</th>
+        </tr></thead>
+        <tbody>${yearRows.map(([y, s]) => {
+          const one = Object.values(s.stars || {}).reduce((t, v) => t + v[1], 0), prem = s.shapes?.['1-for-2']?.[2];
+          const split = ['Fair', 'Lopsided', 'Unfair'].map((b, i) => ({ b, w: mkShare(s.buckets[i], s.n) }));
+          return `<tr class="border-t border-white/5">
+            <td class="py-2 pr-3 text-zinc-200 mono">${y}</td>
+            <td class="py-2 pr-3 text-right mono text-zinc-300">${s.n.toLocaleString()}</td>
+            <td class="py-2 pr-3 text-right mono text-zinc-300">${mkPct(binMedian(s.pct, s.n))}</td>
+            <td class="py-2 pr-3"><div class="flex h-2 rounded-full overflow-hidden gap-[2px]" title="${split.map(x => `${mkPct(x.w)} ${x.b}`).join(', ')}">${split.map(x => (x.w ? `<div class="${BUCKET_FILL[x.b]}" style="width:${x.w.toFixed(2)}%"></div>` : '')).join('')}</div>
+              <div class="text-[11px] mt-1">${split.map(x => `<span class="${BUCKET_TEXT[x.b]}">${mkPct(x.w)}</span>`).join(' <span class="text-zinc-600">/</span> ')}</div></td>
+            <td class="py-2 pr-3 text-right mono text-zinc-300">${mkPct(mkShare(one, s.n))}</td>
+            <td class="py-2 text-right mono ${prem != null && prem >= 0 ? 'text-amber-300' : 'text-zinc-300'}">${prem == null ? '—' : mkSigned(prem)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
   if (months.length < 3) {
     body.innerHTML = `<div class="rounded-xl bg-black/25 border border-white/5 p-4 text-[13px] text-zinc-300 leading-relaxed">
         Collecting. The Vault is gathering real trades from Sleeper dynasty leagues around the clock, going back to 2021, and pricing each one at the KTC values from its day.
-        So far: <span class="mono text-zinc-100">${doc.trades.crawled.toLocaleString()}</span> ${fmt} trades from <span class="mono text-zinc-100">${doc.leagues.toLocaleString()}</span> leagues. Charts appear here once at least three months each have ${HIST_MIN}+ trades.
-      </div>`;
+        So far: <span class="mono text-zinc-100">${doc.trades.crawled.toLocaleString()}</span> ${fmt} trades from <span class="mono text-zinc-100">${doc.leagues.toLocaleString()}</span> leagues. Monthly charts appear here once at least three months each have ${HIST_MIN}+ trades.
+      </div>${years}`;
     return;
   }
   const fairFill = m => BUCKET_FILL[Vault.fairnessBucket(m.median, 0, 0)];
@@ -429,7 +474,8 @@ async function renderHistory(field) {
       ${card('Typical trade, % off on KTC value', `${Math.round(last.median)}% off`, 'By month, colored by where it lands: Fair, Lopsided or Unfair.', histColumns('hcMedian', months, m => m.median, v => `${Math.round(v)}% off`, fairFill))}
       ${card('Share of trades graded Fair', `${Math.round(last.fair)}%`, `By month, on the Trade Calculator's Fair line (under ${VAULT_CONFIG.FAIR_PCT}% off).`, histColumns('hcFair', months, m => m.fair, v => `${Math.round(v)}% Fair`, () => 'bg-emerald-400/70', 100))}
     </div>
-    <div class="text-[11px] text-zinc-500">Months with fewer than ${HIST_MIN} trades are left out. Before September 2023 only player-for-player trades can be priced (pick prices start then). Picks after round 4, kickers and defenses count as no value. Trades with a player KTC no longer tracks are left out.</div>`;
+    ${years}
+    <div class="text-[11px] text-zinc-500">Months and years with fewer than ${HIST_MIN} trades are left out. Before September 2023 only player-for-player trades can be priced (pick prices start then). Picks after round 4, kickers and defenses count as no value. Trades with a player KTC no longer tracks are left out.</div>`;
   wireColumns('hcMedian', months, m => m.median, v => `${Math.round(v)}% off`);
   wireColumns('hcFair', months, m => m.fair, v => `${Math.round(v)}% Fair`);
 }
@@ -495,12 +541,25 @@ async function init() {
     const mRows = marketRows((tradesData.trades || []).filter(t => t.qbs === sig.qbs), playerMap, pickMap);
     const exactShare = priced.length ? `${share('Fair')}% Fair, ${share('Lopsided')}% Lopsided, ${share('Unfair')}% Unfair (${priced.length} trades)` : '';
     const fmtName = isSF ? 'Superflex' : '1QB';
+    const ktcDates = (tradesData.trades || []).map(t => String(t.date).slice(0, 10)).sort();
+    const ktcFrom = ktcDates[0] || '9999', ktcDays = ktcDates.length ? Math.round((new Date(ktcDates[ktcDates.length - 1]) - new Date(ktcFrom)) / 864e5) + 1 : 0;
+    let allRows = mRows, src = null, leagueRows = null;
+    const redraw = () => renderMarket(allRows, fmtName, exactShare, leagueRows, src);
     renderMarket(mRows, fmtName, exactShare, null);
+    fetch(`data/market-history/recent-${isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).then(recent => {
+      if (!recent) return;
+      const sRows = sleeperRows(recent, ktcFrom);
+      if (!sRows.length) return;
+      const first = recent.trades.filter(([d]) => d < ktcFrom).map(([d]) => d).sort()[0];
+      allRows = [...mRows, ...sRows];
+      src = { ktc: mRows.length, ktcDays, sleeper: sRows.length, sleeperDays: Math.round((new Date(ktcFrom) - new Date(first)) / 864e5) };
+      redraw();
+    }).catch(() => {});
     renderHistory(valueField);
     Vault.fetchAndGradeAllTrades(leagueId).then(({ allGraded }) => {
-      const lg = (allGraded || []).filter(g => Number.isFinite(g.pctDiff)).map(g => ({ pct: g.pctDiff, bucket: Vault.fairnessBucket(g.pctDiff, 0, 0), label: `${g.teamA.teamName} and ${g.teamB.teamName}` }));
-      renderMarket(mRows, fmtName, exactShare, lg);
-    }).catch(e => { console.warn('League trades unavailable', e); renderMarket(mRows, fmtName, exactShare, []); });
+      leagueRows = (allGraded || []).filter(g => Number.isFinite(g.pctDiff)).map(g => ({ pct: g.pctDiff, bucket: g.bucket || Vault.fairnessBucket(g.pctDiff, 0, 0), label: `${g.teamA.teamName} and ${g.teamB.teamName}` }));
+      redraw();
+    }).catch(e => { console.warn('League trades unavailable', e); leagueRows = []; redraw(); });
     status.textContent = `${tradesData.count.toLocaleString()} trades in database • updated ${new Date(tradesData.updated).toLocaleDateString()}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
 

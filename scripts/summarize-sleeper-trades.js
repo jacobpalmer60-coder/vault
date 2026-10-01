@@ -21,10 +21,17 @@
 
    Writes data/market-history/<format>.json:
      { format, updated, leagues, trades: { crawled, priced },
-       weeks: { 'YYYY-MM-DD' (the Monday): summary } }
+       weeks: { 'YYYY-MM-DD' (the Monday): summary },
+       years: { 'YYYY': summary } }   (each year summarized whole, so its medians are exact)
    and data/market-history/<format>-players.json, by month, for players in
    at least 2 trades that month:
      { months: { 'YYYY-MM': { sleeperId: [trades, asMainPiece, medianPaid, oneForOne] } } }
+   and data/market-history/recent-<sf|oneQB>.json, every priced trade from the
+   last RECENT_DAYS days (all TE-premium tiers of that QB format, each priced
+   in its own league's format), newest first, for the pages to pool with KTC's
+   feed (they use only the days before KTC's feed starts, so no trade counts twice):
+     { updated, names: { sleeperId: [name, pos] },
+       trades: [[date, [[id, value], ...], [[id, value], ...]]] }   (picks: 'p<season>-<round>')
    Summaries use lib-market.js, the same math as the KTC snapshot.
    ============================================================ */
 const fs = require('fs');
@@ -36,6 +43,7 @@ const DATA = path.join(ROOT, 'data');
 const IN = path.join(DATA, 'sleeper-trades');
 const OUT = path.join(DATA, 'market-history');
 const LOOKBACK = 14; // a missing day's price falls back to the last one within two weeks
+const RECENT_DAYS = 95, RECENT_MAX = 30000;
 
 const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 const tepSuffix = b => (b < 0.25 ? '' : b < 0.75 ? '_tep' : '_tepp'); // mirrors Vault.ktcTepSuffix
@@ -110,6 +118,8 @@ function main() {
   });
 
   fs.mkdirSync(OUT, { recursive: true });
+  const recentFrom = new Date(Date.now() - RECENT_DAYS * 864e5).toISOString().slice(0, 10);
+  const recent = { sf: [], oneQB: [] };
   byFormat.forEach((trades, format) => {
     const prices = playerPrices(format);
     const asset = (id, d) => {
@@ -122,7 +132,7 @@ function main() {
       const value = pl && prices.at(normalizeName(`${pl.first_name || ''} ${pl.last_name || ''}`.trim()), d);
       return value ? { type: 'player', pos: pl.position, value, id } : null;
     };
-    const weeks = new Map(), months = new Map();
+    const weeks = new Map(), months = new Map(), years = new Map();
     let priced = 0;
     trades.forEach(({ date, a, b }) => {
       const s1 = a.filter(id => !negligible(id)).map(id => asset(id, date)), s2 = b.filter(id => !negligible(id)).map(id => asset(id, date));
@@ -131,18 +141,32 @@ function main() {
       const t = { s1, s2, date };
       (weeks.get(monday(date)) || weeks.set(monday(date), []).get(monday(date))).push(t);
       (months.get(date.slice(0, 7)) || months.set(date.slice(0, 7), []).get(date.slice(0, 7))).push(t);
+      (years.get(date.slice(0, 4)) || years.set(date.slice(0, 4), []).get(date.slice(0, 4))).push(t);
+      if (date >= recentFrom) recent[format.startsWith('sf') ? 'sf' : 'oneQB'].push(t);
     });
     // The consolidation math scales to the most valuable player at the time (see vault-core.js).
-    const weekOut = {}, monthOut = {};
+    const weekOut = {}, monthOut = {}, yearOut = {};
+    [...years.keys()].sort().forEach(y => { Vault._globalMaxValue = prices.maxAt(`${y}-07-01`) || undefined; yearOut[y] = summarize(Vault, years.get(y), { players: false }); });
     [...weeks.keys()].sort().forEach(w => { Vault._globalMaxValue = prices.maxAt(w) || undefined; weekOut[w] = summarize(Vault, weeks.get(w), { players: false }); });
     [...months.keys()].sort().forEach(m => {
       Vault._globalMaxValue = prices.maxAt(`${m}-15`) || undefined;
       const s = summarize(Vault, months.get(m));
       monthOut[m] = Object.fromEntries(Object.entries(s.players).filter(([, v]) => v[0] >= 2));
     });
-    fs.writeFileSync(path.join(OUT, `${format}.json`), JSON.stringify({ format, updated: new Date().toISOString(), leagues: leagues.get(format).size, trades: { crawled: trades.length, priced }, weeks: weekOut }));
+    fs.writeFileSync(path.join(OUT, `${format}.json`), JSON.stringify({ format, updated: new Date().toISOString(), leagues: leagues.get(format).size, trades: { crawled: trades.length, priced }, weeks: weekOut, years: yearOut }));
     fs.writeFileSync(path.join(OUT, `${format}-players.json`), JSON.stringify({ format, months: monthOut }));
     console.log(`${format}: ${trades.length} trades from ${leagues.get(format).size} leagues, ${priced} priced, ${weeks.size} weeks`);
+  });
+
+  // Recent trades for the pages to pool with KTC's feed, with names for the players in them.
+  Object.entries(recent).forEach(([qb, list]) => {
+    const keep = list.sort((x, y) => y.date.localeCompare(x.date)).slice(0, RECENT_MAX), names = {};
+    const side = s => s.map(a => {
+      if (a.type === 'player' && !names[a.id]) { const p = sleeper[a.id]; names[a.id] = [`${p.first_name || ''} ${p.last_name || ''}`.trim(), p.position]; }
+      return [a.id, Math.round(a.value)];
+    });
+    fs.writeFileSync(path.join(OUT, `recent-${qb}.json`), JSON.stringify({ updated: new Date().toISOString(), names, trades: keep.map(t => [t.date, side(t.s1), side(t.s2)]) }));
+    console.log(`recent-${qb}: ${keep.length} trades since ${recentFrom}`);
   });
 }
 

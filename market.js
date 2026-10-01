@@ -1,11 +1,14 @@
 /* ============================================================
    REAL TRADES LIKE THIS (Trade Calculator)
-   What real managers paid for the trade's headline player, from KTC's trade
-   database (data/ktc-trades.json, the last few days of real dynasty trades,
-   refreshed daily). Only trades in this league's QB format (1QB or
-   Superflex), and only ones where every piece has a KTC price, all priced at
-   today's KTC values for this league's format, with the same consolidation
-   math as the grade. "Paid over KTC" is from the side that GOT the player:
+   What real managers paid for the trade's headline player, from two sources
+   that never overlap: KTC's trade database (data/ktc-trades.json, its last
+   few days, priced at today's KTC values for this league's format) and, for
+   the ~90 days before that, real trades from Sleeper dynasty leagues
+   (data/market-history/recent-<sf|oneQB>.json, each priced at KTC values from
+   its own day in its own league's format). Only trades in this league's QB
+   format (1QB or Superflex) where every piece has a price, with the same
+   consolidation math as the grade. Players are matched across the two by
+   name (Vault.normalizeName), the way the site matches KTC to Sleeper. "Paid over KTC" is from the side that GOT the player:
    what they sent, minus what they got, as a % of the two sides' average.
 
    Closest comparison with enough trades wins: the same shape (him alone for
@@ -25,30 +28,49 @@ function marketLoad() {
   if (Market.loading) return Market.loading;
   const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
   const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(league.scoring_settings?.bonus_rec_te);
-  Market.loading = Promise.all([fetch('data/ktc-trades.json').then(r => r.json()), Vault.fetchKtcValues()]).then(([db, ktc]) => {
-    const byId = new Map(), idOfName = new Map();
+  const recentFile = `data/market-history/recent-${isSF ? 'sf' : 'oneQB'}.json`;
+  Market.loading = Promise.all([fetch('data/ktc-trades.json').then(r => r.json()), Vault.fetchKtcValues(), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null)]).then(([db, ktc, recent]) => {
+    const byId = new Map();
     (ktc.players || []).forEach(p => {
       if (p.ktcId == null || !(p[field] > 0)) return;
       byId.set(String(p.ktcId), { type: 'player', name: p.name, pos: p.pos, value: p[field] });
-      idOfName.set(Vault.normalizeName(p.name), String(p.ktcId));
     });
     (ktc.picks || []).forEach(p => {
       if (p.ktcId == null || !(p[field] > 0)) return;
       byId.set(String(p.ktcId), { type: 'pick', name: `${p.season} R${p.round}`, tier: p.slot, value: p[field] });
     });
+    // Each trade keyed by its pieces: players by name ('n:' + normalized), picks by id.
     const qbs = isSF ? 2 : 1, byPlayer = new Map();
-    let first = Infinity, last = 0;
+    let first = '9999', last = '';
+    const add = (date, s1, s2) => {
+      const key = a => (a.type === 'player' ? 'n:' + Vault.normalizeName(a.name) : a.id);
+      const trade = { date, k1: s1.map(key), k2: s2.map(key), s1, s2 };
+      if (date < first) first = date; if (date > last) last = date;
+      [...trade.k1, ...trade.k2].forEach(k => { if (k.startsWith('n:')) (byPlayer.get(k) || byPlayer.set(k, []).get(k)).push(trade); });
+    };
+    let ktcFrom = '9999';
     (db.trades || []).forEach(t => {
       if (t.qbs !== qbs || !t.t1.length || !t.t2.length) return;
-      const s1 = t.t1.map(id => byId.get(id)), s2 = t.t2.map(id => byId.get(id));
+      const s1 = t.t1.map(id => byId.get(id) && { ...byId.get(id), id }), s2 = t.t2.map(id => byId.get(id) && { ...byId.get(id), id });
       if (s1.some(x => !x) || s2.some(x => !x)) return; // a piece KTC no longer prices
-      const trade = { date: t.date, t1: t.t1, t2: t.t2, s1, s2 };
-      const time = new Date(t.date).getTime();
-      first = Math.min(first, time); last = Math.max(last, time);
-      [...t.t1, ...t.t2].forEach(id => { if (byId.get(id).type === 'player') (byPlayer.get(id) || byPlayer.set(id, []).get(id)).push(trade); });
+      const date = String(t.date).slice(0, 10);
+      if (date < ktcFrom) ktcFrom = date;
+      add(date, s1, s2);
     });
-    const days = last >= first ? Math.round((last - first) / 864e5) + 1 : 0;
-    Market.data = { byPlayer, idOfName, isSF, days };
+    // Sleeper's trades from before KTC's feed starts, so none is counted twice.
+    let sleeperCount = 0;
+    (recent?.trades || []).forEach(([date, a, b]) => {
+      if (date >= ktcFrom) return;
+      const side = s => s.map(([id, value]) => {
+        if (id[0] === 'p') { const [season, round] = id.slice(1).split('-'); return { type: 'pick', id, name: `${season} R${round}`, value }; }
+        const [name, pos] = recent.names[id] || [];
+        return { type: 'player', id, name: name || 'Unknown player', pos, value };
+      });
+      add(date, side(a), side(b));
+      sleeperCount++;
+    });
+    const days = last >= first ? Math.round((new Date(last) - new Date(first)) / 864e5) + 1 : 0;
+    Market.data = { byPlayer, isSF, days, sleeperCount };
     return Market.data;
   }).catch(e => { console.warn('Real trades unavailable', e); Market.data = { failed: true }; return Market.data; });
   return Market.loading;
@@ -62,6 +84,8 @@ function marketPaid(pSide, oSide) {
   return (vo - vp) / avg * 100;
 }
 const marketShape = n => Math.min(n, 3);
+// Days from the oldest to the newest of these trades' dates, both counted.
+const spanDays = dates => { const s = [...dates].sort(); return s.length ? Math.round((new Date(s[s.length - 1]) - new Date(s[0])) / 864e5) + 1 : 0; };
 const marketQuantile = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
 
 // The read for one trade: the headline player (the most valuable player in it
@@ -71,17 +95,17 @@ function marketRead(aAssets, bAssets) {
   if (!d || d.failed) return null;
   const players = [...aAssets, ...bAssets].filter(a => a.type === 'player').sort((x, y) => y.value - x.value).slice(0, 2);
   for (const p of players) {
-    const id = d.idOfName.get(Vault.normalizeName(p.name));
-    const all = id && d.byPlayer.get(id);
+    const id = 'n:' + Vault.normalizeName(p.name);
+    const all = d.byPlayer.get(id);
     if (!all || all.length < MARKET_MIN_COMPS) continue;
     const youGet = bAssets.includes(p);
     const pSide = youGet ? bAssets : aAssets, oSide = youGet ? aAssets : bAssets;
     const shape = `${marketShape(pSide.length)}-${marketShape(oSide.length)}`;
     const dir = Math.sign(oSide.length - pSide.length); // 1: the team getting him sends more pieces
     const comps = all.map(t => {
-      const inOne = t.t1.includes(id);
+      const inOne = t.k1.includes(id);
       const ps = inOne ? t.s1 : t.s2, os = inOne ? t.s2 : t.s1;
-      const him = ps[(inOne ? t.t1 : t.t2).indexOf(id)];
+      const him = ps[(inOne ? t.k1 : t.k2).indexOf(id)];
       return { t, ps, os, paid: marketPaid(ps, os), shape: `${marketShape(ps.length)}-${marketShape(os.length)}`,
         dir: Math.sign(os.length - ps.length), main: ps.every(a => a.value <= him.value), raw: os.reduce((s, a) => s + a.value, 0) };
     });
@@ -104,12 +128,12 @@ function marketRead(aAssets, bAssets) {
     // trade made more than once shown once with a count.
     const seen = new Map();
     [...pool].sort((x, y) => Math.abs(x.raw - ourRaw) - Math.abs(y.raw - ourRaw)).forEach(c => {
-      const key = [c.t.t1.slice().sort().join(','), c.t.t2.slice().sort().join(',')].sort().join('|');
+      const key = [c.t.k1.slice().sort().join(','), c.t.k2.slice().sort().join(',')].sort().join('|');
       if (seen.has(key)) seen.get(key).times++; else seen.set(key, { ...c, times: 1 });
     });
     const examples = [...seen.values()].slice(0, 3);
     return { player: p, youGet, pSide, oSide, qual, n: pool.length, sorted, ours, examples,
-      low: marketQuantile(sorted, 0.25), med: marketQuantile(sorted, 0.5), high: marketQuantile(sorted, 0.75), days: d.days, isSF: d.isSF };
+      low: marketQuantile(sorted, 0.25), med: marketQuantile(sorted, 0.5), high: marketQuantile(sorted, 0.75), days: spanDays(pool.map(c => c.t.date)), isSF: d.isSF, sleeper: d.sleeperCount > 0 };
   }
   return null;
 }
@@ -159,7 +183,7 @@ function renderMarketRead(aAssets, bAssets) {
       <div class="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-zinc-500 leading-none"><span>Paid under KTC</span><span>KTC value</span><span>Paid over KTC</span></div>
     </div>`;
   const chip = a => `${Vault.escapeHtml(a.name)}${a.type === 'pick' && a.tier ? ` <span class="text-zinc-500">(${a.tier})</span>` : ''}`;
-  const day = s => new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const day = s => new Date(String(s).slice(0, 10) + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
   const examples = m.examples.map(c => `<div class="flex items-baseline justify-between gap-3 py-1.5 border-t border-white/5 first:border-t-0">
       <span class="min-w-0 text-zinc-300"><span class="text-zinc-100">${c.ps.map(chip).join(', ')}</span> <span class="text-zinc-500">for</span> ${c.os.map(chip).join(', ')}</span>
       <span class="shrink-0 mono text-[11px] text-zinc-400" title="${day(c.t.date)}">${c.times > 1 ? `<span class="text-zinc-500">×${c.times}</span> ` : ''}${marketSigned(c.paid)}</span>
@@ -175,7 +199,7 @@ function renderMarketRead(aAssets, bAssets) {
         ${strip}
         <div class="text-[11px] uppercase tracking-wider text-zinc-500 mt-3 mb-0.5">Most like this one</div>
         ${examples}
-        <div class="text-[11px] text-zinc-500 mt-2">From KTC's trade database, priced at today's KTC values for your league. The grade above doesn't use these.</div>
+        <div class="text-[11px] text-zinc-500 mt-2">${m.sleeper ? "From KTC's trade database (priced at today's KTC values for your league) and, before that, Sleeper dynasty leagues (priced at KTC values from each trade's day)" : "From KTC's trade database, priced at today's KTC values for your league"}. The grade above doesn't use these.</div>
       </div>
     </details>`;
 }

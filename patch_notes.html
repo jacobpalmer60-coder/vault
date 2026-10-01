@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=ff57f9cf">
+<link rel="stylesheet" href="tailwind.css?v=b2498b4a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -36,6 +36,10 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'changed', page: 'Trade Database', text: 'The market charts now keep growing on their own: alongside KTC\'s last few days, they pool real trades from Sleeper dynasty leagues from the ~90 days before (each priced at KTC values from its own day), so samples get bigger as the collection grows. The two never overlap, so no trade counts twice. The heading says how many came from each.' },
+    { kind: 'changed', page: 'Trade Calculator', text: 'The Real trades line under the grade uses the same pool: KTC\'s last few days plus the Sleeper trades before them, so lesser players get real comparisons too.' },
+    { kind: 'new', page: 'Trade Database', text: 'Year by year: Over time now has a table of each year\'s trades (typical % off, the Fair / Lopsided / Unfair split, how many were 1-for-1, and what 2-for-1 consolidators paid), each year summarized whole.' },
+    { kind: 'improved', page: 'Trade Database', text: 'Your league vs the market now shows your league\'s real Great and Good grades too. The market can\'t have them (they need both teams\' rosters at the time of the trade), so the two are compared on Fair or better.' },
     { kind: 'new', page: 'Trade Database', text: 'Over time: the Trade Database is now building a long history of real dynasty trades from Sleeper leagues (going back to 2021), each priced at the KTC values from the day it happened, in your league\'s exact format (Superflex or 1QB and its TE premium). Once enough months fill in, it charts the typical trade\'s % off and the share graded Fair, month by month. Until then it shows how many trades it has collected. Before September 2023 only player-for-player trades can be priced, since pick prices start then.' },
   ]},
   { date: '2026-09-30', items: [
