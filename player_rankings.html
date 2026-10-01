@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=b2498b4a">
+<link rel="stylesheet" href="tailwind.css?v=ae2f9e04">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -119,6 +119,7 @@
 
 <script src="vault-core.js?v=3a68f3cb"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
+<script src="market-data.js?v=ca05d330"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -137,6 +138,7 @@
   let posFilter = 'ALL';
   let searchQuery = '';
   let isSF = true; // default assumption until league loads
+  let leagueObj = null; // the loaded league, for matching completed trades to leagues like it
   let scoringSettings = null;
   let rosterPositions = [];
   let teamCount = 10;
@@ -291,7 +293,7 @@
   let chartRegistrySeq = 0;
   const chartRegistry = new Map();
 
-  function playerChart(rawSeries, field = 'value', decimals = 0) {
+  function playerChart(rawSeries, field = 'value', decimals = 0, market = null) {
     const W = 460, H = 150, ML = 48, MR = 12, MT = 10, MB = 22;
     const plotW = W - ML - MR, plotH = H - MT - MB;
     // Not every date has every field — the value backfill (KTC) covers years
@@ -303,7 +305,8 @@
     const series = rawSeries.filter(p => Number.isFinite(p[field]));
     if (series.length < 1) return `<div class="text-[12px] text-zinc-400 py-6 text-center">Not enough data yet.</div>`;
     const vals = series.map(p => p[field]);
-    const minV = Math.min(...vals), maxV = Math.max(...vals);
+    const mVals = market ? series.map(p => market.get(p.date)?.value).filter(Number.isFinite) : [];
+    const minV = Math.min(...vals, ...mVals), maxV = Math.max(...vals, ...mVals);
     const pad = (maxV - minV) * 0.1 || maxV * 0.1 || (decimals ? 1 : 100);
     const yMin = Math.max(0, minV - pad), yMax = maxV + pad;
     const x = i => ML + (series.length > 1 ? i / (series.length - 1) * plotW : 0);
@@ -330,11 +333,20 @@
     const up = vals[vals.length - 1] >= vals[0];
 
     const chartId = `pc${chartRegistrySeq++}`;
-    chartRegistry.set(chartId, { series, field, decimals, ML, MT, plotW, plotH, W, H, label: field === 'ppg' ? 'PPG' : 'Value' });
+    chartRegistry.set(chartId, { series, field, decimals, ML, MT, plotW, plotH, W, H, label: field === 'ppg' ? 'PPG' : market ? 'KTC' : 'Value', market });
+    // Market points: one per day with completed trades (bigger with more trades), joined faintly.
+    let marketLines = '';
+    if (market) {
+      const pts = series.map((p, i) => [i, market.get(p.date)]).filter(([, m]) => m && Number.isFinite(m.value));
+      // Faint joins only between trade days within a week of each other, so a gap never reads as a trend.
+      marketLines = pts.slice(1).map(([i, m], k) => { const [j, prev] = pts[k]; return i - j <= 7 ? `<line x1="${x(j)}" y1="${y(prev.value)}" x2="${x(i)}" y2="${y(m.value)}" stroke="#fbbf24" stroke-opacity="0.35" stroke-width="1.25"/>` : ''; }).join('')
+        + pts.map(([i, m]) => `<circle cx="${x(i)}" cy="${y(m.value)}" r="${Math.min(5, 2.5 + Math.log2(m.n))}" fill="#fbbf24" stroke="#0c0d10" stroke-width="1"/>`).join('');
+    }
     // A transparent rect over the whole plot area catches mousemove anywhere
     // in the chart, not just exactly on a 2.5px-radius circle.
     const hoverRect = `<rect x="${ML}" y="${MT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>`;
-    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" data-chart-id="${chartId}">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${hoverRect}${dateTicks}</svg>`;
+    const legend = market ? `<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded ${up ? 'bg-emerald-400' : 'bg-rose-400'}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market value: what managers paid for him that day (each dot is a day with completed trades)</span></div>` : '';
+    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" data-chart-id="${chartId}">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${marketLines}${hoverRect}${dateTicks}</svg>${legend}`;
   }
 
   // One delegated listener serves every chart, including ones re-rendered
@@ -378,7 +390,8 @@
       svg.appendChild(guideEl);
 
       const fmt = v => v.toLocaleString(undefined, { minimumFractionDigits: info.decimals, maximumFractionDigits: info.decimals });
-      tooltip.innerHTML = `<div class="text-zinc-400">${p.date}${p.estimated ? ' (estimated)' : ''}</div><div class="font-semibold mono">${info.label}: ${fmt(p[info.field])}</div>`;
+      const mv = info.market && info.market.get(p.date);
+      tooltip.innerHTML = `<div class="text-zinc-400">${p.date}${p.estimated ? ' (estimated)' : ''}</div><div class="font-semibold mono">${info.label}: ${fmt(p[info.field])}</div>${mv ? `<div class="font-semibold mono text-amber-300">Market: ${fmt(mv.value)} <span class="font-normal text-zinc-400">(${mv.n} trade${mv.n === 1 ? '' : 's'})</span></div>` : ''}`;
       tooltip.classList.remove('hidden');
       // Flip to the other side of the cursor when it would run off the window.
       const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
@@ -448,8 +461,9 @@
         <div><div class="mono text-[15px] text-zinc-100">${fmtFloat(r.ppg, 2)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">PPG</div></div>
         <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}" title="Points per game above the best player at ${r.pos || 'this position'} who wouldn't start anywhere in your league">${fmtSigned(r.vorp)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">VORP</div></div>
       </div>
+      <div id="pcMarket" class="mb-4"></div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time</div>
-      ${valueChart}
+      <div id="pcValueChart">${valueChart}</div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time</div>
       ${ppgChart}
       ${historySection}
@@ -457,10 +471,61 @@
     `;
   }
 
+  /* KTC value vs market value: what managers actually paid for him in real
+     trades where he was the main piece (market-data.js), from leagues as much
+     like this one as there are enough of. Shown as his KTC value scaled by the
+     typical premium or discount, with the usual range. */
+  // Each player's daily market line (scripts/summarize-sleeper-trades.js), loaded once.
+  let dailyMarketLoading = null;
+  function loadDailyMarket() {
+    if (!dailyMarketLoading) {
+      const qbs = Vault.tradeFormatSig(leagueObj).qbs;
+      dailyMarketLoading = fetch(`data/market-history/daily-${qbs === 2 ? 'sf' : 'oneQB'}.json`).then(res => (res.ok ? res.json() : null)).catch(() => null);
+    }
+    return dailyMarketLoading;
+  }
+  function renderPlayerMarket(r) {
+    const box = document.getElementById('pcMarket');
+    if (!box || !leagueObj || !r.value) return;
+    const shell = inner => `<div class="rounded-xl border border-white/10 bg-black/20 p-3.5">
+        <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Market value <span class="normal-case tracking-normal text-zinc-500">· what managers actually pay</span></div>${inner}</div>`;
+    box.innerHTML = shell('<div class="text-[12px] text-zinc-500 mt-1.5">Checking completed trades…</div>');
+    loadDailyMarket().then(daily => {
+      const line = daily && daily.players[r.norm], chart = document.getElementById('pcValueChart');
+      if (!line || !chart || document.getElementById('pcMarket') !== box || !r.windowedSeries.length) return;
+      // His market value on a trade day = that day's KTC value with what managers paid over it that day.
+      const prem = new Map(), start = new Date(daily.from + 'T00:00:00Z').getTime();
+      line.forEach(([day, pct, n]) => prem.set(new Date(start + day * 864e5).toISOString().slice(0, 10), { pct, n }));
+      const market = new Map();
+      r.windowedSeries.forEach(p => { const m = prem.get(p.date); if (m && Number.isFinite(p.value)) market.set(p.date, { value: Math.round(p.value * (1 + m.pct / 100)), n: m.n }); });
+      if (market.size) chart.innerHTML = playerChart(r.windowedSeries, 'value', 0, market);
+    });
+    marketLoad(leagueObj).then(() => {
+      if (document.getElementById('pcMarket') !== box) return; // a different card opened meanwhile
+      // Like-for-like trades (same number of pieces each way) when there are enough, else every trade he headlined.
+      const evenRead = marketValue(leagueObj, r.player, { even: true });
+      const m = evenRead.like ? evenRead : marketValue(leagueObj, r.player);
+      if (!m.like) {
+        box.innerHTML = shell(`<div class="text-[12px] text-zinc-400 mt-1.5">Not enough completed trades with ${Vault.escapeHtml(r.player)} as the main piece yet${m.n ? ` (${m.n} so far)` : ''}. This fills in as The Vault collects more.</div>`);
+        return;
+      }
+      const at = v => Math.round(r.value * (1 + v / 100)).toLocaleString();
+      const pct = Math.round(m.premium), tone = Math.abs(pct) < 3 ? 'text-zinc-300' : pct > 0 ? 'text-emerald-300' : 'text-amber-300';
+      const read = Math.abs(pct) < 3 ? 'right about his KTC value' : pct > 0 ? `${pct}% more than KTC says` : `${-pct}% less than KTC says`;
+      box.innerHTML = shell(`
+        <div class="flex items-baseline gap-3 flex-wrap mt-1">
+          <span class="mono text-[22px] font-semibold text-zinc-100">${at(m.premium)}</span>
+          <span class="text-[13px] ${tone}">${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}% vs KTC (${fmtInt(r.value)})</span>
+        </div>
+        <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">Teams getting him paid ${read}, usually ${at(m.low)} to ${at(m.high)}. Median of ${m.n} completed trades where he was the main piece${m.even ? ' and each side sent the same number of pieces' : ' (any shape, so it includes what teams pay to consolidate)'}, from leagues like yours (${m.like}), over ${m.days} day${m.days === 1 ? '' : 's'}.${m.vsPeers != null ? ` ${Vault.escapeHtml(r.pos || 'Player')}s at his KTC value usually go for ${(() => { const p = Math.round(m.premium - m.vsPeers); return Math.abs(p) < 1 ? 'about KTC' : `${Math.abs(p)}% ${p > 0 ? 'over' : 'under'}`; })()}, so he's ${Math.abs(Math.round(m.vsPeers)) < 3 ? 'priced about like them' : `<span class="${m.vsPeers > 0 ? 'text-emerald-300' : 'text-amber-300'}">${Math.abs(Math.round(m.vsPeers))}% ${m.vsPeers > 0 ? 'above' : 'below'} his peers</span>`}.` : ''}</div>`);
+    });
+  }
+
   function openPlayerModal(norm) {
     const r = allRows.find(x => x.norm === norm);
     if (!r) return;
     document.getElementById('playerModalBody').innerHTML = renderPlayerCard(r);
+    renderPlayerMarket(r);
     document.getElementById('playerModal').classList.remove('hidden');
     // Focus moves into the card, and back to the row it came from on close.
     modalReturn = document.activeElement;
@@ -734,6 +799,7 @@
       if (!league || league.error) throw new Error('League not found');
       if (!Vault.isDynastyLeague(league)) throw new Error(`"${league.name}" is a redraft/keeper league, not dynasty — The Vault only supports dynasty leagues.`);
       isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+      leagueObj = league;
       scoringSettings = league.scoring_settings || {};
       rosterPositions = league.roster_positions || [];
       teamCount = league.total_rosters || 10;

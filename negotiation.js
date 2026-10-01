@@ -20,12 +20,12 @@
    render, computeTradeAnalysis, projectedRosterCount, rosterCap, offeredBy,
    capPct, flashButtonMessage.
    ============================================================ */
-/* How far behind a manager will go, calibrated on real trades (2026-09-30):
-   in ~24,000 real dynasty trades from KTC's trade database the typical 1-for-1
+/* How far behind a manager will go, calibrated on completed trades (2026-09-30):
+   in ~24,000 completed dynasty trades from KTC's trade database the typical 1-for-1
    was ~13% off on KTC value, and in a 2-for-1 the side getting the single best
    player handed over ~1.5x its KTC value. The old bar (accept only from ~2%
    behind, never if the grade went against them) said one manager would decline
-   in all 17 real trades in this league, both of which happened. */
+   in all 17 completed trades in this league, both of which happened. */
 const NEG = {
   ACCEPT_EDGE: -12,         // a typical manager accepts up to ~12% behind (market median)...
   TOLERANCE_MIN: 4,         // ...a manager who's never come out behind still accepts ~4%...
@@ -173,7 +173,7 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   if (top && oAssets.includes(top) && rAssets.length > oAssets.length) concerns.push({ w: NEG.CONSOLIDATION_BONUS, text: `They'd get the best piece in the deal, ${Vault.escapeHtml(top.name)}, and managers pay a premium to consolidate.`, say: `${Vault.escapeHtml(top.name)} is the kind of piece I'd pay up for.` });
   // Stars rarely move 1-for-1: managers want a second piece for one, even at even value.
   const star = rAssets.length === 1 && oAssets.length === 1 ? NEG.STAR_1FOR1.find(([v]) => rAssets[0].value >= v) : null;
-  if (star) concerns.push({ w: -star[1], text: `Stars like ${Vault.escapeHtml(rAssets[0].name)} almost never move 1-for-1 (about ${star[0] >= 8000 ? '1 in 100' : '1 in 20'} real trades for a player this valuable); a second piece usually gets it done.`, say: `I'm not moving ${Vault.escapeHtml(rAssets[0].name)} straight up for one player.` });
+  if (star) concerns.push({ w: -star[1], text: `Stars like ${Vault.escapeHtml(rAssets[0].name)} almost never move 1-for-1 (about ${star[0] >= 8000 ? '1 in 100' : '1 in 20'} trades for a player this valuable); a second piece usually gets it done.`, say: `I'm not moving ${Vault.escapeHtml(rAssets[0].name)} straight up for one player.` });
   // The grade reading bad for their side counts against it, but isn't an automatic no.
   const siteSaysNo = an.heads.B.tone === 'bad';
   if (siteSaysNo) concerns.push({ w: -NEG.SITE_NO_PENALTY, text: 'Graded from their side, it reads as a bad trade for them.' });

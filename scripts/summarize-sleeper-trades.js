@@ -34,6 +34,12 @@
        trades: [[date, [[id, value], ...], [[id, value], ...], [rec, bonusRecTe, teams]]] }
    (picks: 'p<season>-<round>'; the last part is the league's PPR, TE premium
    and team count, so pages can match trades to their own league's settings)
+   and data/market-history/daily-<sf|oneQB>.json, each player's market points
+   for the player card: every day he was the main piece in at least one real
+   trade, the median premium (or discount) managers paid over KTC that day and
+   how many trades it's from. Premium = what the getter sent / what his side
+   was worth, both consolidation-adjusted, minus 1, as a whole-number %:
+     { from: 'YYYY-MM-DD', players: { normalizedName: [[daysSinceFrom, pct, trades], ...] } }
    Summaries use lib-market.js, the same math as the KTC snapshot.
    ============================================================ */
 const fs = require('fs');
@@ -122,6 +128,7 @@ function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const recentFrom = new Date(Date.now() - RECENT_DAYS * 864e5).toISOString().slice(0, 10);
   const recent = { sf: [], oneQB: [] };
+  const premiums = { sf: new Map(), oneQB: new Map() }; // name -> [[date, premium %]]
   byFormat.forEach((trades, format) => {
     const prices = playerPrices(format);
     const asset = (id, d) => {
@@ -145,6 +152,16 @@ function main() {
       (months.get(date.slice(0, 7)) || months.set(date.slice(0, 7), []).get(date.slice(0, 7))).push(t);
       (years.get(date.slice(0, 4)) || years.set(date.slice(0, 4), []).get(date.slice(0, 4))).push(t);
       if (date >= recentFrom) recent[format.startsWith('sf') ? 'sf' : 'oneQB'].push(t);
+      // Each side's main piece (its best player): what that side cost over what it was worth.
+      Vault._globalMaxValue = prices.maxAt(date) || undefined;
+      const { valueA: v1, valueB: v2 } = Vault.tradeSideValues(s1, s2);
+      [[s1, v1, v2], [s2, v2, v1]].forEach(([side, got, gave]) => {
+        const top = side.reduce((m, a) => (a.value > m.value ? a : m));
+        if (top.type !== 'player' || !got) return;
+        const pl = sleeper[top.id], key = normalizeName(`${pl.first_name || ''} ${pl.last_name || ''}`.trim());
+        const list = premiums[format.startsWith('sf') ? 'sf' : 'oneQB'];
+        (list.get(key) || list.set(key, []).get(key)).push([date, (gave / got - 1) * 100]);
+      });
     });
     // The consolidation math scales to the most valuable player at the time (see vault-core.js).
     const weekOut = {}, monthOut = {}, yearOut = {};
@@ -158,6 +175,22 @@ function main() {
     fs.writeFileSync(path.join(OUT, `${format}.json`), JSON.stringify({ format, updated: new Date().toISOString(), leagues: leagues.get(format).size, trades: { crawled: trades.length, priced }, weeks: weekOut, years: yearOut }));
     fs.writeFileSync(path.join(OUT, `${format}-players.json`), JSON.stringify({ format, months: monthOut }));
     console.log(`${format}: ${trades.length} trades from ${leagues.get(format).size} leagues, ${priced} priced, ${weeks.size} weeks`);
+  });
+
+  // Each player's market points: every day with a trade, that day's median premium.
+  Object.entries(premiums).forEach(([qb, byName]) => {
+    const from = [...byName.values()].flat().map(([d]) => d).sort()[0];
+    const players = {};
+    if (from) byName.forEach((events, name) => {
+      const byDay = new Map();
+      events.forEach(([d, p]) => (byDay.get(d) || byDay.set(d, []).get(d)).push(p));
+      players[name] = [...byDay.keys()].sort().map(d => {
+        const ps = byDay.get(d).sort((x, y) => x - y);
+        return [Math.round((new Date(d) - new Date(from)) / 864e5), Math.round(ps[Math.floor((ps.length - 1) / 2)]), ps.length];
+      });
+    });
+    fs.writeFileSync(path.join(OUT, `daily-${qb}.json`), JSON.stringify({ from, players }));
+    console.log(`daily-${qb}: market points for ${Object.keys(players).length} players`);
   });
 
   // Recent trades for the pages to pool with KTC's feed, with names for the players in them.

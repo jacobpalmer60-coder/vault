@@ -6,7 +6,7 @@
 <title>Trade Database — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=b2498b4a">
+<link rel="stylesheet" href="tailwind.css?v=ae2f9e04">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -19,7 +19,7 @@
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
   </div>
   <p class="text-[12px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
-    Real trades from other KeepTradeCut-tracked leagues, filtered to match
+    The market from other KeepTradeCut-tracked leagues, filtered to match
     <span class="text-zinc-400">this league's own format</span> — team count, QB slots,
     PPR, and TE premium — so what you're seeing actually happened under rules like yours.
     Rolling ~8-day window; PPR/TE-premium tiers are matched by nearest scoring convention,
@@ -28,16 +28,28 @@
 
   <div id="matchBar" class="card rounded-vault-sm p-4 mb-4"></div>
 
-  <!-- The market at a glance: how far off real trades run, by shape, star level and position, and your league next to it. -->
+  <!-- The market at a glance: how far off completed trades run, by shape, star level and position, and your league next to it. -->
   <details id="market" class="group card rounded-vault-sm mb-6" open>
     <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
       <span>
         <span class="block text-[16px] font-semibold text-zinc-100">The market at a glance</span>
-        <span id="marketSub" class="block text-[12px] text-zinc-400 mt-0.5">Crunching real trades…</span>
+        <span id="marketSub" class="block text-[12px] text-zinc-400 mt-0.5">Crunching completed trades…</span>
       </span>
       <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
     </summary>
     <div id="marketBody" class="px-5 pb-5 space-y-5"></div>
+  </details>
+
+  <!-- Market highs & lows: players trading above or below KTC in like-for-like completed trades. -->
+  <details id="movers" class="group card rounded-vault-sm mb-6 hidden" open>
+    <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+      <span>
+        <span class="block text-[16px] font-semibold text-zinc-100">Market highs &amp; lows</span>
+        <span id="moversSub" class="block text-[12px] text-zinc-400 mt-0.5"></span>
+      </span>
+      <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
+    </summary>
+    <div id="moversBody" class="px-5 pb-5"></div>
   </details>
 
   <!-- Over time: Sleeper dynasty trades in your league's exact price format, month by month. -->
@@ -68,6 +80,7 @@
 
 <script src="vault-core.js?v=3a68f3cb"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
+<script src="market-data.js?v=ca05d330"></script>
 <script>
 const TIER_LABEL = {
   full: 'Exact match — team count, QB slots, PPR, and TE premium',
@@ -156,7 +169,7 @@ function findMatches(trades, sig) {
    usually too few trades to split by shape or position) from two sources
    that never overlap: KTC's feed (its last ~5 days, priced at today's KTC
    values for this league) and, for the RECENT_DAYS before that feed starts,
-   real trades from Sleeper dynasty leagues (scripts/summarize-sleeper-trades.js,
+   completed trades from Sleeper dynasty leagues (scripts/summarize-sleeper-trades.js,
    each priced at KTC values from its own day in its own league's format).
    All with the Trade Calculator's own math: consolidation-adjusted % off, the same Fair / Lopsided / Unfair
    cutoffs. "Paid over KTC" is from the side getting fewer pieces (or the
@@ -239,7 +252,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
   const body = document.getElementById('marketBody');
   if (n < 200) { document.getElementById('market').classList.add('hidden'); return; }
   const med = mkMedian(rows.map(r => r.pct)), mean = rows.reduce((s, r) => s + r.pct, 0) / n;
-  document.getElementById('marketSub').textContent = `${n.toLocaleString()} real trades from leagues like yours (${fmt})${src && src.sleeper ? `: ${src.ktc.toLocaleString()} from KTC's feed (last ${src.ktcDays} days) and ${src.sleeper.toLocaleString()} from Sleeper dynasty leagues (the ${src.sleeperDays} days before)` : ', from KTC\'s feed'}${src && src.looser ? `. Not enough ${src.looser} trades yet, so this is a broader match` : ''}`;
+  document.getElementById('marketSub').textContent = `${n.toLocaleString()} completed trades from leagues like yours (${fmt})${src && src.sleeper ? `: ${src.ktc.toLocaleString()} from KTC's feed (last ${src.ktcDays} days) and ${src.sleeper.toLocaleString()} from Sleeper dynasty leagues (the ${src.sleeperDays} days before)` : ', from KTC\'s feed'}${src && src.looser ? `. Not enough ${src.looser} trades yet, so this is a broader match` : ''}`;
 
   // Your league next to the market.
   const lg = league && league.length ? league : null;
@@ -251,7 +264,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
       <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">${sub}</div>
     </div>`;
   const tiles = `<div class="grid sm:grid-cols-3 gap-3">
-      ${tile('Typical trade', `${mkPct(med)} off`, `Half of real trades are further off than this on KTC value (average ${mkPct(mean)}).`)}
+      ${tile('Typical trade', `${mkPct(med)} off`, `Half of completed trades are further off than this on KTC value (average ${mkPct(mean)}).`)}
       <div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
         <div class="text-[11px] uppercase tracking-wider text-zinc-400">How they grade</div>
         <div class="mt-3">${mkSplitBar(rows)}</div>
@@ -271,7 +284,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
   const xOf = v => Math.min(v, MK_TOP + MK_BIN - 0.01) / (MK_TOP + MK_BIN) * 100;
   const hist = `<div>
       <div class="flex items-baseline justify-between gap-3 flex-wrap mb-2">
-        <div class="text-[13px] font-medium text-zinc-200">How far off real trades are</div>
+        <div class="text-[13px] font-medium text-zinc-200">How far off completed trades are</div>
         <div class="flex items-center gap-3 text-[11px] text-zinc-400">${['Fair', 'Lopsided', 'Unfair'].map(b => `<span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-sm ${BUCKET_FILL[b]}"></span>${b}</span>`).join('')}${lg ? '<span class="inline-flex items-center gap-1.5"><span class="w-px h-2.5 bg-amber-300"></span>Your league\'s trades</span>' : ''}</div>
       </div>
       <div class="relative">
@@ -342,7 +355,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
     </div>` : '';
 
   body.innerHTML = `${tiles}${hist}<div class="grid lg:grid-cols-2 gap-3">${byShape}${byStar}</div>${byPos}${vs}
-    <div class="text-[11px] text-zinc-500">From KeepTradeCut's trade database (rolling, about the last week) and, before that, real trades from Sleeper dynasty leagues: trades from leagues like yours (the closest match with enough trades, named above) where every piece has a KTC price. Smaller groups (under 50 trades for a shape, 30 for a star level or position) are left out.</div>`;
+    <div class="text-[11px] text-zinc-500">From KeepTradeCut's trade database (rolling, about the last week) and, before that, completed trades from Sleeper dynasty leagues: trades from leagues like yours (the closest match with enough trades, named above) where every piece has a KTC price. Smaller groups (under 50 trades for a shape, 30 for a star level or position) are left out.</div>`;
 
   // Hover / focus readout for the histogram bars.
   const tip = document.getElementById('mkTip'), hist$ = document.getElementById('mkHist');
@@ -419,7 +432,7 @@ async function renderHistory(field) {
   });
   box.classList.remove('hidden');
   const fmt = FORMAT_NAME[field] || field;
-  document.getElementById('historySub').textContent = `${doc.trades.priced.toLocaleString()} real ${fmt} trades from ${doc.leagues.toLocaleString()} Sleeper dynasty leagues, each priced at KTC values from the day it happened`;
+  document.getElementById('historySub').textContent = `${doc.trades.priced.toLocaleString()} completed ${fmt} trades from ${doc.leagues.toLocaleString()} Sleeper dynasty leagues, each priced at KTC values from the day it happened`;
   // Year by year: each year summarized whole by the pricing step, so its numbers are exact.
   const yearRows = Object.entries(doc.years || {}).filter(([, s]) => s.n >= HIST_MIN).sort(([a], [b]) => b.localeCompare(a));
   const years = !yearRows.length ? '' : `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
@@ -446,7 +459,7 @@ async function renderHistory(field) {
     </div>`;
   if (months.length < 3) {
     body.innerHTML = `<div class="rounded-xl bg-black/25 border border-white/5 p-4 text-[13px] text-zinc-300 leading-relaxed">
-        Collecting. The Vault is gathering real trades from Sleeper dynasty leagues around the clock, going back to 2021, and pricing each one at the KTC values from its day.
+        Collecting. The Vault is gathering completed trades from Sleeper dynasty leagues around the clock, going back to 2021, and pricing each one at the KTC values from its day.
         So far: <span class="mono text-zinc-100">${doc.trades.crawled.toLocaleString()}</span> ${fmt} trades from <span class="mono text-zinc-100">${doc.leagues.toLocaleString()}</span> leagues. Monthly charts appear here once at least three months each have ${HIST_MIN}+ trades.
       </div>${years}`;
     return;
@@ -466,6 +479,69 @@ async function renderHistory(field) {
     <div class="text-[11px] text-zinc-500">Months and years with fewer than ${HIST_MIN} trades are left out. Before September 2023 only player-for-player trades can be priced (pick prices start then). Picks after round 4, kickers and defenses count as no value. Trades with a player KTC no longer tracks are left out.</div>`;
   wireColumns('hcMedian', months, m => m.median, v => `${Math.round(v)}% off`);
   wireColumns('hcFair', months, m => m.fair, v => `${Math.round(v)}% Fair`);
+}
+
+/* ---------- Market highs & lows ----------
+   Players managers are paying more (or less) for than KTC says, from
+   market-data.js: completed trades where the player was the main piece and each
+   side sent the same number of pieces (marketValue's even read), so a star
+   doesn't top the list just because getting one means sending more pieces.
+   Ranked against players at the same position and KTC value (vsPeers): in
+   like-for-like trades a star's partner can only be worth less and a cheap
+   player's tends to be worth more, and whole positions can trade off KTC
+   (tight ends go for well under KTC's TE-premium prices), so raw % over KTC
+   would fill the lows with stars and tight ends. How each position trades as
+   a whole gets its own line instead.
+   Leagues as much like this one as there are enough of, players worth at
+   least HL_MIN_VALUE with HL_MIN_TRADES such trades. */
+const HL_MIN_VALUE = 1500, HL_MIN_TRADES = 8, HL_SHOW = 10;
+let moversRows = [], moversPos = 'ALL';
+async function renderMovers(league, playerMap) {
+  await marketLoad(league);
+  moversRows = [];
+  playerMap.forEach(p => {
+    if (!(p.value >= HL_MIN_VALUE) || !p.pos) return;
+    const m = marketValue(league, p.name, { even: true, min: HL_MIN_TRADES });
+    if (m.like && m.vsPeers != null) moversRows.push({ ...p, m });
+  });
+  document.getElementById('movers').classList.toggle('hidden', moversRows.length < 4);
+  drawMovers();
+}
+function setMoversPos(pos) { moversPos = pos; drawMovers(); }
+function drawMovers() {
+  const rows = moversRows.filter(r => moversPos === 'ALL' || r.pos === moversPos);
+  const highs = rows.filter(r => r.m.vsPeers >= 1).sort((a, b) => b.m.vsPeers - a.m.vsPeers).slice(0, HL_SHOW);
+  const lows = rows.filter(r => r.m.vsPeers <= -1).sort((a, b) => a.m.vsPeers - b.m.vsPeers).slice(0, HL_SHOW);
+  const trades = moversRows.reduce((t, r) => t + r.m.n, 0);
+  document.getElementById('moversSub').textContent = `Who managers pay more or less for than other players at the same position and KTC value, in like-for-like trades (each side sent the same number of pieces). ${moversRows.length} players with ${HL_MIN_TRADES}+ such trades.`;
+  const byPos = marketPeerBaseline(true)?.byPos || {};
+  const posLine = Object.keys(byPos).length ? `<div class="text-[12px] text-zinc-400 mb-3">By position, against KTC: ${Object.entries(byPos).map(([p, v]) => `<span class="text-zinc-300">${p}</span> <span class="mono ${Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-amber-300'}">${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%</span>`).join(' <span class="text-zinc-600">·</span> ')} <span class="text-zinc-500">(how each position trades as a whole, in the same like-for-like trades)</span></div>` : '';
+  const row = r => {
+    const market = Math.round(r.value * (1 + r.m.premium / 100)), up = r.m.vsPeers > 0, peer = r.m.premium - r.m.vsPeers;
+    const signed = v => `${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%`;
+    return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0" title="KTC ${Math.round(r.value).toLocaleString()}, market ${market.toLocaleString()} (usually ${Math.round(r.value * (1 + r.m.low / 100)).toLocaleString()} to ${Math.round(r.value * (1 + r.m.high / 100)).toLocaleString()}) · leagues like yours (${r.m.like})">
+        <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
+        <div class="min-w-0">
+          <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(r.name)}</div>
+          <div class="text-[11px] text-zinc-400">Paid <span class="mono text-zinc-300">${signed(r.m.premium)}</span> vs KTC; ${r.pos}s at his value <span class="mono">${signed(peer)}</span> <span class="text-zinc-500">· ${r.m.n} trades</span></div>
+        </div>
+        <span class="text-[13px] mono font-semibold ${up ? 'text-emerald-300' : 'text-amber-300'}" title="vs players at the same position and KTC value">${signed(r.m.vsPeers)}</span>
+      </div>`;
+  };
+  const list = (title, sub, items) => `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
+      <div class="text-[13px] font-medium text-zinc-200">${title}</div>
+      <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${sub}</div>
+      ${items.length ? items.map(row).join('') : '<div class="text-[12px] text-zinc-500 py-3">None with enough trades yet.</div>'}
+    </div>`;
+  const chip = p => `<button onclick="setMoversPos('${p}')" aria-pressed="${moversPos === p}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${moversPos === p ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${p === 'ALL' ? 'All' : p}</button>`;
+  document.getElementById('moversBody').innerHTML = `
+    <div class="flex flex-wrap gap-1.5 mb-3">${['ALL', 'QB', 'RB', 'WR', 'TE'].map(chip).join('')}</div>
+    ${posLine}
+    <div class="grid lg:grid-cols-2 gap-3">
+      ${list('Market highs', 'Managers pay more for these than for others at their position and KTC value. A chance to sell high.', highs)}
+      ${list('Market lows', 'These go for less than others at their position and KTC value. A chance to buy low.', lows)}
+    </div>
+    <div class="text-[11px] text-zinc-500 mt-3">The big number is how much more or less managers pay for him than for players at the same position and KTC value (stars' partners can only be worth less, cheap players' tend to be worth more, and whole positions can trade off KTC, so raw % over KTC alone would skew the lists). "Paid" is his own median % over or under KTC. Hover a player for his market value and usual range. From KTC's trade database and Sleeper dynasty trades; ${trades.toLocaleString()} trades in all.</div>`;
 }
 
 async function init() {
@@ -520,7 +596,7 @@ async function init() {
       </div>
       ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded with the Trade Calculator's own value math: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-amber-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(${priced.length.toLocaleString()} fully priced)</span></div>` : ''}`;
 
-    // The market at a glance: real trades from leagues like this one. Steps down
+    // The market at a glance: completed trades from leagues like this one. Steps down
     // Vault.tradeFormatTiers (exact settings -> any team count -> QB + TE premium
     // -> QB alone) until there are MK_MIN_POOL trades, for whichever league is loaded.
     const mRows = marketRows((tradesData.trades || []).filter(t => t.qbs === sig.qbs), playerMap, pickMap);
@@ -544,6 +620,7 @@ async function init() {
       redraw();
     }).catch(() => {});
     renderHistory(valueField);
+    renderMovers(league, playerMap);
     Vault.fetchAndGradeAllTrades(leagueId).then(({ allGraded }) => {
       leagueRows = (allGraded || []).filter(g => Number.isFinite(g.pctDiff)).map(g => ({ pct: g.pctDiff, bucket: g.bucket || Vault.fairnessBucket(g.pctDiff, 0, 0), label: `${g.teamA.teamName} and ${g.teamB.teamName}` }));
       redraw();
