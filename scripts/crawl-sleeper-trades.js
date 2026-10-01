@@ -2,10 +2,15 @@
    CRAWL SLEEPER TRADES
    KTC's trade database only goes back a few days, so this builds a longer
    history from Sleeper, where every league's trades are public by league
-   id. It walks outward from a seed league: a league's managers -> their
-   other dynasty leagues this season -> those leagues' managers, and back
-   through each league's previous seasons (previous_league_id), saving every
-   completed two-team trade.
+   id. Leagues come from two places:
+   - Once a day, the Sleeper leagues linked in KTC's public trade feed (the
+     same request fetch-ktc-trades.js makes): ~16,000 active dynasty leagues
+     from all over, crawled first. Their managers shared those links with
+     KTC; the site owner chose to include them (2026-10-01).
+   - Walking outward from a seed league: a league's managers -> their other
+     dynasty leagues this season -> those leagues' managers.
+   Each league's previous seasons (previous_league_id) follow it, and every
+   completed two-team trade is saved.
 
    Sleeper's terms (docs.sleeper.com): free for non-commercial use, and "stay
    under 1000 API calls per minute, otherwise, you risk being IP-blocked."
@@ -107,10 +112,12 @@ async function crawlLeague(state, id, nfl) {
     (users || []).forEach(u => { if (u.user_id && !state.seenUsers[u.user_id]) { state.seenUsers[u.user_id] = 1; state.users.push(u.user_id); } });
   }
   seasonDoc(season).leagues[hash(id)] = format(league);
-  const lastWeek = season < nfl.season ? 18 : Math.max(1, Math.min(18, nfl.week));
+  // No trades after a league's trade deadline (99 = none), so those weeks are skipped.
+  const deadline = +league.settings?.trade_deadline || 99;
+  const lastWeek = Math.min(deadline, season < nfl.season ? 18 : Math.max(1, Math.min(18, nfl.week)));
   if (!(await fetchWeeks(id, season, 1, lastWeek))) { if (stopped || calls >= CALL_BUDGET) { delete state.seenLeagues[id]; state.leagues.unshift(id); } return; }
   // This season's leagues keep trading: come back for the new weeks (revisitDue).
-  if (season === nfl.season) state.revisit[id] = { week: lastWeek, at: today() };
+  if (season === nfl.season && lastWeek < deadline) state.revisit[id] = { week: lastWeek, at: today(), dl: deadline };
 }
 
 // One league's trades for weeks from..to; false if a call failed partway.
@@ -137,8 +144,10 @@ async function revisitDue(state, nfl) {
   for (const [id, r] of Object.entries(state.revisit)) {
     if (calls >= stopAt || stopped) break;
     if (r.at > cutoff) continue;
-    const to = Math.max(1, Math.min(18, nfl.week));
-    if (await fetchWeeks(id, nfl.season, r.week, to)) state.revisit[id] = { week: to, at: today() };
+    const dl = r.dl || 99, to = Math.min(dl, Math.max(1, Math.min(18, nfl.week)));
+    if (!(await fetchWeeks(id, nfl.season, r.week, to))) continue;
+    if (to >= dl) delete state.revisit[id]; // past its trade deadline: done until next season
+    else state.revisit[id] = { week: to, at: today(), dl };
   }
 }
 
@@ -156,6 +165,26 @@ function save(state) {
   seasonFiles.forEach((doc, season) => fs.writeFileSync(path.join(OUT, `${season}.json.gz`), zlib.gzipSync(JSON.stringify(doc), { level: 9 })));
 }
 
+// Once a day: the Sleeper leagues behind this week's trades in KTC's feed go to the front.
+const KTC_FEED = 'https://keeptradecut.com/dynasty/trade-database/trades';
+async function seedFromKtc(state) {
+  if (state.ktcSeeded === today()) return;
+  try {
+    const res = await fetch(KTC_FEED, {
+      method: 'POST', body: '{}',
+      headers: { 'Content-Type': 'application/json;', Accept: 'application/json', Origin: 'https://keeptradecut.com', Referer: 'https://keeptradecut.com/dynasty/trade-database',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36' }
+    });
+    if (!res.ok) throw new Error(`KTC answered ${res.status}`);
+    const ids = new Set();
+    (await res.json()).forEach(t => { const m = String(t.settings?.leagueUrl || '').match(/sleeper\.app\/leagues\/(\d+)/); if (m) ids.add(m[1]); });
+    const fresh = [...ids].filter(id => !state.seenLeagues[id]);
+    state.leagues = [...fresh, ...state.leagues.filter(id => !ids.has(id))];
+    state.ktcSeeded = today();
+    console.log(`KTC feed: ${ids.size} Sleeper leagues, ${fresh.length} new to the crawl`);
+  } catch (e) { console.log(`KTC seeding skipped: ${e.message}`); }
+}
+
 async function main() {
   const state = loadJson(STATE, null) || { leagues: [...SEEDS], users: [], seenLeagues: {}, seenUsers: {} };
   const st = await get('/state/nfl');
@@ -167,6 +196,7 @@ async function main() {
   if (state.season && state.season !== nfl.season) { state.users = Object.keys(state.seenUsers); state.revisit = {}; }
   state.season = nfl.season;
   const start = Date.now();
+  await seedFromKtc(state);
   await revisitDue(state, nfl);
   let lastSave = calls;
   while (calls < CALL_BUDGET && !stopped) {
