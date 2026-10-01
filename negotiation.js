@@ -20,10 +20,20 @@
    render, computeTradeAnalysis, projectedRosterCount, rosterCap, offeredBy,
    capPct, flashButtonMessage.
    ============================================================ */
+/* How far behind a manager will go, calibrated on real trades (2026-09-30):
+   in ~24,000 real dynasty trades from KTC's trade database the typical 1-for-1
+   was ~13% off on KTC value, and in a 2-for-1 the side getting the single best
+   player handed over ~1.5x its KTC value. The old bar (accept only from ~2%
+   behind, never if the grade went against them) said one manager would decline
+   in all 17 real trades in this league, both of which happened. */
 const NEG = {
-  ACCEPT_EDGE: -2,      // they accept from ~2% behind or better...
-  TARGET_EDGE: 4,       // ...and their counters aim ~4% in their favor
-  STRETCH_ADD_PAIRS: 8  // top wanted pieces tried in pairs when no single add works
+  ACCEPT_EDGE: -12,         // a typical manager accepts up to ~12% behind (market median)...
+  TOLERANCE_MIN: 4,         // ...a manager who's never come out behind still accepts ~4%...
+  TOLERANCE_MAX: 30,        // ...and history never loosens it past 30%
+  CONSOLIDATION_BONUS: 20,  // getting the trade's best single piece for more pieces: they'll pay the market's premium
+  SITE_NO_PENALTY: 5,       // the grade reading bad for them counts against it (no longer an automatic no)
+  TARGET_EDGE: 4,           // their counters aim ~4% in their favor
+  STRETCH_ADD_PAIRS: 8      // top wanted pieces tried in pairs when no single add works
 };
 const Negotiation = { offering: null, rounds: [], styles: null, stylesLoading: null };
 
@@ -33,7 +43,14 @@ function negPreloadStyles() {
   Negotiation.stylesLoading = Vault.fetchAndGradeAllTrades(Vault.getLeagueId()).then(({ teams: gt, allGraded }) => {
     const stats = Vault.buildManagerStats(allGraded, gt);
     const avg = stats.length ? stats.reduce((t, s) => t + s.trades, 0) / stats.length : 0;
-    Negotiation.styles = new Map(stats.map(s => [s.rosterId, { ...Vault.managerProfile(s, avg), trades: s.trades }]));
+    // How far behind each manager has actually accepted, on KTC value at the time
+    // (signedPctDiff > 0: team A gave more, so A was behind).
+    const behind = new Map();
+    allGraded.forEach(g => {
+      const s = g.signedPctDiff, loser = s > 0 ? g.teamA.rosterId : g.teamB.rosterId;
+      if (Math.abs(s) >= 1) (behind.get(loser) || behind.set(loser, []).get(loser)).push(Math.abs(s));
+    });
+    Negotiation.styles = new Map(stats.map(s => [s.rosterId, { ...Vault.managerProfile(s, avg), trades: s.trades, behind: behind.get(s.rosterId) || [] }]));
     return Negotiation.styles;
   }).catch(() => { Negotiation.styles = new Map(); return Negotiation.styles; });
   return Negotiation.stylesLoading;
@@ -72,11 +89,17 @@ function negContextFor(team) {
   if (!chosen && style && /youth & picks/.test(style.style)) lean = 'rebuild';
   if (!chosen && style && /win-now/.test(style.style)) lean = 'contend';
   const { needs, surpluses } = Vault.positionalProfile(team, teams);
-  // Rarely-trading managers want to come out ahead; active ones will take a bit less.
-  let ask = NEG.ACCEPT_EDGE;
-  if (style && (!style.trades || /^Occasional|Sits tight/.test(style.style))) ask = 0;
-  if (style && /^Active/.test(style.style)) ask = -3;
-  return { team, style, lean, needs, surpluses, ask };
+  // How far behind they'll go: their own history when they have it (the median of
+  // the times they came out behind, or TOLERANCE_MIN if they never have), else the
+  // market's typical ~12%.
+  let tolerance = -NEG.ACCEPT_EDGE, basis = 'market';
+  if (style && style.trades >= 2) {
+    const b = [...(style.behind || [])].sort((x, y) => x - y);
+    tolerance = b.length ? b[Math.floor((b.length - 1) / 2)] : NEG.TOLERANCE_MIN;
+    tolerance = Math.max(NEG.TOLERANCE_MIN, Math.min(NEG.TOLERANCE_MAX, tolerance));
+    basis = 'history';
+  }
+  return { team, style, lean, needs, surpluses, ask: -tolerance, basis };
 }
 
 // How much a manager with this context wants a piece, relative to its KTC value.
@@ -141,9 +164,16 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   const own = Vault.ownTradeRead(fair.value, an.rosterFit.B, an.timelineFit.B);
   const drops = rosterCap ? Math.max(0, projectedRosterCount(teamR, rAssets, oAssets) - rosterCap) : 0;
   const concerns = negConcerns(rAssets, oAssets, ctx, drops);
-  const will = own + concerns.reduce((t, c) => t + c.w, 0);
+  // Getting the trade's single best piece for more pieces than they send: real
+  // managers pay a premium to consolidate (the market's ~1.5x), so they'll accept
+  // being further behind on KTC value.
+  const top = [...oAssets, ...rAssets].sort((x, y) => y.value - x.value)[0];
+  if (top && oAssets.includes(top) && rAssets.length > oAssets.length) concerns.push({ w: NEG.CONSOLIDATION_BONUS, text: `They'd get the best piece in the deal, ${Vault.escapeHtml(top.name)}, and managers pay a premium to consolidate.`, say: `${Vault.escapeHtml(top.name)} is the kind of piece I'd pay up for.` });
+  // The grade reading bad for their side counts against it, but isn't an automatic no.
   const siteSaysNo = an.heads.B.tone === 'bad';
-  const accepts = will >= ctx.ask && drops <= 1 && !siteSaysNo;
+  if (siteSaysNo) concerns.push({ w: -NEG.SITE_NO_PENALTY, text: 'Graded from their side, it reads as a bad trade for them.' });
+  const will = own + concerns.reduce((t, c) => t + c.w, 0);
+  const accepts = will >= ctx.ask && drops <= 1;
   return { an, edge, own, will, drops, concerns, accepts, siteSaysNo, fair, fit, headO: an.heads.A };
 }
 
@@ -162,7 +192,7 @@ function negReply(j, oGive, rGive, c, ctx) {
   else if (worst) lead = worst.say;
   else if (j.fit.roster <= -5) lead = 'This makes my lineup worse, and the value doesn\'t make up for it.';
   else if (j.fit.timeline <= -5) lead = 'This doesn\'t fit where my team is headed.';
-  else if (ctx.ask >= 0) lead = 'I\'d need to come out clearly ahead to make a move.';
+  else if (ctx.ask > -6) lead = 'I don\'t make trades where I come out behind.';
   else lead = 'I\'ll pass on this one.';
   let next = 'What else have you got?';
   if (c && c.type === 'add') next = `Add ${negNames(c.pieces)} and we have a deal.`;
@@ -189,8 +219,7 @@ function negReasons(j, ctx) {
   let summary;
   if (j.accepts) summary = no.length ? 'What they gain outweighs what gives them pause.' : 'Nothing here gives them pause.';
   else if (j.drops > 1) summary = `They'd have to cut ${j.drops} players to make room, so they'd pass.`;
-  else if (j.siteSaysNo && j.will >= ctx.ask) summary = 'Graded from their side, this is a Decline (see Trade Analysis), so they\'d pass.';
-  else if (ctx.ask >= 0 && j.will < ctx.ask && j.will > -4) summary = 'They rarely trade, so they want to come out clearly ahead.';
+  else if (ctx.basis === 'history' && ctx.ask > -6 && j.will < ctx.ask && j.will > ctx.ask - 6) summary = 'Their trade history says they rarely come out behind, so they want it close to even.';
   else summary = 'What gives them pause outweighs what they gain.';
   const style = ctx.style && ctx.style.trades ? `Their trade history: ${Vault.escapeHtml(ctx.style.style.toLowerCase())}.` : '';
   return { yes: [...new Set(yes)].slice(0, 4), no: [...new Set(no)].slice(0, 4), summary, style };
@@ -439,9 +468,9 @@ function renderAcceptRead(aAssets, bAssets) {
   const ctx = negContext(R);
   const j = negJudge(aAssets, bAssets, R, ctx);
   const margin = j.will - ctx.ask;
-  const level = j.accepts ? (margin >= 3 ? 'yes' : 'leanYes') : (j.drops > 1 || j.siteSaysNo || margin < -3 ? 'no' : 'leanNo');
+  const level = j.accepts ? (margin >= 3 ? 'yes' : 'leanYes') : (j.drops > 1 || margin < -3 ? 'no' : 'leanNo');
   const L = ACCEPT_LEVELS[level], r = negReasons(j, ctx);
-  const why = j.accepts ? (r.yes[0] || r.summary) : (j.drops > 1 || j.siteSaysNo ? r.summary : (r.no[0] || r.summary));
+  const why = j.accepts ? (r.yes[0] || r.summary) : (j.drops > 1 ? r.summary : (r.no[0] || r.summary));
   const draw = extra => { box.innerHTML = shell(L.box, `${head}<div class="text-[20px] font-semibold mt-0.5 ${L.cls}">${L.label}</div><div class="text-[12px] text-zinc-300 mt-1">${why}</div>${extra}`); };
   if (j.accepts) { draw(''); return; }
   draw('<div class="text-[12px] text-zinc-500 mt-2 pt-2 border-t border-white/5">Looking for what would get it done…</div>');
