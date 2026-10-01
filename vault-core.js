@@ -559,6 +559,48 @@ const Vault = {
     return '_tepp';
   },
 
+  /* ---------- Matching real trades to a league ----------
+     A league's settings in the codes KTC's trade database uses (teams, qbs,
+     ppr 1/2/3/4 = 0/0.5/1/other, tep 0-3), and the ladder of ever-looser
+     matches the market pages step down until there are enough real trades:
+     exact (team count, QB format, PPR, TE premium) -> any team count -> QB
+     format and TE premium -> QB format alone. Always the loaded league's own
+     settings, so it works the same for anyone's league. */
+  ktcPprCode(rec) {
+    if (rec === 1) return 3;
+    if (rec === 0.5) return 2;
+    if (rec === 0) return 1;
+    return 4; // not a flat 0/.5/1: KTC's "Tiered" bucket
+  },
+  ktcTepCode(bonus) {
+    const b = +bonus || 0;
+    if (b <= 0) return 0;
+    if (b <= 0.5) return 1;
+    if (b <= 1) return 2;
+    return 3;
+  },
+  tradeFormatSig(league) {
+    const rp = league.roster_positions || [];
+    return {
+      teams: league.total_rosters,
+      qbs: rp.filter(p => p === 'QB' || p === 'SUPER_FLEX').length >= 2 ? 2 : 1,
+      ppr: Vault.ktcPprCode(league.scoring_settings?.rec ?? 0),
+      tep: Vault.ktcTepCode(league.scoring_settings?.bonus_rec_te ?? 0)
+    };
+  },
+  // [{ label, match(t) }], narrowest first; t carries the same four codes.
+  tradeFormatTiers(sig) {
+    const qb = sig.qbs === 2 ? 'Superflex' : '1QB';
+    const ppr = { 1: '0 PPR', 2: '0.5 PPR', 3: '1 PPR', 4: 'tiered PPR' }[sig.ppr] || '';
+    const tep = { 0: 'no TE premium', 1: 'TE+', 2: 'TE++', 3: 'TE+++' }[sig.tep] || '';
+    return [
+      { label: `${sig.teams}-team ${qb}, ${ppr}, ${tep}`, match: t => t.qbs === sig.qbs && t.teams === sig.teams && t.ppr === sig.ppr && t.tep === sig.tep },
+      { label: `${qb}, ${ppr}, ${tep}`, match: t => t.qbs === sig.qbs && t.ppr === sig.ppr && t.tep === sig.tep },
+      { label: `${qb}, ${tep}`, match: t => t.qbs === sig.qbs && t.tep === sig.tep },
+      { label: qb, match: t => t.qbs === sig.qbs }
+    ];
+  },
+
   buildKtcValueMap(ktcData, isSF, bonusRecTe) {
     const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
     const map = new Map();

@@ -28,7 +28,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=3e959ed0"></script>
+<script src="vault-core.js?v=3a68f3cb"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -36,6 +36,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'changed', page: 'Trade Database', text: 'The market charts now use trades from leagues as much like yours as possible: your exact settings (team count, Superflex or 1QB, PPR, TE premium) once there are enough of them, stepping down to any team count, then your QB format and TE premium, then your QB format alone. The heading names the match it used ("leagues like yours (Superflex, 1 PPR, TE+)") and says when it had to go broader. It always follows whichever league is loaded, so another league gets its own match.' },
+    { kind: 'changed', page: 'Trade Calculator', text: 'Real trades steps down the same way for each player, needing at least 10 trades before it narrows to leagues closer to yours, and says which leagues it compared ("10 trades from leagues like yours (Superflex, TE+)").' },
     { kind: 'changed', page: 'Trade Database', text: 'The market charts now keep growing on their own: alongside KTC\'s last few days, they pool real trades from Sleeper dynasty leagues from the ~90 days before (each priced at KTC values from its own day), so samples get bigger as the collection grows. The two never overlap, so no trade counts twice. The heading says how many came from each.' },
     { kind: 'changed', page: 'Trade Calculator', text: 'The Real trades line under the grade uses the same pool: KTC\'s last few days plus the Sleeper trades before them, so lesser players get real comparisons too.' },
     { kind: 'new', page: 'Trade Database', text: 'Year by year: Over time now has a table of each year\'s trades (typical % off, the Fair / Lopsided / Unfair split, how many were 1-for-1, and what 2-for-1 consolidators paid), each year summarized whole.' },

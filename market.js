@@ -15,12 +15,16 @@
    2 pieces, etc.); else the same direction (the team getting him sent more
    pieces, fewer, or the same number), since the market pays a lot more to
    consolidate than to split, with him as the main piece; else any trade where
-   he was the main piece. A 7-for-6 where he was the fourth-best piece says
+   he was the main piece. Within each, leagues most like this one first
+   (Vault.tradeFormatTiers: exact settings, then any team count, then QB
+   format and TE premium, then QB format alone). Shape comes first because
+   it moves the price far more than team count or scoring. A 7-for-6 where he was the fourth-best piece says
    little about his price. Informational only: the grade stays KTC-matched.
 
    Uses the Trade Calculator's globals: league, teamOf.
    ============================================================ */
 const MARKET_MIN_COMPS = 5;     // fewer real trades than this and we say nothing
+const MARKET_MIN_NARROW = 10;   // a closer league match needs at least this many, or the broader one is steadier
 const MARKET_STRIP_RANGE = 60;  // the strip runs from 60% under to 60% over KTC
 const Market = { data: null, loading: null };
 
@@ -28,7 +32,8 @@ function marketLoad() {
   if (Market.loading) return Market.loading;
   const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
   const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(league.scoring_settings?.bonus_rec_te);
-  const recentFile = `data/market-history/recent-${isSF ? 'sf' : 'oneQB'}.json`;
+  const qbs = Vault.tradeFormatSig(league).qbs; // same QB read as the trade matching (2QB leagues count as Superflex)
+  const recentFile = `data/market-history/recent-${qbs === 2 ? 'sf' : 'oneQB'}.json`;
   Market.loading = Promise.all([fetch('data/ktc-trades.json').then(r => r.json()), Vault.fetchKtcValues(), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null)]).then(([db, ktc, recent]) => {
     const byId = new Map();
     (ktc.players || []).forEach(p => {
@@ -40,11 +45,11 @@ function marketLoad() {
       byId.set(String(p.ktcId), { type: 'pick', name: `${p.season} R${p.round}`, tier: p.slot, value: p[field] });
     });
     // Each trade keyed by its pieces: players by name ('n:' + normalized), picks by id.
-    const qbs = isSF ? 2 : 1, byPlayer = new Map();
+    const byPlayer = new Map();
     let first = '9999', last = '';
-    const add = (date, s1, s2) => {
+    const add = (date, s1, s2, fmt) => {
       const key = a => (a.type === 'player' ? 'n:' + Vault.normalizeName(a.name) : a.id);
-      const trade = { date, k1: s1.map(key), k2: s2.map(key), s1, s2 };
+      const trade = { date, k1: s1.map(key), k2: s2.map(key), s1, s2, fmt };
       if (date < first) first = date; if (date > last) last = date;
       [...trade.k1, ...trade.k2].forEach(k => { if (k.startsWith('n:')) (byPlayer.get(k) || byPlayer.set(k, []).get(k)).push(trade); });
     };
@@ -55,18 +60,18 @@ function marketLoad() {
       if (s1.some(x => !x) || s2.some(x => !x)) return; // a piece KTC no longer prices
       const date = String(t.date).slice(0, 10);
       if (date < ktcFrom) ktcFrom = date;
-      add(date, s1, s2);
+      add(date, s1, s2, { teams: t.teams, qbs: t.qbs, ppr: t.ppr, tep: t.tep });
     });
     // Sleeper's trades from before KTC's feed starts, so none is counted twice.
     let sleeperCount = 0;
-    (recent?.trades || []).forEach(([date, a, b]) => {
+    (recent?.trades || []).forEach(([date, a, b, f]) => {
       if (date >= ktcFrom) return;
       const side = s => s.map(([id, value]) => {
         if (id[0] === 'p') { const [season, round] = id.slice(1).split('-'); return { type: 'pick', id, name: `${season} R${round}`, value }; }
         const [name, pos] = recent.names[id] || [];
         return { type: 'player', id, name: name || 'Unknown player', pos, value };
       });
-      add(date, side(a), side(b));
+      add(date, side(a), side(b), f ? { teams: f[2], qbs, ppr: Vault.ktcPprCode(f[0]), tep: Vault.ktcTepCode(f[1]) } : { qbs });
       sleeperCount++;
     });
     const days = last >= first ? Math.round((new Date(last) - new Date(first)) / 864e5) + 1 : 0;
@@ -94,6 +99,7 @@ function marketRead(aAssets, bAssets) {
   const d = Market.data;
   if (!d || d.failed) return null;
   const players = [...aAssets, ...bAssets].filter(a => a.type === 'player').sort((x, y) => y.value - x.value).slice(0, 2);
+  const formats = Vault.tradeFormatTiers(Vault.tradeFormatSig(league)); // this league's settings, narrowest first
   for (const p of players) {
     const id = 'n:' + Vault.normalizeName(p.name);
     const all = d.byPlayer.get(id);
@@ -113,14 +119,20 @@ function marketRead(aAssets, bAssets) {
     // Finishes "N trades had {name}…".
     const exact = pSide.length === 1 && oSide.length === 1 ? ' in a 1-for-1, like this one'
       : ` ${pSide.length === 1 ? 'alone' : pSide.length >= 3 ? 'plus 2 or more' : 'plus 1 more'} for ${pieces(oSide.length)}, like this one`;
-    const tiers = [
+    const shapes = [
       [c => c.shape === shape, exact],
       [c => c.main && c.dir === dir, ` as the main piece, ${dir > 0 ? 'for more pieces back' : dir < 0 ? 'for fewer pieces back' : 'with the same number of pieces each way'}`],
       [c => c.main, ' as the main piece']
     ];
-    const tier = tiers.find(([f]) => comps.filter(f).length >= MARKET_MIN_COMPS);
-    if (!tier) continue;
-    const pool = comps.filter(tier[0]), qual = tier[1];
+    let pool = null, qual = '', like = '';
+    for (const [f, q] of shapes) {
+      for (const [i, tier] of formats.entries()) {
+        const hit = comps.filter(c => f(c) && tier.match(c.t.fmt));
+        if (hit.length >= (i === formats.length - 1 ? MARKET_MIN_COMPS : MARKET_MIN_NARROW)) { pool = hit; qual = q; like = tier.label; break; }
+      }
+      if (pool) break;
+    }
+    if (!pool) continue;
     const sorted = pool.map(c => c.paid).sort((x, y) => x - y);
     const ours = marketPaid(pSide, oSide);
     const ourRaw = oSide.reduce((s, a) => s + a.value, 0) || 1;
@@ -132,7 +144,7 @@ function marketRead(aAssets, bAssets) {
       if (seen.has(key)) seen.get(key).times++; else seen.set(key, { ...c, times: 1 });
     });
     const examples = [...seen.values()].slice(0, 3);
-    return { player: p, youGet, pSide, oSide, qual, n: pool.length, sorted, ours, examples,
+    return { player: p, youGet, pSide, oSide, qual, like, n: pool.length, sorted, ours, examples,
       low: marketQuantile(sorted, 0.25), med: marketQuantile(sorted, 0.5), high: marketQuantile(sorted, 0.75), days: spanDays(pool.map(c => c.t.date)), isSF: d.isSF, sleeper: d.sleeperCount > 0 };
   }
   return null;
@@ -171,7 +183,6 @@ function renderMarketRead(aAssets, bAssets) {
   const verdict = where === 'within' ? { text: 'about what the market pays', cls: 'text-zinc-200' }
     : goodForYou ? { text: m.youGet ? 'less than most pay' : 'more than most get for him', cls: 'text-emerald-300' }
     : { text: m.youGet ? 'more than most pay' : 'less than most get for him', cls: 'text-amber-300' };
-  const fmt = m.isSF ? 'Superflex' : '1QB';
   // The strip: every real trade's price as a dot, the middle half shaded, this trade marked.
   const x = v => ((Math.max(-MARKET_STRIP_RANGE, Math.min(MARKET_STRIP_RANGE, v)) + MARKET_STRIP_RANGE) / (2 * MARKET_STRIP_RANGE) * 100).toFixed(2);
   const strip = `<div class="relative h-9 mt-1" role="img" aria-label="${m.n} real trades from ${marketSigned(m.sorted[0])} to ${marketSigned(m.sorted[m.sorted.length - 1])}; this trade: ${marketSigned(m.ours)}">
@@ -191,7 +202,7 @@ function renderMarketRead(aAssets, bAssets) {
   box.innerHTML = `<details class="group rounded-xl border border-white/5 bg-black/20">
       <summary class="list-none [&::-webkit-details-marker]:hidden cursor-pointer px-3 py-2.5 text-[12px] leading-relaxed text-zinc-400 hover:text-zinc-300">
         <span class="text-[11px] uppercase tracking-wider text-zinc-500 mr-1">Real trades</span>
-        ${m.n} ${fmt} trades in the last ${m.days} day${m.days === 1 ? '' : 's'} had ${name}${m.qual}. The team getting him usually paid ${marketRange(m.low, m.high)}.
+        ${m.n} trades from leagues like yours (${m.like}) in the last ${m.days} day${m.days === 1 ? '' : 's'} had ${name}${m.qual}. The team getting him usually paid ${marketRange(m.low, m.high)}.
         Here ${payer} pay ${marketSigned(m.ours)}: <span class="font-medium ${verdict.cls}">${verdict.text}</span>.
         <span class="text-amber-300/80 whitespace-nowrap"><span class="group-open:hidden">See them ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
       </summary>

@@ -66,7 +66,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=3e959ed0"></script>
+<script src="vault-core.js?v=3a68f3cb"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
 <script>
 const TIER_LABEL = {
@@ -75,18 +75,6 @@ const TIER_LABEL = {
   noPpr: 'Relaxed — matched on team count and QB slots only (any PPR/TE premium)'
 };
 
-function pprCode(rec) {
-  if (rec === 1) return 3;
-  if (rec === 0.5) return 2;
-  if (rec === 0) return 1;
-  return 4; // doesn't match a flat 0/.5/1 tier — treat as KTC's "Tiered" bucket
-}
-function tepCode(bonus) {
-  if (!bonus || bonus <= 0) return 0;
-  if (bonus <= 0.5) return 1;
-  if (bonus <= 1) return 2;
-  return 3;
-}
 function pprLabel(code) { return { 1: '0 PPR', 2: '0.5 PPR', 3: '1 PPR', 4: 'Tiered PPR' }[code] || '—'; }
 function tepLabel(code) { return { 0: 'No TE Premium', 1: 'TE+', 2: 'TE++', 3: 'TE+++' }[code] || '—'; }
 
@@ -176,6 +164,7 @@ function findMatches(trades, sig) {
    average. Your league's trades (Trade Grades, KTC at the time of each
    trade) sit next to it once they load. */
 const MK_BIN = 5, MK_TOP = 80; // 5%-wide bars, the last one 80%+
+const MK_MIN_POOL = 1500;       // trades needed before the charts narrow to a closer match
 const MK_SHAPES = ['1-for-1', '1-for-2', '1-for-3', '1-for-4+', '2-for-2', '2-for-3', '2-for-4+', '3-for-3', '3-for-4+'];
 const MK_STARS = [[8000, Infinity, '8,000+'], [6000, 8000, '6,000–8,000'], [4000, 6000, '4,000–6,000'], [2000, 4000, '2,000–4,000'], [0, 2000, 'Under 2,000']];
 const MK_POS = ['QB', 'RB', 'WR', 'TE', 'Pick'];
@@ -209,14 +198,15 @@ function marketRows(trades, playerMap, pickMap) {
   trades.forEach(t => {
     const s1 = t.t1.map(id => assetLabel(id, playerMap, pickMap)), s2 = t.t2.map(id => assetLabel(id, playerMap, pickMap));
     if (!s1.length || !s2.length || [...s1, ...s2].some(a => !(a.value > 0))) return;
-    rows.push(marketRow(s1, s2));
+    rows.push({ ...marketRow(s1, s2), fmt: { teams: t.teams, qbs: t.qbs, ppr: t.ppr, tep: t.tep } });
   });
   return rows;
 }
 // Sleeper trades from before `before` (the day KTC's feed starts), already priced.
-function sleeperRows(recent, before) {
+function sleeperRows(recent, before, qbs) {
   const side = s => s.map(([id, value]) => ({ value, pos: id[0] === 'p' ? null : (recent.names[id] || [])[1] || null }));
-  return (recent.trades || []).filter(([date]) => date < before).map(([, a, b]) => marketRow(side(a), side(b)));
+  const fmt = f => (f ? { teams: f[2], qbs, ppr: Vault.ktcPprCode(f[0]), tep: Vault.ktcTepCode(f[1]) } : { qbs });
+  return (recent.trades || []).filter(([date]) => date < before).map(([date, a, b, f]) => ({ ...marketRow(side(a), side(b)), fmt: fmt(f), src: 'sleeper', date }));
 }
 
 // Market vs league share bar: Fair / Lopsided / Unfair, labeled.
@@ -249,9 +239,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
   const body = document.getElementById('marketBody');
   if (n < 200) { document.getElementById('market').classList.add('hidden'); return; }
   const med = mkMedian(rows.map(r => r.pct)), mean = rows.reduce((s, r) => s + r.pct, 0) / n;
-  document.getElementById('marketSub').textContent = src && src.sleeper
-    ? `${n.toLocaleString()} real ${fmt} trades: ${src.ktc.toLocaleString()} from KTC's feed (last ${src.ktcDays} days) and ${src.sleeper.toLocaleString()} from Sleeper dynasty leagues (the ${src.sleeperDays} days before), with the Trade Calculator's own math`
-    : `${n.toLocaleString()} real ${fmt} trades, priced at today's KTC values with the Trade Calculator's own math`;
+  document.getElementById('marketSub').textContent = `${n.toLocaleString()} real trades from leagues like yours (${fmt})${src && src.sleeper ? `: ${src.ktc.toLocaleString()} from KTC's feed (last ${src.ktcDays} days) and ${src.sleeper.toLocaleString()} from Sleeper dynasty leagues (the ${src.sleeperDays} days before)` : ', from KTC\'s feed'}${src && src.looser ? `. Not enough ${src.looser} trades yet, so this is a broader match` : ''}`;
 
   // Your league next to the market.
   const lg = league && league.length ? league : null;
@@ -354,7 +342,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
     </div>` : '';
 
   body.innerHTML = `${tiles}${hist}<div class="grid lg:grid-cols-2 gap-3">${byShape}${byStar}</div>${byPos}${vs}
-    <div class="text-[11px] text-zinc-500">From KeepTradeCut's trade database (rolling, about the last week) and, before that, real trades from Sleeper dynasty leagues: every trade in your league's QB format where every piece has a KTC price. Smaller groups (under 50 trades for a shape, 30 for a star level or position) are left out.</div>`;
+    <div class="text-[11px] text-zinc-500">From KeepTradeCut's trade database (rolling, about the last week) and, before that, real trades from Sleeper dynasty leagues: trades from leagues like yours (the closest match with enough trades, named above) where every piece has a KTC price. Smaller groups (under 50 trades for a shape, 30 for a star level or position) are left out.</div>`;
 
   // Hover / focus readout for the histogram bars.
   const tip = document.getElementById('mkTip'), hist$ = document.getElementById('mkHist');
@@ -493,12 +481,7 @@ async function init() {
 
     const rosterPositions = league.roster_positions || [];
     const isSF = rosterPositions.filter(p => p === 'QB' || p === 'SUPER_FLEX').length >= 2;
-    const sig = {
-      teams: league.total_rosters,
-      qbs: isSF ? 2 : 1,
-      ppr: pprCode(league.scoring_settings?.rec ?? 0),
-      tep: tepCode(league.scoring_settings?.bonus_rec_te ?? 0)
-    };
+    const sig = Vault.tradeFormatSig(league); // this league's own settings (Vault.ktcPprCode / ktcTepCode)
 
     // Priced to match this league's own TEP setting, not just its 1QB/SF format —
     // otherwise a TEP league would see every historical trade's TE labeled with a
@@ -537,22 +520,27 @@ async function init() {
       </div>
       ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded with the Trade Calculator's own value math: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-amber-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(${priced.length.toLocaleString()} fully priced)</span></div>` : ''}`;
 
-    // The market at a glance: every trade in this QB format, then your league's own next to it.
+    // The market at a glance: real trades from leagues like this one. Steps down
+    // Vault.tradeFormatTiers (exact settings -> any team count -> QB + TE premium
+    // -> QB alone) until there are MK_MIN_POOL trades, for whichever league is loaded.
     const mRows = marketRows((tradesData.trades || []).filter(t => t.qbs === sig.qbs), playerMap, pickMap);
+    const tiers = Vault.tradeFormatTiers(sig);
     const exactShare = priced.length ? `${share('Fair')}% Fair, ${share('Lopsided')}% Lopsided, ${share('Unfair')}% Unfair (${priced.length} trades)` : '';
-    const fmtName = isSF ? 'Superflex' : '1QB';
     const ktcDates = (tradesData.trades || []).map(t => String(t.date).slice(0, 10)).sort();
     const ktcFrom = ktcDates[0] || '9999', ktcDays = ktcDates.length ? Math.round((new Date(ktcDates[ktcDates.length - 1]) - new Date(ktcFrom)) / 864e5) + 1 : 0;
-    let allRows = mRows, src = null, leagueRows = null;
-    const redraw = () => renderMarket(allRows, fmtName, exactShare, leagueRows, src);
-    renderMarket(mRows, fmtName, exactShare, null);
+    let sRows = [], sleeperDays = 0, leagueRows = null;
+    const redraw = () => {
+      const all = [...mRows, ...sRows];
+      const i = Math.max(0, tiers.findIndex(t => all.filter(r => t.match(r.fmt)).length >= MK_MIN_POOL));
+      const rows = all.filter(r => tiers[i].match(r.fmt)), sl = rows.filter(r => r.src === 'sleeper').length;
+      renderMarket(rows, tiers[i].label, exactShare, leagueRows, { ktc: rows.length - sl, ktcDays, sleeper: sl, sleeperDays, looser: i > 0 ? tiers[0].label : '' });
+    };
+    redraw();
     fetch(`data/market-history/recent-${isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).then(recent => {
       if (!recent) return;
-      const sRows = sleeperRows(recent, ktcFrom);
+      sRows = sleeperRows(recent, ktcFrom, sig.qbs);
       if (!sRows.length) return;
-      const first = recent.trades.filter(([d]) => d < ktcFrom).map(([d]) => d).sort()[0];
-      allRows = [...mRows, ...sRows];
-      src = { ktc: mRows.length, ktcDays, sleeper: sRows.length, sleeperDays: Math.round((new Date(ktcFrom) - new Date(first)) / 864e5) };
+      sleeperDays = Math.round((new Date(ktcFrom) - new Date(sRows.map(r => r.date).sort()[0])) / 864e5);
       redraw();
     }).catch(() => {});
     renderHistory(valueField);

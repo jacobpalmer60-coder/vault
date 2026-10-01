@@ -31,7 +31,9 @@
    in its own league's format), newest first, for the pages to pool with KTC's
    feed (they use only the days before KTC's feed starts, so no trade counts twice):
      { updated, names: { sleeperId: [name, pos] },
-       trades: [[date, [[id, value], ...], [[id, value], ...]]] }   (picks: 'p<season>-<round>')
+       trades: [[date, [[id, value], ...], [[id, value], ...], [rec, bonusRecTe, teams]]] }
+   (picks: 'p<season>-<round>'; the last part is the league's PPR, TE premium
+   and team count, so pages can match trades to their own league's settings)
    Summaries use lib-market.js, the same math as the KTC snapshot.
    ============================================================ */
 const fs = require('fs');
@@ -112,7 +114,7 @@ function main() {
       const fmt = doc.leagues[lh];
       if (!fmt) return;
       const format = (fmt[0] === 2 ? 'sf' : 'oneQB') + tepSuffix(fmt[1]);
-      (byFormat.get(format) || byFormat.set(format, []).get(format)).push({ date, a, b });
+      (byFormat.get(format) || byFormat.set(format, []).get(format)).push({ date, a, b, f: [fmt[2], fmt[1], fmt[3]] });
       (leagues.get(format) || leagues.set(format, new Set()).get(format)).add(lh);
     });
   });
@@ -134,11 +136,11 @@ function main() {
     };
     const weeks = new Map(), months = new Map(), years = new Map();
     let priced = 0;
-    trades.forEach(({ date, a, b }) => {
+    trades.forEach(({ date, a, b, f }) => {
       const s1 = a.filter(id => !negligible(id)).map(id => asset(id, date)), s2 = b.filter(id => !negligible(id)).map(id => asset(id, date));
       if (!s1.length || !s2.length || s1.some(x => !x) || s2.some(x => !x)) return;
       priced++;
-      const t = { s1, s2, date };
+      const t = { s1, s2, date, f };
       (weeks.get(monday(date)) || weeks.set(monday(date), []).get(monday(date))).push(t);
       (months.get(date.slice(0, 7)) || months.set(date.slice(0, 7), []).get(date.slice(0, 7))).push(t);
       (years.get(date.slice(0, 4)) || years.set(date.slice(0, 4), []).get(date.slice(0, 4))).push(t);
@@ -165,7 +167,7 @@ function main() {
       if (a.type === 'player' && !names[a.id]) { const p = sleeper[a.id]; names[a.id] = [`${p.first_name || ''} ${p.last_name || ''}`.trim(), p.position]; }
       return [a.id, Math.round(a.value)];
     });
-    fs.writeFileSync(path.join(OUT, `recent-${qb}.json`), JSON.stringify({ updated: new Date().toISOString(), names, trades: keep.map(t => [t.date, side(t.s1), side(t.s2)]) }));
+    fs.writeFileSync(path.join(OUT, `recent-${qb}.json`), JSON.stringify({ updated: new Date().toISOString(), names, trades: keep.map(t => [t.date, side(t.s1), side(t.s2), t.f]) }));
     console.log(`recent-${qb}: ${keep.length} trades since ${recentFrom}`);
   });
 }
