@@ -1,0 +1,56 @@
+name: Crawl Sleeper trades
+
+# Builds a long-run history of real dynasty trades from Sleeper (see
+# scripts/crawl-sleeper-trades.js). A run starts every hour and crawls for
+# ~50 minutes at 45 calls a minute (Sleeper asks for under 1000 a minute),
+# so it goes nearly around the clock. One run at a time.
+#
+# The raw trades (gzipped) live as assets on the "sleeper-trades"
+# GitHub Release, not in git, so the repo doesn't grow with them. The
+# crawl's to-do list (Sleeper ids) is kept in the Actions cache, never
+# published.
+on:
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crawl-sleeper
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_MINUTES: '50'
+      CALLS_PER_MIN: '45'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/cache@v4
+        with:
+          path: .crawl
+          key: sleeper-crawl-${{ github.run_id }}
+          restore-keys: sleeper-crawl-
+
+      - name: Get the trades collected so far
+        run: |
+          gh release view sleeper-trades >/dev/null 2>&1 || gh release create sleeper-trades --title "Sleeper trade history (data)" --notes "Raw dynasty trades collected by scripts/crawl-sleeper-trades.js, one file per season. Updated hourly." --latest=false
+          mkdir -p data/sleeper-trades
+          gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber || true
+
+      - run: node scripts/crawl-sleeper-trades.js
+
+      - name: Save them back to the release
+        run: |
+          ls data/sleeper-trades/*.json.gz >/dev/null 2>&1 || exit 0
+          gh release upload sleeper-trades data/sleeper-trades/*.json.gz --clobber
