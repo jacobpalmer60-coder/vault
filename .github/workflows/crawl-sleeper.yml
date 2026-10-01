@@ -2,7 +2,7 @@ name: Crawl Sleeper trades
 
 # Builds a long-run history of real dynasty trades from Sleeper (see
 # scripts/crawl-sleeper-trades.js). A run starts every hour and crawls for
-# ~48 minutes at 90 calls a minute (Sleeper asks for under 1000 a minute).
+# ~48 minutes at up to 500 calls a minute (Sleeper asks for under 1000 a minute).
 # Each successful run then starts the next one (workflow_dispatch), so it
 # crawls around the clock without waiting on GitHub's schedule, which is
 # only a backup. One run at a time (concurrency); a failed run doesn't
@@ -38,7 +38,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RUN_MINUTES: '48'   # leaves room to price and publish inside the hour
-      CALLS_PER_MIN: '90'   # 9% of Sleeper's 1000-a-minute guidance
+      CALLS_PER_MIN: '500'   # half of Sleeper's 1000-a-minute guidance; stops on any 429
     steps:
       - uses: actions/checkout@v4
 
