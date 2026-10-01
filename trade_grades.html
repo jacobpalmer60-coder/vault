@@ -44,6 +44,7 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="market-data.js?v=1f2ccfe3"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
@@ -75,6 +76,23 @@ function fairBucket(pctDiff, fitA, fitB) {
 function fairColor(bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).text; }
 
 const todayGrade = g => Vault.todayGrade(g);
+/* The same trade at what the pieces actually go for: today's grade with its
+   value part repriced at market (market-data.js marketEdge on today's values,
+   KTC's consolidation adjustment held), roster fit and timeline as in Today.
+   Only once market prices load, and only when the market moves it at least a
+   point (pieces without enough completed trades stay at KTC). */
+function marketGrade(g) {
+  const tg = Vault.todayGrade(g);
+  if (!tg || !ctx || !Market.data || Market.data.failed || !g.toAToday?.length || !g.toBToday?.length) return null;
+  const mk = marketEdge(ctx.league, g.toBToday, g.toAToday); // team A's side: sent toB, got toA
+  const delta = mk.market - mk.ktc;                           // + = better for team A at market
+  if (Math.abs(delta) < 1) return null;
+  const w = VAULT_CONFIG.FAIRNESS_WEIGHTS, cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, clamp = x => Math.max(-cap, Math.min(cap, x));
+  const v = g.todaySignedPctDiff - delta;                     // + favors team B, like todaySignedPctDiff
+  const blend = (w.value * clamp(v) + w.roster * clamp(g.fairness.roster) + w.timeline * clamp(g.fairness.timeline)) / 100;
+  const signed = Math.abs(blend) > Math.abs(v) ? blend : v;
+  return { signed, bucket: Vault.fairnessBucket(Math.abs(signed), g.combinedFitA, g.combinedFitB) };
+}
 // "Fair · 6% off, favoring X" for one moment in the trade's life.
 function gradeLine(label, bucket, signed, g) {
   const pct = capPct(Math.abs(signed));
@@ -258,6 +276,7 @@ function renderCard(g) {
         <div class="space-y-1.5 mt-2.5 text-[12px]" title="Overall % off: KTC value blended with roster fit and timeline (${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}), never closer to even than KTC value alone. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% Lopsided, ${VAULT_CONFIG.LOPSIDED_PCT}%+ Unfair. Great and Good are Fair trades that also fit both or one side well.">
           ${gradeLine(g.valuedAt === 'trade' ? 'At the trade' : 'Grade', bucket, g.fairness.overallSigned, g)}
           ${todayGrade(g) ? gradeLine('Today', todayGrade(g).bucket, todayGrade(g).signed, g) : ''}
+          ${marketGrade(g) ? gradeLine('At market', marketGrade(g).bucket, marketGrade(g).signed, g) : ''}
         </div>
         <div class="max-w-lg mt-2.5">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`)}</div>
         ${agedText(g) ? `<div class="text-[12px] text-zinc-400 mt-1.5">${agedText(g)}</div>` : ''}
@@ -346,6 +365,8 @@ async function init() {
     status.className = 'text-[13px] text-zinc-400 mt-1';
     renderFilters();
     renderList();
+    // Then each trade's At market line, once completed-trade prices load.
+    marketLoad(league).then(() => { if (Market.data && !Market.data.failed) renderList(); });
   } catch (e) {
     console.error(e);
     status.textContent = e.message || 'Failed to load';
