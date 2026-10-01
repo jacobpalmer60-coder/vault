@@ -3742,7 +3742,11 @@ const Vault = {
     const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     function draw(q) {
       const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
-      matches = options().filter(o => words.every(w => (o.text + ' ' + o.group).toLowerCase().includes(w))).slice(0, 80);
+      // Best matches first: the name starting with what's typed, then a word in it
+      // starting with it ("amon" finds Amon-Ra before Rhamondre), then anything else.
+      const rank = o => { const t = o.text.toLowerCase(), w = words[0] || ''; return t.startsWith(w) ? 0 : t.split(/[^a-z0-9]+/).some(x => x.startsWith(w)) ? 1 : 2; };
+      matches = options().filter(o => words.every(w => (o.text + ' ' + o.group).toLowerCase().includes(w)))
+        .map((o, i) => ({ o, i, r: rank(o) })).sort((a, b) => a.r - b.r || a.i - b.i).map(x => x.o).slice(0, 80);
       active = matches.length ? 0 : -1;
       list.innerHTML = matches.length
         ? matches.map((o, i) => `<div id="${id}-${i}" role="option" data-i="${i}" aria-selected="${o.value === sel.value}" class="px-3 py-2 cursor-pointer flex items-baseline justify-between gap-3 ${o.value === sel.value ? 'text-amber-200' : 'text-zinc-200'}"><span>${esc(o.text)}</span>${o.group ? `<span class="text-[11px] text-zinc-500 shrink-0">${esc(o.group)}</span>` : ''}</div>`).join('')

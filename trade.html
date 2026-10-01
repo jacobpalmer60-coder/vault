@@ -6,7 +6,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=487ac5af">
+<link rel="stylesheet" href="tailwind.css?v=8d3afe28">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -85,6 +85,11 @@
 
   <!-- Trade Builder: the trade bar, both rosters, and the verdict. -->
   <div id="builder">
+  <!-- Find anyone: type a player or pick from any team; it joins the trade and its team becomes the partner. -->
+  <div class="mb-4 rounded-2xl card px-4 py-3 flex items-center gap-3">
+    <svg class="size-4 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <select id="quickAdd" data-search="Add any player or pick in your league…" aria-label="Add any player or pick in your league to the trade" class="flex-1 min-w-0 bg-transparent text-[14px] text-zinc-100 outline-none"></select>
+  </div>
   <!-- Trade slip: the deal, side by side; the read (grade, fairness bar, KTC vs
        adjusted); a suggestion to even it up; then every action in one row. -->
   <div id="tradeBar" class="hidden mb-4 rounded-2xl card overflow-hidden">
@@ -104,11 +109,21 @@
       <div class="min-w-0">
         <div id="diffLabel" aria-live="polite"></div>
         <div id="diffBar" class="mt-2.5 max-w-[560px]"></div>
+        <!-- What real managers paid for the headline player (market.js). -->
+        <div id="marketRead" class="mt-3 max-w-[560px]"></div>
       </div>
       <div id="acceptRead" aria-live="polite" class="min-w-0"></div>
     </div>
     <!-- This season: playoff and title odds before → after, and who moves into each lineup. -->
     <div id="seasonImpact" class="hidden border-t border-white/5 px-4 sm:px-5 py-4"></div>
+    <!-- Both starting lineups after the trade, and who steps in when a starter is out. -->
+    <details id="lineupView" class="group border-t border-white/5">
+      <summary class="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">
+        <span>Lineups after the trade, and who steps in when a starter is out</span>
+        <span><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
+      </summary>
+      <div id="lineupBody" class="px-4 sm:px-5 pb-4 grid md:grid-cols-2 gap-3"></div>
+    </details>
     <!-- Everything else, on demand: the numbers behind the grade and how to even it up. -->
     <details id="tradeDetails" class="group border-t border-white/5">
       <summary class="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">
@@ -139,7 +154,7 @@
   <!-- Trade-wide verdict + archetype (applies to both sides, so spans full width) -->
 
   <div id="emptyState" class="text-center text-[13px] text-zinc-400 py-4 mb-2">
-    Pick a trade partner, then select players or picks from either side, or load one of the trade options from Trade Coach.
+    Search for any player above, or pick a trade partner and select players or picks from either side.
   </div>
 
   <!-- The two rosters, side by side: where trades get built. -->
@@ -212,7 +227,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=e19b60d0"></script>
+<script src="vault-core.js?v=3e959ed0"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -419,6 +434,7 @@ async function init() {
       if (typeof negReset === 'function') negReset();
       if (resolveDup(selA.value, selB, prevA)) { prevB = selB.value; selectedB.clear(); openSections.B.clear(); render('B'); }
       prevA = selA.value;
+      fillQuickAdd();
       selectedA.clear(); openSections.A.clear(); render('A');
       if (typeof coachStart === 'function') coachStart(); // trade options for the new team
     };
@@ -447,6 +463,7 @@ async function init() {
       selA.value = setupA.value;
       if (selB.value === selA.value) selB.value = '';
       prevA = selA.value; prevB = selB.value;
+      fillQuickAdd();
       selectedA.clear(); selectedB.clear();
       openSections.A.clear(); openSections.B.clear();
       document.getElementById('setup').classList.add('hidden');
@@ -1428,6 +1445,78 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
   box.classList.remove('hidden');
 }
 
+/* ---------- Lineups after the trade ----------
+   Each team's best lineup once the trade goes through, and for every starter,
+   who steps in when he's out (bye, injury) and how many points that costs: the
+   same refill-from-the-bench math as depth (Vault.missedGameCost), shown per
+   player so the depth number is something you can see. "was" marks a starter
+   whose cover changed by a point or more. */
+const SLOT_LABEL = { SUPER_FLEX: 'SF', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T' };
+function lineupCover(team) {
+  const plist = (team.plist || []).filter(p => !team.reserveIds?.has?.(p.id));
+  const base = Vault.optimalLineupDetail(plist, slots);
+  const ids = new Set(base.starters.map(s => s.id));
+  return base.starters.filter(s => s.id).map(s => {
+    const alt = Vault.optimalLineupDetail(plist.filter(p => p.id !== s.id), slots);
+    return { ...s, cover: alt.starters.find(x => x.id && !ids.has(x.id)) || null, drop: base.total - alt.total };
+  });
+}
+function renderLineups(teamA, teamB, analysis) {
+  const box = document.getElementById('lineupBody');
+  const { before, after } = analysis;
+  const side = (label, bef, aft) => {
+    const was = new Map(lineupCover(bef).map(s => [s.id, s]));
+    const now = lineupCover(aft);
+    const nowIds = new Set(now.map(s => s.id));
+    const had = new Set(bef.plist.map(p => p.id)), keeps = new Set(aft.plist.map(p => p.id));
+    const worst = now.reduce((m, s) => (s.drop > (m?.drop ?? -1) ? s : m), null);
+    const lineup = aft.opt - bef.opt, depth = Vault.depthShift('contend', bef, aft, slots).perWeek;
+    const signed = v => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`;
+    const rows = now.map(s => {
+      const prev = was.get(s.id);
+      const changed = prev && Math.abs(prev.drop - s.drop) >= 1;
+      const cover = s.cover ? `${Vault.escapeHtml(s.cover.name)} <span class="text-zinc-500">${s.cover.pos}</span>` : '<span class="text-rose-300">nobody</span>';
+      return `<div class="flex items-start gap-2.5 py-1.5 border-t border-white/5 first:border-t-0">
+          <span class="w-10 shrink-0 text-center text-[11px] font-semibold py-0.5 rounded border ${POS_BADGE(SLOT_LABEL[s.slot] ? '' : s.slot)}">${SLOT_LABEL[s.slot] || s.slot}</span>
+          <div class="min-w-0 flex-1">
+            <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(s.name)} <span class="text-zinc-500 text-[12px]">${s.pos}</span>${prev ? '' : had.has(s.id) ? ' <span class="ml-1 text-[10px] uppercase tracking-wide px-1 py-px rounded border border-white/15 text-zinc-300" title="Was on the bench">Starts</span>' : ' <span class="ml-1 text-[10px] uppercase tracking-wide px-1 py-px rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/25" title="Comes over in the trade">New</span>'}</div>
+            <div class="text-[11px] text-zinc-400 mt-0.5">If out: ${cover} steps in, <span class="mono ${s === worst ? 'text-rose-300' : 'text-zinc-300'}">−${s.drop.toFixed(1)}</span>${changed ? ` <span class="text-zinc-500">(was −${prev.drop.toFixed(1)})</span>` : ''}</div>
+          </div>
+        </div>`;
+    }).join('');
+    const gone = [...was.values()].filter(s => !nowIds.has(s.id));
+    return `<div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0">
+        <div class="flex items-baseline justify-between gap-2"><span class="text-[13px] font-medium text-zinc-100 truncate">${label}</span>
+          <span class="text-[11px] mono text-zinc-400 shrink-0">Lineup ${signed(lineup)} · Depth ${signed(depth)} pts/wk</span></div>
+        <div class="mt-2">${rows}</div>
+        ${gone.length ? `<div class="text-[11px] text-zinc-400 mt-2 pt-2 border-t border-white/5"><span class="text-rose-300/90">Out of the lineup:</span> ${gone.map(s => `${Vault.escapeHtml(s.name)} <span class="text-zinc-500">(${keeps.has(s.id) ? 'to the bench' : 'traded'})</span>`).join(', ')}</div>` : ''}
+      </div>`;
+  };
+  box.innerHTML = side(`You · ${Vault.escapeHtml(teamA.teamName)}`, before.A, after.A) + side(Vault.escapeHtml(teamB.teamName), before.B, after.B);
+}
+
+/* ---------- Add any player ----------
+   One search box over every roster in the league. Your own piece goes on your
+   side; anyone else's makes their team the partner (switching partners clears
+   what was picked from the old one) and goes on their side. */
+function fillQuickAdd() {
+  const me = teamOf('A'), sel = document.getElementById('quickAdd');
+  const label = a => a.type === 'pick' ? `${a.name}${a.tier ? ` (${a.tier})` : ''}` : `${a.name} · ${a.pos}`;
+  const group = (t, name) => `<optgroup label="${Vault.escapeHtml(name)}">${t.assets.map(a => `<option value="${t.rosterId}|${a.key}">${Vault.escapeHtml(label(a))}</option>`).join('')}</optgroup>`;
+  sel.innerHTML = '<option value=""></option>' + [me, ...teams.filter(t => t !== me)].map(t => group(t, t === me ? `Your team · ${t.teamName}` : t.teamName)).join('');
+  sel.value = '';
+  sel.onchange = () => quickAdd(sel);
+}
+function quickAdd(sel) {
+  const [rid, key] = sel.value.split('|');
+  sel.value = '';
+  if (!rid) return;
+  if (String(teamOf('A').rosterId) === rid) { if (!selectedA.has(key)) toggle('A', key); return; }
+  const selB = document.getElementById('teamB');
+  if (selB.value !== rid) { selB.value = rid; selB.onchange(); }
+  if (!selectedB.has(key)) toggle('B', key);
+}
+
 function updateTrade() {
   syncTradeUrl();
   if (view === 'coach') document.getElementById('builder').classList.toggle('hidden', selectedA.size + selectedB.size === 0);
@@ -1503,6 +1592,8 @@ function updateTrade() {
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(fairness.overallSigned, diffBandPct) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
   renderSeasonImpact(teamA, teamB, aAssets, bAssets);
+  renderLineups(teamA, teamB, analysis);
+  if (typeof renderMarketRead === 'function') renderMarketRead(aAssets, bAssets);
   if (typeof renderAcceptRead === 'function') renderAcceptRead(aAssets, bAssets);
 
   // Gap-closer suggestion
@@ -1940,7 +2031,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=f374291b"></script>
+<script src="negotiation.js?v=b19b91e4"></script>
+<script src="market.js?v=7ba8d724"></script>
 <script src="coach.js?v=0914cf74"></script>
 </body>
 </html>

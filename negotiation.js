@@ -32,6 +32,8 @@ const NEG = {
   TOLERANCE_MAX: 30,        // ...and history never loosens it past 30%
   CONSOLIDATION_BONUS: 20,  // getting the trade's best single piece for more pieces: they'll pay the market's premium
   SITE_NO_PENALTY: 5,       // the grade reading bad for them counts against it (no longer an automatic no)
+  STAR_1FOR1: [[8000, 10], [6000, 6]], // asking for a star straight up: in KTC's trade database only ~1% of
+                            // trades with an 8,000+ piece (and ~5% at 6,000-8,000) were 1-for-1, vs ~50% under 4,000
   TARGET_EDGE: 4,           // their counters aim ~4% in their favor
   STRETCH_ADD_PAIRS: 8      // top wanted pieces tried in pairs when no single add works
 };
@@ -169,6 +171,9 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   // being further behind on KTC value.
   const top = [...oAssets, ...rAssets].sort((x, y) => y.value - x.value)[0];
   if (top && oAssets.includes(top) && rAssets.length > oAssets.length) concerns.push({ w: NEG.CONSOLIDATION_BONUS, text: `They'd get the best piece in the deal, ${Vault.escapeHtml(top.name)}, and managers pay a premium to consolidate.`, say: `${Vault.escapeHtml(top.name)} is the kind of piece I'd pay up for.` });
+  // Stars rarely move 1-for-1: managers want a second piece for one, even at even value.
+  const star = rAssets.length === 1 && oAssets.length === 1 ? NEG.STAR_1FOR1.find(([v]) => rAssets[0].value >= v) : null;
+  if (star) concerns.push({ w: -star[1], text: `Stars like ${Vault.escapeHtml(rAssets[0].name)} almost never move 1-for-1 (about ${star[0] >= 8000 ? '1 in 100' : '1 in 20'} real trades for a player this valuable); a second piece usually gets it done.`, say: `I'm not moving ${Vault.escapeHtml(rAssets[0].name)} straight up for one player.` });
   // The grade reading bad for their side counts against it, but isn't an automatic no.
   const siteSaysNo = an.heads.B.tone === 'bad';
   if (siteSaysNo) concerns.push({ w: -NEG.SITE_NO_PENALTY, text: 'Graded from their side, it reads as a bad trade for them.' });
@@ -289,7 +294,8 @@ const sumValue = list => list.reduce((t, a) => t + a.value, 0);
 // Closest-to-even version of `base` they'd still accept: ask for one more of
 // their least-wanted pieces, pull one of yours back out, or swap one of
 // yours for a cheaper piece they still want. One change per round.
-function negCounterBack(baseA, baseB, O, R, ctx) {
+// floor (optional): the lowest edge for them allowed, e.g. -FAIR_PCT to stay Fair.
+function negCounterBack(baseA, baseB, O, R, ctx, floor) {
   const [oGive, rGive] = O === 'A' ? [baseA, baseB] : [baseB, baseA];
   const build = (oList, rList) => (O === 'A' ? { A: oList, B: rList } : { A: rList, B: oList });
   const baseEdge = negJudge(baseA, baseB, R, ctx).edge;
@@ -310,6 +316,7 @@ function negCounterBack(baseA, baseB, O, R, ctx) {
   cands.forEach(c => {
     const j = negJudge(c.A, c.B, R, ctx);
     if (!j.accepts || j.edge >= baseEdge - 1) return; // must still work for them AND be better for you
+    if (floor != null && j.edge < floor) return;
     if (!best || j.edge < best.edge) best = { ...c, edge: j.edge };
   });
   return best;
@@ -437,19 +444,23 @@ function negWalk(i) {
    that always agree with what Offer would say: Likely yes / Probably yes (they'd
    accept, comfortably or narrowly), Probably not / Unlikely (they'd decline,
    narrowly or clearly). For a no, the smallest change they'd accept that's still
-   Fair for you (negCounter), with a button that makes it. The counter search is
-   the slow part, so it runs just after the card draws. */
+   Fair for you (negCounter), with a button that makes it. For a yes, the most
+   you could ask for while they'd still say yes and it stays Fair for them
+   (negCounterBack with a -FAIR_PCT floor), when it moves
+   the grade at least MORE_MIN_GAIN your way. Both searches are the slow part,
+   so they run just after the card draws. */
+const MORE_MIN_GAIN = 2;
 const ACCEPT_LEVELS = {
   yes: { label: 'Likely yes', cls: 'text-emerald-300', box: 'border-emerald-500/30 bg-emerald-500/[0.06]' },
   leanYes: { label: 'Probably yes', cls: 'text-emerald-300/90', box: 'border-emerald-500/20 bg-emerald-500/[0.04]' },
   leanNo: { label: 'Probably not', cls: 'text-amber-300', box: 'border-amber-500/30 bg-amber-500/[0.06]' },
   no: { label: 'Unlikely', cls: 'text-rose-300', box: 'border-rose-500/30 bg-rose-500/[0.06]' }
 };
-let acceptCounter = null, acceptToken = 0;
+let acceptCounter = null, acceptMore = null, acceptToken = 0;
 function renderAcceptRead(aAssets, bAssets) {
   const box = document.getElementById('acceptRead');
   if (!box) return;
-  acceptCounter = null;
+  acceptCounter = null; acceptMore = null;
   const token = ++acceptToken;
   const O = negOfferingSide(), R = negOther(O), them = teamOf(R);
   const shell = (cls, inner) => `<div class="rounded-xl border p-3.5 ${cls}">${inner}</div>`;
@@ -472,7 +483,22 @@ function renderAcceptRead(aAssets, bAssets) {
   const L = ACCEPT_LEVELS[level], r = negReasons(j, ctx);
   const why = j.accepts ? (r.yes[0] || r.summary) : (j.drops > 1 ? r.summary : (r.no[0] || r.summary));
   const draw = extra => { box.innerHTML = shell(L.box, `${head}<div class="text-[20px] font-semibold mt-0.5 ${L.cls}">${L.label}</div><div class="text-[12px] text-zinc-300 mt-1">${why}</div>${extra}`); };
-  if (j.accepts) { draw(''); return; }
+  if (j.accepts) {
+    draw('');
+    setTimeout(() => {
+      if (token !== acceptToken) return;
+      const m = negCounterBack(aAssets, bAssets, O, R, ctx, -VAULT_CONFIG.FAIR_PCT); // never past Fair for them
+      const gain = m ? j.edge - m.edge : 0;
+      if (!m || gain < MORE_MIN_GAIN) return;
+      acceptMore = m;
+      const still = negJudge(m.A, m.B, R, ctx).will - ctx.ask >= 3 ? 'likely' : 'probably';
+      draw(`<div class="mt-2 pt-2 border-t border-white/5 flex items-start justify-between gap-3">
+          <span class="text-[12px] text-zinc-200"><span class="font-medium text-emerald-300">You could ask for more.</span> ${m.text} They'd still ${still} say yes, it stays Fair, and the grade moves about ${Math.round(gain)}% your way.</span>
+          <button onclick="applyAcceptMore()" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10 transition-colors">Ask for it</button>
+        </div>`);
+    }, 0);
+    return;
+  }
   draw('<div class="text-[12px] text-zinc-500 mt-2 pt-2 border-t border-white/5">Looking for what would get it done…</div>');
   setTimeout(() => {
     if (token !== acceptToken) return; // the trade changed; a newer read is on its way
@@ -488,6 +514,9 @@ function renderAcceptRead(aAssets, bAssets) {
 }
 function applyAcceptCounter() {
   if (acceptCounter) negLoad(negKeys(acceptCounter.A), negKeys(acceptCounter.B));
+}
+function applyAcceptMore() {
+  if (acceptMore) negLoad(negKeys(acceptMore.A), negKeys(acceptMore.B));
 }
 
 function negLoad(keysA, keysB) {

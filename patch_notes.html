@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=487ac5af">
+<link rel="stylesheet" href="tailwind.css?v=8d3afe28">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -28,7 +28,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=e19b60d0"></script>
+<script src="vault-core.js?v=3e959ed0"></script>
 <script src="vault-nav.js?v=15e0492b"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -36,6 +36,12 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-09-30', items: [
+    { kind: 'new', page: 'Trade Calculator', text: 'Real trades: under the grade, a line shows what real managers paid for the trade\'s main player over the last few days in KTC\'s trade database, in your league\'s format ("29 Superflex trades in the last 5 days had Amon-Ra St. Brown as the main piece… usually paid 12% under to 13% over KTC. Here you pay 12% under: less than most pay"). It compares trades shaped like yours when there are enough, since a 1-for-1 and a 3-for-1 price differently. Open it to see every trade as a dot with yours marked, and the three real trades most like yours. The grade itself doesn\'t use these.' },
+    { kind: 'new', page: 'Trade Calculator', text: 'You could ask for more: when they\'d say yes with room to spare (usually when you\'re overpaying), Will they take it? names the one change that gets you more while they\'d still say yes and it stays Fair, e.g. "Offer your 2027 R2 instead of Nico Collins", with an Ask for it button.' },
+    { kind: 'new', page: 'Trade Calculator', text: 'Lineups after the trade: a new section shows both teams\' starting lineups once the trade goes through, marks who comes over in the trade (New) and who moves up from the bench (Starts), and for every starter, who steps in when he\'s out and how many points that costs ("If out: Rashee Rice steps in, −3.3 (was −0.1)"). It\'s the depth number, player by player.' },
+    { kind: 'new', page: 'Trade Calculator', text: 'Add any player: type any player or pick in your league in the search box at the top of Trade Builder. Your own goes on your side; anyone else\'s goes on theirs and makes their team the trade partner.' },
+    { kind: 'changed', page: 'Trade Calculator', text: 'Stars rarely move one-for-one, and Will they take it? now knows it. In KTC\'s trade database only about 1 in 100 trades with an 8,000+ player was 1-for-1 (about 1 in 20 at 6,000 to 8,000, vs half of trades under 4,000), so asking for a star straight up counts against the trade, and the suggested change is usually the second piece. None of your league\'s real trades were star 1-for-1s, so it changes nothing there.' },
+    { kind: 'improved', page: 'Everywhere', text: 'Search boxes put the best matches first: names that start with what you type, then a word in the name ("amon" finds Amon-Ra St. Brown before Rhamondre Stevenson).' },
     { kind: 'changed', page: 'Trade Calculator', text: 'Will they take it? is now calibrated on real trades. Tested against your league\'s own completed trades (both managers said yes to each), the old read said one side would refuse every single one. Now a manager is expected to accept being up to about 12% behind on KTC value (the typical real dynasty trade), adjusted by their own trading history in your league; getting the best player in a deal for more pieces counts in their favor (real managers pay a premium to consolidate); and a trade that grades badly for them counts against it instead of being an automatic no. On your league\'s real trades it now gets 26 of 34 managers right (was 17), and clearly bad asks still read Unlikely. Trade Coach and negotiations use the same read, so they now find deals that tilt your way and still get accepted. The grade itself is unchanged.' },
     { kind: 'fixed', page: 'Everywhere', text: 'Depth no longer counts players on injured reserve as bench cover, since they can\'t play. Taxi players still count, since they can be promoted.' },
     { kind: 'changed', page: 'Everywhere', text: 'Depth now uses real history: starters are counted as out about 3.5 weeks a season (bye included), which is what fantasy starters actually missed from 2018 to 2025, nearly the same at every position. It still counts extra as insurance, since about 1 in 6 starters misses 6+ games.' },
