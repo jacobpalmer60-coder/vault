@@ -13,6 +13,12 @@ on:
   schedule:
     - cron: '5 * * * *'
   workflow_dispatch: {}
+  # A change to the crawler starts a run right away instead of waiting for the hour.
+  push:
+    branches: [main]
+    paths:
+      - scripts/crawl-sleeper-trades.js
+      - .github/workflows/crawl-sleeper.yml
 
 permissions:
   contents: write
