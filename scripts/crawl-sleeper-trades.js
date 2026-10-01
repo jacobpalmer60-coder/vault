@@ -15,7 +15,7 @@
 
    Sleeper's terms (docs.sleeper.com): free for non-commercial use, and "stay
    under 1000 API calls per minute, otherwise, you risk being IP-blocked."
-   This makes at most CALLS_PER_MIN (45, under 5% of that), runs for
+   This makes at most CALLS_PER_MIN (90, 9% of that), runs for
    RUN_MINUTES (the Action starts a run every hour, so it crawls nearly
    around the clock), never fetches a league twice, and backs off and stops
    on any 429 or server error.
@@ -48,7 +48,7 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 
 const API = 'https://api.sleeper.app/v1';
-const CALLS_PER_MIN = +process.env.CALLS_PER_MIN || 45;
+const CALLS_PER_MIN = +process.env.CALLS_PER_MIN || 90;
 const RUN_MINUTES = +process.env.RUN_MINUTES || 50;
 const CALL_BUDGET = Math.floor(RUN_MINUTES * CALLS_PER_MIN);
 const MIN_SEASON = 2021;
