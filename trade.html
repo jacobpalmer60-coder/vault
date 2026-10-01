@@ -6,7 +6,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=6363cd8c">
+<link rel="stylesheet" href="tailwind.css?v=1252051e">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -478,10 +478,16 @@ async function init() {
     // ?coach=<option> (e.g. League Overview's "Find sell-high trades") opens Trade Coach on it.
     // Read before loading your team, which rewrites the page address.
     const coachParam = { market: 'sellhigh' }[new URLSearchParams(location.search).get('coach')] || new URLSearchParams(location.search).get('coach'); // 'market' was the combined option
+    const withParam = new URLSearchParams(location.search).get('with');
     if (!applyTradeFromUrl()) {
       if (Vault.myTeam(teams)) document.getElementById('loadRostersBtn').onclick();
       else document.getElementById('setup').classList.remove('hidden');
-      if (coachParam && typeof COACH_OPTIONS !== 'undefined' && COACH_OPTIONS[coachParam] && Vault.myTeam(teams)) { openCoach(coachParam); if (coachReady()) coachFind(); }
+      if (coachParam && typeof COACH_OPTIONS !== 'undefined' && COACH_OPTIONS[coachParam] && Vault.myTeam(teams)) {
+        openCoach(coachParam);
+        const withTeam = new URLSearchParams(location.search).get('with') || withParam; // ?coach=team&with=<rosterId> (Team Analyzer's "Find trades with them")
+        if (coachParam === 'team' && withTeam && teams.some(t => String(t.rosterId) === withTeam)) coachSetTeam(withTeam);
+        if (coachReady()) coachFind();
+      }
     }
   } catch (e) {
     document.getElementById('status').textContent = e.message || 'Failed to load';
@@ -2038,6 +2044,6 @@ init();
 <script src="negotiation.js?v=e3bf44a5"></script>
 <script src="market-data.js?v=1c57fb04"></script>
 <script src="market.js?v=debc6d7d"></script>
-<script src="coach.js?v=da0a53c4"></script>
+<script src="coach.js?v=9ebafe34"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@
 <title>THE VAULT • Gold Dynasty</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=6363cd8c">
+<link rel="stylesheet" href="tailwind.css?v=1252051e">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -14,14 +14,15 @@
 <div id="vault-nav"></div>
 
 <main class="max-w-[1800px] mx-auto px-6 py-10 fade-in">
-  <div class="flex items-center justify-between mb-8">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">League Overview</h1>
       <div id="status" class="mt-2 flex items-center gap-3 text-zinc-300 text-sm">
         <div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>
       </div>
+      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">Every team ranked by total dynasty value (players plus picks, at KeepTradeCut prices), with how good each lineup is now, how long that lasts, and their playoff odds. Click a team for more, and a link to its full Team Analyzer breakdown. <a href="#legend" class="text-amber-300 hover:text-amber-200 whitespace-nowrap">What do these numbers mean?</a></p>
     </div>
-    <button id="refresh" class="btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
+    <button id="refresh" class="self-start sm:self-auto shrink-0 btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
   </div>
 
   <div id="mobileCards" class="md:hidden space-y-3"></div>
@@ -67,25 +68,25 @@
     <div id="valueHistoryChart"></div>
   </div>
 
-  <div class="mt-8 card rounded-vault p-6">
-    <h2 class="display text-[20px] gold-text mb-4">Legend</h2>
+  <div id="legend" class="mt-8 card rounded-vault p-6 scroll-mt-24">
+    <h2 class="display text-[20px] gold-text mb-4">What the numbers mean</h2>
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]">
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Overall</span><span class="text-zinc-400"> — Players + Picks combined, a team's real total dynasty value</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Overall</span><span class="text-zinc-400"> — Players + Picks combined, a team's total dynasty value at KeepTradeCut prices</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Position Split</span><span class="text-zinc-400"> — Share of player value by QB/RB/WR/TE</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Players</span><span class="text-zinc-400"> — Sum of rostered player values</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Opt PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored to your league's real settings — not necessarily who you'd actually start today</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">VORP</span><span class="text-zinc-400"> — Same lineup as Opt PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's real, hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Longevity</span><span class="text-zinc-400"> — Of the next 5 projected years (position-decay + arriving picks), how many still clear the real playoff line. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Opt PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored with your league's own scoring settings — not necessarily who you'd actually start today</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Opt PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Longevity</span><span class="text-zinc-400"> — How many of the next 5 years this roster is projected to stay good enough for the playoffs, as players age and picks arrive. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
       <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from how you stand now vs. how long that lasts (see guide below)</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Career</span><span class="text-zinc-400"> — All-time W-L-T for this manager, summed across every season Sleeper's league-history chain has for this league</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Proj. Record / Playoff % / Title %</span><span class="text-zinc-400"> — Monte Carlo'd against the real remaining schedule using each team's Opt PPG as weekly strength (±22% week-to-week variance) — a rough estimate, not a guarantee</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Career</span><span class="text-zinc-400"> — All-time W-L-T for this manager, across every past season of this league on Sleeper</span></div>
+      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Proj. Record / Playoff % / Title %</span><span class="text-zinc-400"> — The rest of your schedule played out thousands of times, with each team scoring around its Opt PPG each week (give or take 22%). A rough estimate, not a guarantee</span></div>
     </div>
   </div>
 
   <div class="mt-6 card rounded-vault p-6">
     <h2 class="display text-[20px] gold-text mb-1">Archetype Guide</h2>
-    <p class="text-[12px] text-zinc-400 mb-4">Every archetype comes from two independent standings — Contending (current player value + production: how strong you are right now) and Longevity (Vault.contentionWindow's 5-year projection: how many years that lasts) — each ranked Top 2 / Top Half / Bottom Half / Bottom 2 of the league. Draft capital (Picks) is tracked separately — shown as its own qualifier next to each pill — since a team's picks and its projected window don't always point the same direction.</p>
+    <p class="text-[12px] text-zinc-400 mb-4">Every archetype comes from two independent standings — Contending (current player value + production: how strong you are right now) and Longevity (the 5-year projection: how many years that lasts) — each ranked Top 2 / Top Half / Bottom Half / Bottom 2 of the league. Draft capital (Picks) is tracked separately — shown as its own qualifier next to each pill — since a team's picks and its projected window don't always point the same direction.</p>
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]" id="archGuide"></div>
   </div>
 
@@ -161,7 +162,7 @@ const CHART_COLORS = ['#f5c542', '#5ec7f5', '#f56e6e', '#7ee787', '#c792ea', '#f
 const VALUE_METRICS = {
   total: { label: 'Value', field: 'total', decimals: 0, desc: "Each team's total dynasty value, snapshotted daily." },
   optPpg: { label: 'Opt PPG', field: 'optPpg', decimals: 1, desc: "Each team's best-lineup projected PPG (league scoring), snapshotted daily." },
-  playerValue: { label: 'Player Value', field: 'playerValue', decimals: 0, desc: "Each team's rostered-player value only (excludes picks) — backfilled all the way to the startup draft by replaying every real trade, waiver, and draft pick since. Value+picks together only has the ~12 real daily snapshots so far." }
+  playerValue: { label: 'Player Value', field: 'playerValue', decimals: 0, desc: "Each team's rostered-player value only (excludes picks) — backfilled all the way to the startup draft by replaying every completed trade, waiver, and draft pick since. Value+picks together only has the ~12 real daily snapshots so far." }
 };
 let valueHistoryMetric = 'total';
 let lastValueHistory = null, lastValueHistoryTeams = null;

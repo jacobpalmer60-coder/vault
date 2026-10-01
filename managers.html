@@ -6,7 +6,7 @@
 <title>Managers — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=6363cd8c">
+<link rel="stylesheet" href="tailwind.css?v=1252051e">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -19,11 +19,13 @@
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
   </div>
   <p class="text-[13px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
-    How every manager trades, built from their real trades on Trade Grades.
+    How every manager trades, built from their completed trades on Trade Grades.
     Ranked by <span class="text-zinc-200">Net Now</span>: what all their trades are
     worth at today's KTC prices. A deal that looked bad on the day but has aged
     well counts as a win, because buying before the market moves is the skill.
     <span class="text-zinc-200">Net Then</span> shows what each deal looked like when it was made.
+    The <span class="text-zinc-200">Market</span> columns price the same trades at what managers actually pay for each player in
+    completed trades (Player Market), and <span class="text-zinc-200">Fit</span> is how well what they got suited their roster and timeline.
   </p>
 
   <div id="summary" class="hidden mb-8"></div>
@@ -244,7 +246,7 @@ function marketLine(rows) {
   if (traded.length < 2) return '';
   const top = traded.reduce((m, s) => (s.netMarket > m.netMarket ? s : m)), low = traded.reduce((m, s) => (s.netMarket < m.netMarket ? s : m));
   const pts = v => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v)).toLocaleString()}`;
-  return `<div class="text-[12px] text-zinc-400 mb-2">At what players actually go for, <span class="text-emerald-300">${Vault.escapeHtml(top.teamName)}</span> has traded best (${pts(top.netMarket)} across ${top.trades} trade${top.trades === 1 ? '' : 's'}) and <span class="text-amber-300">${Vault.escapeHtml(low.teamName)}</span> has given up the most (${pts(low.netMarket)}). See the Market columns.</div>`;
+  return `<div class="text-[12px] text-zinc-400 mb-2">At market prices (what managers actually pay in completed trades), <span class="text-emerald-300">${Vault.escapeHtml(top.teamName)}</span> has traded best (${pts(top.netMarket)} across ${top.trades} trade${top.trades === 1 ? '' : 's'}) and <span class="text-amber-300">${Vault.escapeHtml(low.teamName)}</span> has given up the most (${pts(low.netMarket)}). See the Market columns.</div>`;
 }
 
 /* ---------- Who pays up ----------

@@ -6,7 +6,7 @@
 <title>Team Analyzer — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=6363cd8c">
+<link rel="stylesheet" href="tailwind.css?v=1252051e">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -20,6 +20,7 @@
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Team Analyzer</h1>
       <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
+      <p class="text-[13px] text-zinc-400 mt-2 max-w-[620px]">One team in depth: where it ranks, its weak spots, the teams it lines up best with for trades, how many years it can contend, its best lineup and its whole roster. Pick any team on the right.</p>
     </div>
     <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
   </div>
@@ -104,6 +105,7 @@ function renderSingle(t) {
   };
   const flaws = Vault.fatalFlaws(t, leagueAvg, all);
   const partners = getTradePartners(t, all);
+  const isMine = Vault.myTeam(all) === t; // your own team: each partner links to Trade Coach's trades with them
   const win = Vault.contentionWindow(t, all);
 
   const statTiles = [
@@ -141,9 +143,10 @@ function renderSingle(t) {
           <div>
             <div class="flex justify-between items-center">
               <div><div class="text-[13px]">${Vault.escapeHtml(p.teamName)}</div><div class="text-[12px] text-zinc-400">${p.arch}</div></div>
-              <div class="text-[12px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0">${Math.min(10, p.fit)}/10 fit</div>
+              <div class="text-[12px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0" title="How well your rosters and timelines complement each other">${p.fit >= 6 ? 'Strong fit' : p.fit >= 3 ? 'Good fit' : p.fit >= 1 ? 'Some fit' : 'Weak fit'}</div>
             </div>
             <div class="mt-1.5 space-y-0.5">${p.reasons.map(r => `<div class="flex gap-1.5 text-[12px] text-zinc-400"><span class="text-emerald-400/80">•</span><span>${r}</span></div>`).join('')}</div>
+            ${isMine ? `<a href="${Vault.linkTo('trade.html')}&coach=team&with=${p.rosterId}" class="inline-block mt-1.5 text-[12px] text-amber-300 hover:text-amber-200">Find trades with them →</a>` : ''}
           </div>`).join('')}</div>
       </div>
       <div class="bg-black/40 rounded-2xl p-4 border border-white/10">

@@ -864,7 +864,7 @@ function renderCoach() {
       ${coachSummaryHtml(me)}
       <button onclick="coachFind()" ${Coach.busy ? 'disabled' : ''} class="shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Coach.busy ? 'opacity-60' : ''}">${fresh ? 'Search again' : 'Find trades'}</button>
     </div>
-    <div class="text-[12px] text-zinc-500 mb-1 max-w-[680px]">Every trade here is one the other manager would likely take, and Fair for you unless it says otherwise. Predicted from their roster, needs, timeline, and trade history, not the real managers.</div>
+    <div class="text-[12px] text-zinc-500 mb-1 max-w-[680px]">Every trade here is one the other manager would likely take, and Fair for you unless it says otherwise. Predicted from their roster, needs, timeline, and trade history; the managers themselves may answer differently.</div>
     <div id="coachStatus" role="status" class="text-[12px] text-zinc-400 min-h-[18px] ${Coach.busy ? '' : 'hidden'}">Searching…</div>
     ${Coach.busy || !fresh ? '' : coachResultsHtml(r)}`;
 }

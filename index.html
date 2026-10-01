@@ -6,7 +6,7 @@
   <title>The Vault — Sleeper x KeepTradeCut</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-  <link rel="stylesheet" href="tailwind.css?v=6363cd8c">
+  <link rel="stylesheet" href="tailwind.css?v=1252051e">
 </head>
 <body class="min-h-screen text-zinc-100 antialiased">
   <div class="vault-bg"></div>
@@ -36,6 +36,7 @@
             <input id="username" type="text" placeholder="Username" class="flex-1 min-w-0 h-12 px-4 rounded-xl bg-black/40 border border-white/10 focus:border-amber-400/60 outline-none transition-colors" />
             <button id="loadBtn" class="btn-gold-solid h-12 px-5">Load Leagues</button>
           </div>
+          <p class="mt-2 text-[12px] text-zinc-500">The name you use on Sleeper. No password: The Vault only reads your leagues' public info from Sleeper.</p>
           <p id="errorMsg" class="hidden mt-3 text-sm text-red-400"></p>
         </div>
 
@@ -46,6 +47,7 @@
             <input id="directLeagueId" type="text" placeholder="Enter league id here" class="flex-1 min-w-0 h-12 px-4 rounded-xl bg-black/40 border border-white/10 focus:border-amber-400/60 outline-none mono text-sm" />
             <button id="directBtn" class="btn-gold h-12 px-5 text-sm text-zinc-300">Go</button>
           </div>
+          <p class="mt-2 text-[12px] text-zinc-500">The long number in your league's web address on sleeper.com.</p>
         </div>
 
         <!-- League Select -->
@@ -58,6 +60,22 @@
         <div id="step-actions" class="hidden mt-6">
           <a id="btnOverview" href="#" class="btn-gold-solid h-12 w-full flex items-center justify-center gap-2 text-[15px]">Open league <span aria-hidden="true">→</span></a>
           <p class="mt-3 text-xs text-zinc-400 text-center">Opens League Overview. The Trade Calculator, Player Rankings, and every other tool are in the tabs at the top of each page. Your league is saved in this browser.</p>
+        </div>
+      </div>
+
+      <!-- What's inside, so a first visit knows what it's signing up for. -->
+      <div class="mt-6 grid sm:grid-cols-3 gap-3 text-[12px]">
+        <div class="card rounded-vault-sm p-4">
+          <div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">League</div>
+          <p class="text-zinc-300 leading-relaxed">Every team ranked by dynasty value, with playoff odds, contention windows, and a deep dive on any team.</p>
+        </div>
+        <div class="card rounded-vault-sm p-4">
+          <div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Players</div>
+          <p class="text-zinc-300 leading-relaxed">Rankings scored to your league's settings, side-by-side comparisons, and what players actually go for in completed trades.</p>
+        </div>
+        <div class="card rounded-vault-sm p-4">
+          <div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Trades</div>
+          <p class="text-zinc-300 leading-relaxed">A trade calculator with a coach that finds deals the other manager would likely take, plus grades for every trade in your league.</p>
         </div>
       </div>
     </div>
