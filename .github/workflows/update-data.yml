@@ -35,6 +35,16 @@ jobs:
       # Small per-format history files + trimmed Sleeper player list the pages
       # actually load (see the script header) — must run after the snapshot.
       - run: node scripts/build-slim-data.js
+      # The Sleeper trade crawl (crawl-sleeper.yml keeps it on the "sleeper-trades"
+      # release), priced at each trade's own date into small files for the Trade
+      # Database's Over time charts — after the slim history it prices from.
+      - name: Summarize the Sleeper trade crawl
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data/sleeper-trades
+          gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber || echo "No crawl data yet"
+          node scripts/summarize-sleeper-trades.js
       # This season's week-by-week stats for every QB/RB/WR/TE (Compare page ranks,
       # team shares, weekly finishes). Past seasons were built once and don't change.
       - run: node scripts/build-weekly-stats.js
@@ -42,6 +52,6 @@ jobs:
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ktc-values.json data/projections.json data/ktc-trades.json data/market/ data/player-value-history.json data/pick-value-history.json data/history/ data/sleeper-players.json data/weekly/
+          git add data/ktc-values.json data/projections.json data/ktc-trades.json data/market/ data/market-history/ data/player-value-history.json data/pick-value-history.json data/history/ data/sleeper-players.json data/weekly/
           git diff --cached --quiet || git commit -m "Update KTC values, projections, trade database, and value history"
           git push

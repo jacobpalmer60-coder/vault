@@ -35,6 +35,9 @@
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-01', items: [
+    { kind: 'new', page: 'Trade Database', text: 'Over time: the Trade Database is now building a long history of real dynasty trades from Sleeper leagues (going back to 2021), each priced at the KTC values from the day it happened, in your league\'s exact format (Superflex or 1QB and its TE premium). Once enough months fill in, it charts the typical trade\'s % off and the share graded Fair, month by month. Until then it shows how many trades it has collected. Before September 2023 only player-for-player trades can be priced, since pick prices start then.' },
+  ]},
   { date: '2026-09-30', items: [
     { kind: 'new', page: 'Trade Database', text: 'The market at a glance: charts of every real trade in your league\'s QB format (about 17,000 Superflex trades this week), priced with the Trade Calculator\'s own math. The typical real trade is about 22% off on KTC value, and only about 31% grade Fair. Charts: how far off real trades are (Fair / Lopsided / Unfair, with your league\'s trades marked under it); by trade shape (1-for-1 trades run about 13% off, 1-for-2 about 35%, and the side getting fewer pieces pays about 30% over KTC); how rarely stars go 1-for-1 (about 1% of trades with an 8,000+ player); by position of the best piece; and your league next to the market (your league\'s typical trade is closer to even than the market\'s).' },
     { kind: 'fixed', page: 'Trade Database', text: 'Matching trades to your league no longer requires the exact same number of starters, which threw out most trades for a small difference (e.g. 10 vs 11 starters). A 10-team Superflex, 1 PPR, TE+ league now matches about 970 trades instead of about 170.' },

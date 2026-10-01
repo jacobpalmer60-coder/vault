@@ -1,2 +1,3 @@
 # Sleeper crawl to-do list (holds Sleeper user/league ids); kept by the Action's cache, never committed.
 .crawl/
+data/sleeper-trades/

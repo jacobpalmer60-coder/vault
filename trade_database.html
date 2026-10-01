@@ -40,6 +40,18 @@
     <div id="marketBody" class="px-5 pb-5 space-y-5"></div>
   </details>
 
+  <!-- Over time: Sleeper dynasty trades in your league's exact price format, month by month. -->
+  <details id="history" class="group card rounded-vault-sm mb-6 hidden" open>
+    <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+      <span>
+        <span class="block text-[16px] font-semibold text-zinc-100">Over time</span>
+        <span id="historySub" class="block text-[12px] text-zinc-400 mt-0.5"></span>
+      </span>
+      <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
+    </summary>
+    <div id="historyBody" class="px-5 pb-5 space-y-5"></div>
+  </details>
+
   <div class="flex items-center gap-3 mb-5">
     <input id="searchSideA" type="text" autocomplete="off" aria-label="One side of the trade: player or pick" placeholder="e.g. Justin Herbert"
       class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
@@ -340,6 +352,88 @@ function renderMarket(rows, fmt, exactShare, league) {
   });
 }
 
+/* ---------- Over time ----------
+   Real dynasty trades from Sleeper leagues with this league's exact price
+   format (Superflex or 1QB, and its TE premium), each priced at KTC values
+   from the day it happened (scripts/summarize-sleeper-trades.js), grouped by
+   month. Weekly summaries add up exactly (counts and 5%-wide bins), so a
+   month's typical % off is read from its combined bins. */
+const HIST_MIN = 15; // months with fewer trades than this are left out
+const FORMAT_NAME = { sf: 'Superflex', sf_tep: 'Superflex TE+', sf_tepp: 'Superflex TE++', oneQB: '1QB', oneQB_tep: '1QB TE+', oneQB_tepp: '1QB TE++' };
+function binMedian(bins, n) {
+  let seen = 0;
+  for (let i = 0; i < bins.length; i++) {
+    if (seen + bins[i] >= n / 2) return i * MK_BIN + (bins[i] ? (n / 2 - seen) / bins[i] * MK_BIN : 0);
+    seen += bins[i];
+  }
+  return MK_TOP;
+}
+// One month-by-month column chart with a hover/focus readout.
+function histColumns(id, months, valueOf, fmt, fillOf, max) {
+  const top = max ?? Math.max(...months.map(valueOf), 1);
+  const years = months.map((m, i) => (i === 0 || m.key.slice(0, 4) !== months[i - 1].key.slice(0, 4) ? { i, y: m.key.slice(0, 4) } : null)).filter(Boolean);
+  return `<div class="relative">
+      <div id="${id}" class="flex items-end gap-[2px] h-32 border-b border-white/10">${months.map((m, i) => `<div tabindex="0" data-i="${i}" class="hc-bar group/bar relative flex-1 h-full flex items-end outline-none" aria-label="${m.label}: ${fmt(valueOf(m))}, ${m.n.toLocaleString()} trades">
+          <div class="w-full rounded-t-[3px] ${fillOf(m)} group-hover/bar:brightness-125 group-focus/bar:brightness-125" style="height:${Math.max(1, valueOf(m) / top * 100).toFixed(2)}%"></div>
+        </div>`).join('')}</div>
+      <div class="hc-tip hidden absolute z-10 -translate-x-1/2 -translate-y-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 whitespace-nowrap pointer-events-none shadow-xl"></div>
+      <div class="relative h-4 mt-1 text-[10px] text-zinc-500">${years.map(({ i, y }) => `<span class="absolute" style="left:${(i / months.length * 100).toFixed(2)}%">${y}</span>`).join('')}</div>
+    </div>`;
+}
+function wireColumns(id, months, valueOf, fmt) {
+  const box = document.getElementById(id), tip = box.parentElement.querySelector('.hc-tip');
+  const show = el => {
+    const m = months[+el.dataset.i], r = el.getBoundingClientRect(), b = box.getBoundingClientRect(), bar = el.firstElementChild.getBoundingClientRect();
+    tip.innerHTML = `<span class="font-medium">${m.label}</span> · ${fmt(valueOf(m))} <span class="text-zinc-400">(${m.n.toLocaleString()} trades)</span>`;
+    tip.style.left = `${Math.max(80, Math.min(b.width - 80, r.left - b.left + r.width / 2))}px`;
+    tip.style.top = `${bar.top - b.top - 6}px`;
+    tip.classList.remove('hidden');
+  };
+  box.querySelectorAll('.hc-bar').forEach(el => {
+    el.addEventListener('mouseenter', () => show(el)); el.addEventListener('focus', () => show(el));
+    el.addEventListener('mouseleave', () => tip.classList.add('hidden')); el.addEventListener('blur', () => tip.classList.add('hidden'));
+  });
+}
+async function renderHistory(field) {
+  let doc;
+  try { const res = await fetch(`data/market-history/${field}.json`); if (!res.ok) return; doc = await res.json(); } catch { return; }
+  const box = document.getElementById('history'), body = document.getElementById('historyBody');
+  const byMonth = new Map();
+  Object.entries(doc.weeks || {}).forEach(([w, s]) => {
+    const key = w.slice(0, 7), m = byMonth.get(key) || byMonth.set(key, { key, n: 0, bins: Array(s.pct.length).fill(0), buckets: [0, 0, 0] }).get(key);
+    m.n += s.n; s.pct.forEach((c, i) => { m.bins[i] += c; }); s.buckets.forEach((c, i) => { m.buckets[i] += c; });
+  });
+  const months = [...byMonth.values()].filter(m => m.n >= HIST_MIN).sort((a, b) => a.key.localeCompare(b.key));
+  months.forEach(m => {
+    m.label = new Date(m.key + '-15T00:00:00Z').toLocaleDateString(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' });
+    m.median = binMedian(m.bins, m.n); m.fair = mkShare(m.buckets[0], m.n);
+  });
+  box.classList.remove('hidden');
+  const fmt = FORMAT_NAME[field] || field;
+  document.getElementById('historySub').textContent = `${doc.trades.priced.toLocaleString()} real ${fmt} trades from ${doc.leagues.toLocaleString()} Sleeper dynasty leagues, each priced at KTC values from the day it happened`;
+  if (months.length < 3) {
+    body.innerHTML = `<div class="rounded-xl bg-black/25 border border-white/5 p-4 text-[13px] text-zinc-300 leading-relaxed">
+        Collecting. The Vault is gathering real trades from Sleeper dynasty leagues around the clock, going back to 2021, and pricing each one at the KTC values from its day.
+        So far: <span class="mono text-zinc-100">${doc.trades.crawled.toLocaleString()}</span> ${fmt} trades from <span class="mono text-zinc-100">${doc.leagues.toLocaleString()}</span> leagues. Charts appear here once at least three months each have ${HIST_MIN}+ trades.
+      </div>`;
+    return;
+  }
+  const fairFill = m => BUCKET_FILL[Vault.fairnessBucket(m.median, 0, 0)];
+  const last = months[months.length - 1];
+  const card = (title, latest, sub, chart) => `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0 flex flex-col">
+      <div class="flex items-baseline justify-between gap-3"><span class="text-[13px] font-medium text-zinc-200">${title}</span><span class="text-[12px] text-zinc-400 shrink-0">${last.label}: <span class="mono text-zinc-100">${latest}</span></span></div>
+      <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">${sub}</div>
+      <div class="mt-auto">${chart}</div>
+    </div>`;
+  body.innerHTML = `<div class="grid lg:grid-cols-2 gap-3">
+      ${card('Typical trade, % off on KTC value', `${Math.round(last.median)}% off`, 'By month, colored by where it lands: Fair, Lopsided or Unfair.', histColumns('hcMedian', months, m => m.median, v => `${Math.round(v)}% off`, fairFill))}
+      ${card('Share of trades graded Fair', `${Math.round(last.fair)}%`, `By month, on the Trade Calculator's Fair line (under ${VAULT_CONFIG.FAIR_PCT}% off).`, histColumns('hcFair', months, m => m.fair, v => `${Math.round(v)}% Fair`, () => 'bg-emerald-400/70', 100))}
+    </div>
+    <div class="text-[11px] text-zinc-500">Months with fewer than ${HIST_MIN} trades are left out. Before September 2023 only player-for-player trades can be priced (pick prices start then). Picks after round 4, kickers and defenses count as no value. Trades with a player KTC no longer tracks are left out.</div>`;
+  wireColumns('hcMedian', months, m => m.median, v => `${Math.round(v)}% off`);
+  wireColumns('hcFair', months, m => m.fair, v => `${Math.round(v)}% Fair`);
+}
+
 async function init() {
   const status = document.getElementById('status');
   try {
@@ -402,6 +496,7 @@ async function init() {
     const exactShare = priced.length ? `${share('Fair')}% Fair, ${share('Lopsided')}% Lopsided, ${share('Unfair')}% Unfair (${priced.length} trades)` : '';
     const fmtName = isSF ? 'Superflex' : '1QB';
     renderMarket(mRows, fmtName, exactShare, null);
+    renderHistory(valueField);
     Vault.fetchAndGradeAllTrades(leagueId).then(({ allGraded }) => {
       const lg = (allGraded || []).filter(g => Number.isFinite(g.pctDiff)).map(g => ({ pct: g.pctDiff, bucket: Vault.fairnessBucket(g.pctDiff, 0, 0), label: `${g.teamA.teamName} and ${g.teamB.teamName}` }));
       renderMarket(mRows, fmtName, exactShare, lg);
