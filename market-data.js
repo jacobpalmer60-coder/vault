@@ -92,7 +92,8 @@ const marketQuantile = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.ma
 // KTC's feed stores every pick as mid). A key passed in is used as is.
 function marketKeyOf(a) {
   if (typeof a === 'string') return /^[nk]:/.test(a) ? a : 'n:' + Vault.normalizeName(a);
-  return a.type === 'pick' ? (a.season && a.round ? `k:${a.season}-${a.round}` : '') : 'n:' + Vault.normalizeName(a.name);
+  const round = a.round ?? a.ktcRound; // graded trades' picks carry ktcRound
+  return a.type === 'pick' ? (a.season && round ? `k:${a.season}-${round}` : '') : 'n:' + Vault.normalizeName(a.name);
 }
 function marketComps(name) {
   const d = Market.data;
@@ -236,6 +237,14 @@ function marketEdge(league, give, get) {
     .map(x => ({ ...x, adj: marketAdj(league, x.a), weight: Math.abs(marketAdj(league, x.a) * x.a.value) }))
     .filter(x => Math.abs(x.adj) >= 3).sort((x, y) => y.weight - x.weight);
   return { ktc, market, delta: market - ktc, movers };
+}
+// Net value of a trade for the side giving `give` and getting `get`, in KTC
+// points: on KTC (consolidation-adjusted, as the grade measures) and at market
+// prices (each side scaled by its pieces' market values, the adjustment held).
+function marketNet(league, give, get) {
+  const { valueA, valueB } = Vault.tradeSideValues(give, get);
+  const mult = list => { const s = list.reduce((t, a) => t + a.value, 0); return s ? list.reduce((t, a) => t + a.value * (1 + marketAdj(league, a) / 100), 0) / s : 1; };
+  return { ktc: valueB - valueA, market: valueB * mult(get) - valueA * mult(give) };
 }
 // "Rashee Rice trades about 13% above his KTC value", for the piece that moved a trade most.
 function marketMoverText(m) {

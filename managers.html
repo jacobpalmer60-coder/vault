@@ -6,7 +6,7 @@
 <title>Managers — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=d4302872">
+<link rel="stylesheet" href="tailwind.css?v=41e1db3a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -33,6 +33,7 @@
 
 <script src="vault-core.js?v=3a68f3cb"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="market-data.js?v=d0699d55"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
@@ -158,7 +159,7 @@ function renderSummaryTable(rows, teams) {
     const noA = key !== 'trades' && !a.trades, noB = key !== 'trades' && !b.trades;
     if (noA !== noB) return noA ? 1 : -1;
     // W-L columns sort by trades won minus trades lost.
-    const val = s => key === 'wlThen' ? s.won - s.lost : key === 'wlNow' ? s.wonNow - s.lostNow : (s[key] || 0);
+    const val = s => key === 'wlThen' ? s.won - s.lost : key === 'wlNow' ? s.wonNow - s.lostNow : key === 'wlMarket' ? (s.wonMarket || 0) - (s.lostMarket || 0) : (s[key] || 0);
     return dir * (val(a) - val(b));
   });
   const th = (label, k, align, title = '', pad = 'px-3') => `<th class="${align} ${pad} py-2.5 sortable ${key === k ? 'active' : ''}" onclick="sortGlance('${k}')" ${title ? `title="${title}"` : ''} aria-sort="${key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${key === k ? (dir > 0 ? ' ↑' : ' ↓') : ''}</th>`;
@@ -167,9 +168,10 @@ function renderSummaryTable(rows, teams) {
   box.classList.remove('hidden');
   box.innerHTML = `
     <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">League at a glance</div>
+    ${marketLine(rows)}
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full text-[13px] min-w-[1080px]">
+        <table class="w-full text-[13px] min-w-[1240px]">
           <thead class="bg-black/40 border-b border-white/5">
             <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
               ${th('Manager', 'teamName', 'text-left', '', 'px-4')}
@@ -180,6 +182,8 @@ function renderSummaryTable(rows, teams) {
               ${th('W-L Now', 'wlNow', 'text-right', "Trades ahead vs. behind on value at today's KTC prices")}
               ${th('Net Then', 'netValue', 'text-right', "Net value across every trade at KTC prices on each trade's date")}
               ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's KTC prices")}
+              ${th('W-L Market', 'wlMarket', 'text-right', "Trades ahead vs. behind at what players actually go for: today's KTC values times each piece's market value from completed trades")}
+              ${th('Net Market', 'netMarket', 'text-right', "Net value across every trade at what players actually go for (today's KTC values times each piece's market value from completed trades)")}
               ${th('Fit', 'fitSum', 'text-right', 'Timeline and positional-need fit, summed across every trade: how well the pieces they got suited their roster', 'px-4')}
             </tr>
           </thead>
@@ -199,6 +203,8 @@ function renderSummaryTable(rows, teams) {
                 <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.wonNow}-${s.lostNow}` : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValue) : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValueToday) : '—'}</td>
+                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades && s.netMarket != null ? `${s.wonMarket}-${s.lostMarket}` : '—'}</td>
+                <td class="px-3 py-3 text-right">${s.trades && s.netMarket != null ? signedCell(s.netMarket) : '—'}</td>
                 <td class="px-4 py-3 text-right mono ${s.fitSum > 0.5 ? 'text-emerald-400' : s.fitSum < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.trades ? (s.fitSum >= 0 ? '+' : '') + s.fitSum.toFixed(1) : '—'}</td>
               </tr>`;
             }).join('')}
@@ -206,6 +212,37 @@ function renderSummaryTable(rows, teams) {
         </table>
       </div>
     </div>`;
+}
+
+/* ---------- Who trades well at market prices ----------
+   Every trade again at what players actually go for: today's KTC values
+   times each piece's market value from completed trades (market-data.js
+   marketNet, KTC's consolidation adjustment held). A manager who keeps
+   getting pieces the market pays up for, and sending ones it doesn't, comes
+   out ahead here even when KTC calls his trades even. Pieces without enough
+   completed trades stay at KTC. Today's market read applied to every trade,
+   not the market on each trade's day. */
+const MARKET_WIN = 100; // net KTC points a trade has to clear to count as won or lost at market
+function addMarketStats(stats, allGraded, league) {
+  const by = new Map(stats.map(s => [s.rosterId, Object.assign(s, { netMarket: 0, wonMarket: 0, lostMarket: 0 })]));
+  allGraded.forEach(g => {
+    if (!g.toAToday?.length || !g.toBToday?.length) return;
+    const a = marketNet(league, g.toBToday, g.toAToday); // team A sent toB, got toA
+    [[g.teamA.rosterId, a.market], [g.teamB.rosterId, -a.market]].forEach(([id, net]) => {
+      const s = by.get(id);
+      if (!s) return;
+      s.netMarket += net;
+      if (net > MARKET_WIN) s.wonMarket++; else if (net < -MARKET_WIN) s.lostMarket++;
+    });
+  });
+}
+// One line over the table: who comes out furthest ahead and behind at market prices.
+function marketLine(rows) {
+  const traded = rows.filter(s => s.trades && s.netMarket != null);
+  if (traded.length < 2) return '';
+  const top = traded.reduce((m, s) => (s.netMarket > m.netMarket ? s : m)), low = traded.reduce((m, s) => (s.netMarket < m.netMarket ? s : m));
+  const pts = v => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v)).toLocaleString()}`;
+  return `<div class="text-[12px] text-zinc-400 mb-2">At what players actually go for, <span class="text-emerald-300">${Vault.escapeHtml(top.teamName)}</span> has traded best (${pts(top.netMarket)} across ${top.trades} trade${top.trades === 1 ? '' : 's'}) and <span class="text-amber-300">${Vault.escapeHtml(low.teamName)}</span> has given up the most (${pts(low.netMarket)}). See the Market columns.</div>`;
 }
 
 async function init() {
@@ -219,6 +256,12 @@ async function init() {
     status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
     render(stats, teams);
+    // Then again at market prices, once completed-trade prices load.
+    marketLoad(league).then(() => {
+      if (!Market.data || Market.data.failed) return;
+      addMarketStats(stats, allGraded, league);
+      renderSummaryTable(glanceData.rows, glanceData.teams);
+    });
   } catch (e) {
     console.error(e);
     status.textContent = e.message || 'Failed to load';

@@ -29,6 +29,7 @@ const COACH = {
 };
 const COACH_OPTIONS = {
   best: { label: 'Best trades', blurb: 'The fairest trades across the league for your team that the other manager would likely accept, best for you first.' },
+  market: { label: 'Sell high, buy low', blurb: 'Sell your players and picks that go for more than KTC in completed trades, for more than their KTC value; buy other teams\' pieces that go for less, for less than theirs. Only deals the other manager would likely take, most ahead for you first.' },
   negotiate: { label: 'Negotiate a trade', blurb: 'Offer the trade loaded in the calculator. Their manager answers in their own words, and you can steer what you ask for next.' },
   shop: { label: 'Shop a player', blurb: 'Pick one of your players or picks and see the best offer from every team, any return.' },
   target: { label: 'Get a player', blurb: 'Pick any player on another team and see offers their manager would likely take for them.' },
@@ -270,6 +271,64 @@ function coachSaleOffers(me, v, filter) {
   return offers.sort((x, y) => x.edge - y.edge);
 }
 
+/* Sell high, buy low (market-data.js). A market high is a player managers
+   pay more than KTC for, so the way to cash in is to sell him for more than
+   his KTC value; a market low goes for less, so buy him for less than his.
+   - Sell high: your pieces going for MARKET_SELL_AT % or more over KTC (or the
+     ones under Sell these), shopped to every team (coachSaleOffers: the best
+     package each team would likely take, Fair or better for you on KTC).
+   - Buy low: the other teams' pieces going for MARKET_BUY_AT % or more under
+     KTC (worth at least MARKET_MIN_VALUE), with your best package for each
+     that their manager would likely take (coachOffers).
+   Kept only when you come out at least MARKET_MIN_GAIN % ahead on KTC value,
+   i.e. you actually sell above or buy below KTC; most ahead first. */
+const MARKET_SELL_AT = 8, MARKET_BUY_AT = 8, MARKET_MIN_VALUE = 1500, MARKET_MIN_GAIN = 3;
+async function coachMarket(me, progress) {
+  if (typeof marketAdj !== 'function' || !Market.data || Market.data.failed) return { empty: 'Market prices aren\'t loaded yet. Try again in a moment.' };
+  const must = coachMust(me), off = coachOffLimits(me);
+  const adj = a => marketAdj(league, a);
+  const pctOf = a => Math.abs(Math.round(adj(a)));
+  const gainOf = o => marketEdge(league, o.give, o.get).ktc; // % ahead for you on KTC value
+  // Every reason a deal fits: each market high you sell, each market low you buy.
+  const why = o => {
+    const sells = o.give.filter(a => adj(a) >= MARKET_SELL_AT).map(a => `${Vault.escapeHtml(a.name)} sells for ${pctOf(a)}% over KTC`);
+    const buys = o.get.filter(a => adj(a) <= -MARKET_BUY_AT).map(a => `${Vault.escapeHtml(a.name)} sells for ${pctOf(a)}% under KTC`);
+    const parts = [sells.length ? `Sell high: ${sells.join('; ')}` : '', buys.length ? `Buy low: ${buys.join('; ')}` : ''].filter(Boolean);
+    // The card itself already says they'd likely accept and how far ahead you come out.
+    return parts.map((p, i) => p + (i === 0 ? ' in completed trades.' : '.')).join(' ');
+  };
+  const list = [];
+  // Sell high.
+  const highs = (must.length ? must : me.assets.filter(a => !off.has(a.key) && a.value >= 1000 && adj(a) >= MARKET_SELL_AT))
+    .sort((x, y) => adj(y) * y.value - adj(x) * x.value).slice(0, 6);
+  for (const v of highs) {
+    progress(`Selling ${v.name} high…`);
+    await coachTick();
+    coachSaleOffers(me, v, () => true).map(o => ({ ...o, gain: gainOf(o) })).filter(o => o.gain >= MARKET_MIN_GAIN)
+      .sort((x, y) => y.gain - x.gain).slice(0, 2)
+      .forEach(o => list.push({ ...o, id: 'sell:' + v.key + '>' + o.partner.rosterId, why: why(o) }));
+  }
+  // Buy low (skipped when you named pieces to sell).
+  if (!must.length) {
+    const lows = teams.filter(t => t !== me && coachPartnerOK(t)).flatMap(t => t.assets.filter(a => !coachTheirOff(a) && a.value >= MARKET_MIN_VALUE && adj(a) <= -MARKET_BUY_AT).map(a => ({ t, a })))
+      .sort((x, y) => adj(x.a) * x.a.value - adj(y.a) * y.a.value).slice(0, 8);
+    for (const { t, a } of lows) {
+      progress(`Buying ${a.name} low…`);
+      await coachTick();
+      coachOffers(me, t, [a], { limit: 2, perLead: 1 }).map(o => ({ ...o, gain: gainOf(o) })).filter(o => o.gain >= MARKET_MIN_GAIN)
+        .slice(0, 1)
+        .forEach(o => list.push({ ...o, id: 'buy:' + a.key + '<' + negKeys(o.give).join(), why: why(o) }));
+    }
+  }
+  if (!list.length) {
+    if (!highs.length && must.length === 0) return { empty: `Nothing to sell high or buy low right now: none of your pieces goes for ${MARKET_SELL_AT}%+ over KTC, and no deal for a piece going ${MARKET_BUY_AT}%+ under KTC would get you ahead. Check back as more trades come in.` };
+    return { empty: 'No team would take a deal that sells your market highs above KTC or sells you their market lows below it right now.' };
+  }
+  const seen = new Set();
+  const unique = list.filter(o => { const k = negKeys(o.give).sort().join() + '>' + negKeys(o.get).sort().join(); if (seen.has(k)) return false; seen.add(k); return true; });
+  return { title: 'Sell high, buy low', list: unique.sort((x, y) => y.gain - x.gain).slice(0, 10) };
+}
+
 async function coachShop(me, progress) {
   const v = me.assets.find(a => a.key === Coach.shopKey);
   if (!v) return { empty: 'Pick one of your players or picks to shop.' };
@@ -440,7 +499,7 @@ async function coachDowntier(me, progress) {
   return { title: `Down-tier ${Vault.escapeHtml(v.name)}`, list };
 }
 
-const COACH_RUN = { downtier: coachDowntier, team: coachTeam, best: coachBest, shop: coachShop, target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
+const COACH_RUN = { downtier: coachDowntier, team: coachTeam, best: coachBest, market: coachMarket, shop: coachShop, target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
 
 async function coachFind() {
   if (Coach.busy) return;

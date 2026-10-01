@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=d4302872">
+<link rel="stylesheet" href="tailwind.css?v=41e1db3a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -36,6 +36,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'new', page: 'Trade Calculator', text: 'Sell high, buy low: a new Trade Coach option. It shops your players and picks that sell for more than KTC in completed trades (8%+) for more than their KTC value, and finds other teams\' pieces that sell for less (8%+ under) you can get for less than theirs, keeping only deals their manager would likely take, most ahead for you first. Each card says why ("Sell high: Jonathan Taylor sells for 25% over KTC in completed trades. Buy low: 2027 R1 sells for 14% under KTC.").' },
+    { kind: 'new', page: 'Managers', text: 'Who trades well at market prices: League at a glance has W-L Market and Net Market, every manager\'s trades again at what players actually go for (today\'s KTC values times each piece\'s market value from completed trades), plus a line naming who has traded best and who has given up the most. A manager who keeps getting pieces the market pays up for comes out ahead here even when KTC calls the trades even.' },
     { kind: 'new', page: 'Data status', text: 'A Data status page (top bar, next to Patch Notes) shows everything the site runs on: whether the daily update and the hourly trade crawl succeeded and when, how many players, picks and values are loaded and how fresh they are, KTC\'s trade feed, how many completed trades have been collected and priced in each format, how the crawl is going (leagues seen, still queued, new trades per run, trades per season), and how big the saved trade files are.' },
     { kind: 'new', page: 'Player Market', text: 'Draft picks are on the Player Market page: a Picks filter in the table and in Market highs & lows, a pick line in the position trends, and a chart for any pick in the lookup. Picks are tracked by year and round (e.g. 2027 1st), since Sleeper trades don\'t say early, mid or late and KTC\'s feed stores every pick as mid, so a pick\'s KTC value is that year\'s mid pick in the round. Early read: firsts go for less than KTC (2027 1st −14%), late-round picks for more (fourths about +25%). At market prices and Trade Coach now price picks at market too.' },
     { kind: 'new', page: 'Player Market', text: 'A new Player Market page (Players menu): look up any player to see his KTC value over time with a dot for every day he headlined a completed trade; how each position trades against KTC, month by month; who is rising and cooling (the last 30 days against the 30 before); Market highs & lows (moved here from the Trade Database); and every player ranked by market value, sortable, with his KTC rank beside it ("#6 ▲13 Jonathan Taylor, KTC 6,749, market 8,436, +25%").' },
