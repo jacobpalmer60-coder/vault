@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=8d3afe28">
+<link rel="stylesheet" href="tailwind.css?v=ff57f9cf">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -36,6 +36,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-09-30', items: [
+    { kind: 'new', page: 'Trade Database', text: 'The market at a glance: charts of every real trade in your league\'s QB format (about 17,000 Superflex trades this week), priced with the Trade Calculator\'s own math. The typical real trade is about 22% off on KTC value, and only about 31% grade Fair. Charts: how far off real trades are (Fair / Lopsided / Unfair, with your league\'s trades marked under it); by trade shape (1-for-1 trades run about 13% off, 1-for-2 about 35%, and the side getting fewer pieces pays about 30% over KTC); how rarely stars go 1-for-1 (about 1% of trades with an 8,000+ player); by position of the best piece; and your league next to the market (your league\'s typical trade is closer to even than the market\'s).' },
+    { kind: 'fixed', page: 'Trade Database', text: 'Matching trades to your league no longer requires the exact same number of starters, which threw out most trades for a small difference (e.g. 10 vs 11 starters). A 10-team Superflex, 1 PPR, TE+ league now matches about 970 trades instead of about 170.' },
     { kind: 'new', page: 'Trade Calculator', text: 'Real trades: under the grade, a line shows what real managers paid for the trade\'s main player over the last few days in KTC\'s trade database, in your league\'s format ("29 Superflex trades in the last 5 days had Amon-Ra St. Brown as the main piece… usually paid 12% under to 13% over KTC. Here you pay 12% under: less than most pay"). It compares trades shaped like yours when there are enough, since a 1-for-1 and a 3-for-1 price differently. Open it to see every trade as a dot with yours marked, and the three real trades most like yours. The grade itself doesn\'t use these.' },
     { kind: 'new', page: 'Trade Calculator', text: 'You could ask for more: when they\'d say yes with room to spare (usually when you\'re overpaying), Will they take it? names the one change that gets you more while they\'d still say yes and it stays Fair, e.g. "Offer your 2027 R2 instead of Nico Collins", with an Ask for it button.' },
     { kind: 'new', page: 'Trade Calculator', text: 'Lineups after the trade: a new section shows both teams\' starting lineups once the trade goes through, marks who comes over in the trade (New) and who moves up from the bench (Starts), and for every starter, who steps in when he\'s out and how many points that costs ("If out: Rashee Rice steps in, −3.3 (was −0.1)"). It\'s the depth number, player by player.' },
