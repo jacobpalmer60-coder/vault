@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Player Market — The Vault</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=89e3b3bd">
+<link rel="stylesheet" href="tailwind.css?v=efe8c574">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="max-w-[1100px] mx-auto p-6 lg:p-10">
+  <div class="mb-2">
+    <h1 class="display text-[28px] font-semibold gold-text">Player Market</h1>
+    <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
+  </div>
+  <p class="text-[12px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
+    What players actually go for in completed dynasty trades, next to their KTC value: from KTC's
+    trade database and the Sleeper dynasty trades The Vault collects, matched to leagues like yours.
+    The grades on this site still use KTC; this is the market around them.
+  </p>
+
+  <!-- Look up a player: his KTC line with what managers paid for him, day by day. -->
+  <section class="card rounded-vault-sm mb-6 p-5">
+    <div class="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+      <div>
+        <h2 class="text-[16px] font-semibold text-zinc-100">Look up a player</h2>
+        <p class="text-[12px] text-zinc-400 mt-0.5">His KTC value over time, with a dot for every day he headlined a completed trade.</p>
+      </div>
+      <div id="lookupRange" class="flex gap-1.5"></div>
+    </div>
+    <div class="rounded-xl border border-white/10 bg-black/30 px-3 py-2 mb-3">
+      <select id="lookup" data-search="Type a player…" aria-label="Look up a player" class="w-full bg-transparent text-[14px] text-zinc-100 outline-none"></select>
+    </div>
+    <div id="lookupBody" class="text-[12px] text-zinc-500">Pick a player to see his market.</div>
+  </section>
+
+  <!-- How each position trades against KTC, month by month. -->
+  <section class="card rounded-vault-sm mb-6 p-5">
+    <h2 class="text-[16px] font-semibold text-zinc-100">How each position trades</h2>
+    <p id="posSub" class="text-[12px] text-zinc-400 mt-0.5 mb-3">By month: what managers paid over (or under) KTC for players who headlined completed trades.</p>
+    <div id="posBody"></div>
+  </section>
+
+  <!-- Rising and cooling: the biggest changes in what managers pay, last 30 days vs the 30 before. -->
+  <section class="card rounded-vault-sm mb-6 p-5">
+    <h2 class="text-[16px] font-semibold text-zinc-100">Rising and cooling</h2>
+    <p class="text-[12px] text-zinc-400 mt-0.5 mb-3">The biggest changes in what managers pay for a player against KTC: the last 30 days next to the 30 before, each from at least 5 completed trades.</p>
+    <div id="moveBody"></div>
+  </section>
+
+  <!-- Market highs & lows: players trading above or below their peers. -->
+  <details id="movers" class="group card rounded-vault-sm mb-6 hidden" open>
+    <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+      <span>
+        <span class="block text-[16px] font-semibold text-zinc-100">Market highs &amp; lows</span>
+        <span id="moversSub" class="block text-[12px] text-zinc-400 mt-0.5"></span>
+      </span>
+      <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
+    </summary>
+    <div id="moversBody" class="px-5 pb-5"></div>
+  </details>
+
+  <!-- Every player KTC prices, ranked by market value (what managers pay), sortable. -->
+  <section class="card rounded-vault-sm mb-6 p-5">
+    <h2 class="text-[16px] font-semibold text-zinc-100">All players by market</h2>
+    <p id="allSub" class="text-[12px] text-zinc-400 mt-0.5">Every player, ranked by what managers pay for him in completed trades.</p>
+    <div class="flex flex-wrap items-center gap-2 mt-3 mb-3">
+      <div id="allPos" class="flex flex-wrap gap-1.5"></div>
+      <input id="allSearch" type="text" autocomplete="off" placeholder="Find a player…" aria-label="Find a player" class="ml-auto w-full sm:w-56 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[13px] outline-none focus:border-amber-500/40">
+    </div>
+    <div class="overflow-x-auto"><table class="w-full text-[12px]">
+      <thead id="allHead"></thead>
+      <tbody id="allBody"></tbody>
+    </table></div>
+    <div id="allMore" class="mt-3"></div>
+  </section>
+</div>
+
+<div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
+
+<script src="vault-core.js?v=3a68f3cb"></script>
+<script src="vault-nav.js?v=1890535d"></script>
+<script src="market-data.js?v=31f72b80"></script>
+<script>
+/* ============================================================
+   PLAYER MARKET
+   What players go for in completed trades, against KTC:
+   - Look up a player: his KTC value line (data/history, this league's
+     format) with his market points (data/market-history/daily-<sf|oneQB>.json:
+     every day he headlined a completed trade, the median paid over KTC that
+     day, applied to that day's KTC value).
+   - How each position trades: those daily points by month and position
+     (median, weighted by trades).
+   - Rising and cooling: each player's last 30 days against the 30 before.
+   - Market highs & lows: market-data.js, against same-position, same-value peers.
+   ============================================================ */
+const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const POS_COLOR = { QB: '#e48ae0', RB: '#4ade9c', WR: '#5cb8e4', TE: '#f0a857' }; // vault.css .pos-badge-*
+const POS_MIN_MONTH = 15, MOVE_MIN = 5, MOVE_DAYS = 30, MOVE_SHOW = 8;
+const signed = v => `${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%`;
+const esc = s => Vault.escapeHtml(s);
+let league = null, sig = null, isSF = true, bonusTe = 0, valueField = 'sf';
+let byNorm = new Map();         // normalized name -> { name, pos, value } from KTC today
+let daily = null;               // { from, players: { norm: [[day, pct, n]] } }
+let history = null, historyLoading = null; // KTC value history, loaded on first lookup
+
+// Weighted median of [value, weight] pairs.
+function wMedian(pairs) {
+  const s = [...pairs].sort((a, b) => a[0] - b[0]), total = s.reduce((t, p) => t + p[1], 0);
+  let seen = 0;
+  for (const [v, w] of s) { seen += w; if (seen >= total / 2) return v; }
+  return null;
+}
+const dayDate = d => new Date(new Date(daily.from + 'T00:00:00Z').getTime() + d * 864e5).toISOString().slice(0, 10);
+
+/* ---------- Shared chart pieces ---------- */
+const tip = () => document.getElementById('chartTip');
+function placeTip(e, html) {
+  const t = tip();
+  t.innerHTML = html; t.classList.remove('hidden');
+  const w = t.offsetWidth, h = t.offsetHeight;
+  t.style.left = `${e.clientX + 14 + w <= innerWidth - 8 ? e.clientX + 14 : Math.max(8, e.clientX - 14 - w)}px`;
+  t.style.top = `${e.clientY + 14 + h <= innerHeight - 8 ? e.clientY + 14 : Math.max(8, e.clientY - 14 - h)}px`;
+}
+function hideTip() { tip().classList.add('hidden'); }
+
+/* ---------- How each position trades ---------- */
+function renderPositions() {
+  const box = document.getElementById('posBody');
+  if (!daily) { box.innerHTML = collecting(); return; }
+  const cells = new Map(); // month -> pos -> [[pct, n]]
+  Object.entries(daily.players).forEach(([norm, pts]) => {
+    const pos = byNorm.get(norm)?.pos;
+    if (!POS_COLOR[pos]) return;
+    pts.forEach(([d, pct, n]) => {
+      const m = dayDate(d).slice(0, 7), row = cells.get(m) || cells.set(m, {}).get(m);
+      (row[pos] ||= []).push([pct, n]);
+    });
+  });
+  const months = [...cells.keys()].sort().map(m => {
+    const out = { m };
+    Object.keys(POS_COLOR).forEach(p => { const l = cells.get(m)[p] || []; const n = l.reduce((t, x) => t + x[1], 0); out[p] = n >= POS_MIN_MONTH ? { v: wMedian(l), n } : null; });
+    return out;
+  }).filter(r => Object.keys(POS_COLOR).some(p => r[p]));
+  if (months.length < 3) { box.innerHTML = collecting(`Charts appear once at least three months have ${POS_MIN_MONTH}+ trades for a position.`); return; }
+  const W = 720, H = 240, ML = 44, MR = 44, MT = 12, MB = 26, pw = W - ML - MR, ph = H - MT - MB;
+  const vals = months.flatMap(r => Object.keys(POS_COLOR).map(p => r[p]?.v).filter(Number.isFinite));
+  const top = Math.max(10, Math.ceil(Math.max(...vals, 0) / 10) * 10), bot = Math.min(-10, Math.floor(Math.min(...vals, 0) / 10) * 10);
+  const x = i => ML + (months.length > 1 ? i / (months.length - 1) * pw : pw / 2), y = v => MT + (top - v) / (top - bot) * ph;
+  const grid = [bot, 0, top].map(v => `<line x1="${ML}" x2="${W - MR}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" class="${v === 0 ? 'text-white/25' : 'text-white/[0.06]'}"/>
+      <text x="${ML - 6}" y="${y(v) + 3}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${v > 0 ? '+' : ''}${v}%</text>`).join('');
+  const years = months.map((r, i) => (i === 0 || r.m.slice(0, 4) !== months[i - 1].m.slice(0, 4) ? `<text x="${x(i)}" y="${H - 8}" font-size="10" fill="currentColor" class="text-zinc-400">${r.m.slice(0, 4)}</text>` : '')).join('');
+  const lines = Object.entries(POS_COLOR).map(([p, c]) => {
+    const segs = [[]];
+    months.forEach((r, i) => { if (r[p]) segs[segs.length - 1].push(`${x(i)},${y(r[p].v)}`); else if (segs[segs.length - 1].length) segs.push([]); });
+    const last = months.map((r, i) => [r, i]).filter(([r]) => r[p]).pop();
+    return segs.filter(s => s.length).map(s => s.length > 1 ? `<polyline points="${s.join(' ')}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` : `<circle cx="${s[0].split(',')[0]}" cy="${s[0].split(',')[1]}" r="3" fill="${c}"/>`).join('')
+      + (last ? `<text x="${x(last[1]) + 6}" y="${y(last[0][p].v) + 3}" font-size="10" font-weight="600" fill="${c}">${p}</text>` : '');
+  }).join('');
+  box.innerHTML = `<svg id="posChart" viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="Monthly median paid over KTC by position">${grid}${lines}${years}
+      <rect x="${ML}" y="${MT}" width="${pw}" height="${ph}" fill="transparent" style="cursor:crosshair"/></svg>
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1">${Object.entries(POS_COLOR).map(([p, c]) => `<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded" style="background:${c}"></span>${p}</span>`).join('')}<span class="text-zinc-500">Above the line: managers paid more than KTC. Months with fewer than ${POS_MIN_MONTH} trades at a position are left out.</span></div>`;
+  const svg = document.getElementById('posChart');
+  svg.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(months.length - 1, Math.round((sx - ML) / pw * (months.length - 1))));
+    const row = months[i], label = new Date(row.m + '-15T00:00:00Z').toLocaleDateString(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' });
+    placeTip(e, `<div class="text-zinc-400 mb-0.5">${label}</div>${Object.entries(POS_COLOR).map(([p, c]) => row[p] ? `<div class="mono"><span style="color:${c}">${p}</span> ${signed(row[p].v)} <span class="text-zinc-500">(${row[p].n} trades)</span></div>` : '').join('')}`);
+  });
+  svg.addEventListener('mouseleave', hideTip);
+}
+
+/* ---------- Rising and cooling ---------- */
+function renderMoves() {
+  const box = document.getElementById('moveBody');
+  if (!daily) { box.innerHTML = collecting(); return; }
+  const latest = Math.max(...Object.values(daily.players).flatMap(pts => pts.map(p => p[0])));
+  const rows = [];
+  Object.entries(daily.players).forEach(([norm, pts]) => {
+    const who = byNorm.get(norm);
+    if (!who || !POS_COLOR[who.pos]) return;
+    const recent = pts.filter(p => p[0] > latest - MOVE_DAYS), before = pts.filter(p => p[0] <= latest - MOVE_DAYS && p[0] > latest - 2 * MOVE_DAYS);
+    const n1 = recent.reduce((t, p) => t + p[2], 0), n0 = before.reduce((t, p) => t + p[2], 0);
+    if (n1 < MOVE_MIN || n0 < MOVE_MIN) return;
+    const now = wMedian(recent.map(p => [p[1], p[2]])), then = wMedian(before.map(p => [p[1], p[2]]));
+    rows.push({ ...who, norm, now, then, change: now - then, n: n0 + n1 });
+  });
+  if (rows.length < 2) { box.innerHTML = collecting(`Players appear here once they have ${MOVE_MIN}+ completed trades in each of the last two 30-day stretches.`); return; }
+  const item = r => `<button onclick="openLookup('${encodeURIComponent(r.norm)}')" class="w-full text-left grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0 hover:bg-white/[0.02]">
+      <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
+      <span class="min-w-0"><span class="block text-[13px] text-zinc-100 truncate">${esc(r.name)}</span>
+        <span class="block text-[11px] text-zinc-400">From <span class="mono">${signed(r.then)}</span> to <span class="mono text-zinc-300">${signed(r.now)}</span> vs KTC <span class="text-zinc-500">· ${r.n} trades</span></span></span>
+      <span class="text-[13px] mono font-semibold ${r.change > 0 ? 'text-emerald-300' : 'text-amber-300'}">${r.change > 0 ? '+' : '−'}${Math.abs(Math.round(r.change))} pts</span>
+    </button>`;
+  const up = rows.filter(r => r.change >= 1).sort((a, b) => b.change - a.change).slice(0, MOVE_SHOW);
+  const down = rows.filter(r => r.change <= -1).sort((a, b) => a.change - b.change).slice(0, MOVE_SHOW);
+  const list = (title, sub, items) => `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
+      <div class="text-[13px] font-medium text-zinc-200">${title}</div><div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${sub}</div>
+      ${items.length ? items.map(item).join('') : '<div class="text-[12px] text-zinc-500 py-3">None yet.</div>'}</div>`;
+  box.innerHTML = `<div class="grid lg:grid-cols-2 gap-3">${list('Rising', 'Managers are paying more for these than a month ago, against KTC.', up)}${list('Cooling', 'Managers are paying less for these than a month ago, against KTC.', down)}</div>
+    <div class="text-[11px] text-zinc-500 mt-3">Points: the change in each player's median paid over KTC (completed trades he headlined, any shape). Click a player to see his chart.</div>`;
+}
+
+function collecting(extra = '') {
+  return `<div class="rounded-xl bg-black/25 border border-white/5 p-4 text-[13px] text-zinc-300 leading-relaxed">Collecting. The Vault gathers completed trades from Sleeper dynasty leagues around the clock and prices each one at the KTC values from its day.${extra ? ' ' + extra : ''}</div>`;
+}
+
+/* ---------- Look up a player ---------- */
+const RANGES = [['90', '90 days'], ['365', '1 year'], ['all', 'All']];
+let lookupNorm = null, lookupRange = '365';
+function drawRangeChips() {
+  document.getElementById('lookupRange').innerHTML = RANGES.map(([k, l]) => `<button onclick="setRange('${k}')" aria-pressed="${lookupRange === k}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${lookupRange === k ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${l}</button>`).join('');
+}
+function setRange(k) { lookupRange = k; drawRangeChips(); if (lookupNorm) lookUp(lookupNorm); }
+async function lookUp(norm) {
+  lookupNorm = norm;
+  const sel = document.getElementById('lookup');
+  if (sel.value !== norm) sel.value = norm;
+  const box = document.getElementById('lookupBody'), who = byNorm.get(norm);
+  if (!who) { box.textContent = 'No KTC value for that player.'; return; }
+  box.innerHTML = '<div class="text-zinc-500">Loading his history…</div>';
+  if (!history) {
+    historyLoading ||= Vault.fetchPlayerValueHistory(isSF, bonusTe);
+    history = await historyLoading;
+  }
+  if (lookupNorm !== norm) return; // another player was picked meanwhile
+  const cutoff = lookupRange === 'all' ? '' : new Date(Date.now() - +lookupRange * 864e5).toISOString().slice(0, 10);
+  const series = (history.snapshots || []).filter(s => s.date >= cutoff).map(s => ({ date: s.date, value: Vault.resolveHistoricalValue(s.players?.[norm], isSF, bonusTe) })).filter(p => Number.isFinite(p.value));
+  const prem = new Map((daily?.players[norm] || []).map(([d, pct, n]) => [dayDate(d), { pct, n }]));
+  const market = series.map((p, i) => { const m = prem.get(p.date); return m ? { i, date: p.date, value: Math.round(p.value * (1 + m.pct / 100)), pct: m.pct, n: m.n } : null; }).filter(Boolean);
+  // Today's market value (as on the player card and in the table).
+  const mp = marketPlayer(league, who.name, who.pos), read = mp.read;
+  const head = `<div class="flex items-center gap-2 flex-wrap mb-2">
+      <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(who.pos)}">${who.pos || '—'}</span>
+      <span class="text-[15px] font-semibold text-zinc-100">${esc(who.name)}</span>
+      <span class="text-[12px] text-zinc-400">KTC <span class="mono text-zinc-200">${Vault.fmtInt(who.value)}</span>${read ? ` · market <span class="mono text-zinc-200">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}</span> <span class="mono ${Math.abs(mp.adj) < 3 ? 'text-zinc-300' : mp.adj > 0 ? 'text-emerald-300' : 'text-amber-300'}">(${signed(mp.adj)})</span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
+    </div>`;
+  if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
+  const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
+  const all = [...series.map(p => p.value), ...market.map(m => m.value)];
+  const lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * 0.08 || hi * 0.1;
+  const yMin = Math.max(0, lo - pad), yMax = hi + pad;
+  const x = i => ML + i / (series.length - 1) * pw, y = v => MT + ph - (v - yMin) / (yMax - yMin) * ph;
+  const up = series[series.length - 1].value >= series[0].value, lineColor = up ? '#34d399' : '#f87171';
+  const grid = [0, 0.5, 1].map(f => { const v = yMin + (yMax - yMin) * f; return `<line x1="${ML}" x2="${W - MR}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" class="text-white/[0.06]"/><text x="${ML - 6}" y="${y(v) + 3}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${Math.round(v).toLocaleString()}</text>`; }).join('');
+  const joins = market.slice(1).map((m, k) => (m.i - market[k].i <= 7 ? `<line x1="${x(market[k].i)}" y1="${y(market[k].value)}" x2="${x(m.i)}" y2="${y(m.value)}" stroke="#fbbf24" stroke-opacity="0.35" stroke-width="1.25"/>` : '')).join('');
+  const dots = market.map(m => `<circle cx="${x(m.i)}" cy="${y(m.value)}" r="${Math.min(5.5, 2.5 + Math.log2(m.n))}" fill="#fbbf24" stroke="#0c0d10" stroke-width="1"/>`).join('');
+  box.innerHTML = head + `<svg id="lookupChart" viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${esc(who.name)}: KTC value and market points">${grid}
+      <polyline points="${series.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/>${joins}${dots}
+      <text x="${ML}" y="${H - 6}" font-size="10" fill="currentColor" class="text-zinc-400">${series[0].date}</text><text x="${W - MR}" y="${H - 6}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${series[series.length - 1].date}</text>
+      <rect x="${ML}" y="${MT}" width="${pw}" height="${ph}" fill="transparent" style="cursor:crosshair"/></svg>
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded" style="background:${lineColor}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400"></span>What managers paid that day (bigger dot, more trades)</span>${market.length ? '' : '<span class="text-zinc-500">No completed trades with him as the main piece in this range yet.</span>'}</div>`;
+  const svg = document.getElementById('lookupChart'), byI = new Map(market.map(m => [m.i, m]));
+  svg.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(series.length - 1, Math.round((sx - ML) / pw * (series.length - 1))));
+    let near = null; for (let k = 0; k <= 3 && !near; k++) near = byI.get(i + k) || byI.get(i - k) || null;
+    const p = series[near ? near.i : i];
+    placeTip(e, `<div class="text-zinc-400">${p.date}</div><div class="mono">KTC ${Math.round(p.value).toLocaleString()}</div>${near ? `<div class="mono text-amber-300">Paid ${near.value.toLocaleString()} <span class="text-zinc-400">(${signed(near.pct)}, ${near.n} trade${near.n === 1 ? '' : 's'})</span></div>` : ''}`);
+  });
+  svg.addEventListener('mouseleave', hideTip);
+}
+
+/* ---------- Market highs & lows ----------
+   Players managers are paying more (or less) for than KTC says, from
+   market-data.js: every completed trade where the player was the main piece
+   (with KTC's consolidation adjustment, so sending more pieces for a star is
+   already counted).
+   Ranked against players at the same position and KTC value (vsPeers): in
+   like-for-like trades a star's partner can only be worth less and a cheap
+   player's tends to be worth more, and whole positions can trade off KTC
+   (tight ends go for well under KTC's TE-premium prices), so raw % over KTC
+   would fill the lows with stars and tight ends. How each position trades as
+   a whole gets its own line instead.
+   Leagues as much like this one as there are enough of, players worth at
+   least HL_MIN_VALUE with HL_MIN_TRADES such trades. */
+const HL_MIN_VALUE = 1500, HL_MIN_TRADES = 8, HL_SHOW = 10;
+let moversRows = [], moversPos = 'ALL';
+async function renderMovers(league, playerMap) {
+  await marketLoad(league);
+  moversRows = [];
+  playerMap.forEach(p => {
+    if (!(p.value >= HL_MIN_VALUE) || !p.pos) return;
+    const m = marketValue(league, p.name, { min: HL_MIN_TRADES });
+    if (m.like && m.vsPeers != null) moversRows.push({ ...p, m });
+  });
+  document.getElementById('movers').classList.toggle('hidden', moversRows.length < 4);
+  drawMovers();
+}
+function setMoversPos(pos) { moversPos = pos; drawMovers(); }
+function drawMovers() {
+  const rows = moversRows.filter(r => moversPos === 'ALL' || r.pos === moversPos);
+  const highs = rows.filter(r => r.m.vsPeers >= 1).sort((a, b) => b.m.vsPeers - a.m.vsPeers).slice(0, HL_SHOW);
+  const lows = rows.filter(r => r.m.vsPeers <= -1).sort((a, b) => a.m.vsPeers - b.m.vsPeers).slice(0, HL_SHOW);
+  const trades = moversRows.reduce((t, r) => t + r.m.n, 0);
+  document.getElementById('moversSub').textContent = `Who managers pay more or less for than other players at the same position and KTC value, in completed trades they headlined. ${moversRows.length} players with ${HL_MIN_TRADES}+ such trades.`;
+  const byPos = marketPeerBaseline(false)?.byPos || {};
+  const posLine = Object.keys(byPos).length ? `<div class="text-[12px] text-zinc-400 mb-3">By position, against KTC: ${Object.entries(byPos).map(([p, v]) => `<span class="text-zinc-300">${p}</span> <span class="mono ${Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-amber-300'}">${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%</span>`).join(' <span class="text-zinc-600">·</span> ')} <span class="text-zinc-500">(how each position trades as a whole, in the same trades)</span></div>` : '';
+  const row = r => {
+    const market = Math.round(r.value * (1 + r.m.premium / 100)), up = r.m.vsPeers > 0, peer = r.m.premium - r.m.vsPeers;
+    const signed = v => `${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%`;
+    return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0" title="KTC ${Math.round(r.value).toLocaleString()}, market ${market.toLocaleString()} (usually ${Math.round(r.value * (1 + r.m.low / 100)).toLocaleString()} to ${Math.round(r.value * (1 + r.m.high / 100)).toLocaleString()}) · leagues like yours (${r.m.like})">
+        <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
+        <div class="min-w-0">
+          <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(r.name)}</div>
+          <div class="text-[11px] text-zinc-400">Paid <span class="mono text-zinc-300">${signed(r.m.premium)}</span> vs KTC; ${r.pos}s at his value <span class="mono">${signed(peer)}</span> <span class="text-zinc-500">· ${r.m.n} trades</span></div>
+        </div>
+        <span class="text-[13px] mono font-semibold ${up ? 'text-emerald-300' : 'text-amber-300'}" title="vs players at the same position and KTC value">${signed(r.m.vsPeers)}</span>
+      </div>`;
+  };
+  const list = (title, sub, items) => `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
+      <div class="text-[13px] font-medium text-zinc-200">${title}</div>
+      <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${sub}</div>
+      ${items.length ? items.map(row).join('') : '<div class="text-[12px] text-zinc-500 py-3">None with enough trades yet.</div>'}
+    </div>`;
+  const chip = p => `<button onclick="setMoversPos('${p}')" aria-pressed="${moversPos === p}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${moversPos === p ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${p === 'ALL' ? 'All' : p}</button>`;
+  document.getElementById('moversBody').innerHTML = `
+    <div class="flex flex-wrap gap-1.5 mb-3">${['ALL', 'QB', 'RB', 'WR', 'TE'].map(chip).join('')}</div>
+    ${posLine}
+    <div class="grid lg:grid-cols-2 gap-3">
+      ${list('Market highs', 'Managers pay more for these than for others at their position and KTC value. A chance to sell high.', highs)}
+      ${list('Market lows', 'These go for less than others at their position and KTC value. A chance to buy low.', lows)}
+    </div>
+    <div class="text-[11px] text-zinc-500 mt-3">The big number is how much more or less managers pay for him than for players at the same position and KTC value (stars' partners can only be worth less, cheap players' tend to be worth more, and whole positions can trade off KTC, so raw % over KTC alone would skew the lists). "Paid" is his own median % over or under KTC. Hover a player for his market value and usual range. From KTC's trade database and Sleeper dynasty trades; ${trades.toLocaleString()} trades in all.</div>`;
+}
+
+/* ---------- All players by market ----------
+   Every player KTC prices, with his market value (market-data.js
+   marketPlayer, the same number as the player card and "At market prices"):
+   what managers paid for him against KTC across every completed trade he
+   headlined, from leagues like yours. Ranked by market value, with his KTC
+   rank beside it; players without enough trades show "—" and sort last. */
+const ALL_PAGE = 50;
+let allRows = [], allSort = { key: 'market', dir: -1 }, allPos = 'ALL', allQuery = '', allShown = ALL_PAGE;
+function buildAll() {
+  allRows = [...byNorm.entries()].map(([norm, p]) => {
+    const mp = marketPlayer(league, p.name, p.pos), m = mp.read;
+    return { ...p, norm, read: m, market: m ? p.value * (1 + mp.adj / 100) : null, adj: m ? mp.adj : null, n: m ? m.n : null };
+  });
+  const rank = (key, field) => [...allRows].filter(r => r[field] != null).sort((a, b) => b[field] - a[field]).forEach((r, i) => { r[key] = i + 1; });
+  rank('ktcRank', 'value'); rank('mktRank', 'market');
+  document.getElementById('allPos').innerHTML = ['ALL', 'QB', 'RB', 'WR', 'TE'].map(q => `<button onclick="setAllPos('${q}')" data-pos="${q}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors">${q === 'ALL' ? 'All' : q}</button>`).join('');
+  document.getElementById('allSearch').oninput = e => { allQuery = e.target.value.trim().toLowerCase(); allShown = ALL_PAGE; drawAll(); };
+  const priced = allRows.filter(r => r.market != null).length;
+  document.getElementById('allSub').textContent = `Every player, ranked by what managers pay for him in completed trades. ${priced} of ${allRows.length} have enough trades for a market value; the rest show — and sort last.`;
+  drawAll();
+}
+function setAllPos(q) { allPos = q; allShown = ALL_PAGE; drawAll(); }
+function sortAll(key) { allSort = { key, dir: allSort.key === key ? -allSort.dir : -1 }; drawAll(); }
+function drawAll() {
+  document.querySelectorAll('#allPos button').forEach(b => {
+    const on = b.dataset.pos === allPos;
+    b.setAttribute('aria-pressed', on);
+    b.className = `text-[12px] px-3 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}`;
+  });
+  const { key, dir } = allSort;
+  const rows = allRows.filter(r => (allPos === 'ALL' || r.pos === allPos) && (!allQuery || r.name.toLowerCase().includes(allQuery)))
+    .sort((a, b) => (a[key] == null) - (b[key] == null) || dir * ((a[key] ?? 0) - (b[key] ?? 0)) || b.value - a.value);
+  // [sort key, label, align]; the Market # column sorts by market value.
+  const cols = [['market', 'Market #', 'right'], [null, 'Player', 'left'], ['value', 'KTC', 'right'], ['market', 'Market', 'right'], ['adj', 'vs KTC', 'right'], ['n', 'Trades', 'right']];
+  document.getElementById('allHead').innerHTML = `<tr class="text-[11px] uppercase tracking-wider text-zinc-500">${cols.map(([k, l, al]) => !k
+    ? `<th class="font-normal pb-2 pr-3 text-left">${l}</th>`
+    : `<th class="font-normal pb-2 pr-3 text-${al}" aria-sort="${key === k ? (dir < 0 ? 'descending' : 'ascending') : 'none'}"><button onclick="sortAll('${k}')" class="uppercase tracking-wider hover:text-zinc-200 ${key === k ? 'text-amber-200' : ''}">${l}${key === k ? (dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`).join('')}</tr>`;
+  const tone = v => (Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-amber-300');
+  const pct = v => (v == null ? '<span class="text-zinc-600">—</span>' : `<span class="${tone(v)}">${signed(v)}</span>`);
+  const dash = '<span class="text-zinc-600">—</span>';
+  document.getElementById('allBody').innerHTML = rows.slice(0, allShown).map(r => {
+    const move = r.mktRank && r.ktcRank ? r.ktcRank - r.mktRank : 0;
+    return `<tr class="border-t border-white/5 hover:bg-white/[0.02] cursor-pointer" onclick="openLookup('${encodeURIComponent(r.norm)}')">
+      <td class="py-2 pr-3 text-right mono text-zinc-300 whitespace-nowrap">${r.mktRank ? '#' + r.mktRank : dash}${move ? ` <span class="text-[10px] ${move > 0 ? 'text-emerald-300' : 'text-amber-300'}" title="KTC rank #${r.ktcRank}">${move > 0 ? '▲' : '▼'}${Math.abs(move)}</span>` : ''}</td>
+      <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="text-zinc-100 truncate">${esc(r.name)}</span></span></td>
+      <td class="py-2 pr-3 text-right mono text-zinc-300">${Vault.fmtInt(r.value)}</td>
+      <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market)}</td>
+      <td class="py-2 pr-3 text-right mono" title="${r.read ? `Usually ${signed(r.read.low)} to ${signed(r.read.high)}` : ''}">${pct(r.adj)}</td>
+      <td class="py-2 text-right mono text-zinc-400" title="${r.read ? 'Leagues like yours (' + esc(r.read.like) + ')' : ''}">${r.n || dash}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('allMore').innerHTML = rows.length > allShown
+    ? `<button onclick="allShown += ${ALL_PAGE}; drawAll()" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Show ${Math.min(ALL_PAGE, rows.length - allShown)} more (${rows.length - allShown} left)</button>`
+    : `<span class="text-[11px] text-zinc-500">${rows.length} players. Market value: his KTC value times what managers paid for him against KTC (median of every completed trade he headlined, with KTC's consolidation adjustment, so getting a star for more pieces is already counted). ▲▼: places above or below his KTC rank. Click a player to chart him.</span>`;
+}
+// From a table row: chart the player at the top of the page.
+function openLookup(enc) { lookUp(decodeURIComponent(enc)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+async function init() {
+  const status = document.getElementById('status');
+  try {
+    const leagueId = Vault.getLeagueId();
+    league = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json());
+    if (!league || league.error) throw new Error('League not found.');
+    sig = Vault.tradeFormatSig(league);
+    isSF = sig.qbs === 2; bonusTe = league.scoring_settings?.bonus_rec_te;
+    valueField = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusTe);
+    const [ktc, dailyDoc] = await Promise.all([
+      Vault.fetchKtcValues(),
+      fetch(`data/market-history/daily-${isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null)
+    ]);
+    daily = dailyDoc && dailyDoc.from && Object.keys(dailyDoc.players || {}).length ? dailyDoc : null;
+    const playerMap = new Map();
+    (ktc.players || []).forEach(p => {
+      if (!(p[valueField] > 0)) return;
+      const row = { name: p.name, pos: p.pos, value: p[valueField] };
+      playerMap.set(p.ktcId, row);
+      byNorm.set(Vault.normalizeName(p.name), row);
+    });
+    status.textContent = `${league.name} • ${Vault.tradeFormatTiers(sig)[0].label}`;
+    status.className = 'text-[13px] text-zinc-400 mt-1';
+    // Lookup: every player KTC prices, most valuable first.
+    const sel = document.getElementById('lookup');
+    sel.innerHTML = '<option value=""></option>' + [...byNorm.entries()].sort((a, b) => b[1].value - a[1].value)
+      .map(([norm, p]) => `<option value="${esc(norm)}">${esc(p.name)} · ${esc(p.pos || '')}</option>`).join('');
+    sel.value = '';
+    sel.onchange = () => { if (sel.value) lookUp(sel.value); };
+    drawRangeChips();
+    renderPositions();
+    renderMoves();
+    await renderMovers(league, playerMap);
+    buildAll();
+  } catch (e) {
+    console.error(e);
+    status.textContent = e.message || 'Failed to load';
+    status.className = 'text-[13px] text-rose-400 mt-1';
+  }
+}
+init();
+</script>
+</body>
+</html>

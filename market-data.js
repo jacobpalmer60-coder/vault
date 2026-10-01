@@ -175,26 +175,39 @@ function marketValue(league, name, { even = false, min = MARKET_MIN_COMPS } = {}
   return { n: main.length, like: null, even };
 }
 
-/* ---------- Market prices for a trade (Trade Calculator, Trade Coach) ----------
-   A player's market adjustment: how much more or less managers pay for him
-   than KTC says, as a % = how he sells against players at his position and
-   value (vsPeers, like-for-like trades) plus how his position trades against
-   KTC as a whole. Picks, and players without MARKET_ADJ_MIN such trades, get
-   0. Clamped to ±MARKET_ADJ_CAP so one noisy read can't swing a trade. Cached
-   per name, since Trade Coach judges thousands of trades. The grade never
-   uses this; it feeds "Will they take it?", Trade Coach's ranking and the
-   market check under the grade. */
-const MARKET_ADJ_MIN = 8, MARKET_ADJ_CAP = 25;
+/* ---------- A player's market value (everywhere on the site) ----------
+   What managers paid for him against KTC: the median, over every completed
+   trade he headlined (any shape), of what the team getting him sent over
+   what his side was worth, both with KTC's consolidation adjustment (the
+   same math as the grade). Market value = KTC value x (1 + that %).
+
+   Every shape, not just like-for-like (2026-10-01): across all trades each
+   KTC value level comes out about even with KTC (2k +2%, 5k 0%, 7k +2%, 9k+
+   0%), so the median carries no built-in bias. Like-for-like trades alone
+   read every star low (a star's partner can only be worth less: 9k+ -17%)
+   and consolidation trades alone read cheap players high (2k +69%); getting
+   a star for more pieces costs only ~6% beyond KTC's own consolidation bonus.
+
+   Picks, and players with fewer than MARKET_MIN_COMPS such trades, get no
+   read (0). Clamped to ±MARKET_ADJ_CAP so one noisy read can't swing a
+   trade. Cached per name, since Trade Coach judges thousands of trades. Used
+   by the player card, the Player Market page, "At market prices" and Trade
+   Coach; the grade never uses it. */
+const MARKET_ADJ_CAP = 25;
 const marketAdjCache = new Map();
-function marketAdj(league, a) {
-  if (!a || a.type !== 'player' || !Market.data || Market.data.failed) return 0;
-  const key = Vault.normalizeName(a.name);
+// { adj, read } for a player (read = the marketValue read it came from), or { adj: 0, read: null }.
+function marketPlayer(league, name, pos) {
+  const none = { adj: 0, read: null };
+  if (!name || !Market.data || Market.data.failed) return none;
+  const key = Vault.normalizeName(name);
   if (marketAdjCache.has(key)) return marketAdjCache.get(key);
-  const m = marketValue(league, a.name, { even: true, min: MARKET_ADJ_MIN });
-  const byPos = marketPeerBaseline(true)?.byPos || {};
-  const adj = m.like && m.vsPeers != null ? Math.max(-MARKET_ADJ_CAP, Math.min(MARKET_ADJ_CAP, m.vsPeers + (byPos[a.pos] || 0))) : 0;
-  marketAdjCache.set(key, adj);
-  return adj;
+  const read = marketValue(league, name);
+  const out = read.like ? { adj: Math.max(-MARKET_ADJ_CAP, Math.min(MARKET_ADJ_CAP, read.premium)), read } : none;
+  marketAdjCache.set(key, out);
+  return out;
+}
+function marketAdj(league, a) {
+  return a && a.type === 'player' ? marketPlayer(league, a.name, a.pos).adj : 0;
 }
 // A trade at market prices vs KTC, from the side that gives `give` and gets `get`:
 // ktc / market = % in that side's favor (consolidation-adjusted, as the grade

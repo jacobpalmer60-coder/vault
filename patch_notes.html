@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=ae2f9e04">
+<link rel="stylesheet" href="tailwind.css?v=efe8c574">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -29,13 +29,15 @@
 </div>
 
 <script src="vault-core.js?v=3a68f3cb"></script>
-<script src="vault-nav.js?v=15e0492b"></script>
+<script src="vault-nav.js?v=1890535d"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'new', page: 'Player Market', text: 'A new Player Market page (Players menu): look up any player to see his KTC value over time with a dot for every day he headlined a completed trade; how each position trades against KTC, month by month; who is rising and cooling (the last 30 days against the 30 before); Market highs & lows (moved here from the Trade Database); and every player ranked by market value, sortable, with his KTC rank beside it ("#6 ▲13 Jonathan Taylor, KTC 6,749, market 8,436, +25%").' },
+    { kind: 'changed', page: 'Everywhere', text: 'Market value now counts every completed trade a player headlined, not just like-for-like ones. Like-for-like trades read every star low (a star\'s partner can only be worth less), while across all trades each value level comes out about even with KTC. Getting a star for more pieces is already in KTC\'s consolidation bonus: beyond it, buyers paid only about 6% more. The player card, the Player Market page and At market prices all use this one number.' },
     { kind: 'new', page: 'Trade Calculator', text: 'At market prices: under the grade, a line shows the trade with every player priced at what he goes for in completed trades, next to KTC, and which player makes the difference ("It\'s about 29% in your favor, vs about 12% on KTC value alone: Amon-Ra St. Brown trades about 16% above his KTC value"). The grade still uses KTC.' },
     { kind: 'improved', page: 'Trade Calculator', text: 'Trade Coach\'s Best trades now looks for market edges: among trades the other manager would take that are Fair on KTC, the ones that are better for you at market prices come first (you send players who go for less than KTC says, or get ones who go for more), and each card says why.' },
     { kind: 'new', page: 'Trade Database', text: 'Market highs & lows: players managers are paying more (or less) for than others at the same position and KTC value, from like-for-like trades (each side sent the same number of pieces) in leagues like yours. A chance to sell high or buy low, with position filters and a line on how each position trades against KTC as a whole (tight ends, for example, go for less than KTC\'s TE-premium prices). Comparing with peers keeps stars and cheap players from skewing the lists: a star\'s trade partner can only be worth less, and a cheap player\'s tends to be worth more.' },

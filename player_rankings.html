@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=ae2f9e04">
+<link rel="stylesheet" href="tailwind.css?v=efe8c574">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -118,8 +118,8 @@
 </div>
 
 <script src="vault-core.js?v=3a68f3cb"></script>
-<script src="vault-nav.js?v=15e0492b"></script>
-<script src="market-data.js?v=ea976a6b"></script>
+<script src="vault-nav.js?v=1890535d"></script>
+<script src="market-data.js?v=31f72b80"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -502,22 +502,22 @@
     });
     marketLoad(leagueObj).then(() => {
       if (document.getElementById('pcMarket') !== box) return; // a different card opened meanwhile
-      // Like-for-like trades (same number of pieces each way) when there are enough, else every trade he headlined.
-      const evenRead = marketValue(leagueObj, r.player, { even: true });
-      const m = evenRead.like ? evenRead : marketValue(leagueObj, r.player);
-      if (!m.like) {
-        box.innerHTML = shell(`<div class="text-[12px] text-zinc-400 mt-1.5">Not enough completed trades with ${Vault.escapeHtml(r.player)} as the main piece yet${m.n ? ` (${m.n} so far)` : ''}. This fills in as The Vault collects more.</div>`);
+      // His market value (market-data.js marketPlayer): the same number as the Player Market page and "At market prices".
+      const mp = marketPlayer(leagueObj, r.player, r.pos), m = mp.read;
+      if (!m) {
+        const n = marketValue(leagueObj, r.player).n;
+        box.innerHTML = shell(`<div class="text-[12px] text-zinc-400 mt-1.5">Not enough completed trades with ${Vault.escapeHtml(r.player)} as the main piece yet${n ? ` (${n} so far)` : ''}. This fills in as The Vault collects more.</div>`);
         return;
       }
       const at = v => Math.round(r.value * (1 + v / 100)).toLocaleString();
-      const pct = Math.round(m.premium), tone = Math.abs(pct) < 3 ? 'text-zinc-300' : pct > 0 ? 'text-emerald-300' : 'text-amber-300';
+      const pct = Math.round(mp.adj), tone = Math.abs(pct) < 3 ? 'text-zinc-300' : pct > 0 ? 'text-emerald-300' : 'text-amber-300';
       const read = Math.abs(pct) < 3 ? 'right about his KTC value' : pct > 0 ? `${pct}% more than KTC says` : `${-pct}% less than KTC says`;
       box.innerHTML = shell(`
         <div class="flex items-baseline gap-3 flex-wrap mt-1">
-          <span class="mono text-[22px] font-semibold text-zinc-100">${at(m.premium)}</span>
+          <span class="mono text-[22px] font-semibold text-zinc-100">${at(mp.adj)}</span>
           <span class="text-[13px] ${tone}">${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}% vs KTC (${fmtInt(r.value)})</span>
         </div>
-        <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">Teams getting him paid ${read}, usually ${at(m.low)} to ${at(m.high)}. Median of ${m.n} completed trades where he was the main piece${m.even ? ' and each side sent the same number of pieces' : ' (any shape, so it includes what teams pay to consolidate)'}, from leagues like yours (${m.like}), over ${m.days} day${m.days === 1 ? '' : 's'}.${m.vsPeers != null ? ` ${Vault.escapeHtml(r.pos || 'Player')}s at his KTC value usually go for ${(() => { const p = Math.round(m.premium - m.vsPeers); return Math.abs(p) < 1 ? 'about KTC' : `${Math.abs(p)}% ${p > 0 ? 'over' : 'under'}`; })()}, so he's ${Math.abs(Math.round(m.vsPeers)) < 3 ? 'priced about like them' : `<span class="${m.vsPeers > 0 ? 'text-emerald-300' : 'text-amber-300'}">${Math.abs(Math.round(m.vsPeers))}% ${m.vsPeers > 0 ? 'above' : 'below'} his peers</span>`}.` : ''}</div>`);
+        <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">Teams getting him paid ${read}, usually ${at(m.low)} to ${at(m.high)}. Median of ${m.n} completed trades he headlined, from leagues like yours (${m.like}), over ${m.days} day${m.days === 1 ? '' : 's'}. KTC's consolidation adjustment is included, so sending more pieces to get him is already part of KTC's number.</div>`);
     });
   }
 

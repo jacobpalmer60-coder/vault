@@ -20,7 +20,8 @@
     ] },
     { label: 'Players', tabs: [
       { key: 'rankings', short: 'Rankings', label: 'Player Rankings', href: 'player_rankings.html' },
-      { key: 'compare', short: 'Compare', label: 'Compare Players', href: 'compare.html' }
+      { key: 'compare', short: 'Compare', label: 'Compare Players', href: 'compare.html' },
+      { key: 'market', short: 'Market', label: 'Player Market', href: 'market.html' }
     ] },
     { label: 'Trades', tabs: [
       { key: 'trade', short: 'Calculator', label: 'Trade Calculator', href: 'trade.html' },
