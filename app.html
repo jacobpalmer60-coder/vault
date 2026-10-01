@@ -24,9 +24,6 @@
     <button id="refresh" class="btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
   </div>
 
-  <!-- Your market: your pieces selling above and below KTC in completed trades (shown once your team is set). -->
-  <div id="marketNudge" class="hidden mb-6"></div>
-
   <div id="mobileCards" class="md:hidden space-y-3"></div>
 
   <div class="hidden md:block card rounded-vault overflow-hidden relative">
@@ -104,7 +101,6 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
-<script src="market-data.js?v=37cd0d8a"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 }, expanded = new Set();
 
@@ -390,67 +386,6 @@ function setValueHistoryMetric(key) {
   if (lastValueHistory) renderValueHistory(lastValueHistory, lastValueHistoryTeams);
 }
 
-/* ---------- Your market ----------
-   Your players and picks that sell for clearly more or less than KTC in
-   completed trades (market-data.js marketAdj, the same number as the Player
-   Market page): the top NUDGE_HIGHS above, NUDGE_LOWS below, each linking to
-   its chart, plus buttons straight to Trade Coach's Sell high and Buy low. */
-const NUDGE_AT = 8, NUDGE_HIGHS = 3, NUDGE_LOWS = 2;
-/* This week: which of your pieces moved most in what managers pay against KTC,
-   from the day-by-day market points (data/market-history/daily-<sf|oneQB>.json):
-   the median of the last WEEK_DAYS days next to the PRIOR_DAYS before, weighted
-   by trades, needing WEEK_MIN and PRIOR_MIN trades; changes of WEEK_SHOW_AT
-   points or more, biggest first. */
-const WEEK_DAYS = 7, PRIOR_DAYS = 30, WEEK_MIN = 3, PRIOR_MIN = 5, WEEK_SHOW_AT = 3, WEEK_SHOW = 3; // fewer trades than that is noise, not a trend
-function weekMovers(daily, pieces) {
-  if (!daily || !daily.from) return [];
-  const all = Object.values(daily.players).flat();
-  if (!all.length) return [];
-  const latest = Math.max(...all.map(p => p[0]));
-  const wMed = pts => { const s = [...pts].sort((a, b) => a[1] - b[1]), total = s.reduce((t, p) => t + p[2], 0); let seen = 0; for (const p of s) { seen += p[2]; if (seen >= total / 2) return p[1]; } return null; };
-  return pieces.map(a => {
-    const key = a.type === 'pick' ? marketKeyOf(a) : Vault.normalizeName(a.name);
-    const pts = daily.players[key] || [];
-    const recent = pts.filter(p => p[0] > latest - WEEK_DAYS), prior = pts.filter(p => p[0] <= latest - WEEK_DAYS && p[0] > latest - WEEK_DAYS - PRIOR_DAYS);
-    const n1 = recent.reduce((t, p) => t + p[2], 0), n0 = prior.reduce((t, p) => t + p[2], 0);
-    if (n1 < WEEK_MIN || n0 < PRIOR_MIN) return null;
-    const now = wMed(recent), then = wMed(prior);
-    return { ...a, now, then, change: now - then, n: n1 };
-  }).filter(m => m && Math.abs(m.change) >= WEEK_SHOW_AT).sort((x, y) => Math.abs(y.change) - Math.abs(x.change)).slice(0, WEEK_SHOW);
-}
-async function renderMarketNudge(league) {
-  const box = document.getElementById('marketNudge'), me = Vault.myTeam(teams);
-  if (!me) { box.classList.add('hidden'); return; }
-  await marketLoad(league);
-  if (!Market.data || Market.data.failed) return;
-  const pieces = [...me.plist.map(p => ({ ...p, type: 'player' })), ...me.picks.map(p => ({ ...p, type: 'pick', name: `${p.season} ${['', '1st', '2nd', '3rd', '4th'][p.round] || 'R' + p.round}` }))]
-    .filter(a => a.value >= 1000).map(a => ({ ...a, adj: marketAdj(league, a) }));
-  const sig = Vault.tradeFormatSig(league);
-  const daily = await fetch(`data/market-history/daily-${sig.qbs === 2 ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null);
-  const week = weekMovers(daily, pieces);
-  const highs = pieces.filter(a => a.adj >= NUDGE_AT).sort((x, y) => y.adj * y.value - x.adj * x.value).slice(0, NUDGE_HIGHS);
-  const lows = pieces.filter(a => a.adj <= -NUDGE_AT).sort((x, y) => x.adj * x.value - y.adj * y.value).slice(0, NUDGE_LOWS);
-  if (!highs.length && !lows.length && !week.length) { box.classList.add('hidden'); return; }
-  // The Player Market page keys players by normalized name and picks as 'k:<season>-<round>'.
-  const link = a => Vault.linkTo('market.html') + '&p=' + encodeURIComponent(a.type === 'pick' ? marketKeyOf(a) : Vault.normalizeName(a.name));
-  const chip = (a, up) => `<a href="${link(a)}" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors">
-      <span class="text-zinc-100">${Vault.escapeHtml(a.name)}</span><span class="mono text-[12px] ${up ? 'text-emerald-300' : 'text-amber-300'}">${up ? '+' : '−'}${Math.abs(Math.round(a.adj))}%</span></a>`;
-  box.innerHTML = `<div class="card rounded-vault-sm px-5 py-4 flex flex-wrap items-center gap-x-5 gap-y-3">
-      <div class="min-w-0">
-        <div class="text-[11px] uppercase tracking-wider text-zinc-400">Your market · ${Vault.escapeHtml(me.teamName)}</div>
-        <div class="text-[12px] text-zinc-400 mt-0.5">Your pieces selling above or below their KTC value in completed trades.</div>
-      </div>
-      ${highs.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-emerald-300/90">Sells high</span>${highs.map(a => chip(a, true)).join('')}</div>` : ''}
-      ${lows.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-amber-300/90">Sells low</span>${lows.map(a => chip(a, false)).join('')}</div>` : ''}
-      ${week.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-zinc-400">This week</span>${week.map(m => `<a href="${link(m)}" title="Paid vs KTC: ${m.then >= 0 ? '+' : '−'}${Math.abs(Math.round(m.then))}% before, ${m.now >= 0 ? '+' : '−'}${Math.abs(Math.round(m.now))}% this week (${m.n} trade${m.n === 1 ? '' : 's'})" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors"><span class="text-zinc-100">${Vault.escapeHtml(m.name)}</span><span class="mono text-[12px] ${m.change > 0 ? 'text-emerald-300' : 'text-amber-300'}">${m.change > 0 ? '▲ +' : '▼ −'}${Math.abs(Math.round(m.change))} pts</span></a>`).join('')}</div>` : ''}
-      <div class="ml-auto flex flex-wrap gap-2 shrink-0">
-        <a href="${Vault.linkTo('trade.html')}&coach=sellhigh" class="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10 transition-colors">Sell high →</a>
-        <a href="${Vault.linkTo('trade.html')}&coach=buylow" class="text-[12px] px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10 transition-colors">Buy low →</a>
-      </div>
-    </div>`;
-  box.classList.remove('hidden');
-}
-
 async function load() {
   const status = document.getElementById('status');
   status.innerHTML = `<div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>`;
@@ -467,7 +402,6 @@ async function load() {
       const lo = Math.min(...allYears), hi = Math.max(...allYears);
       document.getElementById('picksLegend').textContent = ` — Total KTC value of every future draft pick this team owns, ${lo}-${String(hi).slice(-2)} R1-4, live from Sleeper`;
     }
-    renderMarketNudge(league);
     Vault.buildTeamValueHistory(Vault.getLeagueId()).then(h => renderValueHistory(h, teams)).catch(e => { console.error(e); renderValueHistory({ snapshots: [] }, teams); });
 
     // Career record walks the league's season-history chain — a handful of extra

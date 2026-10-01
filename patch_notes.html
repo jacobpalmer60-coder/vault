@@ -36,6 +36,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'improved', page: 'Player Market', text: 'The "Your market" card (your players and picks that sell above or below KTC, this week\'s movers, and the Sell high / Buy low buttons) moved from League Overview to the top of the Player Market page, so League Overview stays about your league. Clicking a name now charts it right there.' },
     { kind: 'improved', page: 'Site', text: 'Phone fixes for the new market pages: the Player Market\'s all-players table shows KTC under each name and folds "vs KTC" under the market value; Managers\' "Who pays up" fits a phone without sideways scrolling; Trade Database\'s "By position" and "Year by year" tables use short headers on phones; Compare\'s chart keeps long last names (Smith-Njigba) inside the chart; and the player card\'s charts are drawn for a phone\'s width so their numbers stay readable.' },
     { kind: 'improved', page: 'Site', text: 'Faster market charts as the trade history grows: the day-by-day market points now cover the last 400 days, and older trades are kept month by month in a separate small file. The player card, Player Market and Compare merge the two, so the full history still shows (older months as one dot each).' },
     { kind: 'fixed', page: 'Data status', text: 'Cancelled collection runs (replaced by a newer one) no longer count as the last run; they show gray in the run strip.' },
