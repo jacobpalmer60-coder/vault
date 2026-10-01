@@ -318,19 +318,27 @@ async function coachBest(me, progress) {
   const perPartner = new Map(), list = [];
   // Pick-for-pick trades go last (they price almost even by construction), and a
   // swap of picks worth the same (same year, round and tier) is dropped: it
-  // changes nothing.
+  // changes nothing. Otherwise best for you first: the grade's lean, plus how
+  // much better it is for you at market prices than on KTC (market-data.js),
+  // so even-on-KTC deals where you sell what goes for more and buy what goes
+  // for less rise to the top.
+  const market = c => (typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, c.giveA, c.giveB) : null);
   const picksOnly = c => [...c.giveA, ...c.giveB].every(a => a.type === 'pick');
   const sameValue = c => picksOnly(c) && Math.round(sumValue(c.giveA)) === Math.round(sumValue(c.giveB));
   pool.filter(c => !sameValue(c))
     .map(c => ({ c, j: negJudgeFor(me, c.giveA, c.partner, c.giveB, negContextFor(c.partner)) }))
     .filter(x => x.j.accepts && x.j.edge < VAULT_CONFIG.FAIR_PCT)
-    .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || x.j.edge - y.j.edge)
-    .forEach(({ c, j }) => {
+    .map(x => ({ ...x, mk: market(x.c) }))
+    .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || (x.j.edge - (x.mk?.delta || 0)) - (y.j.edge - (y.mk?.delta || 0)))
+    .forEach(({ c, j, mk }) => {
       const n = perPartner.get(c.partner.rosterId) || 0;
       if (n >= 2 || list.length >= 10) return;
       perPartner.set(c.partner.rosterId, n + 1);
       const fit = c.result.bucket === 'Great' ? 'A strong fit for both rosters.' : c.result.bucket === 'Good' ? 'A strong fit for one side.' : '';
-      list.push({ partner: c.partner, give: c.giveA, get: c.giveB, edge: j.edge, id: negKeys(c.giveA).join() + '>' + negKeys(c.giveB).join(), why: fit });
+      // The piece behind a market edge for you: one you get that goes for more, or send that goes for less.
+      const edgeBy = mk && mk.delta >= 3 && mk.movers.find(m => (m.gets ? m.adj : -m.adj) > 0);
+      const mkt = edgeBy ? `At market prices it's about ${Math.round(mk.delta)}% better for you than KTC says: ${marketMoverText(edgeBy)}.` : '';
+      list.push({ partner: c.partner, give: c.giveA, get: c.giveB, edge: j.edge, id: negKeys(c.giveA).join() + '>' + negKeys(c.giveB).join(), why: [fit, mkt].filter(Boolean).join(' ') });
     });
   if (!list.length) return { empty: `No trade across the league is both Fair for ${Vault.escapeHtml(me.teamName)} and one the other manager would likely take right now. Try Get a player or Fix a position.` };
   return { title: 'Best trades for you', list };
@@ -454,6 +462,8 @@ async function coachFind() {
   const status = document.getElementById('coachStatus');
   const progress = text => { if (status) status.textContent = text; };
   if (!Negotiation.styles) { progress('Reading every manager\'s trade history…'); await Promise.race([negPreloadStyles(), new Promise(r => setTimeout(r, 8000))]); }
+  // What players go for in completed trades: "Will they take it?" and Best trades use it.
+  if (typeof marketLoad === 'function' && !Market.data) { progress('Reading what players go for in completed trades…'); await Promise.race([marketLoad(league), new Promise(r => setTimeout(r, 8000))]); }
   try {
     Coach.results[option] = { ...(await COACH_RUN[option](me, progress)), meId: me.rosterId, key: coachInputKey(), planNote };
   } catch (e) {

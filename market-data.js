@@ -174,3 +174,48 @@ function marketValue(league, name, { even = false, min = MARKET_MIN_COMPS } = {}
   }
   return { n: main.length, like: null, even };
 }
+
+/* ---------- Market prices for a trade (Trade Calculator, Trade Coach) ----------
+   A player's market adjustment: how much more or less managers pay for him
+   than KTC says, as a % = how he sells against players at his position and
+   value (vsPeers, like-for-like trades) plus how his position trades against
+   KTC as a whole. Picks, and players without MARKET_ADJ_MIN such trades, get
+   0. Clamped to ±MARKET_ADJ_CAP so one noisy read can't swing a trade. Cached
+   per name, since Trade Coach judges thousands of trades. The grade never
+   uses this; it feeds "Will they take it?", Trade Coach's ranking and the
+   market check under the grade. */
+const MARKET_ADJ_MIN = 8, MARKET_ADJ_CAP = 25;
+const marketAdjCache = new Map();
+function marketAdj(league, a) {
+  if (!a || a.type !== 'player' || !Market.data || Market.data.failed) return 0;
+  const key = Vault.normalizeName(a.name);
+  if (marketAdjCache.has(key)) return marketAdjCache.get(key);
+  const m = marketValue(league, a.name, { even: true, min: MARKET_ADJ_MIN });
+  const byPos = marketPeerBaseline(true)?.byPos || {};
+  const adj = m.like && m.vsPeers != null ? Math.max(-MARKET_ADJ_CAP, Math.min(MARKET_ADJ_CAP, m.vsPeers + (byPos[a.pos] || 0))) : 0;
+  marketAdjCache.set(key, adj);
+  return adj;
+}
+// A trade at market prices vs KTC, from the side that gives `give` and gets `get`:
+// ktc / market = % in that side's favor (consolidation-adjusted, as the grade
+// measures), delta = market - ktc, and the pieces that moved it most.
+function marketEdge(league, give, get) {
+  // KTC's consolidation adjustment stays as the grade computes it; each side is
+  // then scaled by its own pieces' market prices. Re-running the adjustment on
+  // market prices could flip which side holds the best piece and swing the
+  // bonus from one side to the other, which is KTC's math, not the market.
+  const { valueA, valueB } = Vault.tradeSideValues(give, get);
+  const sum = list => list.reduce((t, a) => t + a.value, 0);
+  const mkt = list => list.reduce((t, a) => t + a.value * (1 + marketAdj(league, a) / 100), 0);
+  const vG = valueA * (sum(give) ? mkt(give) / sum(give) : 1), vR = valueB * (sum(get) ? mkt(get) / sum(get) : 1);
+  const pct = (g, r) => (r - g) / (((g + r) / 2) || 1) * 100;
+  const ktc = pct(valueA, valueB), market = pct(vG, vR);
+  const movers = [...give.map(a => ({ a, gets: false })), ...get.map(a => ({ a, gets: true }))]
+    .map(x => ({ ...x, adj: marketAdj(league, x.a), weight: Math.abs(marketAdj(league, x.a) * x.a.value) }))
+    .filter(x => Math.abs(x.adj) >= 3).sort((x, y) => y.weight - x.weight);
+  return { ktc, market, delta: market - ktc, movers };
+}
+// "Rashee Rice trades about 13% above his KTC value", for the piece that moved a trade most.
+function marketMoverText(m) {
+  return `${Vault.escapeHtml(m.a.name)} trades about ${Math.abs(Math.round(m.adj))}% ${m.adj > 0 ? 'above' : 'below'} his KTC value`;
+}

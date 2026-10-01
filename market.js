@@ -92,11 +92,21 @@ function renderMarketRead(aAssets, bAssets) {
   if (!aAssets.length || !bAssets.length) { box.innerHTML = ''; return; }
   if (!Market.data) {
     box.innerHTML = '';
-    marketLoad(league).then(() => { if (token === marketToken) renderMarketRead(aAssets, bAssets); });
+    // Once loaded, redraw the whole card: "Will they take it?" uses market prices too.
+    marketLoad(league).then(() => { if (token === marketToken) { if (typeof updateTrade === 'function') updateTrade(); else renderMarketRead(aAssets, bAssets); } });
     return;
   }
+  // At market prices: every player at what he goes for in completed trades
+  // (market-data.js), the whole trade measured the way the grade measures value.
+  // Shown when that moves the trade at least 2 points from KTC; never the grade.
+  const mk = marketEdge(league, aAssets, bAssets);
+  const lean = v => (Math.abs(v) < 1 ? 'about even' : `about ${Math.abs(Math.round(v))}% in ${v > 0 ? 'your' : `${Vault.escapeHtml(teamOf('B')?.teamName || 'their')}'s`} favor`);
+  const check = mk.movers.length && Math.abs(mk.delta) >= 2 ? `<div class="mt-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2.5 text-[12px] leading-relaxed text-zinc-400">
+      <span class="text-[11px] uppercase tracking-wider text-zinc-500 mr-1">At market prices</span>
+      It's <span class="font-medium text-zinc-200">${lean(mk.market)}</span>, vs ${lean(mk.ktc)} on KTC value alone: ${mk.movers.slice(0, 2).map(marketMoverText).join(', and ')}. The grade still uses KTC.
+    </div>` : '';
   const m = marketRead(aAssets, bAssets);
-  if (!m) { box.innerHTML = ''; return; }
+  if (!m) { box.innerHTML = check; return; }
   const name = Vault.escapeHtml(m.player.name);
   const payer = m.youGet ? 'you' : 'they';
   // Where this trade's price sits against the middle half of completed trades,
@@ -134,7 +144,7 @@ function renderMarketRead(aAssets, bAssets) {
         ${strip}
         <div class="text-[11px] uppercase tracking-wider text-zinc-500 mt-3 mb-0.5">Most like this one</div>
         ${examples}
-        <div class="text-[11px] text-zinc-500 mt-2">${m.sleeper ? "From KTC's trade database (priced at today's KTC values for your league) and, before that, Sleeper dynasty leagues (priced at KTC values from each trade's day)" : "From KTC's trade database, priced at today's KTC values for your league"}. The grade above doesn't use these.</div>
+        <div class="text-[11px] text-zinc-500 mt-2">${m.sleeper ? "From KTC's trade database (priced at today's KTC values, in each trade's own format) and, before that, Sleeper dynasty leagues (priced at KTC values from each trade's day)" : "From KTC's trade database, priced at today's KTC values in each trade's own format"}. The grade above doesn't use these.</div>
       </div>
-    </details>`;
+    </details>${check}`;
 }

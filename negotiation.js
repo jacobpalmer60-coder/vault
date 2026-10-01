@@ -32,6 +32,11 @@ const NEG = {
   TOLERANCE_MAX: 30,        // ...and history never loosens it past 30%
   CONSOLIDATION_BONUS: 20,  // getting the trade's best single piece for more pieces: they'll pay the market's premium
   SITE_NO_PENALTY: 5,       // the grade reading bad for them counts against it (no longer an automatic no)
+  MARKET_SCALE: 0,          // OFF: what pieces go for in completed trades (market-data.js) doesn't move
+  MARKET_MAX: 8,            // willingness yet. Tested 2026-10-01 on the league's 23 completed trades: none
+                            // 34/46 sides right, a quarter of the gap 33, half 31, full 31. Those used this
+                            // week's market reads on older trades; re-test with each trade's own-date reads
+                            // (data/market-history/daily-*) before turning it on (0.25 = a quarter, cap 8).
   STAR_1FOR1: [[8000, 10], [6000, 6]], // asking for a star straight up: in KTC's trade database only ~1% of
                             // trades with an 8,000+ piece (and ~5% at 6,000-8,000) were 1-for-1, vs ~50% under 4,000
   TARGET_EDGE: 4,           // their counters aim ~4% in their favor
@@ -174,6 +179,20 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   // Stars rarely move 1-for-1: managers want a second piece for one, even at even value.
   const star = rAssets.length === 1 && oAssets.length === 1 ? NEG.STAR_1FOR1.find(([v]) => rAssets[0].value >= v) : null;
   if (star) concerns.push({ w: -star[1], text: `Stars like ${Vault.escapeHtml(rAssets[0].name)} almost never move 1-for-1 (about ${star[0] >= 8000 ? '1 in 100' : '1 in 20'} trades for a player this valuable); a second piece usually gets it done.`, say: `I'm not moving ${Vault.escapeHtml(rAssets[0].name)} straight up for one player.` });
+  // Managers judge pieces by what they go for, not KTC: at market prices
+  // (market-data.js: completed trades, by position and value) the deal can be
+  // better or worse for them than KTC says. Only once that data has loaded.
+  if (typeof marketEdge === 'function' && Market.data && !Market.data.failed) {
+    const mk = marketEdge(league, rAssets, oAssets); // they give rAssets, get oAssets
+    const why = mk.movers.find(m => (m.gets ? m.adj : -m.adj) * Math.sign(mk.delta) > 0);
+    const w = Math.max(-NEG.MARKET_MAX, Math.min(NEG.MARKET_MAX, mk.delta * NEG.MARKET_SCALE));
+    if (Math.abs(w) >= 1 && why) {
+      const nm = Vault.escapeHtml(why.a.name);
+      concerns.push({ w, text: `At market prices it's about ${Math.abs(Math.round(mk.delta))}% ${w > 0 ? 'better' : 'worse'} for them than KTC says: ${marketMoverText(why)}.`,
+        say: why.gets ? (why.adj > 0 ? `${nm} goes for more than KTC says, so I like this.` : `${nm} doesn't go for what KTC says.`)
+                      : (why.adj > 0 ? `${nm} goes for more than KTC says. You'd have to pay up.` : `Moving ${nm} at KTC value works for me.`) });
+    }
+  }
   // The grade reading bad for their side counts against it, but isn't an automatic no.
   const siteSaysNo = an.heads.B.tone === 'bad';
   if (siteSaysNo) concerns.push({ w: -NEG.SITE_NO_PENALTY, text: 'Graded from their side, it reads as a bad trade for them.' });
