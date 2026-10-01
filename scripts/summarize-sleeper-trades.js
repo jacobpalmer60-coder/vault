@@ -36,8 +36,9 @@
    and team count, so pages can match trades to their own league's settings)
    and data/market-history/daily-<sf|oneQB>.json, each player's (and pick's,
    keyed 'k:<season>-<round>') market points for the player card and the
-   Player Market page: every day he was the main piece in at least one
-   completed trade, the median premium (or discount) managers paid over KTC that day and
+   Player Market page, for the last DAILY_KEEP_DAYS days (older ones by month
+   in monthly-<sf|oneQB>.json: { before, players: { key: [['YYYY-MM', pct, trades]] } }):
+   every day he was the main piece in at least one completed trade, the median premium (or discount) managers paid over KTC that day and
    how many trades it's from. Premium = what the getter sent / what his side
    was worth, both consolidation-adjusted, minus 1, as a whole-number %:
      { from: 'YYYY-MM-DD', players: { normalizedName: [[daysSinceFrom, pct, trades], ...] } }
@@ -66,6 +67,7 @@ const OUT = path.join(DATA, 'market-history');
 const LOOKBACK = 14; // a missing day's price falls back to the last one within two weeks
 const RECENT_DAYS = 95, RECENT_MAX = 30000;
 const ROOKIE_MIN_DRAFTS = 5, ROOKIE_MIN_PICKS = 3, ROOKIE_SHOW = 96;
+const DAILY_KEEP_DAYS = 400; // day-by-day market points kept; older ones by month (monthly-<sf|oneQB>.json)
 
 const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 const tepSuffix = b => (b < 0.25 ? '' : b < 0.75 ? '_tep' : '_tepp'); // mirrors Vault.ktcTepSuffix
@@ -193,20 +195,26 @@ function main() {
     console.log(`${format}: ${trades.length} trades from ${leagues.get(format).size} leagues, ${priced} priced, ${weeks.size} weeks`);
   });
 
-  // Each player's market points: every day with a trade, that day's median premium.
+  // Each player's market points. The last DAILY_KEEP_DAYS day by day (every day
+  // with a trade, that day's median premium); everything older by month, in
+  // its own small file, so the day-by-day file the pages load stays small as
+  // the history grows (pages merge the two: market-data.js fetchMarketDaily).
+  const dailyFrom = new Date(Date.now() - DAILY_KEEP_DAYS * 864e5).toISOString().slice(0, 10);
+  const medianOf = ps => { const s = [...ps].sort((x, y) => x - y); return Math.round(s[Math.floor((s.length - 1) / 2)]); };
   Object.entries(premiums).forEach(([qb, byName]) => {
-    const from = [...byName.values()].flat().map(([d]) => d).sort()[0];
-    const players = {};
-    if (from) byName.forEach((events, name) => {
-      const byDay = new Map();
-      events.forEach(([d, p]) => (byDay.get(d) || byDay.set(d, []).get(d)).push(p));
-      players[name] = [...byDay.keys()].sort().map(d => {
-        const ps = byDay.get(d).sort((x, y) => x - y);
-        return [Math.round((new Date(d) - new Date(from)) / 864e5), Math.round(ps[Math.floor((ps.length - 1) / 2)]), ps.length];
+    const players = {}, months = {};
+    byName.forEach((events, name) => {
+      const byDay = new Map(), byMonth = new Map();
+      events.forEach(([d, p]) => {
+        if (d >= dailyFrom) (byDay.get(d) || byDay.set(d, []).get(d)).push(p);
+        else (byMonth.get(d.slice(0, 7)) || byMonth.set(d.slice(0, 7), []).get(d.slice(0, 7))).push(p);
       });
+      if (byDay.size) players[name] = [...byDay.keys()].sort().map(d => [Math.round((new Date(d) - new Date(dailyFrom)) / 864e5), medianOf(byDay.get(d)), byDay.get(d).length]);
+      if (byMonth.size) months[name] = [...byMonth.keys()].sort().map(m => [m, medianOf(byMonth.get(m)), byMonth.get(m).length]);
     });
-    fs.writeFileSync(path.join(OUT, `daily-${qb}.json`), JSON.stringify({ from, players }));
-    console.log(`daily-${qb}: market points for ${Object.keys(players).length} players`);
+    fs.writeFileSync(path.join(OUT, `daily-${qb}.json`), JSON.stringify({ from: dailyFrom, players }));
+    fs.writeFileSync(path.join(OUT, `monthly-${qb}.json`), JSON.stringify({ before: dailyFrom, players: months }));
+    console.log(`daily-${qb}: market points for ${Object.keys(players).length} players since ${dailyFrom}, ${Object.keys(months).length} by month before`);
   });
 
   // Rookie drafts: where each rookie went, and what each pick slot bought.

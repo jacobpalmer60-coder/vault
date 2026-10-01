@@ -6,7 +6,7 @@
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=20258996">
+<link rel="stylesheet" href="tailwind.css?v=6363cd8c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -97,7 +97,7 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
-<script src="market-data.js?v=10901892"></script>
+<script src="market-data.js?v=37cd0d8a"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -388,10 +388,11 @@ function drawAll() {
   const rows = allRows.filter(r => (allPos === 'ALL' || r.pos === allPos) && (!allQuery || r.name.toLowerCase().includes(allQuery)))
     .sort((a, b) => (a[key] == null) - (b[key] == null) || dir * ((a[key] ?? 0) - (b[key] ?? 0)) || b.value - a.value);
   // [sort key, label, align]; the Market # column sorts by market value.
-  const cols = [['market', 'Market #', 'right'], [null, 'Player', 'left'], ['value', 'KTC', 'right'], ['market', 'Market', 'right'], ['adj', 'vs KTC', 'right'], ['n', 'Trades', 'right']];
-  document.getElementById('allHead').innerHTML = `<tr class="text-[11px] uppercase tracking-wider text-zinc-500">${cols.map(([k, l, al]) => !k
+  // [sort key, label, align, hide on phones]. On a phone KTC moves under the name so Market and vs KTC fit.
+  const cols = [['market', 'Market #', 'right'], [null, 'Player', 'left'], ['value', 'KTC', 'right', true], ['market', 'Market', 'right'], ['adj', 'vs KTC', 'right', true], ['n', 'Trades', 'right', true]];
+  document.getElementById('allHead').innerHTML = `<tr class="text-[11px] uppercase tracking-wider text-zinc-500">${cols.map(([k, l, al, wide]) => !k
     ? `<th class="font-normal pb-2 pr-3 text-left">${l}</th>`
-    : `<th class="font-normal pb-2 pr-3 text-${al}" aria-sort="${key === k ? (dir < 0 ? 'descending' : 'ascending') : 'none'}"><button onclick="sortAll('${k}')" class="uppercase tracking-wider hover:text-zinc-200 ${key === k ? 'text-amber-200' : ''}">${l}${key === k ? (dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`).join('')}</tr>`;
+    : `<th class="font-normal pb-2 pr-3 text-${al}${wide ? ' hidden sm:table-cell' : ''}" aria-sort="${key === k ? (dir < 0 ? 'descending' : 'ascending') : 'none'}"><button onclick="sortAll('${k}')" class="uppercase tracking-wider hover:text-zinc-200 ${key === k ? 'text-amber-200' : ''}">${l}${key === k ? (dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`).join('')}</tr>`;
   const tone = v => (Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-amber-300');
   const pct = v => (v == null ? '<span class="text-zinc-600">—</span>' : `<span class="${tone(v)}">${signed(v)}</span>`);
   const dash = '<span class="text-zinc-600">—</span>';
@@ -399,11 +400,11 @@ function drawAll() {
     const move = r.mktRank && r.ktcRank ? r.ktcRank - r.mktRank : 0;
     return `<tr class="border-t border-white/5 hover:bg-white/[0.02] cursor-pointer" onclick="openLookup('${encodeURIComponent(r.norm)}')">
       <td class="py-2 pr-3 text-right mono text-zinc-300 whitespace-nowrap">${r.mktRank ? '#' + r.mktRank : dash}${move ? ` <span class="text-[10px] ${move > 0 ? 'text-emerald-300' : 'text-amber-300'}" title="KTC rank #${r.ktcRank}">${move > 0 ? '▲' : '▼'}${Math.abs(move)}</span>` : ''}</td>
-      <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="text-zinc-100 truncate">${esc(r.name)}</span></span></td>
-      <td class="py-2 pr-3 text-right mono text-zinc-300">${Vault.fmtInt(r.value)}</td>
-      <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market)}</td>
-      <td class="py-2 pr-3 text-right mono" title="${r.read ? `Usually ${signed(r.read.low)} to ${signed(r.read.high)}` : ''}">${pct(r.adj)}</td>
-      <td class="py-2 text-right mono text-zinc-400" title="${r.read ? 'Leagues like yours (' + esc(r.read.like) + ')' : ''}">${r.n || dash}</td>
+      <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="min-w-0"><span class="block text-zinc-100 truncate">${esc(r.name)}</span><span class="sm:hidden block text-[11px] text-zinc-500 mono">KTC ${Vault.fmtInt(r.value)}</span></span></span></td>
+      <td class="hidden sm:table-cell py-2 pr-3 text-right mono text-zinc-300">${Vault.fmtInt(r.value)}</td>
+      <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market)}<span class="sm:hidden block text-[11px]">${r.adj == null ? '' : pct(r.adj)}</span></td>
+      <td class="hidden sm:table-cell py-2 pr-3 text-right mono" title="${r.read ? `Usually ${signed(r.read.low)} to ${signed(r.read.high)}` : ''}">${pct(r.adj)}</td>
+      <td class="hidden sm:table-cell py-2 text-right mono text-zinc-400" title="${r.read ? 'Leagues like yours (' + esc(r.read.like) + ')' : ''}">${r.n || dash}</td>
     </tr>`;
   }).join('');
   document.getElementById('allMore').innerHTML = rows.length > allShown
@@ -466,7 +467,7 @@ async function init() {
     valueField = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusTe);
     const [ktc, dailyDoc, rookiesDoc] = await Promise.all([
       Vault.fetchKtcValues(),
-      fetch(`data/market-history/daily-${isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetchMarketDaily(isSF ? 2 : 1), // last ~400 days by day, older by month (market-data.js)
       fetch(`data/market-history/rookies-${isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null)
     ]);
     daily = dailyDoc && dailyDoc.from && Object.keys(dailyDoc.players || {}).length ? dailyDoc : null;

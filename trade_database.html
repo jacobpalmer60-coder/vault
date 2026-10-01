@@ -6,7 +6,7 @@
 <title>Trade Database — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=20258996">
+<link rel="stylesheet" href="tailwind.css?v=6363cd8c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -323,15 +323,15 @@ function renderMarket(rows, fmt, exactShare, league, src) {
       <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">How often each position headlines a trade, and what it costs to get one for several pieces.</div>
       <div class="overflow-x-auto"><table class="w-full text-[12px]">
         <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500 text-left">
-          <th class="font-normal pb-2 pr-3">Best piece</th><th class="font-normal pb-2 pr-3 w-[38%]">Share of trades</th><th class="font-normal pb-2 pr-3 text-right">Typical % off</th><th class="font-normal pb-2 pr-3 text-right">1-for-1</th><th class="font-normal pb-2 text-right" title="When one team gets this piece alone for several: what they sent minus what they got, over KTC">Paid to get one for several</th>
+          <th class="font-normal pb-2 pr-2 sm:pr-3"><span class="sm:hidden">Best</span><span class="hidden sm:inline">Best piece</span></th><th class="font-normal pb-2 pr-2 sm:pr-3 sm:w-[38%]">Share<span class="hidden sm:inline"> of trades</span></th><th class="font-normal pb-2 pr-2 sm:pr-3 text-right"><span class="hidden sm:inline">Typical </span>% off</th><th class="font-normal pb-2 pr-2 sm:pr-3 text-right whitespace-nowrap">1-for-1</th><th class="font-normal pb-2 text-right" title="When one team gets this piece alone for several: what they sent minus what they got, over KTC"><span class="sm:hidden">Premium</span><span class="hidden sm:inline">Paid to get one for several</span></th>
         </tr></thead>
         <tbody>${pos.map(({ p, g }) => {
           const share = mkShare(g.length, n), prem = mkMedian(g.filter(r => r.topAlone && r.paid != null).map(r => r.paid));
           return `<tr class="border-t border-white/5">
-            <td class="py-2 pr-3"><span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(p === 'Pick' ? '' : p)}">${p}</span></td>
-            <td class="py-2 pr-3"><div class="flex items-center gap-2"><div class="flex-1 h-2 rounded-full bg-white/[0.04]"><div class="h-full rounded-full bg-sky-400/70" style="width:${share.toFixed(2)}%"></div></div><span class="mono text-zinc-300 w-9 text-right">${mkPct(share)}</span></div></td>
-            <td class="py-2 pr-3 text-right mono text-zinc-300">${mkPct(mkMedian(g.map(r => r.pct)))}</td>
-            <td class="py-2 pr-3 text-right mono text-zinc-300">${mkPct(mkShare(g.filter(r => r.oneForOne).length, g.length))}</td>
+            <td class="py-2 pr-2 sm:pr-3"><span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(p === 'Pick' ? '' : p)}">${p}</span></td>
+            <td class="py-2 pr-2 sm:pr-3"><div class="flex items-center justify-end sm:justify-start gap-2"><div class="hidden sm:block flex-1 h-2 rounded-full bg-white/[0.04]"><div class="h-full rounded-full bg-sky-400/70" style="width:${share.toFixed(2)}%"></div></div><span class="mono text-zinc-300 w-9 text-right">${mkPct(share)}</span></div></td>
+            <td class="py-2 pr-2 sm:pr-3 text-right mono text-zinc-300">${mkPct(mkMedian(g.map(r => r.pct)))}</td>
+            <td class="py-2 pr-2 sm:pr-3 text-right mono text-zinc-300">${mkPct(mkShare(g.filter(r => r.oneForOne).length, g.length))}</td>
             <td class="py-2 text-right mono ${prem != null && prem >= 0 ? 'text-amber-300' : 'text-zinc-300'}">${prem == null ? '—' : mkSigned(prem)}</td>
           </tr>`;
         }).join('')}</tbody>
@@ -436,18 +436,18 @@ async function renderHistory(field) {
       <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">Each year's trades, priced at KTC values from their own day. The current year is so far.</div>
       <div class="overflow-x-auto"><table class="w-full text-[12px]">
         <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500 text-left">
-          <th class="font-normal pb-2 pr-3">Year</th><th class="font-normal pb-2 pr-3 text-right">Trades</th><th class="font-normal pb-2 pr-3 text-right">Typical % off</th><th class="font-normal pb-2 pr-3 w-[34%]">Fair / Lopsided / Unfair</th><th class="font-normal pb-2 pr-3 text-right">1-for-1</th><th class="font-normal pb-2 text-right" title="In 1-for-2 trades: what the side getting one piece sent minus what it got, over KTC">2-for-1 premium</th>
+          <th class="font-normal pb-2 pr-2 sm:pr-3">Year</th><th class="font-normal pb-2 pr-2 sm:pr-3 text-right">Trades</th><th class="font-normal pb-2 pr-2 sm:pr-3 text-right"><span class="hidden sm:inline">Typical </span>% off</th><th class="font-normal pb-2 pr-2 sm:pr-3 sm:w-[34%]"><span class="sm:hidden">Fair / Lop / Unf</span><span class="hidden sm:inline">Fair / Lopsided / Unfair</span></th><th class="hidden sm:table-cell font-normal pb-2 pr-3 text-right">1-for-1</th><th class="font-normal pb-2 text-right" title="In 1-for-2 trades: what the side getting one piece sent minus what it got, over KTC">2-for-1<span class="hidden sm:inline"> premium</span></th>
         </tr></thead>
         <tbody>${yearRows.map(([y, s]) => {
           const one = Object.values(s.stars || {}).reduce((t, v) => t + v[1], 0), prem = s.shapes?.['1-for-2']?.[2];
           const split = ['Fair', 'Lopsided', 'Unfair'].map((b, i) => ({ b, w: mkShare(s.buckets[i], s.n) }));
           return `<tr class="border-t border-white/5">
-            <td class="py-2 pr-3 text-zinc-200 mono">${y}</td>
-            <td class="py-2 pr-3 text-right mono text-zinc-300">${s.n.toLocaleString()}</td>
-            <td class="py-2 pr-3 text-right mono text-zinc-300">${mkPct(binMedian(s.pct, s.n))}</td>
-            <td class="py-2 pr-3"><div class="flex h-2 rounded-full overflow-hidden gap-[2px]" title="${split.map(x => `${mkPct(x.w)} ${x.b}`).join(', ')}">${split.map(x => (x.w ? `<div class="${BUCKET_FILL[x.b]}" style="width:${x.w.toFixed(2)}%"></div>` : '')).join('')}</div>
+            <td class="py-2 pr-2 sm:pr-3 text-zinc-200 mono">${y}</td>
+            <td class="py-2 pr-2 sm:pr-3 text-right mono text-zinc-300">${s.n.toLocaleString()}</td>
+            <td class="py-2 pr-2 sm:pr-3 text-right mono text-zinc-300">${mkPct(binMedian(s.pct, s.n))}</td>
+            <td class="py-2 pr-2 sm:pr-3"><div class="flex h-2 rounded-full overflow-hidden gap-[2px]" title="${split.map(x => `${mkPct(x.w)} ${x.b}`).join(', ')}">${split.map(x => (x.w ? `<div class="${BUCKET_FILL[x.b]}" style="width:${x.w.toFixed(2)}%"></div>` : '')).join('')}</div>
               <div class="text-[11px] mt-1">${split.map(x => `<span class="${BUCKET_TEXT[x.b]}">${mkPct(x.w)}</span>`).join(' <span class="text-zinc-600">/</span> ')}</div></td>
-            <td class="py-2 pr-3 text-right mono text-zinc-300">${mkPct(mkShare(one, s.n))}</td>
+            <td class="hidden sm:table-cell py-2 pr-3 text-right mono text-zinc-300">${mkPct(mkShare(one, s.n))}</td>
             <td class="py-2 text-right mono ${prem != null && prem >= 0 ? 'text-amber-300' : 'text-zinc-300'}">${prem == null ? '—' : mkSigned(prem)}</td>
           </tr>`;
         }).join('')}</tbody>

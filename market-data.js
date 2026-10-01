@@ -299,3 +299,28 @@ function marketOverpay(league, allGraded) {
   });
   return out;
 }
+
+/* ---------- Market points for charts ----------
+   data/market-history/daily-<sf|oneQB>.json holds the last ~400 days day by
+   day; monthly-<sf|oneQB>.json holds everything older by month (so the daily
+   file stays small as the history grows). Merged here into the daily file's
+   shape, { from, players: { key: [[daysSinceFrom, pct, trades]] } }, each
+   month placed on its 15th. Loaded once per page. */
+const marketDailyCache = new Map();
+function fetchMarketDaily(qbs, { history = true } = {}) {
+  const qb = qbs === 2 ? 'sf' : 'oneQB', cacheKey = qb + (history ? '+' : '');
+  if (!marketDailyCache.has(cacheKey)) marketDailyCache.set(cacheKey, (async () => {
+    const load = f => fetch(`data/market-history/${f}-${qb}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    const [daily, monthly] = await Promise.all([load('daily'), history ? load('monthly') : null]);
+    if (!daily?.from) return null;
+    const monthKeys = Object.values(monthly?.players || {}).flat().map(m => m[0]).sort();
+    if (!monthKeys.length) return daily;
+    const from = `${monthKeys[0]}-15` < daily.from ? `${monthKeys[0]}-15` : daily.from;
+    const off = d => Math.round((new Date(d + 'T00:00:00Z') - new Date(from + 'T00:00:00Z')) / 864e5);
+    const shift = off(daily.from), players = {};
+    Object.entries(monthly.players).forEach(([k, pts]) => { players[k] = pts.map(([m, pct, n]) => [off(`${m}-15`), pct, n]); });
+    Object.entries(daily.players || {}).forEach(([k, pts]) => { players[k] = [...(players[k] || []), ...pts.map(([d, pct, n]) => [d + shift, pct, n])]; });
+    return { from, players };
+  })());
+  return marketDailyCache.get(cacheKey);
+}

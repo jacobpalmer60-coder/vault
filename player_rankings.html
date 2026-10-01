@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=20258996">
+<link rel="stylesheet" href="tailwind.css?v=6363cd8c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -119,7 +119,7 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
-<script src="market-data.js?v=10901892"></script>
+<script src="market-data.js?v=37cd0d8a"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -295,7 +295,9 @@
 
   // market: Map(date -> { value, n }) for the dots; trend: Map(date -> value) for the 30-day line.
   function playerChart(rawSeries, field = 'value', decimals = 0, market = null, trend = null) {
-    const W = 460, H = 150, ML = 48, MR = 12, MT = 10, MB = 22;
+    // Drawn narrower on phones, so the scaled-down text stays readable (~10px, not ~6px).
+    const narrow = window.innerWidth < 640, FS = narrow ? 11 : 9;
+    const W = narrow ? 320 : 460, H = narrow ? 160 : 150, ML = 48, MR = 12, MT = 10, MB = narrow ? 24 : 22;
     const plotW = W - ML - MR, plotH = H - MT - MB;
     // Not every date has every field — the value backfill (KTC) covers years
     // densely, but PPG only ever gets a real number on days something actually
@@ -326,10 +328,10 @@
     const gridLines = [0, 0.5, 1].map(f => {
       const v = yMin + (yMax - yMin) * f, yy = y(v);
       return `<line x1="${ML}" y1="${yy}" x2="${W - MR}" y2="${yy}" stroke="currentColor" class="text-white/5"/>
-        <text x="${ML - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="currentColor" class="text-zinc-400">${fmt(v)}</text>`;
+        <text x="${ML - 6}" y="${yy + 3}" text-anchor="end" font-size="${FS}" fill="currentColor" class="text-zinc-400">${fmt(v)}</text>`;
     }).join('');
     const dateTicks = (series.length === 1 ? [0] : [0, series.length - 1]).map(i =>
-      `<text x="${x(i)}" y="${H - 6}" text-anchor="${series.length === 1 ? 'middle' : i === 0 ? 'start' : 'end'}" font-size="9" fill="currentColor" class="text-zinc-400">${series[i].date}</text>`
+      `<text x="${x(i)}" y="${H - 6}" text-anchor="${series.length === 1 ? 'middle' : i === 0 ? 'start' : 'end'}" font-size="${FS}" fill="currentColor" class="text-zinc-400">${series[i].date}</text>`
     ).join('');
     const up = vals[vals.length - 1] >= vals[0];
 
@@ -485,7 +487,7 @@
   function loadDailyMarket() {
     if (!dailyMarketLoading) {
       const qbs = Vault.tradeFormatSig(leagueObj).qbs;
-      dailyMarketLoading = fetch(`data/market-history/daily-${qbs === 2 ? 'sf' : 'oneQB'}.json`).then(res => (res.ok ? res.json() : null)).catch(() => null);
+      dailyMarketLoading = fetchMarketDaily(qbs); // last ~400 days by day, older by month (market-data.js)
     }
     return dailyMarketLoading;
   }

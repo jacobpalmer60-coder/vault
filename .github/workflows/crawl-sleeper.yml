@@ -71,7 +71,7 @@ jobs:
       - name: Price and publish
         run: |
           git pull --rebase --autostash --quiet   # today's price history from Update data (crawl-stats.json may be modified)
-          node scripts/summarize-sleeper-trades.js
+          node --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/market-history/
