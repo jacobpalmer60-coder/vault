@@ -2,7 +2,7 @@ name: Crawl Sleeper trades
 
 # Builds a long-run history of real dynasty trades from Sleeper (see
 # scripts/crawl-sleeper-trades.js). A run starts every hour and crawls for
-# ~50 minutes at 45 calls a minute (Sleeper asks for under 1000 a minute),
+# ~48 minutes at 45 calls a minute (Sleeper asks for under 1000 a minute),
 # so it goes nearly around the clock. One run at a time.
 #
 # The raw trades (gzipped) live as assets on the "sleeper-trades"
@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 58
     env:
       GH_TOKEN: ${{ github.token }}
-      RUN_MINUTES: '50'
+      RUN_MINUTES: '48'   # leaves room to price and publish inside the hour
       CALLS_PER_MIN: '45'
     steps:
       - uses: actions/checkout@v4
@@ -60,3 +60,18 @@ jobs:
         run: |
           ls data/sleeper-trades/*.json.gz >/dev/null 2>&1 || exit 0
           gh release upload sleeper-trades data/sleeper-trades/*.json.gz --clobber
+
+      # Price everything at each trade's own date and publish the small summaries
+      # the site reads (data/market-history/), so new trades show up within the hour.
+      # The only job that writes these files.
+      - name: Price and publish
+        run: |
+          git pull --rebase --quiet   # today's price history from Update data
+          node scripts/summarize-sleeper-trades.js
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/market-history/
+          git diff --cached --quiet && exit 0
+          git commit -m "Price Sleeper trades"
+          git pull --rebase
+          git push
