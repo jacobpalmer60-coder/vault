@@ -85,7 +85,7 @@
 
 <script src="vault-core.js?v=3a68f3cb"></script>
 <script src="vault-nav.js?v=1890535d"></script>
-<script src="market-data.js?v=31f72b80"></script>
+<script src="market-data.js?v=68b657bf"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -100,7 +100,13 @@
    - Market highs & lows: market-data.js, against same-position, same-value peers.
    ============================================================ */
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
-const POS_COLOR = { QB: '#e48ae0', RB: '#4ade9c', WR: '#5cb8e4', TE: '#f0a857' }; // vault.css .pos-badge-*
+const POS_COLOR = { QB: '#e48ae0', RB: '#4ade9c', WR: '#5cb8e4', TE: '#f0a857', Pick: '#a8a8b1' }; // vault.css .pos-badge-*
+// Picks are tracked by year and round ('k:2027-1'): Sleeper trades don't say
+// early/mid/late and KTC's feed stores every pick as mid, so a pick's KTC value
+// here is that year's mid pick in the round.
+const ORD = n => n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n] || 'th');
+const posChip = q => (q === 'ALL' ? 'All' : q === 'Pick' ? 'Picks' : q);
+let pickHistory = null, pickHistoryLoading = null;
 const POS_MIN_MONTH = 15, MOVE_MIN = 5, MOVE_DAYS = 30, MOVE_SHOW = 8;
 const signed = v => `${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%`;
 const esc = s => Vault.escapeHtml(s);
@@ -224,17 +230,17 @@ async function lookUp(norm) {
   const box = document.getElementById('lookupBody'), who = byNorm.get(norm);
   if (!who) { box.textContent = 'No KTC value for that player.'; return; }
   box.innerHTML = '<div class="text-zinc-500">Loading his history…</div>';
-  if (!history) {
-    historyLoading ||= Vault.fetchPlayerValueHistory(isSF, bonusTe);
-    history = await historyLoading;
-  }
+  const isPick = who.pos === 'Pick';
+  if (isPick && !pickHistory) { pickHistoryLoading ||= Vault.fetchPickValueHistory(); pickHistory = await pickHistoryLoading; }
+  if (!isPick && !history) { historyLoading ||= Vault.fetchPlayerValueHistory(isSF, bonusTe); history = await historyLoading; }
   if (lookupNorm !== norm) return; // another player was picked meanwhile
   const cutoff = lookupRange === 'all' ? '' : new Date(Date.now() - +lookupRange * 864e5).toISOString().slice(0, 10);
-  const series = (history.snapshots || []).filter(s => s.date >= cutoff).map(s => ({ date: s.date, value: Vault.resolveHistoricalValue(s.players?.[norm], isSF, bonusTe) })).filter(p => Number.isFinite(p.value));
+  const entryOf = s => (isPick ? s.picks?.[`${who.season}-${who.round}-mid`] : s.players?.[norm]);
+  const series = ((isPick ? pickHistory : history).snapshots || []).filter(s => s.date >= cutoff).map(s => ({ date: s.date, value: Vault.resolveHistoricalValue(entryOf(s), isSF, bonusTe) })).filter(p => Number.isFinite(p.value));
   const prem = new Map((daily?.players[norm] || []).map(([d, pct, n]) => [dayDate(d), { pct, n }]));
   const market = series.map((p, i) => { const m = prem.get(p.date); return m ? { i, date: p.date, value: Math.round(p.value * (1 + m.pct / 100)), pct: m.pct, n: m.n } : null; }).filter(Boolean);
   // Today's market value (as on the player card and in the table).
-  const mp = marketPlayer(league, who.name, who.pos), read = mp.read;
+  const mp = marketPlayer(league, who.key || who.name, who.pos), read = mp.read;
   const head = `<div class="flex items-center gap-2 flex-wrap mb-2">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(who.pos)}">${who.pos || '—'}</span>
       <span class="text-[15px] font-semibold text-zinc-100">${esc(who.name)}</span>
@@ -286,7 +292,7 @@ async function renderMovers(league, playerMap) {
   moversRows = [];
   playerMap.forEach(p => {
     if (!(p.value >= HL_MIN_VALUE) || !p.pos) return;
-    const m = marketValue(league, p.name, { min: HL_MIN_TRADES });
+    const m = marketValue(league, p.key || p.name, { min: HL_MIN_TRADES });
     if (m.like && m.vsPeers != null) moversRows.push({ ...p, m });
   });
   document.getElementById('movers').classList.toggle('hidden', moversRows.length < 4);
@@ -308,7 +314,7 @@ function drawMovers() {
         <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
         <div class="min-w-0">
           <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(r.name)}</div>
-          <div class="text-[11px] text-zinc-400">Paid <span class="mono text-zinc-300">${signed(r.m.premium)}</span> vs KTC; ${r.pos}s at his value <span class="mono">${signed(peer)}</span> <span class="text-zinc-500">· ${r.m.n} trades</span></div>
+          <div class="text-[11px] text-zinc-400">Paid <span class="mono text-zinc-300">${signed(r.m.premium)}</span> vs KTC; ${r.pos === 'Pick' ? 'picks at its' : r.pos + 's at his'} value <span class="mono">${signed(peer)}</span> <span class="text-zinc-500">· ${r.m.n} trades</span></div>
         </div>
         <span class="text-[13px] mono font-semibold ${up ? 'text-emerald-300' : 'text-amber-300'}" title="vs players at the same position and KTC value">${signed(r.m.vsPeers)}</span>
       </div>`;
@@ -320,7 +326,7 @@ function drawMovers() {
     </div>`;
   const chip = p => `<button onclick="setMoversPos('${p}')" aria-pressed="${moversPos === p}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${moversPos === p ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${p === 'ALL' ? 'All' : p}</button>`;
   document.getElementById('moversBody').innerHTML = `
-    <div class="flex flex-wrap gap-1.5 mb-3">${['ALL', 'QB', 'RB', 'WR', 'TE'].map(chip).join('')}</div>
+    <div class="flex flex-wrap gap-1.5 mb-3">${['ALL', 'QB', 'RB', 'WR', 'TE', 'Pick'].map(chip).join('')}</div>
     ${posLine}
     <div class="grid lg:grid-cols-2 gap-3">
       ${list('Market highs', 'Managers pay more for these than for others at their position and KTC value. A chance to sell high.', highs)}
@@ -339,12 +345,12 @@ const ALL_PAGE = 50;
 let allRows = [], allSort = { key: 'market', dir: -1 }, allPos = 'ALL', allQuery = '', allShown = ALL_PAGE;
 function buildAll() {
   allRows = [...byNorm.entries()].map(([norm, p]) => {
-    const mp = marketPlayer(league, p.name, p.pos), m = mp.read;
+    const mp = marketPlayer(league, p.key || p.name, p.pos), m = mp.read;
     return { ...p, norm, read: m, market: m ? p.value * (1 + mp.adj / 100) : null, adj: m ? mp.adj : null, n: m ? m.n : null };
   });
   const rank = (key, field) => [...allRows].filter(r => r[field] != null).sort((a, b) => b[field] - a[field]).forEach((r, i) => { r[key] = i + 1; });
   rank('ktcRank', 'value'); rank('mktRank', 'market');
-  document.getElementById('allPos').innerHTML = ['ALL', 'QB', 'RB', 'WR', 'TE'].map(q => `<button onclick="setAllPos('${q}')" data-pos="${q}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors">${q === 'ALL' ? 'All' : q}</button>`).join('');
+  document.getElementById('allPos').innerHTML = ['ALL', 'QB', 'RB', 'WR', 'TE', 'Pick'].map(q => `<button onclick="setAllPos('${q}')" data-pos="${q}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors">${posChip(q)}</button>`).join('');
   document.getElementById('allSearch').oninput = e => { allQuery = e.target.value.trim().toLowerCase(); allShown = ALL_PAGE; drawAll(); };
   const priced = allRows.filter(r => r.market != null).length;
   document.getElementById('allSub').textContent = `Every player, ranked by what managers pay for him in completed trades. ${priced} of ${allRows.length} have enough trades for a market value; the rest show — and sort last.`;
@@ -407,6 +413,13 @@ async function init() {
       const row = { name: p.name, pos: p.pos, value: p[valueField] };
       playerMap.set(p.ktcId, row);
       byNorm.set(Vault.normalizeName(p.name), row);
+    });
+    (ktc.picks || []).forEach(p => {
+      if (p.slot !== 'mid' || !(p[valueField] > 0)) return;
+      const key = `k:${p.season}-${p.round}`;
+      const row = { name: `${p.season} ${ORD(+p.round)}`, key, pos: 'Pick', value: p[valueField], season: +p.season, round: +p.round };
+      playerMap.set(key, row);
+      byNorm.set(key, row);
     });
     status.textContent = `${league.name} • ${Vault.tradeFormatTiers(sig)[0].label}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';

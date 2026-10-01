@@ -34,9 +34,10 @@
        trades: [[date, [[id, value], ...], [[id, value], ...], [rec, bonusRecTe, teams]]] }
    (picks: 'p<season>-<round>'; the last part is the league's PPR, TE premium
    and team count, so pages can match trades to their own league's settings)
-   and data/market-history/daily-<sf|oneQB>.json, each player's market points
-   for the player card: every day he was the main piece in at least one real
-   trade, the median premium (or discount) managers paid over KTC that day and
+   and data/market-history/daily-<sf|oneQB>.json, each player's (and pick's,
+   keyed 'k:<season>-<round>') market points for the player card and the
+   Player Market page: every day he was the main piece in at least one
+   completed trade, the median premium (or discount) managers paid over KTC that day and
    how many trades it's from. Premium = what the getter sent / what his side
    was worth, both consolidation-adjusted, minus 1, as a whole-number %:
      { from: 'YYYY-MM-DD', players: { normalizedName: [[daysSinceFrom, pct, trades], ...] } }
@@ -157,8 +158,9 @@ function main() {
       const { valueA: v1, valueB: v2 } = Vault.tradeSideValues(s1, s2);
       [[s1, v1, v2], [s2, v2, v1]].forEach(([side, got, gave]) => {
         const top = side.reduce((m, a) => (a.value > m.value ? a : m));
-        if (top.type !== 'player' || !got) return;
-        const pl = sleeper[top.id], key = normalizeName(`${pl.first_name || ''} ${pl.last_name || ''}`.trim());
+        if (!got) return;
+        const pl = sleeper[top.id];
+        const key = top.type === 'pick' ? `k:${top.id.slice(1)}` : normalizeName(`${pl.first_name || ''} ${pl.last_name || ''}`.trim());
         const list = premiums[format.startsWith('sf') ? 'sf' : 'oneQB'];
         (list.get(key) || list.set(key, []).get(key)).push([date, (gave / got - 1) * 100]);
       });

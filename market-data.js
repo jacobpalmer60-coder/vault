@@ -27,7 +27,7 @@ function marketLoad(league) {
     const fieldFor = tep => base + (tep >= 2 ? '_tepp' : tep === 1 ? '_tep' : '');
     const byId = new Map();
     (ktc.players || []).forEach(p => { if (p.ktcId != null) byId.set(String(p.ktcId), { type: 'player', name: p.name, pos: p.pos, row: p }); });
-    (ktc.picks || []).forEach(p => { if (p.ktcId != null) byId.set(String(p.ktcId), { type: 'pick', name: `${p.season} R${p.round}`, tier: p.slot, row: p }); });
+    (ktc.picks || []).forEach(p => { if (p.ktcId != null) byId.set(String(p.ktcId), { type: 'pick', name: `${p.season} R${p.round}`, tier: p.slot, season: +p.season, round: +p.round, row: p }); });
     const priced = (id, field) => {
       const a = byId.get(id), value = a && (a.row[field] ?? a.row[base]);
       if (!(value > 0)) return null;
@@ -38,10 +38,10 @@ function marketLoad(league) {
     const byPlayer = new Map();
     let first = '9999', last = '';
     const add = (date, s1, s2, fmt) => {
-      const key = a => (a.type === 'player' ? 'n:' + Vault.normalizeName(a.name) : a.id);
+      const key = marketKeyOf;
       const trade = { date, k1: s1.map(key), k2: s2.map(key), s1, s2, fmt };
       if (date < first) first = date; if (date > last) last = date;
-      [...trade.k1, ...trade.k2].forEach(k => { if (k.startsWith('n:')) (byPlayer.get(k) || byPlayer.set(k, []).get(k)).push(trade); });
+      [...trade.k1, ...trade.k2].forEach(k => { if (k) (byPlayer.get(k) || byPlayer.set(k, []).get(k)).push(trade); });
     };
     let ktcFrom = '9999';
     (db.trades || []).forEach(t => {
@@ -58,7 +58,7 @@ function marketLoad(league) {
     (recent?.trades || []).forEach(([date, a, b, f]) => {
       if (date >= ktcFrom) return;
       const side = s => s.map(([id, value]) => {
-        if (id[0] === 'p') { const [season, round] = id.slice(1).split('-'); return { type: 'pick', id, name: `${season} R${round}`, value }; }
+        if (id[0] === 'p') { const [season, round] = id.slice(1).split('-'); return { type: 'pick', id, name: `${season} R${round}`, season: +season, round: +round, value }; }
         const [name, pos] = recent.names[id] || [];
         return { type: 'player', id, name: name || 'Unknown player', pos, value };
       });
@@ -87,10 +87,17 @@ const marketQuantile = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.ma
 // Every real trade with this player, from his side: what his side got (ps) and
 // sent (os), what the getter paid over KTC, its shape, and whether he was the
 // main piece (the best piece on his side).
+// Each asset's key in the index: players by name ('n:' + normalized), picks by
+// year and round ('k:2027-1'; early/mid/late isn't known for Sleeper trades and
+// KTC's feed stores every pick as mid). A key passed in is used as is.
+function marketKeyOf(a) {
+  if (typeof a === 'string') return /^[nk]:/.test(a) ? a : 'n:' + Vault.normalizeName(a);
+  return a.type === 'pick' ? (a.season && a.round ? `k:${a.season}-${a.round}` : '') : 'n:' + Vault.normalizeName(a.name);
+}
 function marketComps(name) {
   const d = Market.data;
   if (!d || d.failed) return [];
-  const id = 'n:' + Vault.normalizeName(name);
+  const id = marketKeyOf(name);
   return (d.byPlayer.get(id) || []).map(t => {
     const inOne = t.k1.includes(id);
     const ps = inOne ? t.s1 : t.s2, os = inOne ? t.s2 : t.s1;
@@ -127,7 +134,7 @@ function marketPeerBaseline(even) {
   if (!d || d.failed) return null;
   if (peerCache.has(even)) return peerCache.get(even);
   const events = [];
-  d.byPlayer.forEach((trades, key) => marketComps(key.slice(2)).forEach(c => {
+  d.byPlayer.forEach((trades, key) => marketComps(key).forEach(c => {
     if (!c.main || (even && c.dir !== 0)) return;
     const { valueA: vp, valueB: vo } = Vault.tradeSideValues(c.ps, c.os);
     if (vp) events.push([c.him.value, (vo / vp - 1) * 100, c.him.pos || 'Pick']);
@@ -142,7 +149,7 @@ function marketPeerBaseline(even) {
     return grid;
   };
   const grids = { ALL: gridFor(events) };
-  ['QB', 'RB', 'WR', 'TE'].forEach(p => { grids[p] = gridFor(events.filter(e => e[2] === p)); });
+  ['QB', 'RB', 'WR', 'TE', 'Pick'].forEach(p => { grids[p] = gridFor(events.filter(e => e[2] === p)); });
   const knownAll = grids.ALL.map((g, i) => (g == null ? null : i)).filter(i => i != null);
   const at = (v, pos) => {
     const i = Math.round(Math.max(0, Math.min(10000, v)) / 100);
@@ -152,7 +159,7 @@ function marketPeerBaseline(even) {
     return grids.ALL[knownAll.reduce((b, j) => (Math.abs(j - i) < Math.abs(b - i) ? j : b), knownAll[0])];
   };
   const byPos = {};
-  ['QB', 'RB', 'WR', 'TE'].forEach(p => { const l = events.filter(e => e[2] === p).map(e => e[1]); if (l.length >= 30) byPos[p] = med(l); });
+  ['QB', 'RB', 'WR', 'TE', 'Pick'].forEach(p => { const l = events.filter(e => e[2] === p).map(e => e[1]); if (l.length >= 30) byPos[p] = med(l); });
   const out = { at, byPos };
   peerCache.set(even, out);
   return out;
@@ -188,8 +195,8 @@ function marketValue(league, name, { even = false, min = MARKET_MIN_COMPS } = {}
    and consolidation trades alone read cheap players high (2k +69%); getting
    a star for more pieces costs only ~6% beyond KTC's own consolidation bonus.
 
-   Picks, and players with fewer than MARKET_MIN_COMPS such trades, get no
-   read (0). Clamped to ±MARKET_ADJ_CAP so one noisy read can't swing a
+   Picks count by year and round ('k:2027-1', every tier together). Anything
+   with fewer than MARKET_MIN_COMPS such trades gets no read (0). Clamped to ±MARKET_ADJ_CAP so one noisy read can't swing a
    trade. Cached per name, since Trade Coach judges thousands of trades. Used
    by the player card, the Player Market page, "At market prices" and Trade
    Coach; the grade never uses it. */
@@ -199,7 +206,7 @@ const marketAdjCache = new Map();
 function marketPlayer(league, name, pos) {
   const none = { adj: 0, read: null };
   if (!name || !Market.data || Market.data.failed) return none;
-  const key = Vault.normalizeName(name);
+  const key = marketKeyOf(name);
   if (marketAdjCache.has(key)) return marketAdjCache.get(key);
   const read = marketValue(league, name);
   const out = read.like ? { adj: Math.max(-MARKET_ADJ_CAP, Math.min(MARKET_ADJ_CAP, read.premium)), read } : none;
@@ -207,7 +214,9 @@ function marketPlayer(league, name, pos) {
   return out;
 }
 function marketAdj(league, a) {
-  return a && a.type === 'player' ? marketPlayer(league, a.name, a.pos).adj : 0;
+  if (!a) return 0;
+  if (a.type === 'pick') { const k = marketKeyOf(a); return k ? marketPlayer(league, k, 'Pick').adj : 0; }
+  return marketPlayer(league, a.name, a.pos).adj;
 }
 // A trade at market prices vs KTC, from the side that gives `give` and gets `get`:
 // ktc / market = % in that side's favor (consolidation-adjusted, as the grade
