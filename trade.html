@@ -477,7 +477,7 @@ async function init() {
     // your team: only shown when there's no trade link and no saved team.
     // ?coach=<option> (e.g. League Overview's "Find sell-high trades") opens Trade Coach on it.
     // Read before loading your team, which rewrites the page address.
-    const coachParam = new URLSearchParams(location.search).get('coach');
+    const coachParam = { market: 'sellhigh' }[new URLSearchParams(location.search).get('coach')] || new URLSearchParams(location.search).get('coach'); // 'market' was the combined option
     if (!applyTradeFromUrl()) {
       if (Vault.myTeam(teams)) document.getElementById('loadRostersBtn').onclick();
       else document.getElementById('setup').classList.remove('hidden');
@@ -2038,6 +2038,6 @@ init();
 <script src="negotiation.js?v=66e4576c"></script>
 <script src="market-data.js?v=1f2ccfe3"></script>
 <script src="market.js?v=debc6d7d"></script>
-<script src="coach.js?v=b6295fa6"></script>
+<script src="coach.js?v=a481bd4d"></script>
 </body>
 </html>

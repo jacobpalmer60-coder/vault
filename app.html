@@ -394,7 +394,7 @@ function setValueHistoryMetric(key) {
    Your players and picks that sell for clearly more or less than KTC in
    completed trades (market-data.js marketAdj, the same number as the Player
    Market page): the top NUDGE_HIGHS above, NUDGE_LOWS below, each linking to
-   its chart, plus a button straight to Trade Coach's Sell high, buy low. */
+   its chart, plus buttons straight to Trade Coach's Sell high and Buy low. */
 const NUDGE_AT = 8, NUDGE_HIGHS = 3, NUDGE_LOWS = 2;
 async function renderMarketNudge(league) {
   const box = document.getElementById('marketNudge'), me = Vault.myTeam(teams);
@@ -417,7 +417,10 @@ async function renderMarketNudge(league) {
       </div>
       ${highs.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-emerald-300/90">Sells high</span>${highs.map(a => chip(a, true)).join('')}</div>` : ''}
       ${lows.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-amber-300/90">Sells low</span>${lows.map(a => chip(a, false)).join('')}</div>` : ''}
-      <a href="${Vault.linkTo('trade.html')}&coach=market" class="ml-auto shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10 transition-colors">Find sell-high trades →</a>
+      <div class="ml-auto flex flex-wrap gap-2 shrink-0">
+        <a href="${Vault.linkTo('trade.html')}&coach=sellhigh" class="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10 transition-colors">Sell high →</a>
+        <a href="${Vault.linkTo('trade.html')}&coach=buylow" class="text-[12px] px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10 transition-colors">Buy low →</a>
+      </div>
     </div>`;
   box.classList.remove('hidden');
 }
