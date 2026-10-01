@@ -6,7 +6,7 @@
 <title>Data Status — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=41e1db3a">
+<link rel="stylesheet" href="tailwind.css?v=72fdea1d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -53,7 +53,7 @@
   </section>
 </div>
 
-<script src="vault-core.js?v=3a68f3cb"></script>
+<script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
 <script>
 /* ============================================================
@@ -125,7 +125,9 @@ async function trades() {
   // KTC's daily summaries are one file per format and month, since September 2026.
   const months = [];
   for (let d = new Date('2026-09-01T00:00:00Z'); d <= new Date(); d.setUTCMonth(d.getUTCMonth() + 1)) months.push(d.toISOString().slice(0, 7));
-  const [ktcTrades, ...summaries] = await Promise.all([getJson('data/ktc-trades.json'), ...months.flatMap(m => ['sf', 'oneQB'].map(f => getJson(`data/market/${f}-${m}.json`)))]);
+  const [slimSf, slimOne, ...summaries] = await Promise.all([getJson('data/ktc-trades-sf.json'), getJson('data/ktc-trades-oneQB.json'), ...months.flatMap(m => ['sf', 'oneQB'].map(f => getJson(`data/market/${f}-${m}.json`)))]);
+  // KTC's feed, from the slim per-format files (every format together = the full feed).
+  const ktcTrades = slimSf ? { updated: slimSf.updated, count: slimSf.total, trades: [...slimSf.dates, ...(slimOne?.dates || [])].map(date => ({ date })) } : null;
   const days = new Set(), counted = summaries.reduce((t, doc) => { Object.entries(doc?.days || {}).forEach(([d, s]) => { days.add(d); t += s.n || 0; }); return t; }, 0);
   const dates = (ktcTrades?.trades || []).map(t => String(t.date).slice(0, 10)).sort();
   const [recent, daily] = await Promise.all([

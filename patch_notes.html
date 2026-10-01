@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=41e1db3a">
+<link rel="stylesheet" href="tailwind.css?v=72fdea1d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -28,7 +28,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=3a68f3cb"></script>
+<script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -36,6 +36,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'new', page: 'League Overview', text: 'Your market: a card at the top of League Overview shows your players and picks that sell for clearly more than KTC in completed trades (sells high) and clearly less (sells low), e.g. "Jonathan Taylor +25%". Each opens its chart on the Player Market page, and Find sell-high trades opens Trade Coach straight to Sell high, buy low with the results already found.' },
+    { kind: 'improved', page: 'Trade Calculator', text: 'Sell high, buy low now always shows both kinds: up to five deals selling your market highs and five buying other teams\' market lows, so the buy-low side isn\'t crowded out.' },
+    { kind: 'improved', page: 'Everywhere', text: 'Faster pages: the Trade Calculator, Trade Database, Player Market and Player Rankings now load KTC\'s trade feed for your league\'s format only, in a compact file (about 150 KB to download for Superflex instead of about 380 KB), so they open and draw noticeably faster, especially on phones.' },
     { kind: 'new', page: 'Trade Calculator', text: 'Sell high, buy low: a new Trade Coach option. It shops your players and picks that sell for more than KTC in completed trades (8%+) for more than their KTC value, and finds other teams\' pieces that sell for less (8%+ under) you can get for less than theirs, keeping only deals their manager would likely take, most ahead for you first. Each card says why ("Sell high: Jonathan Taylor sells for 25% over KTC in completed trades. Buy low: 2027 R1 sells for 14% under KTC.").' },
     { kind: 'new', page: 'Managers', text: 'Who trades well at market prices: League at a glance has W-L Market and Net Market, every manager\'s trades again at what players actually go for (today\'s KTC values times each piece\'s market value from completed trades), plus a line naming who has traded best and who has given up the most. A manager who keeps getting pieces the market pays up for comes out ahead here even when KTC calls the trades even.' },
     { kind: 'new', page: 'Data status', text: 'A Data status page (top bar, next to Patch Notes) shows everything the site runs on: whether the daily update and the hourly trade crawl succeeded and when, how many players, picks and values are loaded and how fresh they are, KTC\'s trade feed, how many completed trades have been collected and priced in each format, how the crawl is going (leagues seen, still queued, new trades per run, trades per season), and how big the saved trade files are.' },

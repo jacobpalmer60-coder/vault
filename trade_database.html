@@ -6,7 +6,7 @@
 <title>Trade Database — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=41e1db3a">
+<link rel="stylesheet" href="tailwind.css?v=72fdea1d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -75,7 +75,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=3a68f3cb"></script>
+<script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
 <script>
 const TIER_LABEL = {
@@ -481,15 +481,16 @@ async function init() {
   const status = document.getElementById('status');
   try {
     const leagueId = Vault.getLeagueId();
-    const [league, ktcData, tradesData] = await Promise.all([
+    const [league, ktcData] = await Promise.all([
       fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()),
-      Vault.fetchKtcValues(),
-      fetch('data/ktc-trades.json').then(r => r.json())
+      Vault.fetchKtcValues()
     ]);
     if (!league || league.error) throw new Error('League not found.');
 
     const rosterPositions = league.roster_positions || [];
     const isSF = rosterPositions.filter(p => p === 'QB' || p === 'SUPER_FLEX').length >= 2;
+    // Only this league's QB format (the slim per-format file, ~150 KB instead of ~380 KB).
+    const tradesData = await Vault.fetchKtcTrades(isSF ? 2 : 1);
     const sig = Vault.tradeFormatSig(league); // this league's own settings (Vault.ktcPprCode / ktcTepCode)
 
     // Priced to match this league's own TEP setting, not just its 1QB/SF format —

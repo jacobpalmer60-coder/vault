@@ -28,6 +28,8 @@ jobs:
       - run: node scripts/fetch-ktc.js
       - run: node scripts/fetch-projections.js
       - run: node scripts/fetch-ktc-trades.js
+      # One compact file per QB format, which is what the pages load (see the script header).
+      - run: node scripts/slim-ktc-trades.js
       # Daily summary of the real trades above before they roll off KTC's
       # ~25,000-trade window (data/market/; see the script header).
       - run: node scripts/snapshot-market.js
@@ -42,7 +44,7 @@ jobs:
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ktc-values.json data/projections.json data/ktc-trades.json data/market/ data/player-value-history.json data/pick-value-history.json data/history/ data/sleeper-players.json data/weekly/
+          git add data/ktc-values.json data/projections.json data/ktc-trades.json data/ktc-trades-sf.json data/ktc-trades-oneQB.json data/market/ data/player-value-history.json data/pick-value-history.json data/history/ data/sleeper-players.json data/weekly/
           git diff --cached --quiet || git commit -m "Update KTC values, projections, trade database, and value history"
           # The hourly Sleeper crawl also pushes (data/market-history/ only), so catch up first.
           git pull --rebase

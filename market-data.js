@@ -1,7 +1,7 @@
 /* ============================================================
    REAL TRADES: shared data (Trade Calculator, Player Rankings)
    Loads completed dynasty trades for a league's QB format from two sources that
-   never overlap: KTC's trade database (data/ktc-trades.json, its last few
+   never overlap: KTC's trade database (data/ktc-trades-<sf|oneQB>.json, its last few
    days, priced at today's KTC values for the league's format) and, for the
    ~90 days before that, completed trades from Sleeper dynasty leagues
    (data/market-history/recent-<sf|oneQB>.json, each priced at KTC values
@@ -19,7 +19,7 @@ function marketLoad(league) {
   if (Market.loading) return Market.loading;
   const qbs = Vault.tradeFormatSig(league).qbs; // same QB read as the trade matching (2QB leagues count as Superflex)
   const recentFile = `data/market-history/recent-${qbs === 2 ? 'sf' : 'oneQB'}.json`;
-  Market.loading = Promise.all([fetch('data/ktc-trades.json').then(r => r.json()), Vault.fetchKtcValues(), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null)]).then(([db, ktc, recent]) => {
+  Market.loading = Promise.all([Vault.fetchKtcTrades(qbs), Vault.fetchKtcValues(), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null)]).then(([db, ktc, recent]) => {
     // Each KTC trade is priced in its own league's format: its QB setting and TE
     // premium (KTC's tep code 0-3 -> no premium, TE+, TE++), like the Sleeper
     // trades, so a tight end isn't priced at TE-premium values in a league without it.

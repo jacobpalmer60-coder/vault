@@ -325,8 +325,15 @@ async function coachMarket(me, progress) {
     return { empty: 'No team would take a deal that sells your market highs above KTC or sells you their market lows below it right now.' };
   }
   const seen = new Set();
-  const unique = list.filter(o => { const k = negKeys(o.give).sort().join() + '>' + negKeys(o.get).sort().join(); if (seen.has(k)) return false; seen.add(k); return true; });
-  return { title: 'Sell high, buy low', list: unique.sort((x, y) => y.gain - x.gain).slice(0, 10) };
+  const unique = list.filter(o => { const k = negKeys(o.give).sort().join() + '>' + negKeys(o.get).sort().join(); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((x, y) => y.gain - x.gain);
+  // Both kinds on the list: up to MARKET_EACH sells and MARKET_EACH buys, the
+  // rest of the ten from whichever side has more, most ahead first.
+  const MARKET_EACH = 5;
+  const sells = unique.filter(o => o.id.startsWith('sell:')), buys = unique.filter(o => o.id.startsWith('buy:'));
+  const pick = [...sells.slice(0, MARKET_EACH), ...buys.slice(0, MARKET_EACH)];
+  const rest = unique.filter(o => !pick.includes(o)).slice(0, 10 - pick.length);
+  return { title: 'Sell high, buy low', list: [...pick, ...rest].sort((x, y) => y.gain - x.gain) };
 }
 
 async function coachShop(me, progress) {

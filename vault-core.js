@@ -541,6 +541,23 @@ const Vault = {
      run daily by .github/workflows/update-ktc.yml (KTC sends no CORS headers, so this
      can't be fetched client-side from a different origin). Matched by normalized name
      since KTC has no Sleeper IDs. */
+  /* KTC's latest trades for one QB format (qbs: 2 = Superflex, 1 = 1QB), from
+     the compact per-format file scripts/slim-ktc-trades.js writes daily, in the
+     full file's shape: { updated, count (all formats), trades: [{ date, t1, t2,
+     teams, qbs, ppr, tep, starters }] } with ids as strings. Falls back to the
+     full data/ktc-trades.json (every format, ~3 MB) if the slim one is missing. */
+  async fetchKtcTrades(qbs) {
+    try {
+      const res = await fetch(`data/ktc-trades-${qbs === 2 ? 'sf' : 'oneQB'}.json`);
+      if (res.ok) {
+        const s = await res.json();
+        return { updated: s.updated, count: s.total, trades: s.trades.map(([d, teams, ppr, tep, starters, t1, t2]) => ({ date: s.dates[d], teams, qbs, ppr, tep, starters, t1: t1.map(String), t2: t2.map(String) })) };
+      }
+    } catch (e) { console.warn('Slim KTC trades unavailable, loading the full file', e); }
+    const full = await (await fetch('data/ktc-trades.json')).json();
+    return { ...full, trades: (full.trades || []).filter(t => t.qbs === qbs) };
+  },
+
   async fetchKtcValues() {
     const res = await fetch(VAULT_CONFIG.KTC_URL);
     if (!res.ok) throw new Error('KTC values fetch failed: ' + res.status);
