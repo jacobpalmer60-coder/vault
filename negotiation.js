@@ -32,11 +32,15 @@ const NEG = {
   TOLERANCE_MAX: 30,        // ...and history never loosens it past 30%
   CONSOLIDATION_BONUS: 20,  // getting the trade's best single piece for more pieces: they'll pay the market's premium
   SITE_NO_PENALTY: 5,       // the grade reading bad for them counts against it (no longer an automatic no)
-  MARKET_SCALE: 0,          // OFF: what pieces go for in completed trades (market-data.js) doesn't move
-  MARKET_MAX: 8,            // willingness yet. Tested 2026-10-01 on the league's 23 completed trades: none
-                            // 34/46 sides right, a quarter of the gap 33, half 31, full 31. Those used this
-                            // week's market reads on older trades; re-test with each trade's own-date reads
-                            // (data/market-history/daily-*) before turning it on (0.25 = a quarter, cap 8).
+  MARKET_SCALE: 0.5,        // half of the gap between the deal at market prices (market-data.js: what pieces
+  MARKET_MAX: 8,            // go for in completed trades) and at KTC moves willingness, capped at 8 points.
+                            // Backtested 2026-10-01 on ~136k crawled Sleeper trades, each priced on its own
+                            // day with market reads from the 90 days before it only: completed trades sit
+                            // closer to even at market prices (median 24.9% -> 22.8% off, Superflex), and a
+                            // simplified accept test called both sides right on 34.4% off / 35.8% at a
+                            // quarter / 36.3% half / 36.7% full (1QB 32.1 / 33.7 / 34.1 / 34.3). Half takes
+                            // most of the gain; the user chose it. (The earlier 23-trade test that said
+                            // otherwise priced old trades at that week's market reads.)
   STAR_1FOR1: [[8000, 10], [6000, 6]], // asking for a star straight up: in KTC's trade database only ~1% of
                             // trades with an 8,000+ piece (and ~5% at 6,000-8,000) were 1-for-1, vs ~50% under 4,000
   TARGET_EDGE: 4,           // their counters aim ~4% in their favor
