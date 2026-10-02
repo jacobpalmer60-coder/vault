@@ -7,7 +7,7 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=1d276120">
+<link rel="stylesheet" href="tailwind.css?v=c98b21dd">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -21,7 +21,7 @@
       <div id="status" class="mt-2 flex items-center gap-3 text-zinc-300 text-sm">
         <div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>
       </div>
-      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">Every team ranked by total dynasty value (players plus picks, at KeepTradeCut prices), with how good each lineup is now, how long that lasts, and their playoff odds. Click a team for more, and a link to its full Team Analyzer breakdown. <a href="#legend" class="text-amber-300 hover:text-amber-200 whitespace-nowrap">What do these numbers mean?</a></p>
+      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">Every team ranked by total dynasty value (players plus picks, at KeepTradeCut prices), with how good each lineup is now, how long that lasts, and their playoff odds. Click a team for more, and a link to its full Team Analyzer breakdown. <a href="#legend" onclick="document.getElementById('legend').open = true" class="text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">What do these numbers mean?</a></p>
     </div>
     <button id="refresh" class="self-start sm:self-auto shrink-0 btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
   </div>
@@ -69,27 +69,29 @@
     <div id="valueHistoryChart"></div>
   </div>
 
-  <div id="legend" class="mt-8 card rounded-vault p-6 scroll-mt-24">
-    <h2 class="display text-[20px] gold-text mb-4">What the numbers mean</h2>
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]">
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Overall</span><span class="text-zinc-400"> — Players + Picks combined, a team's total dynasty value at KeepTradeCut prices</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Position Split</span><span class="text-zinc-400"> — Share of player value by QB/RB/WR/TE</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Players</span><span class="text-zinc-400"> — Sum of rostered player values</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Opt PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored with your league's own scoring settings — not necessarily who you'd actually start today</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Opt PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Longevity</span><span class="text-zinc-400"> — How many of the next 5 years this roster is projected to stay good enough for the playoffs, as players age and picks arrive. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from how you stand now vs. how long that lasts (see guide below)</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Career</span><span class="text-zinc-400"> — All-time W-L-T for this manager, across every past season of this league on Sleeper</span></div>
-      <div class="p-3 rounded-xl bg-black/30 border border-white/[0.04]"><span class="text-zinc-300 font-medium">Proj. Record / Playoff % / Title %</span><span class="text-zinc-400"> — The rest of your schedule played out thousands of times, with each team scoring around its Opt PPG each week (give or take 22%). A rough estimate, not a guarantee</span></div>
+  <details id="legend" class="group mt-8 card rounded-vault scroll-mt-24">
+    <summary class="flex items-center justify-between gap-3 px-6 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+      <h2 class="display text-[22px]">What the numbers mean</h2>
+      <span class="text-[12px] text-zinc-400"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
+    </summary>
+    <div class="px-6 pb-6">
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 text-[13px]">
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Overall</span><span class="text-zinc-400"> — Players + Picks combined, a team's total dynasty value at KeepTradeCut prices</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Position Split</span><span class="text-zinc-400"> — Share of player value by QB/RB/WR/TE</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Players</span><span class="text-zinc-400"> — Sum of rostered player values</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Opt PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored with your league's own scoring settings — not necessarily who you'd actually start today</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Opt PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Longevity</span><span class="text-zinc-400"> — How many of the next 5 years this roster is projected to stay good enough for the playoffs, as players age and picks arrive. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from how you stand now vs. how long that lasts (see guide below)</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Career</span><span class="text-zinc-400"> — All-time W-L-T for this manager, across every past season of this league on Sleeper</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Proj. Record / Playoff % / Title %</span><span class="text-zinc-400"> — The rest of your schedule played out thousands of times, with each team scoring around its Opt PPG each week (give or take 22%). A rough estimate, not a guarantee</span></div>
     </div>
-  </div>
-
-  <div class="mt-6 card rounded-vault p-6">
-    <h2 class="display text-[20px] gold-text mb-1">Archetype Guide</h2>
+    <h3 class="display text-[20px] mt-6 mb-1">Archetypes</h3>
     <p class="text-[12px] text-zinc-400 mb-4">Every archetype comes from two independent standings — Contending (current player value + production: how strong you are right now) and Longevity (the 5-year projection: how many years that lasts) — each ranked Top 2 / Top Half / Bottom Half / Bottom 2 of the league. Draft capital (Picks) is tracked separately — shown as its own qualifier next to each pill — since a team's picks and its projected window don't always point the same direction.</p>
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]" id="archGuide"></div>
-  </div>
+    </div>
+  </details>
 
   <div class="mt-10 pt-6 border-t border-white/5 flex flex-col md:flex-row items-center justify-center gap-3 text-[12px] text-zinc-400">
     <span class="uppercase tracking-widest text-zinc-400">Powered by:</span>
@@ -447,7 +449,7 @@ function renderMobileCards(data, minOverall, maxOverall) {
     return `<div class="card card-hover rounded-vault-sm p-4 mobile-team-card" data-id="${t.rosterId}">
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2.5 min-w-0">
-          <span class="w-5 text-right text-[12px] font-mono text-zinc-400 shrink-0">${t.rank}</span>
+          <span class="w-5 text-right num text-[16px] text-zinc-500 shrink-0">${t.rank}</span>
           <div class="min-w-0">
             <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
             <div class="text-[12px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
@@ -460,7 +462,7 @@ function renderMobileCards(data, minOverall, maxOverall) {
       <div class="flex items-center justify-between gap-3 mt-3.5">
         <div>
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Overall</div>
-          <div class="font-mono text-[16px] text-zinc-50">${Math.round(t.overall).toLocaleString()}</div>
+          <div class="num text-[26px] text-zinc-50">${Math.round(t.overall).toLocaleString()}</div>
           ${microBar(t.overall, minOverall, maxOverall)}
         </div>
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
@@ -478,7 +480,7 @@ function renderMobileCards(data, minOverall, maxOverall) {
       <div class="grid grid-cols-3 gap-2 text-center py-3 border-b border-white/5">
         <div><div class="font-mono text-[13px] text-zinc-200">${proj?.rec ?? '—'}</div><div class="text-[12px] text-zinc-400">Proj. Record</div></div>
         <div><div class="font-mono text-[13px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-200'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</div><div class="text-[12px] text-zinc-400">Playoff %</div></div>
-        <div><div class="font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-200'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</div><div class="text-[12px] text-zinc-400">Title %</div></div>
+        <div><div class="font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-zinc-100 font-medium' : 'text-zinc-200'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</div><div class="text-[12px] text-zinc-400">Title %</div></div>
       </div>
 
       ${exp ? teamDetailPanel(t) : ''}
@@ -524,7 +526,7 @@ function render() {
     return `<tr class="team-row" data-id="${t.rosterId}">
       <td class="px-4 py-3.5">
         <div class="flex items-center gap-2.5 min-w-[170px] max-w-[230px]">
-          <span class="w-5 text-right text-[12px] font-mono text-zinc-400">${t.rank}</span>
+          <span class="w-5 text-right num text-[16px] text-zinc-500">${t.rank}</span>
           <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
           <div class="min-w-0">
             <div class="font-semibold text-[15px] text-white leading-snug">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
@@ -539,10 +541,10 @@ function render() {
       </td>
       <td class="px-2.5 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-300'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</div>
-        <div class="font-mono text-[12px] whitespace-nowrap ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-400'}" title="Title odds">${proj ? proj.championshipPct.toFixed(1) + '% title' : '—'}</div>
+        <div class="font-mono text-[12px] whitespace-nowrap ${(proj?.championshipPct ?? 0) >= 15 ? 'text-zinc-100 font-medium' : 'text-zinc-400'}" title="Title odds">${proj ? proj.championshipPct.toFixed(1) + '% title' : '—'}</div>
       </td>
       <td class="px-2.5 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[15px] text-zinc-50">${Math.round(t.overall).toLocaleString()}</div>
+        <div class="num text-[20px] text-zinc-50">${Math.round(t.overall).toLocaleString()}</div>
         ${microBar(t.overall, minOverall, maxOverall)}
       </td>
       <td class="px-2.5 py-3.5 text-right">
