@@ -7,7 +7,7 @@
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=c98b21dd">
+<link rel="stylesheet" href="tailwind.css?v=8412668f">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -19,10 +19,9 @@
     <h1 class="display text-[28px] font-semibold gold-text">Player Market</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
   </div>
-  <p class="text-[12px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
-    What players actually go for in completed dynasty trades, next to their KTC value: from KTC's
-    trade database and the Sleeper dynasty trades The Vault collects, matched to leagues like yours.
-    The grades on this site still use KTC; this is the market around them.
+  <p class="text-[13px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
+    What players actually go for in completed dynasty trades in leagues like yours, next to their KTC value.
+    <a href="how_we_grade.html#market" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How it works</a>
   </p>
 
   <!-- Your market: your pieces selling above and below KTC in completed trades (shown once your team is set). -->
@@ -123,7 +122,8 @@ const ORD = n => n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n] || 'th');
 const posChip = q => (q === 'ALL' ? 'All' : q === 'Pick' ? 'Picks' : q);
 let pickHistory = null, pickHistoryLoading = null;
 const POS_MIN_MONTH = 15, MOVE_MIN = 5, MOVE_DAYS = 30, MOVE_SHOW = 8;
-const signed = v => `${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%`;
+// A price against KTC value, said the way people talk about prices: "13% over", "8% under", "even".
+const signed = v => (Math.abs(v) < 0.5 ? 'even' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'over' : 'under'}`);
 const esc = s => Vault.escapeHtml(s);
 let league = null, sig = null, isSF = true, bonusTe = 0, valueField = 'sf';
 let byNorm = new Map();         // normalized name -> { name, pos, value } from KTC today
@@ -216,7 +216,7 @@ function renderMoves() {
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
       <span class="min-w-0"><span class="block text-[13px] text-zinc-100 truncate">${esc(r.name)}</span>
         <span class="block text-[11px] text-zinc-400">From <span class="mono">${signed(r.then)}</span> to <span class="mono text-zinc-300">${signed(r.now)}</span> vs KTC <span class="text-zinc-500">· ${r.n} trades</span></span></span>
-      <span class="text-[13px] mono font-semibold ${r.change > 0 ? 'text-emerald-300' : 'text-amber-300'}">${r.change > 0 ? '+' : '−'}${Math.abs(Math.round(r.change))} pts</span>
+      <span class="text-[13px] mono font-semibold ${r.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${r.change > 0 ? '+' : '−'}${Math.abs(Math.round(r.change))} pts</span>
     </button>`;
   const up = rows.filter(r => r.change >= 1).sort((a, b) => b.change - a.change).slice(0, MOVE_SHOW);
   const down = rows.filter(r => r.change <= -1).sort((a, b) => a.change - b.change).slice(0, MOVE_SHOW);
@@ -266,7 +266,7 @@ async function lookUp(norm) {
   const head = `<div class="flex items-center gap-2 flex-wrap mb-2">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(who.pos)}">${who.pos || '—'}</span>
       <span class="text-[15px] font-semibold text-zinc-100">${esc(who.name)}</span>
-      <span class="text-[12px] text-zinc-400">KTC <span class="mono text-zinc-200">${Vault.fmtInt(who.value)}</span>${read ? ` · market <span class="mono text-zinc-200">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}</span> <span class="mono ${Math.abs(mp.adj) < 3 ? 'text-zinc-300' : mp.adj > 0 ? 'text-emerald-300' : 'text-amber-300'}">(${signed(mp.adj)})</span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
+      <span class="text-[12px] text-zinc-400 basis-full flex flex-wrap items-end gap-x-8 gap-y-2 mt-1"><span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value)}</span>KTC value</span>${read ? `<span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}</span>market price, <span class="${Math.abs(mp.adj) < 3 ? 'text-zinc-300' : mp.adj > 0 ? 'text-emerald-300' : 'text-orange-300'}">${signed(mp.adj)} KTC</span></span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
     </div>${liq ? `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">${liq}</div>` : ''}`;
   if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
   const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
@@ -330,7 +330,7 @@ function renderComps(who) {
           <div class="flex text-[12px] leading-relaxed"><span class="text-zinc-500 w-9 shrink-0">Sent</span><span class="min-w-0">${side(c.os, null)}</span></div>
         </div>
         <div class="text-right shrink-0">
-          <div class="mono text-[13px] ${Math.abs(p) < 5 ? 'text-zinc-200' : p > 0 ? 'text-emerald-300' : 'text-amber-300'}">${signed(p)}</div>
+          <div class="mono text-[13px] ${Math.abs(p) < 5 ? 'text-zinc-200' : p > 0 ? 'text-emerald-300' : 'text-orange-300'}">${signed(p)}</div>
           <div class="text-[11px] text-zinc-500">${odd ? 'outlier' : 'paid vs KTC'}</div>
         </div>
       </div>`;
@@ -380,17 +380,16 @@ function drawMovers() {
   const trades = moversRows.reduce((t, r) => t + r.m.n, 0);
   document.getElementById('moversSub').textContent = `Who managers pay more or less for than other players at the same position and KTC value, in completed trades they headlined. ${moversRows.length} players with ${HL_MIN_TRADES}+ such trades.`;
   const byPos = marketPeerBaseline(false)?.byPos || {};
-  const posLine = Object.keys(byPos).length ? `<div class="text-[12px] text-zinc-400 mb-3">By position, against KTC: ${Object.entries(byPos).map(([p, v]) => `<span class="text-zinc-300">${p}</span> <span class="mono ${Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-amber-300'}">${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%</span>`).join(' <span class="text-zinc-600">·</span> ')} <span class="text-zinc-500">(how each position trades as a whole, in the same trades)</span></div>` : '';
+  const posLine = Object.keys(byPos).length ? `<div class="text-[12px] text-zinc-400 mb-3">By position, against KTC: ${Object.entries(byPos).map(([p, v]) => `<span class="text-zinc-300">${p}</span> <span class="mono ${Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%</span>`).join(' <span class="text-zinc-600">·</span> ')} <span class="text-zinc-500">(how each position trades as a whole, in the same trades)</span></div>` : '';
   const row = r => {
     const market = Math.round(r.value * (1 + r.m.premium / 100)), up = r.m.vsPeers > 0, peer = r.m.premium - r.m.vsPeers;
-    const signed = v => `${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%`;
     return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0" title="KTC ${Math.round(r.value).toLocaleString()}, market ${market.toLocaleString()} (usually ${Math.round(r.value * (1 + r.m.low / 100)).toLocaleString()} to ${Math.round(r.value * (1 + r.m.high / 100)).toLocaleString()}) · leagues like yours (${r.m.like})">
         <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
         <div class="min-w-0">
           <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(r.name)}</div>
-          <div class="text-[11px] text-zinc-400">Paid <span class="mono text-zinc-300">${signed(r.m.premium)}</span> vs KTC; ${r.pos === 'Pick' ? 'picks at its' : r.pos + 's at his'} value <span class="mono">${signed(peer)}</span> <span class="text-zinc-500">· ${r.m.n} trades</span></div>
+          <div class="text-[11px] text-zinc-400">Paid <span class="mono text-zinc-300">${signed(r.m.premium)}</span> KTC value; ${r.pos === 'Pick' ? 'picks at its' : r.pos + 's at his'} value <span class="mono">${signed(peer)}</span> <span class="text-zinc-500">· ${r.m.n} trades</span></div>
         </div>
-        <span class="text-[13px] mono font-semibold ${up ? 'text-emerald-300' : 'text-amber-300'}" title="vs players at the same position and KTC value">${signed(r.m.vsPeers)}</span>
+        <span class="text-[13px] mono font-semibold ${up ? 'text-emerald-300' : 'text-orange-300'}" title="Against players at the same position and KTC value">${signed(r.m.vsPeers)} <span class="text-[11px] font-normal text-zinc-500">vs peers</span></span>
       </div>`;
   };
   const list = (title, sub, items) => `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
@@ -447,13 +446,13 @@ function drawAll() {
   document.getElementById('allHead').innerHTML = `<tr class="text-[11px] uppercase tracking-wider text-zinc-500">${cols.map(([k, l, al, wide]) => !k
     ? `<th class="font-normal pb-2 pr-3 text-left">${l}</th>`
     : `<th class="font-normal pb-2 pr-3 text-${al}${wide ? ' hidden sm:table-cell' : ''}" aria-sort="${key === k ? (dir < 0 ? 'descending' : 'ascending') : 'none'}"><button onclick="sortAll('${k}')" class="uppercase tracking-wider hover:text-zinc-200 ${key === k ? 'text-amber-200' : ''}">${l}${key === k ? (dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`).join('')}</tr>`;
-  const tone = v => (Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-amber-300');
+  const tone = v => (Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-orange-300');
   const pct = v => (v == null ? '<span class="text-zinc-600">—</span>' : `<span class="${tone(v)}">${signed(v)}</span>`);
   const dash = '<span class="text-zinc-600">—</span>';
   document.getElementById('allBody').innerHTML = rows.slice(0, allShown).map(r => {
     const move = r.mktRank && r.ktcRank ? r.ktcRank - r.mktRank : 0;
     return `<tr class="border-t border-white/5 hover:bg-white/[0.02] cursor-pointer" onclick="openLookup('${encodeURIComponent(r.norm)}')">
-      <td class="py-2 pr-3 text-right mono text-zinc-300 whitespace-nowrap">${r.mktRank ? '#' + r.mktRank : dash}${move ? ` <span class="text-[10px] ${move > 0 ? 'text-emerald-300' : 'text-amber-300'}" title="KTC rank #${r.ktcRank}">${move > 0 ? '▲' : '▼'}${Math.abs(move)}</span>` : ''}</td>
+      <td class="py-2 pr-3 text-right mono text-zinc-300 whitespace-nowrap">${r.mktRank ? '#' + r.mktRank : dash}${move ? ` <span class="text-[10px] ${move > 0 ? 'text-emerald-300' : 'text-orange-300'}" title="KTC rank #${r.ktcRank}">${move > 0 ? '▲' : '▼'}${Math.abs(move)}</span>` : ''}</td>
       <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="min-w-0"><span class="block text-zinc-100 truncate">${esc(r.name)}</span><span class="sm:hidden block text-[11px] text-zinc-500 mono">KTC ${Vault.fmtInt(r.value)}</span></span></span></td>
       <td class="hidden sm:table-cell py-2 pr-3 text-right mono text-zinc-300">${Vault.fmtInt(r.value)}</td>
       <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market)}<span class="sm:hidden block text-[11px]">${r.adj == null ? '' : pct(r.adj)}</span></td>
@@ -512,17 +511,17 @@ async function renderMarketNudge() {
   const keyOf = a => (a.type === 'pick' ? marketKeyOf(a) : Vault.normalizeName(a.name));
   const link = a => `${Vault.linkTo('market.html')}&p=${encodeURIComponent(keyOf(a))}" onclick="event.preventDefault(); openLookup('${encodeURIComponent(keyOf(a))}')`;
   const chip = (a, up) => `<a href="${link(a)}" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors">
-      <span class="text-zinc-100">${Vault.escapeHtml(a.name)}</span><span class="mono text-[12px] ${up ? 'text-emerald-300' : 'text-amber-300'}">${up ? '+' : '−'}${Math.abs(Math.round(a.adj))}%</span></a>`;
+      <span class="text-zinc-100">${Vault.escapeHtml(a.name)}</span><span class="mono text-[12px] ${up ? 'text-emerald-300' : 'text-orange-300'}">${Math.abs(Math.round(a.adj))}% ${up ? 'over' : 'under'}</span></a>`;
   box.innerHTML = `<div class="card rounded-vault-sm px-5 py-4 flex flex-wrap items-center gap-x-5 gap-y-3">
       <div class="min-w-0">
         <div class="text-[11px] uppercase tracking-wider text-zinc-400">Your market · ${Vault.escapeHtml(me.teamName)}</div>
         <div class="text-[12px] text-zinc-400 mt-0.5">Your pieces selling above or below their KTC value in completed trades.</div>
       </div>
       ${highs.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-emerald-300/90">Sells high</span>${highs.map(a => chip(a, true)).join('')}</div>` : ''}
-      ${lows.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-amber-300/90">Sells low</span>${lows.map(a => chip(a, false)).join('')}</div>` : ''}
-      ${week.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-zinc-400">This week</span>${week.map(m => `<a href="${link(m)}" title="Paid vs KTC: ${m.then >= 0 ? '+' : '−'}${Math.abs(Math.round(m.then))}% before, ${m.now >= 0 ? '+' : '−'}${Math.abs(Math.round(m.now))}% this week (${m.n} trade${m.n === 1 ? '' : 's'})" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors"><span class="text-zinc-100">${Vault.escapeHtml(m.name)}</span><span class="mono text-[12px] ${m.change > 0 ? 'text-emerald-300' : 'text-amber-300'}">${m.change > 0 ? '▲ +' : '▼ −'}${Math.abs(Math.round(m.change))} pts</span></a>`).join('')}</div>` : ''}
+      ${lows.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-orange-300/90">Sells low</span>${lows.map(a => chip(a, false)).join('')}</div>` : ''}
+      ${week.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-zinc-400">This week</span>${week.map(m => `<a href="${link(m)}" title="Paid vs KTC: ${m.then >= 0 ? '+' : '−'}${Math.abs(Math.round(m.then))}% before, ${m.now >= 0 ? '+' : '−'}${Math.abs(Math.round(m.now))}% this week (${m.n} trade${m.n === 1 ? '' : 's'})" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors"><span class="text-zinc-100">${Vault.escapeHtml(m.name)}</span><span class="mono text-[12px] ${m.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${m.change > 0 ? '▲ +' : '▼ −'}${Math.abs(Math.round(m.change))} pts</span></a>`).join('')}</div>` : ''}
       <div class="ml-auto flex flex-wrap gap-2 shrink-0">
-        <a href="${Vault.linkTo('trade.html')}&coach=sellhigh" class="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10 transition-colors">Sell high →</a>
+        <a href="${Vault.linkTo('trade.html')}&coach=sellhigh" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Sell high →</a>
         <a href="${Vault.linkTo('trade.html')}&coach=buylow" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Buy low →</a>
       </div>
     </div>`;
@@ -582,7 +581,7 @@ function renderRookies() {
   const slots = rounds.flatMap(r => tiers.map(t => ({ r, t, b: S.buys[`${r}-${t}`] }))).filter(s => s.b);
   const withKtc = slots.filter(s => s.b[2] > 0), vsKtc = b => (b[1] / b[2] - 1) * 100;
   const buys = withKtc.length ? `<table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 text-left">Pick</th><th class="font-normal pb-2 pl-2 text-right" title="KTC's value for this pick on draft day">KTC said</th><th class="font-normal pb-2 pl-2 text-right" title="Median draft-day KTC value of the players taken here">Bought</th><th class="font-normal pb-2 pl-2 text-right">Diff</th></tr></thead>
-    <tbody>${slots.map(({ r, t, b }) => { const d = b[2] > 0 ? vsKtc(b) : null; return `<tr class="border-t border-white/5" title="${b[0]} players taken"><td class="py-1.5 text-zinc-300 whitespace-nowrap">${ORD(r)} <span class="text-zinc-500">${t}</span></td><td class="py-1.5 pl-2 text-right mono text-zinc-400">${b[2] > 0 ? Vault.fmtInt(b[2]) : '—'}</td><td class="py-1.5 pl-2 text-right mono text-zinc-100">${Vault.fmtInt(b[1])}</td><td class="py-1.5 pl-2 text-right mono ${d == null || Math.abs(d) < 5 ? 'text-zinc-300' : d > 0 ? 'text-emerald-300' : 'text-amber-300'}">${d == null ? '—' : signed(d)}</td></tr>`; }).join('')}</tbody></table>`
+    <tbody>${slots.map(({ r, t, b }) => { const d = b[2] > 0 ? vsKtc(b) : null; return `<tr class="border-t border-white/5" title="${b[0]} players taken"><td class="py-1.5 text-zinc-300 whitespace-nowrap">${ORD(r)} <span class="text-zinc-500">${t}</span></td><td class="py-1.5 pl-2 text-right mono text-zinc-400">${b[2] > 0 ? Vault.fmtInt(b[2]) : '—'}</td><td class="py-1.5 pl-2 text-right mono text-zinc-100">${Vault.fmtInt(b[1])}</td><td class="py-1.5 pl-2 text-right mono ${d == null || Math.abs(d) < 5 ? 'text-zinc-300' : d > 0 ? 'text-emerald-300' : 'text-orange-300'}">${d == null ? '—' : signed(d)}</td></tr>`; }).join('')}</tbody></table>`
     : `<table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 text-left">Round</th>${tiers.map(t => `<th class="font-normal pb-2 text-right capitalize">${t}</th>`).join('')}</tr></thead>
     <tbody>${rounds.map(r => `<tr class="border-t border-white/5"><td class="py-1.5 text-zinc-300">${ORD(r)}</td>${tiers.map(t => { const b = S.buys[`${r}-${t}`]; return `<td class="py-1.5 text-right mono ${b ? 'text-zinc-100' : 'text-zinc-600'}" title="${b ? b[0] + ' players' : ''}">${b ? Vault.fmtInt(b[1]) : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
   // One line on the 1sts, the picks people argue about: did they buy what KTC priced them at?

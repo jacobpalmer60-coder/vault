@@ -7,7 +7,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=c98b21dd">
+<link rel="stylesheet" href="tailwind.css?v=8412668f">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -37,6 +37,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'improved', page: 'Player Market', text: 'Market numbers read as prices: "13% over KTC", "Rome Odunze 18% under", "Paid 108% over KTC value" instead of +/− percentages. A player\'s lookup leads with his KTC value and market price in big numbers, and the intro is one line with a How it works link.' },
+    { kind: 'improved', page: 'Team Analyzer', text: 'Calmer colors (stat tiles marked by rank in one tone, the contention window in green instead of gold), and the five-year value bars in the contention window draw again; they had been collapsing to nothing.' },
     { kind: 'improved', page: 'League Overview', text: 'Team values and ranks in the new condensed numbers, and "What the numbers mean" plus the archetype guide folded into one section that stays closed until you open it (the "What do these numbers mean?" link opens it). Title odds no longer use the brand gold.' },
     { kind: 'improved', page: 'Trade Grades', text: 'Each trade leads with what the first team paid, three ways in a row: "Skat Happens Chase Love paid 21% under KTC value then · 25% under KTC value today · 7% under market price", each with its grade (Lopsided, Fair) underneath. The fairness bars and the ± note moved into "How it\'s graded, and the full breakdown", and the page intro is one line.' },
     { kind: 'improved', page: 'Trade Calculator', text: 'Negotiating names the teams and says numbers as prices: "Round 1 · Skat Happens Chase Love\'s offer", "What gives Walker Touchdown stRanger pause: On KTC value, Walker Touchdown stRanger pays 5% over", "At market prices Walker Touchdown stRanger pays 31% over", and next steps like "Walker Touchdown stRanger would likely still take it. Skat Happens Chase Love pays 46% under KTC value."' },
