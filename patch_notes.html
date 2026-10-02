@@ -7,7 +7,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=cbca5524">
+<link rel="stylesheet" href="tailwind.css?v=18c268fd">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -37,6 +37,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'improved', page: 'Compare Players', text: 'The value chart is readable again: each day\'s trade dots are now off by default (a "Show each day\'s trades" button brings them back), so the scale fits the KTC lines and the dotted market-price lines instead of stretching to 0–20,000. Player cards lead with the KTC value in big numbers and the market price under it ("market 8,325 · 7% under"), stacking under the name on phones, and Head to head adds Market price and Market vs KTC rows.' },
+    { kind: 'new', page: 'Player Rankings', text: 'A Market column: what managers pay for each player in completed trades against his KTC value ("13% over", "7% under"), the same number as his player card. Sort it to find who sells over or under KTC.' },
     { kind: 'improved', page: 'Everywhere', text: 'The new look reaches the rest of the site: the player card leads with a player\'s market price ("7,642 · 13% over KTC value"), Trade Database premiums read as prices ("paid 12% over") with a one-line intro, Managers\' "Who pays up" marks overpaying in orange, and the last gold used for anything but The Vault itself (selected chips on Compare, hover and focus outlines, Rankings\' row highlight) is now neutral.' },
     { kind: 'improved', page: 'Player Market', text: 'Market numbers read as prices: "13% over KTC", "Rome Odunze 18% under", "Paid 108% over KTC value" instead of +/− percentages. A player\'s lookup leads with his KTC value and market price in big numbers, and the intro is one line with a How it works link.' },
     { kind: 'improved', page: 'Team Analyzer', text: 'Calmer colors (stat tiles marked by rank in one tone, the contention window in green instead of gold), and the five-year value bars in the contention window draw again; they had been collapsing to nothing.' },

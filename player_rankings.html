@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=cbca5524">
+<link rel="stylesheet" href="tailwind.css?v=18c268fd">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -69,6 +69,7 @@
             <th class="px-4 py-3 font-medium sortable" data-key="team">Team <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="age">Age <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="value">Value <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="marketAdj" title="What managers pay for him in completed trades, against his KTC value (Player Market). Sort to find who sells over or under KTC.">Market <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="trendDelta" title="Value change over the selected trend window (see the 3mo/6mo/1yr/All toggle above the table) — tracked for players rostered in your league only">Trend <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg">PPG <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="vorp" title="Value Over Replacement Player — PPG above the best player at this position who wouldn't start anywhere in your league. Comparable ACROSS positions, unlike raw PPG — this is why a Superflex QB is worth so much more than a similar-PPG RB: replacement-level QB is far worse relative to a starter.">VORP <span class="sort-ind"></span></th>
@@ -77,7 +78,7 @@
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.06]">
-          <tr><td colspan="11" class="px-4 py-16 text-center text-zinc-400">Loading data…</td></tr>
+          <tr><td colspan="12" class="px-4 py-16 text-center text-zinc-400">Loading data…</td></tr>
         </tbody>
       </table>
     </div>
@@ -678,10 +679,15 @@
       statPlayers.textContent = allRows.length.toLocaleString();
 
       applyFiltersAndRender();
+      if (leagueObj) marketLoad(leagueObj).then(() => {
+        if (!Market.data || Market.data.failed) return;
+        allRows.forEach(r => { const m = marketPlayer(leagueObj, r.player, r.pos); r.marketAdj = m.read ? m.adj : null; });
+        applyFiltersAndRender();
+      }).catch(() => {});
     } catch (e) {
       console.error(e);
       log(e.message, 'error');
-      tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
     }
   }
 
@@ -726,7 +732,7 @@
 
   function renderTable() {
     if (filteredRows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-16 text-center text-zinc-400">No players match filters</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-16 text-center text-zinc-400">No players match filters</td></tr>`;
       return;
     }
     const frag = document.createDocumentFragment();
@@ -744,6 +750,7 @@
         <td class="px-4 py-3 text-zinc-400 mono text-xs">${Vault.escapeHtml(r.team) || '—'}</td>
         <td class="px-4 py-3 text-right mono text-xs text-zinc-400">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
         <td class="px-4 py-3 text-right mono font-medium text-zinc-100">${fmtInt(r.value)}</td>
+        <td class="px-4 py-3 text-right mono text-xs whitespace-nowrap ${r.marketAdj == null || Math.abs(r.marketAdj) < 3 ? 'text-zinc-400' : r.marketAdj > 0 ? 'text-emerald-400' : 'text-orange-400'}" title="${r.marketAdj == null ? 'Not enough completed trades yet' : 'Market price ' + fmtInt(r.value * (1 + r.marketAdj / 100))}">${r.marketAdj == null ? '—' : Math.abs(r.marketAdj) < 0.5 ? 'even' : `${Math.abs(Math.round(r.marketAdj))}% ${r.marketAdj > 0 ? 'over' : 'under'}`}</td>
         <td class="px-4 py-3 text-right">
           ${r.trendDelta != null
             ? `<div class="flex items-center justify-end gap-2">${sparkline(r.trendValues)}<span class="mono text-xs ${r.trendDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.trendDelta >= 0 ? '+' : ''}${fmtInt(r.trendDelta)}</span></div>`
