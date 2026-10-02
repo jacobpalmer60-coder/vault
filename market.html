@@ -99,7 +99,7 @@
 
 <script src="vault-core.js?v=90c73e61"></script>
 <script src="vault-nav.js?v=d210e85b"></script>
-<script src="market-data.js?v=40cbe071"></script>
+<script src="market-data.js?v=ddc46055"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -266,7 +266,7 @@ async function lookUp(norm) {
   const head = `<div class="flex items-center gap-2 flex-wrap mb-2">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(who.pos)}">${who.pos || '—'}</span>
       <span class="text-[15px] font-semibold text-zinc-100">${esc(who.name)}</span>
-      <span class="text-[12px] text-zinc-400 basis-full flex flex-wrap items-end gap-x-8 gap-y-2 mt-1"><span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value)}</span>KTC value</span>${read ? `<span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}</span>market price, <span class="${Math.abs(mp.adj) < 3 ? 'text-zinc-300' : mp.adj > 0 ? 'text-emerald-300' : 'text-orange-300'}">${signed(mp.adj)} KTC</span></span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
+      <span class="text-[12px] text-zinc-400 basis-full flex flex-wrap items-end gap-x-8 gap-y-2 mt-1"><span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value)}</span>KTC value</span>${read ? `<span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}${(Math.abs(read.premium) > MARKET_ADJ_CAP ? '+' : '')}</span>market price, <span class="${Math.abs(mp.adj) < 3 ? 'text-zinc-300' : mp.adj > 0 ? 'text-emerald-300' : 'text-orange-300'}">${marketAdjText(mp)} KTC</span></span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
     </div>${liq ? `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">${liq}</div>` : ''}`;
   if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
   const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
@@ -419,7 +419,7 @@ let allRows = [], allSort = { key: 'market', dir: -1 }, allPos = 'ALL', allQuery
 function buildAll() {
   allRows = [...byNorm.entries()].map(([norm, p]) => {
     const mp = marketPlayer(league, p.key || p.name, p.pos), m = mp.read;
-    return { ...p, norm, read: m, market: m ? p.value * (1 + mp.adj / 100) : null, adj: m ? mp.adj : null, n: m ? m.n : null };
+    return { ...p, norm, read: m, market: m ? p.value * (1 + mp.adj / 100) : null, adj: m ? mp.adj : null, raw: m ? m.premium : null, n: m ? m.n : null };
   });
   const rank = (key, field) => [...allRows].filter(r => r[field] != null).sort((a, b) => b[field] - a[field]).forEach((r, i) => { r[key] = i + 1; });
   rank('ktcRank', 'value'); rank('mktRank', 'market');
@@ -442,7 +442,7 @@ function drawAll() {
     .sort((a, b) => (a[key] == null) - (b[key] == null) || dir * ((a[key] ?? 0) - (b[key] ?? 0)) || b.value - a.value);
   // [sort key, label, align]; the Market # column sorts by market value.
   // [sort key, label, align, hide on phones]. On a phone KTC moves under the name so Market and vs KTC fit.
-  const cols = [['market', 'Market #', 'right'], [null, 'Player', 'left'], ['value', 'KTC', 'right', true], ['market', 'Market', 'right'], ['adj', 'vs KTC', 'right', true], ['n', 'Trades', 'right', true]];
+  const cols = [['market', 'Market #', 'right'], [null, 'Player', 'left'], ['value', 'KTC', 'right', true], ['market', 'Market', 'right'], ['raw', 'vs KTC', 'right', true], ['n', 'Trades', 'right', true]];
   document.getElementById('allHead').innerHTML = `<tr class="text-[11px] uppercase tracking-wider text-zinc-500">${cols.map(([k, l, al, wide]) => !k
     ? `<th class="font-normal pb-2 pr-3 text-left">${l}</th>`
     : `<th class="font-normal pb-2 pr-3 text-${al}${wide ? ' hidden sm:table-cell' : ''}" aria-sort="${key === k ? (dir < 0 ? 'descending' : 'ascending') : 'none'}"><button onclick="sortAll('${k}')" class="uppercase tracking-wider hover:text-zinc-200 ${key === k ? 'text-amber-200' : ''}">${l}${key === k ? (dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`).join('')}</tr>`;
@@ -455,8 +455,8 @@ function drawAll() {
       <td class="py-2 pr-3 text-right mono text-zinc-300 whitespace-nowrap">${r.mktRank ? '#' + r.mktRank : dash}${move ? ` <span class="text-[10px] ${move > 0 ? 'text-emerald-300' : 'text-orange-300'}" title="KTC rank #${r.ktcRank}">${move > 0 ? '▲' : '▼'}${Math.abs(move)}</span>` : ''}</td>
       <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="min-w-0"><span class="block text-zinc-100 truncate">${esc(r.name)}</span><span class="sm:hidden block text-[11px] text-zinc-500 mono">KTC ${Vault.fmtInt(r.value)}</span></span></span></td>
       <td class="hidden sm:table-cell py-2 pr-3 text-right mono text-zinc-300">${Vault.fmtInt(r.value)}</td>
-      <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market)}<span class="sm:hidden block text-[11px]">${r.adj == null ? '' : pct(r.adj)}</span></td>
-      <td class="hidden sm:table-cell py-2 pr-3 text-right mono" title="${r.read ? `Usually ${signed(r.read.low)} to ${signed(r.read.high)}` : ''}">${pct(r.adj)}</td>
+      <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market) + (Math.abs(r.raw) > MARKET_ADJ_CAP ? '+' : '')}<span class="sm:hidden block text-[11px]">${r.adj == null ? '' : `<span class="${tone(r.adj)}">${marketAdjText({ read: r.read })}</span>`}</span></td>
+      <td class="hidden sm:table-cell py-2 pr-3 text-right mono" title="${r.read ? `Usually ${signed(r.read.low)} to ${signed(r.read.high)}` : ''}">${r.adj == null ? dash : `<span class="${tone(r.adj)}">${marketAdjText({ read: r.read })}</span>`}</td>
       <td class="hidden sm:table-cell py-2 text-right mono text-zinc-400" title="${r.read ? 'Leagues like yours (' + esc(r.read.like) + ')' : ''}">${r.n || dash}</td>
     </tr>`;
   }).join('');
@@ -511,7 +511,7 @@ async function renderMarketNudge() {
   const keyOf = a => (a.type === 'pick' ? marketKeyOf(a) : Vault.normalizeName(a.name));
   const link = a => `${Vault.linkTo('market.html')}&p=${encodeURIComponent(keyOf(a))}" onclick="event.preventDefault(); openLookup('${encodeURIComponent(keyOf(a))}')`;
   const chip = (a, up) => `<a href="${link(a)}" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors">
-      <span class="text-zinc-100">${Vault.escapeHtml(a.name)}</span><span class="mono text-[12px] ${up ? 'text-emerald-300' : 'text-orange-300'}">${Math.abs(Math.round(a.adj))}% ${up ? 'over' : 'under'}</span></a>`;
+      <span class="text-zinc-100">${Vault.escapeHtml(a.name)}</span><span class="mono text-[12px] ${up ? 'text-emerald-300' : 'text-orange-300'}">${marketAdjText(marketPlayer(league, a.type === 'pick' ? marketKeyOf(a) : a.name, a.type === 'pick' ? 'Pick' : a.pos))}</span></a>`;
   box.innerHTML = `<div class="card rounded-vault-sm px-5 py-4 flex flex-wrap items-center gap-x-5 gap-y-3">
       <div class="min-w-0">
         <div class="text-[11px] uppercase tracking-wider text-zinc-400">Your market · ${Vault.escapeHtml(me.teamName)}</div>

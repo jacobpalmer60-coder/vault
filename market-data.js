@@ -230,6 +230,16 @@ function marketAdj(league, a) {
   if (a.type === 'pick') { const k = marketKeyOf(a); return k ? marketPlayer(league, k, 'Pick').adj : 0; }
   return marketPlayer(league, a.name, a.pos).adj;
 }
+// A market read said as a price against KTC, for display: "13% over", "8% under",
+// "even", or "25%+ over" when the read is past MARKET_ADJ_CAP. The trade math
+// keeps the cap (one noisy read can't swing a trade); pages show that the real
+// read is further out, and sort by it (mp.read.premium).
+function marketAdjText(mp) {
+  if (!mp || !mp.read) return '';
+  const raw = mp.read.premium, capped = Math.abs(raw) > MARKET_ADJ_CAP;
+  if (!capped && Math.abs(raw) < 0.5) return 'even';
+  return `${capped ? MARKET_ADJ_CAP : Math.abs(Math.round(raw))}%${capped ? '+' : ''} ${raw > 0 ? 'over' : 'under'}`;
+}
 // A trade at market prices vs KTC, from the side that gives `give` and gets `get`:
 // ktc / market = % in that side's favor (consolidation-adjusted, as the grade
 // measures), delta = market - ktc, and the pieces that moved it most.

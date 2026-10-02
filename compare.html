@@ -104,7 +104,7 @@
 
 <script src="vault-core.js?v=90c73e61"></script>
 <script src="vault-nav.js?v=d210e85b"></script>
-<script src="market-data.js?v=40cbe071"></script>
+<script src="market-data.js?v=ddc46055"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -121,8 +121,6 @@ let showTradeDots = (() => { try { return localStorage.getItem('vault_compare_do
 function toggleTradeDots() { showTradeDots = !showTradeDots; try { localStorage.setItem('vault_compare_dots', showTradeDots ? '1' : '0'); } catch {} renderChart(); }
 // A player's market read (what managers pay vs KTC), or null before it loads / without enough trades.
 const marketOf = p => { if (!marketLeague || !Market.data || Market.data.failed) return null; const m = marketPlayer(marketLeague, p.name, p.pos); return m.read ? m : null; };
-// "13% over" / "8% under" / "even": a price against KTC value.
-const overUnder = v => (Math.abs(v) < 0.5 ? 'even' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'over' : 'under'}`);
 let windowDays = 365, customRange = null;   // customRange: { from, to } ISO dates
 let statMode = 'game', statSeason = 'career';
 let lastHistorySeason = '';
@@ -351,7 +349,7 @@ function renderCards(ps) {
         <div class="basis-full sm:basis-auto pl-[68px] sm:pl-0 sm:text-right shrink-0">
           <div class="num text-[30px] text-zinc-100">${fmt(p.value)}</div>
           <div class="text-[12px] text-zinc-400 mt-1">KTC value · ${p.pos}${p.valueRank}</div>
-          ${(m => m ? `<div class="text-[12px] mt-0.5 text-zinc-400" title="What managers pay for him in completed trades (${m.read.n} trades)">market ${fmt(p.value * (1 + m.adj / 100))} · <span class="${Math.abs(m.adj) < 3 ? 'text-zinc-300' : m.adj > 0 ? 'text-emerald-300' : 'text-orange-300'}">${overUnder(m.adj)}</span></div>` : '')(marketOf(p))}
+          ${(m => m ? `<div class="text-[12px] mt-0.5 text-zinc-400" title="What managers pay for him in completed trades (${m.read.n} trades)">market ${fmt(p.value * (1 + m.adj / 100))}${(Math.abs(m.read.premium) > MARKET_ADJ_CAP ? '+' : '')} · <span class="${Math.abs(m.adj) < 3 ? 'text-zinc-300' : m.adj > 0 ? 'text-emerald-300' : 'text-orange-300'}">${marketAdjText(m)}</span></div>` : '')(marketOf(p))}
         </div>
       </div>
       <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/5 text-center">
@@ -512,8 +510,8 @@ function renderH2H(ps) {
   $('h2h').innerHTML = headRow(ps, '') + '<tbody>' + [
     row('KTC value', ps.map(p => p.value), fmt, 'high'),
     ...(ps.some(p => marketOf(p)) ? [
-      row('Market price', ps.map(p => { const m = marketOf(p); return m ? p.value * (1 + m.adj / 100) : NaN; }), fmt, 'high'),
-      row('Market vs KTC', ps.map(p => marketOf(p)?.adj ?? NaN), v => Number.isFinite(v) ? overUnder(v) : '—', null)
+      row('Market price', ps.map(p => { const m = marketOf(p); return m ? p.value * (1 + m.adj / 100) : NaN; }), (v, i) => fmt(v) + (marketOf(ps[i]) && Math.abs(marketOf(ps[i]).read.premium) > MARKET_ADJ_CAP ? '+' : ''), 'high'),
+      row('Market vs KTC', ps.map(p => marketOf(p)?.read.premium ?? NaN), (v, i) => (marketOf(ps[i]) ? marketAdjText(marketOf(ps[i])) : '—'), null)
     ] : []),
     rankRow('Position rank by value', 'valueRank'),
     row('Change, last 30 days', ps.map(p => changeOver(p.norm, 30)), signed, 'high'),
