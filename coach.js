@@ -740,8 +740,8 @@ function coachStepperHtml() {
     const cur = i === at, done = i < at || (s !== 'results' && s !== 'type' && coachStepHas(s));
     const blocked = s !== 'type' && !coachReady();
     return `<li class="flex items-center gap-1.5">${i ? '<span class="text-zinc-600" aria-hidden="true">›</span>' : ''}<button onclick="coachGo('${s}')" ${blocked ? 'disabled' : ''} ${cur ? 'aria-current="step"' : ''}
-      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${cur ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : blocked ? 'border-transparent text-zinc-600 cursor-default' : 'border-transparent text-zinc-400 hover:text-white'}">
-      <span class="size-[18px] rounded-full text-[11px] font-semibold flex items-center justify-center ${cur ? 'bg-amber-400 text-black' : done ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-zinc-400'}">${s === 'results' ? '✓' : i + 1}</span>${label}</button></li>`;
+      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${cur ? 'bg-white/[0.08] border-white/25 text-white' : blocked ? 'border-transparent text-zinc-600 cursor-default' : 'border-transparent text-zinc-400 hover:text-white'}">
+      <span class="size-[18px] rounded-full text-[11px] font-semibold flex items-center justify-center ${cur ? 'bg-white text-black' : done ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-zinc-400'}">${s === 'results' ? '✓' : i + 1}</span>${label}</button></li>`;
   }).join('')}</ol>`;
 }
 
@@ -814,7 +814,7 @@ function renderCoach() {
   const head = document.getElementById('coachHead'), box = document.getElementById('coachBody');
   if (!head || !coachOpen()) return;
   const me = coachMe();
-  const chip = (on, label, onclick, extra = '') => `<button onclick="${onclick}" class="text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${on ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}${extra}</button>`;
+  const chip = (on, label, onclick, extra = '') => `<button onclick="${onclick}" class="text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${on ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}${extra}</button>`;
   const neg = Coach.option === 'negotiate';
   head.innerHTML = `
     <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
@@ -903,7 +903,7 @@ function coachResultsHtml(r) {
         ${o.why ? `<div class="text-[12px] text-zinc-400 mt-1">${o.why}</div>` : ''}
         <div class="text-[12px] text-zinc-400 mt-1">They'd likely accept. ${negLean(-o.edge)}</div>
         <div class="flex flex-wrap gap-2 mt-auto pt-2.5">
-          <button onclick="coachLoad(${i})" class="text-[12px] px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10 transition-colors">Open in builder →</button>
+          <button onclick="coachLoad(${i})" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder →</button>
         </div>
       </div>`;
     }).join('')}</div>`;

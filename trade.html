@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=0055beb8">
+<link rel="stylesheet" href="tailwind.css?v=fa81841d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -228,7 +229,7 @@
 </div>
 
 <script src="vault-core.js?v=426274a4"></script>
-<script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="vault-nav.js?v=4074a7e2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -249,7 +250,7 @@ function setView(v) {
   [['viewCoach', 'coach'], ['viewBuilder', 'builder']].forEach(([id, which]) => {
     const on = v === which, b = document.getElementById(id);
     b.setAttribute('aria-selected', String(on));
-    b.className = `text-[13px] font-medium px-4 h-8 rounded-lg transition-colors ${on ? 'bg-amber-400 text-black' : 'text-zinc-400 hover:text-white'}`;
+    b.className = `text-[13px] font-medium px-4 h-8 rounded-lg transition-colors ${on ? 'bg-white/[0.1] text-white' : 'text-zinc-400 hover:text-white'}`;
   });
   const me = teamOf('A');
   document.getElementById('launcherTeam').textContent = me ? me.teamName : '';
@@ -1943,7 +1944,7 @@ function toggleOfferedBy(side) {
 }
 
 function renderOfferedByToggle(teamA, teamB) {
-  const chip = (side, team) => `<button onclick="toggleOfferedBy('${side}')" aria-pressed="${offeredBy === side}" class="text-[12px] font-medium px-3 py-1.5 rounded-lg border transition-colors ${offeredBy === side ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${Vault.escapeHtml(team.teamName)}</button>`;
+  const chip = (side, team) => `<button onclick="toggleOfferedBy('${side}')" aria-pressed="${offeredBy === side}" class="text-[12px] font-medium px-3 py-1.5 rounded-lg border transition-colors ${offeredBy === side ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${Vault.escapeHtml(team.teamName)}</button>`;
   document.getElementById('offeredByToggle').innerHTML = chip('A', teamA) + chip('B', teamB);
 }
 
@@ -2041,9 +2042,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=5899c564"></script>
+<script src="negotiation.js?v=ba28b3ea"></script>
 <script src="market-data.js?v=40cbe071"></script>
 <script src="market.js?v=debc6d7d"></script>
-<script src="coach.js?v=9ebafe34"></script>
+<script src="coach.js?v=a93082c7"></script>
 </body>
 </html>

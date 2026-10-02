@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>Compare Players — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=0055beb8">
+<link rel="stylesheet" href="tailwind.css?v=fa81841d">
 <style>
   /* Up to four series, in the dataviz reference order for dark surfaces
      (blue, orange, aqua, yellow), validated on this card surface for adjacent
@@ -102,7 +103,7 @@
 </div>
 
 <script src="vault-core.js?v=426274a4"></script>
-<script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="vault-nav.js?v=4074a7e2"></script>
 <script src="market-data.js?v=40cbe071"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
 <script>
@@ -362,7 +363,7 @@ function renderChart() {
   if (ps.length < 2) return;
   document.querySelectorAll('.win-btn').forEach(btn => {
     const on = !customRange && +btn.dataset.days === windowDays;
-    btn.className = `win-btn text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
+    btn.className = `win-btn text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
   });
   const all = ps.map(p => seriesFor(p.norm));
   const lastDate = histSnaps.length ? histSnaps[histSnaps.length - 1].date : '';
@@ -715,7 +716,7 @@ async function renderStats() {
   const token = ++statsToken;
   document.querySelectorAll('.mode-btn').forEach(btn => {
     const on = btn.dataset.mode === statMode;
-    btn.className = `mode-btn text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
+    btn.className = `mode-btn text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}`;
   });
   const single = statSeason !== 'career';
   $('gameLogWrap').classList.toggle('hidden', !single);
@@ -742,7 +743,7 @@ async function renderStats() {
     // Tabs for the categories that have stats showing; only the chosen one renders.
     const cats = StatCatalog.CATS.filter(([cat]) => stats.some(s => s.cat === cat));
     if (!cats.some(([cat]) => cat === statCat) && cats.length) statCat = cats[0][0];
-    $('catTabs').innerHTML = cats.map(([cat, label]) => `<button role="tab" aria-selected="${cat === statCat}" onclick="setStatCat('${cat}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${cat === statCat ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label} <span class="opacity-80">${stats.filter(s => s.cat === cat).length}</span></button>`).join('');
+    $('catTabs').innerHTML = cats.map(([cat, label]) => `<button role="tab" aria-selected="${cat === statCat}" onclick="setStatCat('${cat}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${cat === statCat ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label} <span class="opacity-80">${stats.filter(s => s.cat === cat).length}</span></button>`).join('');
     StatCatalog.CATS.filter(([cat]) => cat === statCat).forEach(([cat]) => {
       const list = stats.filter(s => s.cat === cat);
       if (!list.length) return;

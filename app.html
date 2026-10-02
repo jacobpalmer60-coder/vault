@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>THE VAULT • Gold Dynasty</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=0055beb8">
+<link rel="stylesheet" href="tailwind.css?v=fa81841d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -101,7 +102,7 @@
 </main>
 
 <script src="vault-core.js?v=426274a4"></script>
-<script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="vault-nav.js?v=4074a7e2"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 }, expanded = new Set();
 
@@ -143,7 +144,7 @@ function projectedText(t) {
 function microBar(val, min, max) {
   const t = max > min ? (val - min) / (max - min) : 0.5;
   const pct = Math.max(3, Math.min(100, t * 100));
-  return `<div class="mt-1.5 h-[4px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%; background:${Vault.heatColor(t)}"></div></div>`;
+  return `<div class="mt-1.5 h-[4px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%; background:rgba(236, 236, 239, ${(0.22 + 0.33 * t).toFixed(2)})"></div></div>`;
 }
 
 // Numbers stay neutral; each position's color lives on its bar, not its digits.
@@ -187,11 +188,11 @@ function renderValueHistory(history, currentTeams) {
   lastValueHistory = history; lastValueHistoryTeams = currentTeams;
   const toggle = document.getElementById('valueHistoryToggle');
   toggle.innerHTML = Object.entries(VALUE_METRICS).map(([key, m]) =>
-    `<button onclick="setValueHistoryMetric('${key}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${valueHistoryMetric === key ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${m.label}</button>`
+    `<button onclick="setValueHistoryMetric('${key}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${valueHistoryMetric === key ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${m.label}</button>`
   ).join('');
   document.getElementById('valueHistoryDesc').textContent = VALUE_METRICS[valueHistoryMetric].desc;
   document.getElementById('trendWindowToggle').innerHTML = TREND_WINDOWS.map(w =>
-    `<button onclick="setTrendWindow(${w.days})" class="text-[12px] px-2.5 py-1 rounded-lg transition-colors ${trendWindowDays === w.days ? 'bg-amber-500/15 text-amber-200' : 'text-zinc-400 hover:text-white'}">${w.label}</button>`
+    `<button onclick="setTrendWindow(${w.days})" class="text-[12px] px-2.5 py-1 rounded-lg transition-colors ${trendWindowDays === w.days ? 'bg-white/[0.08] text-white' : 'text-zinc-400 hover:text-white'}">${w.label}</button>`
   ).join('');
 
   const mount = document.getElementById('valueHistoryChart');
@@ -426,7 +427,7 @@ async function load() {
 // to that team's full Team Analyzer page (flaws, trade partners, window).
 function teamDetailPanel(t) {
   return `<div class="pt-4">${Vault.teamRosterPanel(t, teams)}
-    <a href="${Vault.linkTo('team-analyzer.html')}&team=${t.rosterId}" onclick="event.stopPropagation()" class="mt-5 inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10 transition-colors">Open ${Vault.escapeHtml(t.teamName)} in Team Analyzer <span aria-hidden="true">→</span></a>
+    <a href="${Vault.linkTo('team-analyzer.html')}&team=${t.rosterId}" onclick="event.stopPropagation()" class="mt-5 inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open ${Vault.escapeHtml(t.teamName)} in Team Analyzer <span aria-hidden="true">→</span></a>
   </div>`;
 }
 
@@ -459,7 +460,7 @@ function renderMobileCards(data, minOverall, maxOverall) {
       <div class="flex items-center justify-between gap-3 mt-3.5">
         <div>
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Overall</div>
-          <div class="font-mono text-[16px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
+          <div class="font-mono text-[16px] text-zinc-50">${Math.round(t.overall).toLocaleString()}</div>
           ${microBar(t.overall, minOverall, maxOverall)}
         </div>
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
@@ -541,7 +542,7 @@ function render() {
         <div class="font-mono text-[12px] whitespace-nowrap ${(proj?.championshipPct ?? 0) >= 15 ? 'text-amber-300' : 'text-zinc-400'}" title="Title odds">${proj ? proj.championshipPct.toFixed(1) + '% title' : '—'}</div>
       </td>
       <td class="px-2.5 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[15px] text-amber-200">${Math.round(t.overall).toLocaleString()}</div>
+        <div class="font-mono font-semibold text-[15px] text-zinc-50">${Math.round(t.overall).toLocaleString()}</div>
         ${microBar(t.overall, minOverall, maxOverall)}
       </td>
       <td class="px-2.5 py-3.5 text-right">

@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=0055beb8">
+<link rel="stylesheet" href="tailwind.css?v=fa81841d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -29,13 +30,14 @@
 </div>
 
 <script src="vault-core.js?v=426274a4"></script>
-<script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="vault-nav.js?v=4074a7e2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'improved', page: 'Everywhere', text: 'A cleaner, calmer look: a real logo (a vault dial) in the header and on browser tabs, gold kept for the one main button on a page and the page you\'re on (selected filters and toggles are now plain white), League Overview\'s little bars in one quiet tone instead of red-to-green, and Player Rankings\' two big "players / format" boxes folded into one line.' },
     { kind: 'new', page: 'Player Rankings', text: 'How often a player changes hands: the player card and the Player Market lookup now say how many completed trades he was part of in the last 30 days, next to the 10 players at his position closest to his value (e.g. Drake Maye 379 vs 194 for QBs near him: changes hands often). Stars usually change hands less than the players just below them, because their owners rarely sell.' },
     { kind: 'improved', page: 'How We Grade', text: 'Two checks on the new trade data, written up: the Fair / Lopsided / Unfair cutoffs hold up on about 137,000 Sleeper trades (the Fair line matches; if anything the Unfair line is generous), and paying above KTC for a player does not predict KTC raising his value later, so the market is what you can get now, not a forecast.' },
     { kind: 'improved', page: 'Trade Calculator', text: '"Will they take it?" now counts the market: when a deal is better or worse for the other manager at what players actually go for in completed trades than at KTC, half that difference moves their willingness (up to 8 points), and their answer names the player who made the difference (e.g. "Jonathan Taylor trades about 13% above his KTC value"). This was off until it could be tested properly; on about 136,000 completed Sleeper trades, each priced on its own day using only the market before it, completed trades sit closer to even at market prices (typical gap 24.9% to 22.8% in Superflex), and the market version called more of them right. Trade Coach uses the same answers.' },
@@ -250,7 +252,7 @@ function fmtDate(iso) {
 
 function render() {
   document.getElementById('filters').innerHTML = pages.map(p =>
-    `<button onclick="setPage('${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${pageFilter === p ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p}</button>`
+    `<button onclick="setPage('${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${pageFilter === p ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${p}</button>`
   ).join('');
 
   const days = NOTES.map(d => ({ ...d, items: d.items.filter(i => pageFilter === 'All' || i.page === pageFilter) })).filter(d => d.items.length);

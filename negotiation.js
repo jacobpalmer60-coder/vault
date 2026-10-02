@@ -531,7 +531,7 @@ function renderAcceptRead(aAssets, bAssets) {
     draw(c
       ? `<div class="mt-2 pt-2 border-t border-white/5 flex items-start justify-between gap-3">
           <span class="text-[12px] text-zinc-200">${negCounterText(c, R, ctx)}</span>
-          <button onclick="applyAcceptCounter()" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10 transition-colors">Make that change</button>
+          <button onclick="applyAcceptCounter()" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Make that change</button>
         </div>`
       : '<div class="text-[12px] text-zinc-500 mt-2 pt-2 border-t border-white/5">No single change would get this to a yes while staying Fair for you.</div>');
   }, 0);
@@ -608,7 +608,7 @@ function negAskHtml(r, i) {
   const theirs = teamOf(r.R).assets;
   const nfl = [...new Set(theirs.filter(a => a.type === 'player' && a.nfl && a.value >= 500).map(a => a.nfl))].sort();
   const on = p => r.ask && r.ask.pref === p;
-  const chip = (p, label) => `<button onclick="negAsk(${i}, '${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on(p) ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`;
+  const chip = (p, label) => `<button onclick="negAsk(${i}, '${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on(p) ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`;
   const res = r.ask ? (r.ask.list.length ? `${r.ask.closest ? `<div class="text-[12px] text-amber-300 mt-2">Nothing Fair works with ${Vault.escapeHtml(r.ask.label)}. The closest they'd take:</div>` : ''}<div class="grid gap-2 sm:grid-cols-3 mt-2">${r.ask.list.map((o, k) => {
       const lop = o.edge >= VAULT_CONFIG.FAIR_PCT;
       return `<div class="p-2.5 rounded-lg border ${lop ? 'border-amber-500/20' : 'border-white/10'} bg-black/30 flex flex-col">

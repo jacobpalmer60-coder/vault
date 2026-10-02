@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=0055beb8">
+<link rel="stylesheet" href="tailwind.css?v=fa81841d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -45,7 +46,7 @@
 </div>
 
 <script src="vault-core.js?v=426274a4"></script>
-<script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="vault-nav.js?v=4074a7e2"></script>
 <script src="market-data.js?v=40cbe071"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
@@ -308,10 +309,10 @@ const FAIR_FILTER_TITLE = {
 
 function renderFilters() {
   document.getElementById('posFilter').innerHTML = FAIR_FILTERS.map(f =>
-    `<button onclick="setFairFilter('${f}')" title="${FAIR_FILTER_TITLE[f]}" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${fairFilter === f ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${f}</button>`
+    `<button onclick="setFairFilter('${f}')" title="${FAIR_FILTER_TITLE[f]}" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${fairFilter === f ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${f}</button>`
   ).join('');
   document.getElementById('sortToggle').innerHTML = Object.entries(SORTS).map(([k, label]) =>
-    `<button onclick="setSort('${k}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${sortKey === k ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`
+    `<button onclick="setSort('${k}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${sortKey === k ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`
   ).join('');
 }
 

@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>Player Rankings — The Vault</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=0055beb8">
+<link rel="stylesheet" href="tailwind.css?v=fa81841d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -19,17 +20,14 @@
   <header class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Player Rankings</h1>
-      <p class="text-zinc-400 max-w-xl mt-2 text-[14px]">Merge KeepTradeCut values with projected PPG, scored using your league's actual settings. Sort, filter and find value inefficiencies instantly.</p>
+      <p class="text-zinc-400 max-w-xl mt-2 text-[14px]">Every player's KeepTradeCut value next to his projected points, scored with your league's own settings. Sort any column or open a player for his card.</p>
     </div>
     <!-- League is picked once, via the nav's Switch League. -->
     <div id="leagueInfo" class="text-[12px] text-zinc-400 lg:text-right">Loading league…</div>
   </header>
 
-  <!-- Stats Bar -->
-  <div class="grid grid-cols-2 gap-3 mb-6">
-    <div class="stat-tile"><div class="stat-label">Players</div><div id="statPlayers" class="stat-value mono">—</div></div>
-    <div class="stat-tile"><div class="stat-label">Format</div><div id="statFormat" class="stat-value mono">—</div><div id="statFormatDetail" class="text-[12px] text-zinc-400 mt-1 [overflow-wrap:anywhere]"></div></div>
-  </div>
+  <!-- Format line -->
+  <p class="text-[13px] text-zinc-400 -mt-4 mb-6 [overflow-wrap:anywhere]"><span id="statPlayers" class="mono text-zinc-200">—</span> players · <span id="statFormat" class="text-zinc-200">—</span> · <span id="statFormatDetail"></span></p>
 
   <!-- Controls -->
   <div class="glass p-4 mb-4">
@@ -40,7 +38,7 @@
           <input id="search" type="search" aria-label="Search players or NFL teams" placeholder="Search player, team…" class="w-[260px] bg-black/40 border border-white/[0.08] rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-amber-500/60" />
         </div>
         <div class="flex items-center bg-black/40 border border-white/[0.08] rounded-xl p-1">
-          <button data-pos="ALL" class="pos-btn px-3 py-1.5 text-sm rounded-lg bg-amber-500/15 text-zinc-300 font-medium">All</button>
+          <button data-pos="ALL" class="pos-btn px-3 py-1.5 text-sm rounded-lg bg-white/[0.08] text-white font-medium">All</button>
           <button data-pos="QB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">QB</button>
           <button data-pos="RB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">RB</button>
           <button data-pos="WR" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">WR</button>
@@ -118,7 +116,7 @@
 </div>
 
 <script src="vault-core.js?v=426274a4"></script>
-<script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="vault-nav.js?v=4074a7e2"></script>
 <script src="market-data.js?v=40cbe071"></script>
 <script>
 (() => {
@@ -245,7 +243,7 @@
   function renderTrendWindowToggle() {
     const el = $('#trendWindowToggle');
     if (!el) return;
-    el.innerHTML = TREND_WINDOWS.map(w => `<button data-days="${w.days}" class="trend-window-btn px-3 py-1.5 text-sm rounded-lg ${trendWindowDays === w.days ? 'bg-amber-500/15 text-zinc-300 font-medium' : 'hover:bg-white/5'}">${w.label}</button>`).join('');
+    el.innerHTML = TREND_WINDOWS.map(w => `<button data-days="${w.days}" class="trend-window-btn px-3 py-1.5 text-sm rounded-lg ${trendWindowDays === w.days ? 'bg-white/[0.08] text-white font-medium' : 'hover:bg-white/5'}">${w.label}</button>`).join('');
     el.querySelectorAll('.trend-window-btn').forEach(btn => btn.addEventListener('click', () => {
       trendWindowDays = btn.dataset.days === 'Infinity' ? Infinity : +btn.dataset.days;
       renderTrendWindowToggle();
@@ -787,8 +785,8 @@
 
   document.querySelectorAll('.pos-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('bg-amber-500/15', 'text-zinc-300', 'font-medium'));
-      btn.classList.add('bg-amber-500/15', 'text-zinc-300', 'font-medium');
+      document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('bg-white/[0.08]', 'text-white', 'font-medium'));
+      btn.classList.add('bg-white/[0.08]', 'text-white', 'font-medium');
       posFilter = btn.dataset.pos;
       applyFiltersAndRender();
     });
@@ -798,7 +796,7 @@
     $('#search').value = '';
     searchQuery = '';
     posFilter = 'ALL';
-    document.querySelectorAll('.pos-btn').forEach((b, i) => b.classList.toggle('bg-amber-500/15', i === 0));
+    document.querySelectorAll('.pos-btn').forEach((b, i) => b.classList.toggle('bg-white/[0.08]', i === 0));
     applyFiltersAndRender();
   });
 

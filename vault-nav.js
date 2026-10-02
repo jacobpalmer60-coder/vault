@@ -115,10 +115,10 @@
              settings onto a wrapped row. -->
         <div class="max-w-[1800px] mx-auto px-4 sm:px-6 pt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <a href="index.html" class="flex items-center gap-2.5 shrink-0 py-1">
-            <div class="size-8 rounded-lg bg-amber-400 grid place-items-center"><span class="text-[15px] font-bold text-[#1c1406] leading-none">V</span></div>
+            <svg class="size-8 shrink-0 " viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#e3b04b"/><circle cx="16" cy="16" r="9" fill="none" stroke="#1c1406" stroke-width="2.2"/><path d="M16 8.6v3.6M16 19.8v3.6M8.6 16h3.6M19.8 16h3.6" stroke="#1c1406" stroke-width="2.2" stroke-linecap="round"/><circle cx="16" cy="16" r="2.6" fill="#1c1406"/></svg>
             <div class="leading-none">
-              <div class="text-[15px] font-semibold tracking-[0.08em] text-zinc-100">THE VAULT</div>
-              <div class="text-[11px] uppercase tracking-[0.18em] text-zinc-500 mt-1">Dynasty tools</div>
+              <div class="text-[16px] font-semibold tracking-[-0.01em] text-zinc-100">The Vault</div>
+              <div class="text-[11px] text-zinc-500 mt-1">Dynasty tools for Sleeper</div>
             </div>
           </a>
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">

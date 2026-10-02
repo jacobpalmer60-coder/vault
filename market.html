@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=0055beb8">
+<link rel="stylesheet" href="tailwind.css?v=fa81841d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -98,7 +99,7 @@
 <div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
 
 <script src="vault-core.js?v=426274a4"></script>
-<script src="vault-nav.js?v=2bf0ac6e"></script>
+<script src="vault-nav.js?v=4074a7e2"></script>
 <script src="market-data.js?v=40cbe071"></script>
 <script>
 /* ============================================================
@@ -234,7 +235,7 @@ function collecting(extra = '') {
 const RANGES = [['90', '90 days'], ['365', '1 year'], ['all', 'All']];
 let lookupNorm = null, lookupRange = '365';
 function drawRangeChips() {
-  document.getElementById('lookupRange').innerHTML = RANGES.map(([k, l]) => `<button onclick="setRange('${k}')" aria-pressed="${lookupRange === k}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${lookupRange === k ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${l}</button>`).join('');
+  document.getElementById('lookupRange').innerHTML = RANGES.map(([k, l]) => `<button onclick="setRange('${k}')" aria-pressed="${lookupRange === k}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${lookupRange === k ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${l}</button>`).join('');
 }
 function setRange(k) { lookupRange = k; drawRangeChips(); if (lookupNorm) lookUp(lookupNorm); }
 async function lookUp(norm) {
@@ -397,7 +398,7 @@ function drawMovers() {
       <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${sub}</div>
       ${items.length ? items.map(row).join('') : '<div class="text-[12px] text-zinc-500 py-3">None with enough trades yet.</div>'}
     </div>`;
-  const chip = p => `<button onclick="setMoversPos('${p}')" aria-pressed="${moversPos === p}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${moversPos === p ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${p === 'ALL' ? 'All' : p}</button>`;
+  const chip = p => `<button onclick="setMoversPos('${p}')" aria-pressed="${moversPos === p}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${moversPos === p ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${p === 'ALL' ? 'All' : p}</button>`;
   document.getElementById('moversBody').innerHTML = `
     <div class="flex flex-wrap gap-1.5 mb-3">${['ALL', 'QB', 'RB', 'WR', 'TE', 'Pick'].map(chip).join('')}</div>
     ${posLine}
@@ -435,7 +436,7 @@ function drawAll() {
   document.querySelectorAll('#allPos button').forEach(b => {
     const on = b.dataset.pos === allPos;
     b.setAttribute('aria-pressed', on);
-    b.className = `text-[12px] px-3 py-1 rounded-lg border transition-colors ${on ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}`;
+    b.className = `text-[12px] px-3 py-1 rounded-lg border transition-colors ${on ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}`;
   });
   const { key, dir } = allSort;
   const rows = allRows.filter(r => (allPos === 'ALL' || r.pos === allPos) && (!allQuery || r.name.toLowerCase().includes(allQuery)))
@@ -522,7 +523,7 @@ async function renderMarketNudge() {
       ${week.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-zinc-400">This week</span>${week.map(m => `<a href="${link(m)}" title="Paid vs KTC: ${m.then >= 0 ? '+' : '−'}${Math.abs(Math.round(m.then))}% before, ${m.now >= 0 ? '+' : '−'}${Math.abs(Math.round(m.now))}% this week (${m.n} trade${m.n === 1 ? '' : 's'})" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors"><span class="text-zinc-100">${Vault.escapeHtml(m.name)}</span><span class="mono text-[12px] ${m.change > 0 ? 'text-emerald-300' : 'text-amber-300'}">${m.change > 0 ? '▲ +' : '▼ −'}${Math.abs(Math.round(m.change))} pts</span></a>`).join('')}</div>` : ''}
       <div class="ml-auto flex flex-wrap gap-2 shrink-0">
         <a href="${Vault.linkTo('trade.html')}&coach=sellhigh" class="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10 transition-colors">Sell high →</a>
-        <a href="${Vault.linkTo('trade.html')}&coach=buylow" class="text-[12px] px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10 transition-colors">Buy low →</a>
+        <a href="${Vault.linkTo('trade.html')}&coach=buylow" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Buy low →</a>
       </div>
     </div>`;
   box.classList.remove('hidden');
@@ -542,7 +543,7 @@ const MARKET_TABS = [['lookup', 'Look up a player'], ['all', 'All players'], ['m
 function showTab(key) {
   if (!MARKET_TABS.some(([k]) => k === key)) key = 'lookup';
   document.querySelectorAll('[data-tab]').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== key));
-  document.getElementById('marketTabs').innerHTML = MARKET_TABS.map(([k, label]) => `<button role="tab" aria-selected="${k === key}" onclick="showTab('${k}')" class="whitespace-nowrap text-[13px] px-3 sm:px-3.5 py-2 rounded-lg border transition-colors ${k === key ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`).join('');
+  document.getElementById('marketTabs').innerHTML = MARKET_TABS.map(([k, label]) => `<button role="tab" aria-selected="${k === key}" onclick="showTab('${k}')" class="whitespace-nowrap text-[13px] px-3 sm:px-3.5 py-2 rounded-lg border transition-colors ${k === key ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`).join('');
   try { localStorage.setItem('vault_market_tab', key); } catch {}
   const hash = key === 'lookup' ? '' : key; // the page's own 'history' (KTC values) shadows the global, hence window.history
   if (location.hash.slice(1) !== hash) window.history.replaceState(null, '', location.pathname + location.search + (hash ? '#' + hash : ''));
@@ -563,7 +564,7 @@ function renderRookies() {
   const box = document.getElementById('rookiesBody'), seasons = Object.keys(rookieDoc?.seasons || {}).sort().reverse();
   if (!seasons.length) { document.getElementById('rookieSeasons').innerHTML = ''; box.innerHTML = collecting('Rookie classes appear once at least 5 leagues\' rookie drafts in your QB format are in.'); return; }
   rookieSeason = seasons.includes(rookieSeason) ? rookieSeason : seasons[0];
-  document.getElementById('rookieSeasons').innerHTML = seasons.map(s => `<button onclick="rookieSeason='${s}'; renderRookies()" aria-pressed="${s === rookieSeason}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${s === rookieSeason ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${s}</button>`).join('');
+  document.getElementById('rookieSeasons').innerHTML = seasons.map(s => `<button onclick="rookieSeason='${s}'; renderRookies()" aria-pressed="${s === rookieSeason}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${s === rookieSeason ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${s}</button>`).join('');
   const S = rookieDoc.seasons[rookieSeason];
   const rows = S.players.map(([pid, name, pos, n, mid, lo, hi], i) => {
     const today = byNorm.get(Vault.normalizeName(name));
