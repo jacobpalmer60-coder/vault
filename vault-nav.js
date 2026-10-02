@@ -115,7 +115,7 @@
              settings onto a wrapped row. -->
         <div class="max-w-[1400px] mx-auto px-4 sm:px-6 pt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <a href="index.html" class="flex items-center gap-2.5 shrink-0 py-1">
-            <svg class="size-8 shrink-0 " viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#e3b04b"/><circle cx="16" cy="16" r="9" fill="none" stroke="#1c1406" stroke-width="2.2"/><path d="M16 8.6v3.6M16 19.8v3.6M8.6 16h3.6M19.8 16h3.6" stroke="#1c1406" stroke-width="2.2" stroke-linecap="round"/><circle cx="16" cy="16" r="2.6" fill="#1c1406"/></svg>
+            <img src="brand/vault-dial-128.png" alt="" width="32" height="32" class="size-8 shrink-0">
             <div class="leading-none">
               <div class="text-[16px] font-semibold tracking-[-0.01em] text-zinc-100">The Vault</div>
               <div class="text-[11px] text-zinc-500 mt-1">Dynasty tools for Sleeper</div>

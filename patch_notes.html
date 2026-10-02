@@ -3,11 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=18c268fd">
+<link rel="stylesheet" href="tailwind.css?v=1a03d3c5">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -30,12 +32,15 @@
 </div>
 
 <script src="vault-core.js?v=90c73e61"></script>
-<script src="vault-nav.js?v=d210e85b"></script>
+<script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-02', items: [
+    { kind: 'improved', page: 'Everywhere', text: 'The Vault has its real logo: the gold vault door and "THE VAULT" wordmark on the start page, the vault door in the header, and as the icon on browser tabs and phone home screens. League Overview\'s footer no longer credits FantasyPros, which the site stopped using.' },
+  ]},
   { date: '2026-10-01', items: [
     { kind: 'improved', page: 'Player Market', text: 'Market values past the 25% cap now say so: "25%+ over" and a market price like "2,075+" instead of a flat 25%, on the player card, Player Rankings, Compare and Player Market. The cap stays in the trade math so one noisy read can\'t swing a trade, but sorting uses the real read (Carson Wentz\'s 108% over ranks above a 26%), and hovering the Rankings cell shows the full figure. These are mostly players under 2,000, where a few hundred points is a big percentage.' },
     { kind: 'improved', page: 'Compare Players', text: 'The value chart is readable again: each day\'s trade dots are now off by default (a "Show each day\'s trades" button brings them back), so the scale fits the KTC lines and the dotted market-price lines instead of stretching to 0–20,000. Player cards lead with the KTC value in big numbers and the market price under it ("market 8,325 · 7% under"), stacking under the name on phones, and Head to head adds Market price and Market vs KTC rows.' },
