@@ -18,8 +18,10 @@
    This makes at most CALLS_PER_MIN (500, half of that; one call at a time, so
    slow responses can hold it lower), runs for
    RUN_MINUTES (the Action starts a run every hour, so it crawls nearly
-   around the clock), never fetches a league twice, and backs off and stops
-   on any 429 or server error.
+   around the clock), never fetches a league twice, and stops on any 429.
+   A server error (5xx) or network failure gets one retry after a minute's
+   wait (a lone 502 is usually a hiccup on Sleeper's side); a second one in a
+   row stops the run.
 
    Privacy: only trades are saved, never usernames or user ids. The crawl's
    to-do list (which managers and leagues to visit next) holds Sleeper ids,
@@ -61,18 +63,26 @@ const UA = 'TheVault-trade-research/1.0 (non-commercial; github.com/jacobpalmer6
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const hash = id => crypto.createHash('sha1').update(String(id)).digest('hex').slice(0, 12);
-let calls = 0, lastCall = 0, stopped = '';
+let calls = 0, lastCall = 0, stopped = '', retries = 0;
 
-async function get(p) {
+async function get(p, retry = true) {
   if (calls >= CALL_BUDGET || stopped) return null;
   const wait = lastCall + 60000 / CALLS_PER_MIN - Date.now();
   if (wait > 0) await sleep(wait);
   lastCall = Date.now();
   calls++;
-  let res;
+  let res, problem = '';
   try { res = await fetch(API + p, { headers: { 'User-Agent': UA, Accept: 'application/json' } }); }
-  catch (e) { stopped = `network error: ${e.message}`; return null; }
-  if (res.status === 429 || res.status >= 500) { stopped = `Sleeper answered ${res.status}; stopping to be safe`; await sleep(60000); return null; }
+  catch (e) { problem = `network error: ${e.message}`; }
+  if (res?.status === 429) { stopped = 'Sleeper answered 429 (too many requests); stopping to be safe'; return null; }
+  if (!problem && res.status >= 500) problem = `Sleeper answered ${res.status}`;
+  if (problem) {
+    // One retry after a minute (a lone 5xx is usually a hiccup on their side); twice in a row stops the run.
+    await sleep(60000);
+    if (retry) { retries++; return get(p, false); }
+    stopped = `${problem}, again after a retry; stopping to be safe`;
+    return null;
+  }
   if (!res.ok) return null;
   return res.json().catch(() => null);
 }
@@ -234,7 +244,7 @@ async function main() {
     if (calls - lastSave >= 200) { save(state); lastSave = calls; } // survive a timeout mid-run
   }
   save(state);
-  writeStats(state, { calls, seconds: Math.round((Date.now() - start) / 1000), stopped, startedAt: new Date(start).toISOString() });
+  writeStats(state, { calls, seconds: Math.round((Date.now() - start) / 1000), stopped, retries, startedAt: new Date(start).toISOString() });
   const counts = [...seasonFiles.values()].map(d => `${d.season}: ${Object.keys(d.trades).length} trades / ${Object.keys(d.leagues).length} leagues`);
   console.log(`${calls} calls in ${Math.round((Date.now() - start) / 1000)}s${stopped ? ` (stopped: ${stopped})` : ''}`);
   console.log(`Queue: ${state.leagues.length} leagues, ${state.users.length} managers; ${Object.keys(state.seenLeagues).length} leagues seen`);
@@ -263,7 +273,7 @@ function writeStats(state, run) {
     seasons,
     settings: { callsPerMinute: CALLS_PER_MIN, runMinutes: RUN_MINUTES, minSeason: MIN_SEASON },
     ktcSeeded: state.ktcSeeded || null,
-    runs: [{ at: run.startedAt, calls: run.calls, seconds: run.seconds, newTrades: Math.max(0, newTrades), stopped: run.stopped || '' }, ...(prev.runs || [])].slice(0, 72)
+    runs: [{ at: run.startedAt, calls: run.calls, seconds: run.seconds, newTrades: Math.max(0, newTrades), stopped: run.stopped || '', retries: run.retries || 0 }, ...(prev.runs || [])].slice(0, 72)
   };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(out));

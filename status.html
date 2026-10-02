@@ -6,7 +6,7 @@
 <title>Data Status — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=1252051e">
+<link rel="stylesheet" href="tailwind.css?v=0055beb8">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -160,7 +160,7 @@ async function crawl() {
   const t = stats.totals, q = stats.queue;
   const runs = stats.runs || [], maxNew = Math.max(1, ...runs.map(r => r.newTrades));
   const last24 = runs.filter(r => Date.now() - new Date(r.at).getTime() < 864e5);
-  const bars = runs.slice(0, 48).reverse().map(r => `<div class="flex-1 h-full flex items-end" title="${esc(new Date(r.at).toLocaleString())}: ${n(r.newTrades)} new trades, ${n(r.calls)} calls${r.stopped ? ' (stopped: ' + esc(r.stopped) + ')' : ''}"><div class="w-full rounded-t-[2px] ${r.stopped ? 'bg-rose-400/70' : 'bg-sky-400/70'}" style="height:${Math.max(2, r.newTrades / maxNew * 100).toFixed(1)}%"></div></div>`).join('');
+  const bars = runs.slice(0, 48).reverse().map(r => `<div class="flex-1 h-full flex items-end" title="${esc(new Date(r.at).toLocaleString())}: ${n(r.newTrades)} new trades, ${n(r.calls)} calls${r.retries ? `, ${r.retries} retr${r.retries === 1 ? "y" : "ies"} after a Sleeper error` : ""}${r.stopped ? ' (stopped: ' + esc(r.stopped) + ')' : ''}"><div class="w-full rounded-t-[2px] ${r.stopped ? 'bg-rose-400/70' : 'bg-sky-400/70'}" style="height:${Math.max(2, r.newTrades / maxNew * 100).toFixed(1)}%"></div></div>`).join('');
   const seasons = Object.entries(stats.seasons || {}).sort(([a], [b]) => b.localeCompare(a));
   box.innerHTML = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
       ${tile('Trades collected', n(t.trades), `completed two-team trades in ${n(t.leagueSeasons)} league-seasons`, fresh(stats.updated, 3))}

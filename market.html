@@ -6,7 +6,7 @@
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=1252051e">
+<link rel="stylesheet" href="tailwind.css?v=0055beb8">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -27,8 +27,11 @@
   <!-- Your market: your pieces selling above and below KTC in completed trades (shown once your team is set). -->
   <div id="marketNudge" class="hidden mb-6"></div>
 
+  <!-- One section at a time, picked here (showTab), instead of one long scroll. -->
+  <div id="marketTabs" role="tablist" aria-label="Player Market sections" class="flex flex-wrap gap-1.5 mb-4 scroll-mt-4"></div>
+
   <!-- Look up a player: his KTC line with what managers paid for him, day by day. -->
-  <section class="card rounded-vault-sm mb-6 p-5">
+  <section data-tab="lookup" role="tabpanel" class="card rounded-vault-sm mb-6 p-5">
     <div class="flex items-baseline justify-between gap-3 flex-wrap mb-3">
       <div>
         <h2 class="text-[16px] font-semibold text-zinc-100">Look up a player</h2>
@@ -44,33 +47,28 @@
   </section>
 
   <!-- How each position trades against KTC, month by month. -->
-  <section class="card rounded-vault-sm mb-6 p-5">
+  <section data-tab="positions" role="tabpanel" class="hidden card rounded-vault-sm mb-6 p-5">
     <h2 class="text-[16px] font-semibold text-zinc-100">How each position trades</h2>
     <p id="posSub" class="text-[12px] text-zinc-400 mt-0.5 mb-3">By month: what managers paid over (or under) KTC for players who headlined completed trades.</p>
     <div id="posBody"></div>
   </section>
 
   <!-- Rising and cooling: the biggest changes in what managers pay, last 30 days vs the 30 before. -->
-  <section class="card rounded-vault-sm mb-6 p-5">
+  <section data-tab="moves" role="tabpanel" class="hidden card rounded-vault-sm mb-6 p-5">
     <h2 class="text-[16px] font-semibold text-zinc-100">Rising and cooling</h2>
     <p class="text-[12px] text-zinc-400 mt-0.5 mb-3">The biggest changes in what managers pay for a player against KTC: the last 30 days next to the 30 before, each from at least 5 completed trades.</p>
     <div id="moveBody"></div>
   </section>
 
   <!-- Market highs & lows: players trading above or below their peers. -->
-  <details id="movers" class="group card rounded-vault-sm mb-6 hidden" open>
-    <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-      <span>
-        <span class="block text-[16px] font-semibold text-zinc-100">Market highs &amp; lows</span>
-        <span id="moversSub" class="block text-[12px] text-zinc-400 mt-0.5"></span>
-      </span>
-      <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
-    </summary>
-    <div id="moversBody" class="px-5 pb-5"></div>
-  </details>
+  <section id="movers" data-tab="highs" role="tabpanel" class="hidden card rounded-vault-sm mb-6 p-5">
+    <h2 class="text-[16px] font-semibold text-zinc-100">Market highs &amp; lows</h2>
+    <p id="moversSub" class="text-[12px] text-zinc-400 mt-0.5 mb-3">Who managers pay more or less for than other players at the same position and KTC value.</p>
+    <div id="moversBody"></div>
+  </section>
 
   <!-- Rookie drafts: where each rookie actually went, and what each pick slot bought. -->
-  <section id="rookies" class="card rounded-vault-sm mb-6 p-5">
+  <section id="rookies" data-tab="rookies" role="tabpanel" class="hidden card rounded-vault-sm mb-6 p-5">
     <div class="flex items-baseline justify-between gap-3 flex-wrap">
       <div>
         <h2 class="text-[16px] font-semibold text-zinc-100">Rookie drafts</h2>
@@ -82,7 +80,7 @@
   </section>
 
   <!-- Every player KTC prices, ranked by market value (what managers pay), sortable. -->
-  <section class="card rounded-vault-sm mb-6 p-5">
+  <section data-tab="all" role="tabpanel" class="hidden card rounded-vault-sm mb-6 p-5">
     <h2 class="text-[16px] font-semibold text-zinc-100">All players by market</h2>
     <p id="allSub" class="text-[12px] text-zinc-400 mt-0.5">Every player, ranked by what managers pay for him in completed trades.</p>
     <div class="flex flex-wrap items-center gap-2 mt-3 mb-3">
@@ -369,7 +367,7 @@ async function renderMovers(league, playerMap) {
     const m = marketValue(league, p.key || p.name, { min: HL_MIN_TRADES });
     if (m.like && m.vsPeers != null) moversRows.push({ ...p, m });
   });
-  document.getElementById('movers').classList.toggle('hidden', moversRows.length < 4);
+  if (moversRows.length < 4) { document.getElementById('moversBody').innerHTML = collecting(`Highs and lows appear once at least 4 players each have ${HL_MIN_TRADES}+ completed trades in leagues like yours.`); return; }
   drawMovers();
 }
 function setMoversPos(pos) { moversPos = pos; drawMovers(); }
@@ -529,7 +527,28 @@ async function renderMarketNudge() {
   box.classList.remove('hidden');
 }
 
-function openLookup(enc) { lookUp(decodeURIComponent(enc)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function openLookup(enc) {
+  showTab('lookup');
+  lookUp(decodeURIComponent(enc));
+  document.getElementById('marketTabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ---------- Tabs ----------
+   One section at a time. The open tab is in the address (#all, #rookies…) so
+   it can be shared or bookmarked, and remembered in this browser for next time;
+   a ?p= link (a player to chart) always opens Look up. */
+const MARKET_TABS = [['lookup', 'Look up a player'], ['all', 'All players'], ['moves', 'Rising & cooling'], ['highs', 'Highs & lows'], ['positions', 'By position'], ['rookies', 'Rookie drafts']];
+function showTab(key) {
+  if (!MARKET_TABS.some(([k]) => k === key)) key = 'lookup';
+  document.querySelectorAll('[data-tab]').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== key));
+  document.getElementById('marketTabs').innerHTML = MARKET_TABS.map(([k, label]) => `<button role="tab" aria-selected="${k === key}" onclick="showTab('${k}')" class="whitespace-nowrap text-[13px] px-3 sm:px-3.5 py-2 rounded-lg border transition-colors ${k === key ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`).join('');
+  try { localStorage.setItem('vault_market_tab', key); } catch {}
+  const hash = key === 'lookup' ? '' : key; // the page's own 'history' (KTC values) shadows the global, hence window.history
+  if (location.hash.slice(1) !== hash) window.history.replaceState(null, '', location.pathname + location.search + (hash ? '#' + hash : ''));
+}
+showTab(new URLSearchParams(location.search).get('p') ? 'lookup'
+  : location.hash.slice(1) || (() => { try { return localStorage.getItem('vault_market_tab'); } catch { return null; } })() || 'lookup');
+window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 
 /* ---------- Rookie drafts ----------
    data/market-history/rookies-<sf|oneQB>.json (scripts/summarize-sleeper-

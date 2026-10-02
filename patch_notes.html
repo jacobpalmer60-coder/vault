@@ -6,7 +6,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=1252051e">
+<link rel="stylesheet" href="tailwind.css?v=0055beb8">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -36,6 +36,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'improved', page: 'Player Market', text: 'Tabs instead of one long scroll: under Your market, buttons for Look up a player, All players, Rising & cooling, Highs & lows, By position and Rookie drafts show one section at a time. The open tab is in the page address (so a link can open it) and remembered for next time, and clicking any player charts him in Look up.' },
+    { kind: 'improved', page: 'Data status', text: 'The trade collector now waits a minute and tries again once when Sleeper has a server hiccup (like a 502), instead of ending the whole run; it still stops right away if Sleeper ever says it\'s getting too many requests. Each run\'s bar notes any retries.' },
     { kind: 'improved', page: 'Everywhere', text: 'Easier to find your way around: the start page says what\'s inside (League, Players, Trades) and where to find your username or league ID; League Overview and Team Analyzer open with a line on what they show; League Overview links straight to "What the numbers mean" (formerly Legend, now in plain words); Trade Grades explains its three reads (At the trade, Today, At market); and Managers explains its Market and Fit columns.' },
     { kind: 'improved', page: 'Team Analyzer', text: 'Best trade partners now say Strong, Good, Some or Weak fit instead of a "x/10" score that wasn\'t really out of 10, and on your own team each partner has a "Find trades with them" link that opens Trade Coach on that team.' },
     { kind: 'improved', page: 'How We Grade', text: 'A new "The market" section covers market value, the trades behind it, Your market, Sell high and Buy low, Who pays up and Rookie drafts (those notes used to sit under Playoff odds), and the Trade Coach list now covers every option, including Sell high, Buy low, Trade with a team and Down-tier.' },
