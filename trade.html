@@ -7,7 +7,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=1500dcad">
+<link rel="stylesheet" href="tailwind.css?v=14b44db7">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -95,13 +95,13 @@
        adjusted); a suggestion to even it up; then every action in one row. -->
   <div id="tradeBar" class="hidden mb-4 rounded-2xl card overflow-hidden">
     <div class="grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-3 p-4 sm:p-5">
-      <section aria-label="You give" class="min-w-0 rounded-xl bg-black/25 border border-white/5 p-3">
-        <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">You give</div>
+      <section aria-label="Your team sends" class="min-w-0 rounded-xl bg-black/25 border border-white/5 p-3">
+        <div id="giveALabel" class="text-[12px] text-zinc-400 mb-2 truncate">Your team sends</div>
         <div id="giveA" class="space-y-1"></div>
       </section>
       <div class="hidden md:flex items-center text-zinc-500" aria-hidden="true"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13l-4-4"/><path d="M17 17H4l4 4"/></svg></div>
-      <section aria-label="You get" class="min-w-0 rounded-xl bg-black/25 border border-white/5 p-3">
-        <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">You get</div>
+      <section aria-label="Their team sends" class="min-w-0 rounded-xl bg-black/25 border border-white/5 p-3">
+        <div id="giveBLabel" class="text-[12px] text-zinc-400 mb-2 truncate">Their team sends</div>
         <div id="giveB" class="space-y-1"></div>
       </section>
     </div>
@@ -1340,6 +1340,13 @@ function verdictBanner(tone, bucket) { return offeredBy ? TONE_BANNER[tone] : (V
 // Floored, not rounded: the Fair/Lopsided/Unfair cutoffs are whole numbers, so a
 // 13.96%-off trade (Fair) must never display as "14%" (the Lopsided cutoff).
 function capPct(pct) { return Math.sign(pct) * Math.floor(Math.min(100, Math.abs(pct))); }
+// A team's edge said as a price, the way people talk about prices: "5% under" (it gets more than it
+// sends: green), "8% over" (it overpays: orange), "Even" within 1%; label says against what.
+function priceStatHtml(v, label, tip = '', size = 'text-[30px]') {
+  const even = Math.abs(v) < 1;
+  return `<div><div class="num ${size} ${even ? 'text-zinc-100' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${even ? 'Even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`}</div><div class="text-[11px] text-zinc-500 mt-1.5"${tip ? ` title="${tip}"` : ''}>${even ? 'with ' : ''}${label}</div></div>`;
+}
+const PRICE_TIP = { ktc: 'KTC value, with its consolidation adjustment: what the grade uses', market: 'What managers usually pay for these players and picks in completed trades' };
 
 // Fairness bar lives in Vault.fairnessBarHtml (vault-core.js) — shared with
 // Trade Grades, plus a `mini` variant for the per-factor breakdown rows.
@@ -1376,8 +1383,8 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
   const favored = fairness.roster + fairness.timeline > 0 ? partner.teamName : me.teamName; // who fit leans toward (positive = partner)
   return `<div class="grid grid-cols-[auto_auto_auto_auto] gap-x-4 gap-y-1 items-baseline text-right tabular-nums">
       <span></span>
-      <span class="text-[11px] uppercase tracking-wider text-zinc-400">You give</span>
-      <span class="text-[11px] uppercase tracking-wider text-zinc-400">You get</span>
+      <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.escapeHtml(me.teamName)} sends</span>
+      <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.escapeHtml(me.teamName)} gets</span>
       <span class="text-[11px] uppercase tracking-wider text-zinc-400">Net</span>
       <span class="text-[12px] text-zinc-400 text-left" title="KeepTradeCut values, including KTC's own adjustment for consolidating pieces — the numbers you can check on KeepTradeCut's trade calculator.">KTC value</span>
       <span class="text-[14px] text-zinc-100">${n(giveVal)}</span>
@@ -1452,7 +1459,7 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
       <span class="text-[11px] uppercase tracking-wider text-zinc-400">This season</span>
       <span class="text-[11px] text-zinc-500">${remainingWeeks.length} regular-season week${remainingWeeks.length === 1 ? '' : 's'} left, simulated ${SEASON_TRIALS.toLocaleString()} times from projections and points scored so far</span>
     </div>
-    <div class="grid md:grid-cols-2 gap-3">${side(`You · ${Vault.escapeHtml(teamA.teamName)}`, teamA, before.A, after.A, dA)}${side(Vault.escapeHtml(teamB.teamName), teamB, before.B, after.B, dB)}</div>`;
+    <div class="grid md:grid-cols-2 gap-3">${side(Vault.escapeHtml(teamA.teamName), teamA, before.A, after.A, dA)}${side(Vault.escapeHtml(teamB.teamName), teamB, before.B, after.B, dB)}</div>`;
   box.classList.remove('hidden');
 }
 
@@ -1503,7 +1510,7 @@ function renderLineups(teamA, teamB, analysis) {
         ${gone.length ? `<div class="text-[11px] text-zinc-400 mt-2 pt-2 border-t border-white/5"><span class="text-rose-300/90">Out of the lineup:</span> ${gone.map(s => `${Vault.escapeHtml(s.name)} <span class="text-zinc-500">(${keeps.has(s.id) ? 'to the bench' : 'traded'})</span>`).join(', ')}</div>` : ''}
       </div>`;
   };
-  box.innerHTML = side(`You · ${Vault.escapeHtml(teamA.teamName)}`, before.A, after.A) + side(Vault.escapeHtml(teamB.teamName), before.B, after.B);
+  box.innerHTML = side(Vault.escapeHtml(teamA.teamName), before.A, after.A) + side(Vault.escapeHtml(teamB.teamName), before.B, after.B);
 }
 
 /* ---------- Add any player ----------
@@ -1575,6 +1582,8 @@ function updateTrade() {
       <button onclick="toggle('${side}','${a.key}')" title="Remove from trade" aria-label="Remove ${Vault.escapeHtml(a.name)} from the trade" class="size-7 shrink-0 grid place-items-center rounded-md text-zinc-500 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"><span aria-hidden="true">✕</span></button>
     </div>`;
   const nothing = side => `<div class="text-[13px] text-zinc-500 py-1">Nothing yet. Pick from ${side === 'A' ? 'your roster' : 'their roster'} below.</div>`;
+  document.getElementById('giveALabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.escapeHtml(teamA.teamName)}</span> sends`;
+  document.getElementById('giveBLabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.escapeHtml(teamB.teamName)}</span> sends`;
   document.getElementById('giveA').innerHTML = aAssets.length ? aAssets.map(a => giveChip('A', a)).join('') : nothing('A');
   document.getElementById('giveB').innerHTML = bAssets.length ? bAssets.map(a => giveChip('B', a)).join('') : nothing('B');
 
@@ -1595,11 +1604,18 @@ function updateTrade() {
   // alone, show both numbers so the gap to KTC is never hidden.
   const offPct = capPct(fairness.fitMovedIt ? overallPct : pctDiff);
   // Positive overallSigned = you send more (the adjusted "you give" is the bigger side).
-  const leans = offPct < 1 ? 'dead even' : fairness.overallSigned > 0 ? `in ${Vault.escapeHtml(teamB.teamName)}'s favor` : 'in your favor';
-  diffLabelEl.innerHTML = `<span class="text-[22px] font-semibold tracking-tight">${bucket}</span>
-    <span class="ml-2 text-[14px] text-zinc-300">${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">· KTC value alone ${capPct(pctDiff).toFixed(0)}%</span>` : ''}</span>`;
+  const leans = offPct < 1 ? 'dead even' : fairness.overallSigned > 0 ? `in ${Vault.escapeHtml(teamB.teamName)}'s favor` : `in ${Vault.escapeHtml(teamA.teamName)}'s favor`;
+  // Your team's edge on KTC value alone (positive: it gets more than it sends) and, once the market has loaded, at market prices.
+  const ktcEdge = (bValAdj - aValAdj) / (((aValAdj + bValAdj) / 2) || 1) * 100;
+  const mk = aAssets.length && bAssets.length && typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, aAssets, bAssets) : null;
+  diffLabelEl.innerHTML = `<div class="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
+      <span class="num text-[34px] ${bucketColor(bucket)}">${bucket}</span>
+      <span class="text-[12px] text-zinc-400">${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">· roster fit and timeline included; KTC value alone ${capPct(pctDiff).toFixed(0)}%</span>` : ''}</span>
+    </div>
+    ${aAssets.length && bAssets.length ? `<div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(teamA.teamName)} pays</div>
+    <div class="flex gap-10 mt-1">${priceStatHtml(ktcEdge, 'KTC value', PRICE_TIP.ktc)}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market) : ''}</div>` : ''}`;
   diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than KTC value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side.`;
-  diffLabelEl.className = bucketColor(bucket);
+  diffLabelEl.className = '';
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(fairness.overallSigned, diffBandPct) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
   renderSeasonImpact(teamA, teamB, aAssets, bAssets);
@@ -2044,7 +2060,7 @@ init();
 </script>
 <script src="negotiation.js?v=038b1e04"></script>
 <script src="market-data.js?v=40cbe071"></script>
-<script src="market.js?v=debc6d7d"></script>
-<script src="coach.js?v=28a59668"></script>
+<script src="market.js?v=3c123b1b"></script>
+<script src="coach.js?v=7f674473"></script>
 </body>
 </html>

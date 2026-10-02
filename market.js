@@ -100,15 +100,12 @@ function renderMarketRead(aAssets, bAssets) {
   // (market-data.js), the whole trade measured the way the grade measures value.
   // Shown when that moves the trade at least 2 points from KTC; never the grade.
   const mk = marketEdge(league, aAssets, bAssets);
-  const lean = v => (Math.abs(v) < 1 ? 'about even' : `about ${Math.abs(Math.round(v))}% in ${v > 0 ? 'your' : `${Vault.escapeHtml(teamOf('B')?.teamName || 'their')}'s`} favor`);
-  const check = mk.movers.length && Math.abs(mk.delta) >= 2 ? `<div class="mt-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2.5 text-[12px] leading-relaxed text-zinc-400">
-      <span class="text-[11px] uppercase tracking-wider text-zinc-500 mr-1">At market prices</span>
-      It's <span class="font-medium text-zinc-200">${lean(mk.market)}</span>, vs ${lean(mk.ktc)} on KTC value alone: ${mk.movers.slice(0, 2).map(marketMoverText).join(', and ')}. The grade still uses KTC.
-    </div>` : '';
+  // The market price is in the verdict above; this names who moves it away from KTC.
+  const check = mk.movers.length && Math.abs(mk.delta) >= 2 ? `<div class="mt-2 text-[12px] leading-relaxed text-zinc-400"><span class="text-zinc-500">Market vs KTC:</span> ${mk.movers.slice(0, 2).map(marketMoverText).join(', and ')}. The grade uses KTC.</div>` : '';
   const m = marketRead(aAssets, bAssets);
   if (!m) { box.innerHTML = check; return; }
   const name = Vault.escapeHtml(m.player.name);
-  const payer = m.youGet ? 'you' : 'they';
+  const payer = Vault.escapeHtml((m.youGet ? teamOf('A') : teamOf('B'))?.teamName || (m.youGet ? 'you' : 'they'));
   // Where this trade's price sits against the middle half of completed trades,
   // read from your side: paying less than most (you're getting him) or being
   // paid more than most (you're sending him) is the good end.
@@ -116,7 +113,7 @@ function renderMarketRead(aAssets, bAssets) {
   const goodForYou = (where === 'below' && m.youGet) || (where === 'above' && !m.youGet);
   const verdict = where === 'within' ? { text: 'about what the market pays', cls: 'text-zinc-200' }
     : goodForYou ? { text: m.youGet ? 'less than most pay' : 'more than most get for him', cls: 'text-emerald-300' }
-    : { text: m.youGet ? 'more than most pay' : 'less than most get for him', cls: 'text-amber-300' };
+    : { text: m.youGet ? 'more than most pay' : 'less than most get for him', cls: 'text-orange-300' };
   // The strip: every real trade's price as a dot, the middle half shaded, this trade marked.
   const x = v => ((Math.max(-MARKET_STRIP_RANGE, Math.min(MARKET_STRIP_RANGE, v)) + MARKET_STRIP_RANGE) / (2 * MARKET_STRIP_RANGE) * 100).toFixed(2);
   const strip = `<div class="relative h-9 mt-1" role="img" aria-label="${m.n} completed trades from ${marketSigned(m.sorted[0])} to ${marketSigned(m.sorted[m.sorted.length - 1])}; this trade: ${marketSigned(m.ours)}">
@@ -124,7 +121,7 @@ function renderMarketRead(aAssets, bAssets) {
       <div class="absolute top-[13px] h-[7px] rounded-full bg-white/10" style="left:${x(m.low)}%;width:${Math.max(0.5, x(m.high) - x(m.low))}%"></div>
       <div class="absolute top-2.5 h-3.5 w-px bg-zinc-500" style="left:50%"></div>
       ${m.sorted.map(v => `<span class="absolute top-[14px] size-[5px] -ml-[2.5px] rounded-full bg-zinc-300/50" style="left:${x(v)}%"></span>`).join('')}
-      <span class="absolute top-[9px] size-[15px] -ml-[7.5px] rounded-full bg-amber-400 ring-2 ring-black/60" style="left:${x(m.ours)}%" title="This trade: ${marketSigned(m.ours)}"></span>
+      <span class="absolute top-[9px] size-[15px] -ml-[7.5px] rounded-full bg-zinc-100 ring-2 ring-black/60" style="left:${x(m.ours)}%" title="This trade: ${marketSigned(m.ours)}"></span>
       <div class="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-zinc-500 leading-none"><span>Paid under KTC</span><span>KTC value</span><span>Paid over KTC</span></div>
     </div>`;
   const chip = a => `${Vault.escapeHtml(a.name)}${a.type === 'pick' && a.tier ? ` <span class="text-zinc-500">(${a.tier})</span>` : ''}`;
@@ -137,8 +134,8 @@ function renderMarketRead(aAssets, bAssets) {
       <summary class="list-none [&::-webkit-details-marker]:hidden cursor-pointer px-3 py-2.5 text-[12px] leading-relaxed text-zinc-400 hover:text-zinc-300">
         <span class="text-[11px] uppercase tracking-wider text-zinc-500 mr-1">The market</span>
         ${m.n} trades from leagues like yours (${m.like}) in the last ${m.days} day${m.days === 1 ? '' : 's'} had ${name}${m.qual}. The team getting him usually paid ${marketRange(m.low, m.high)}.
-        Here ${payer} pay ${marketSigned(m.ours)}: <span class="font-medium ${verdict.cls}">${verdict.text}</span>.
-        <span class="text-amber-300/80 whitespace-nowrap"><span class="group-open:hidden">See them ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
+        Here ${payer} pays ${marketSigned(m.ours)}: <span class="font-medium ${verdict.cls}">${verdict.text}</span>.
+        <span class="text-zinc-300 whitespace-nowrap"><span class="group-open:hidden">See them ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
       </summary>
       <div class="px-3 pb-3 text-[12px]">
         ${strip}

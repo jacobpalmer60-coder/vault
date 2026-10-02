@@ -877,8 +877,6 @@ function coachCardHtml(o, i) {
   const lop = o.edge >= VAULT_CONFIG.FAIR_PCT, you = -o.edge;
   const mk = typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get) : null;
   const atMarket = mk && Math.abs(mk.delta) >= 1 ? you + mk.delta : null;
-  // Your edge as a price: under (you'd get more than you send) or over (you'd overpay), against KTC or the market.
-  const priceStat = (v, label, tip) => `<div><div class="num text-[30px] ${Math.abs(v) < 1 ? 'text-zinc-100' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Math.abs(v) < 1 ? 'Even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`}</div><div class="text-[11px] text-zinc-500 mt-1.5" title="${tip}">${Math.abs(v) < 1 ? 'with' : ''} ${label}</div></div>`;
   const row = (label, a, first) => `<div class="grid grid-cols-[36px_minmax(0,1fr)_auto] items-baseline gap-2 py-1.5 ${first ? 'border-t border-white/[0.06]' : ''}">
       <span class="text-[11px] text-zinc-500">${label}</span>
       <span class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span></span>
@@ -892,8 +890,8 @@ function coachCardHtml(o, i) {
       </div>
       <div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(coachMe().teamName)} pays</div>
       <div class="grid grid-cols-2 gap-3 mt-1 mb-3">
-        ${priceStat(you, 'KTC value', 'KTC value, with its consolidation adjustment: what the grade uses')}
-        ${atMarket == null ? '' : priceStat(atMarket, 'market price', 'What managers usually pay for these players and picks in completed trades')}
+        ${priceStatHtml(you, 'KTC value', PRICE_TIP.ktc)}
+        ${atMarket == null ? '' : priceStatHtml(atMarket, 'market price', PRICE_TIP.market)}
       </div>
       <div class="border-b border-white/[0.06]">${side('Give', o.give)}${side('Get', o.get)}</div>
       ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}
