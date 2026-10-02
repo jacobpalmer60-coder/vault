@@ -262,6 +262,53 @@ function marketMoverText(m) {
   return `${Vault.escapeHtml(m.a.name)} trades about ${Math.abs(Math.round(m.adj))}% ${m.adj > 0 ? 'above' : 'below'} his KTC value`;
 }
 
+/* ---------- How often a player changes hands ----------
+   Completed trades he was part of (either side, any role) over the last
+   LIQ_DAYS days of the market data, next to the median of the LIQ_PEERS
+   players at his position closest to his KTC value. `universe` is every player the page
+   prices ({ name, pos, value }), so players nobody traded count as 0. KTC's
+   feed (its last few days) is denser than the Sleeper crawl before it, but
+   every player gets the same mix, so the comparison holds. Moves often: 1.5x
+   his peers' count or more; harder to move: two-thirds of it or less. Not
+   for picks: they're tracked by year and round, every tier together. It's
+   how often, not how easily: stars change hands less than players near their
+   value because their owners rarely sell, not because nobody's buying. */
+const LIQ_DAYS = 30, LIQ_PEERS = 10;
+let liqCounts = null;
+function marketTradeCounts() {
+  if (liqCounts) return liqCounts;
+  const d = Market.data;
+  if (!d || d.failed) return null;
+  let last = '';
+  d.byPlayer.forEach(ts => ts.forEach(t => { if (t.date > last) last = t.date; }));
+  const from = new Date(new Date(last) - (LIQ_DAYS - 1) * 864e5).toISOString().slice(0, 10);
+  liqCounts = { from, to: last, counts: new Map() };
+  d.byPlayer.forEach((ts, k) => liqCounts.counts.set(k, ts.filter(t => t.date >= from).length));
+  return liqCounts;
+}
+// { n, typical, label: 'often' | 'average' | 'rarely' | null, days } for one player, or null before the market loads.
+function marketLiquidity(name, pos, value, universe) {
+  const c = marketTradeCounts();
+  if (!c || !(value > 0) || pos === 'Pick') return null;
+  const key = marketKeyOf(name), n = c.counts.get(key) || 0;
+  const peers = universe.filter(p => p.pos === pos && p.value > 0 && marketKeyOf(p.name) !== key)
+    .sort((x, y) => Math.abs(Math.log(x.value / value)) - Math.abs(Math.log(y.value / value))).slice(0, LIQ_PEERS)
+    .map(p => c.counts.get(marketKeyOf(p.name)) || 0).sort((x, y) => x - y);
+  if (peers.length < LIQ_PEERS) return { n, typical: null, label: null, days: LIQ_DAYS };
+  const typical = peers[Math.floor((peers.length - 1) / 2)];
+  const label = typical === 0 ? (n >= 3 ? 'often' : null) : n >= typical * 1.5 ? 'often' : n <= typical / 1.5 ? 'rarely' : 'average';
+  return { n, typical, label, days: LIQ_DAYS };
+}
+// One plain line for a player card or lookup ('' when there's nothing to say).
+function marketLiquidityText(l, pos) {
+  if (!l) return '';
+  const plural = `the ${LIQ_PEERS} ${pos}s closest to his value`;
+  const head = { often: 'Changes hands often', average: 'Changes hands about as often as most', rarely: 'Changes hands less often' }[l.label];
+  const count = `in ${l.n} completed trade${l.n === 1 ? '' : 's'} from the last ${l.days} days`;
+  if (!head) return `He was ${count}.`;
+  return `<span class="text-zinc-200">${head}:</span> he was ${count}; ${plural} were typically in ${l.typical}.`;
+}
+
 /* ---------- Market trend line (player card, Player Market, Compare) ----------
    A smooth read through the day-by-day market points (data/market-history/
    daily-<sf|oneQB>.json, [daysSinceFrom, pct, trades]): for each date, the

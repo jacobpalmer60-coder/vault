@@ -99,7 +99,7 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
-<script src="market-data.js?v=1c57fb04"></script>
+<script src="market-data.js?v=40cbe071"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -261,11 +261,12 @@ async function lookUp(norm) {
   const trend = series.map((p, i) => (trendPct.has(p.date) ? { i, value: Math.round(p.value * (1 + trendPct.get(p.date) / 100)), pct: trendPct.get(p.date) } : null));
   // Today's market value (as on the player card and in the table).
   const mp = marketPlayer(league, who.key || who.name, who.pos), read = mp.read;
+  const liq = marketLiquidityText(marketLiquidity(who.key || who.name, who.pos, who.value, [...byNorm.values()].map(p => ({ name: p.key || p.name, pos: p.pos, value: p.value }))), who.pos);
   const head = `<div class="flex items-center gap-2 flex-wrap mb-2">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(who.pos)}">${who.pos || '—'}</span>
       <span class="text-[15px] font-semibold text-zinc-100">${esc(who.name)}</span>
       <span class="text-[12px] text-zinc-400">KTC <span class="mono text-zinc-200">${Vault.fmtInt(who.value)}</span>${read ? ` · market <span class="mono text-zinc-200">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}</span> <span class="mono ${Math.abs(mp.adj) < 3 ? 'text-zinc-300' : mp.adj > 0 ? 'text-emerald-300' : 'text-amber-300'}">(${signed(mp.adj)})</span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
-    </div>`;
+    </div>${liq ? `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">${liq}</div>` : ''}`;
   if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
   const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
   const all = [...series.map(p => p.value), ...market.map(m => m.value), ...trend.filter(Boolean).map(t => t.value)];

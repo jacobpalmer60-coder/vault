@@ -119,7 +119,7 @@
 
 <script src="vault-core.js?v=426274a4"></script>
 <script src="vault-nav.js?v=2bf0ac6e"></script>
-<script src="market-data.js?v=1c57fb04"></script>
+<script src="market-data.js?v=40cbe071"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -513,9 +513,12 @@
       if (document.getElementById('pcMarket') !== box) return; // a different card opened meanwhile
       // His market value (market-data.js marketPlayer): the same number as the Player Market page and "At market prices".
       const mp = marketPlayer(leagueObj, r.player, r.pos), m = mp.read;
+      // How easy he is to move: trades he was in lately, next to players at his position and value.
+      const liq = marketLiquidityText(marketLiquidity(r.player, r.pos, r.value, allRows.map(x => ({ name: x.player, pos: x.pos, value: x.value }))), r.pos);
+      const liqLine = liq ? `<div class="text-[12px] text-zinc-400 mt-2 leading-relaxed">${liq}</div>` : '';
       if (!m) {
         const n = marketValue(leagueObj, r.player).n;
-        box.innerHTML = shell(`<div class="text-[12px] text-zinc-400 mt-1.5">Not enough completed trades with ${Vault.escapeHtml(r.player)} as the main piece yet${n ? ` (${n} so far)` : ''}. This fills in as The Vault collects more.</div>`);
+        box.innerHTML = shell(`<div class="text-[12px] text-zinc-400 mt-1.5">Not enough completed trades with ${Vault.escapeHtml(r.player)} as the main piece yet${n ? ` (${n} so far)` : ''}. This fills in as The Vault collects more.</div>${liqLine}`);
         return;
       }
       const at = v => Math.round(r.value * (1 + v / 100)).toLocaleString();
@@ -526,7 +529,7 @@
           <span class="mono text-[22px] font-semibold text-zinc-100">${at(mp.adj)}</span>
           <span class="text-[13px] ${tone}">${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}% vs KTC (${fmtInt(r.value)})</span>
         </div>
-        <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">Teams getting him paid ${read}, usually ${at(m.low)} to ${at(m.high)}. Median of ${m.n} completed trades he headlined, from leagues like yours (${m.like}), over ${m.days} day${m.days === 1 ? '' : 's'}. KTC's consolidation adjustment is included, so sending more pieces to get him is already part of KTC's number.</div>`);
+        <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">Teams getting him paid ${read}, usually ${at(m.low)} to ${at(m.high)}. Median of ${m.n} completed trades he headlined, from leagues like yours (${m.like}), over ${m.days} day${m.days === 1 ? '' : 's'}. KTC's consolidation adjustment is included, so sending more pieces to get him is already part of KTC's number.</div>${liqLine}`);
     });
   }
 
