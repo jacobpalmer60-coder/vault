@@ -193,7 +193,8 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
     const w = Math.max(-NEG.MARKET_MAX, Math.min(NEG.MARKET_MAX, mk.delta * NEG.MARKET_SCALE));
     if (Math.abs(w) >= 1 && why) {
       const nm = Vault.escapeHtml(why.a.name);
-      concerns.push({ w, text: `At market prices it's about ${Math.abs(Math.round(mk.delta))}% ${w > 0 ? 'better' : 'worse'} for them than KTC says: ${marketMoverText(why)}.`,
+      const R = Vault.escapeHtml(teamR.teamName), mp = capPct(Math.abs(mk.market)).toFixed(0);
+      concerns.push({ w, text: `At market prices ${R} pays ${Math.abs(mk.market) < 1 ? 'about even' : `${mp}% ${mk.market > 0 ? 'under' : 'over'}`}, ${w > 0 ? 'better' : 'worse'} for them than on KTC: ${marketMoverText(why)}.`,
         say: why.gets ? (why.adj > 0 ? `${nm} goes for more than KTC says, so I like this.` : `${nm} doesn't go for what KTC says.`)
                       : (why.adj > 0 ? `${nm} goes for more than KTC says. You'd have to pay up.` : `Moving ${nm} at KTC value works for me.`) });
     }
@@ -234,10 +235,10 @@ function negReply(j, oGive, rGive, c, ctx) {
 // so a "yes" never reads as a list of reasons to say no (and vice versa).
 function negReasons(j, ctx) {
   const yes = [], no = [];
-  const v = j.fair.value, pct = x => capPct(Math.abs(x)).toFixed(0);
-  if (v >= 1) yes.push(`On KTC value, they come out about ${pct(v)}% ahead.`);
-  else if (v <= -VAULT_CONFIG.LOPSIDED_PCT) no.push(`Not close on KTC value: they'd give up about ${pct(v)}% more than they get back.`);
-  else if (v <= -1) no.push(`On KTC value, they'd give up about ${pct(v)}% more than they get back.`);
+  const v = j.fair.value, pct = x => capPct(Math.abs(x)).toFixed(0), R = Vault.escapeHtml(ctx.team.teamName);
+  if (v >= 1) yes.push(`On KTC value, ${R} pays ${pct(v)}% under.`);
+  else if (v <= -VAULT_CONFIG.LOPSIDED_PCT) no.push(`Not close on KTC value: ${R} would pay ${pct(v)}% over.`);
+  else if (v <= -1) no.push(`On KTC value, ${R} pays ${pct(v)}% over.`);
   else yes.push('It\'s about even on KTC value.');
   const r = j.fit.roster, tl = j.fit.timeline, when = { contend: 'win-now', rebuild: 'rebuild' }[ctx.lean];
   if (r >= 5) yes.push('It makes their starting lineup better.');
@@ -658,11 +659,12 @@ const NEG_PILL = {
   walk: ['Walked away', 'bg-white/5 text-zinc-400 border-white/10']
 };
 
-// How a deal lands for you, as a sentence: "You'd come out about 4% ahead."
-function negLean(you) {
-  if (Math.abs(you) < 1) return 'About even on value for you.';
+// How a deal lands for the offering team, as a price: "Skat Happens Chase Love pays 4% under KTC value."
+const negOName = () => Vault.escapeHtml(teamOf(negOfferingSide())?.teamName || 'Your team');
+function negLean(you, name = negOName()) {
+  if (Math.abs(you) < 1) return `${name} pays about even on KTC value.`;
   const p = capPct(Math.abs(you)).toFixed(0);
-  return you > 0 ? `You'd come out about ${p}% ahead on value.` : `You'd give up about ${p}% more value than you get${you > -VAULT_CONFIG.FAIR_PCT ? ' — still Fair' : ''}.`;
+  return you > 0 ? `${name} pays ${p}% under KTC value.` : `${name} pays ${p}% over KTC value${you > -VAULT_CONFIG.FAIR_PCT ? ' (still Fair)' : ''}.`;
 }
 
 // The coach's box under the latest round: the recommended move first, the
@@ -670,7 +672,8 @@ function negLean(you) {
 function negReasonsHtml(r) {
   const R = r.reasons;
   const list = (title, items, dot) => items.length ? `<div class="mb-1.5"><div class="text-[12px] text-zinc-500 mb-0.5">${title}</div><ul class="space-y-0.5">${items.map(t => `<li class="text-[12px] text-zinc-300 flex gap-2"><span class="${dot} mt-[7px] size-1.5 shrink-0 rounded-full"></span><span>${t}</span></li>`).join('')}</ul></div>` : '';
-  const yes = list('What they like', R.yes, 'bg-emerald-400/80'), no = list('What gives them pause', R.no, 'bg-rose-400/80');
+  const who = Vault.escapeHtml(teamOf(r.R)?.teamName || 'They');
+  const yes = list(`What ${who} likes`, R.yes, 'bg-emerald-400/80'), no = list(`What gives ${who} pause`, R.no, 'bg-rose-400/80');
   return `<div class="mb-2">${r.decision === 'accept' ? yes + no : no + yes}
       <div class="text-[12px] text-zinc-200">${R.summary}</div>
       ${R.style ? `<div class="text-[12px] text-zinc-500 mt-0.5">${R.style}</div>` : ''}
@@ -680,12 +683,13 @@ function negReasonsHtml(r) {
 function negCoachHtml(r, i) {
   const c = r.coach;
   if (!c) return '';
+  const rName = Vault.escapeHtml(teamOf(r.R)?.teamName || 'They');
   const btn = (label, onclick, primary) => `<button onclick="${onclick}" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg ${primary ? 'btn-gold-solid' : 'border border-white/10 text-zinc-300 hover:text-white'}">${label}</button>`;
   const items = {
-    send: c.send && { title: 'Send this offer as is', detail: `They'd take it. ${negLean(c.send.you)}`, action: primary => btn('Copy trade link', 'shareTrade(this)', primary) },
+    send: c.send && { title: 'Send this offer as is', detail: `${rName} would take it. ${negLean(c.send.you)}`, action: primary => btn('Copy trade link', 'shareTrade(this)', primary) },
     accept: c.accept && { title: 'Accept their counter', detail: `${negLean(c.accept.you)}${c.accept.tone === 'bad' ? ' It grades as a poor deal for your team, though.' : ''}`, action: primary => btn('Accept their counter', `negAcceptCounter(${i})`, primary) },
-    cb: c.cb && { title: c.cb.text, detail: `They'd likely still take it. ${negLean(c.cb.you)}`, action: primary => btn('Send this counter', `negSendCounterBack(${i})`, primary) },
-    shop: c.shop && { title: `Shop it to ${Vault.escapeHtml(c.shop.name)} instead`, detail: `${c.shop.why ? c.shop.why + ' ' : ''}They'd give ${negNames(c.shop.tKeys.map(k => teams.find(t => t.rosterId === c.shop.team)?.assets.find(a => a.key === k)).filter(Boolean))}. ${negLean(c.shop.you)}`, action: primary => btn(`Open with ${Vault.escapeHtml(c.shop.name)}`, `negShopTo(${i})`, primary) },
+    cb: c.cb && { title: c.cb.text, detail: `${rName} would likely still take it. ${negLean(c.cb.you)}`, action: primary => btn('Send this counter', `negSendCounterBack(${i})`, primary) },
+    shop: c.shop && { title: `Shop it to ${Vault.escapeHtml(c.shop.name)} instead`, detail: `${c.shop.why ? c.shop.why + ' ' : ''}${Vault.escapeHtml(c.shop.name)} would give ${negNames(c.shop.tKeys.map(k => teams.find(t => t.rosterId === c.shop.team)?.assets.find(a => a.key === k)).filter(Boolean))}. ${negLean(c.shop.you)}`, action: primary => btn(`Open with ${Vault.escapeHtml(c.shop.name)}`, `negShopTo(${i})`, primary) },
     walk: { title: 'Walk away', detail: 'Keep what you have and try someone else later.', action: primary => btn('Walk away', `negWalk(${i})`, primary) }
   };
   if (c.primary === 'walk') items.walk.detail = 'Nothing that works for them is fair for you right now — keep what you have.';
@@ -703,7 +707,7 @@ function negCoachHtml(r, i) {
 function negTradeLine(tr, O) {
   const R = negOther(O);
   const give = negAssets(O, tr[O]), get = negAssets(R, tr[R]);
-  return `<span class="text-zinc-400">You give</span> <span class="text-zinc-200">${negNames(give)}</span> <span class="text-zinc-400">· you get</span> <span class="text-zinc-200">${negNames(get)}</span>`;
+  return `<span class="text-zinc-400">${Vault.escapeHtml(teamOf(O)?.teamName || 'Your team')} sends</span> <span class="text-zinc-200">${negNames(give)}</span> <span class="text-zinc-400">· gets</span> <span class="text-zinc-200">${negNames(get)}</span>`;
 }
 
 function negRender() {
@@ -728,13 +732,13 @@ function negRender() {
       if (r.decision === 'walk') return `<div class="p-3 rounded-xl bg-black/30"><div class="flex items-center gap-2"><span class="text-[12px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">No deal with ${who}. Try Suggest a Trade for other partners, or Start over.</span></div></div>`;
       const last = i === Negotiation.rounds.length - 1;
       return `<div class="p-3 rounded-xl bg-black/30">
-        <div class="text-[12px] text-zinc-500 mb-1">Round ${i + 1} · your offer</div>
+        <div class="text-[12px] text-zinc-500 mb-1">Round ${i + 1} · ${Vault.escapeHtml(teamOf(r.O)?.teamName || 'Your team')}'s offer</div>
         <div class="text-[12px] mb-2">${negTradeLine(r.offer, r.O)}</div>
         <div class="flex items-center gap-2 mb-1.5"><span class="text-[12px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">${who}</span></div>
         ${r.reply ? `<div class="mb-2.5 px-3 py-2 rounded-lg rounded-tl-sm bg-white/[0.04] border border-white/10 text-[13px] text-zinc-100">"${r.reply}"</div>` : ''}
         ${negReasonsHtml(r)}
-        ${r.decision === 'accept' && r.edge >= VAULT_CONFIG.FAIR_PCT ? `<div class="text-[12px] text-orange-300 mb-1.5">Heads up: they'd accept because it now leans ${capPct(r.edge).toFixed(0)}% their way — ${r.edge >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided'} for you.${negAssets(r.O, r.offer[r.O]).length < negAssets(r.R, r.offer[r.R]).length ? ' On KTC\'s math, extra smaller pieces on your side count for less than the premium on the best player in the deal, so asking for a throw-in can make it worse for you.' : ''}</div>` : ''}
-        ${r.decision === 'accept' ? `<div class="text-[12px] text-zinc-400">They'd take this as offered — make the offer in Sleeper.</div>` : ''}
+        ${r.decision === 'accept' && r.edge >= VAULT_CONFIG.FAIR_PCT ? `<div class="text-[12px] text-orange-300 mb-1.5">Heads up: ${who} would accept because ${Vault.escapeHtml(teamOf(r.O)?.teamName || 'your team')} now pays ${capPct(r.edge).toFixed(0)}% over: ${r.edge >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided'} against ${Vault.escapeHtml(teamOf(r.O)?.teamName || 'your team')}.${negAssets(r.O, r.offer[r.O]).length < negAssets(r.R, r.offer[r.R]).length ? ' On KTC\'s math, extra smaller pieces on your side count for less than the premium on the best player in the deal, so asking for a throw-in can make it worse for you.' : ''}</div>` : ''}
+        ${r.decision === 'accept' ? `<div class="text-[12px] text-zinc-400">${who} would take this as offered. Make the offer in Sleeper.</div>` : ''}
         ${r.interests?.length ? `<div class="text-[12px] text-zinc-400 mb-1.5">On your roster, they'd be more interested in:</div>
           <div class="flex flex-wrap gap-1.5 mb-2">${negAssets(r.O, r.interests).map(a => `<button onclick="negAddInterest('${a.key}')" title="Add to your side" class="text-[12px] px-2 py-1 rounded-md border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40">+ ${Vault.escapeHtml(a.name)} <span class="mono text-zinc-500">${Math.round(a.value).toLocaleString()}</span></button>`).join('')}</div>` : ''}
         ${r.counter ? `<div class="mt-2 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.04]">
