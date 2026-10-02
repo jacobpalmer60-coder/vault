@@ -7,7 +7,7 @@
 <title>Managers — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=8412668f">
+<link rel="stylesheet" href="tailwind.css?v=cbca5524">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -40,8 +40,8 @@
 <script src="vault-nav.js?v=d210e85b"></script>
 <script src="market-data.js?v=40cbe071"></script>
 <script>
-const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-amber-300/80' };
-const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-amber-400/60' };
+const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
+const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc-400' };
 function fmtSigned(n, decimals = 0) { return (n >= 0 ? '+' : '') + n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
 function fmtDate(ts) { return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
 
@@ -84,7 +84,7 @@ function renderCard(s, rank, maxAbsNet) {
       <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div>
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider">${rank ? `Rank #${rank}` : 'No trades yet'}</div>
-          <h2 class="text-[16px] sm:text-[18px] font-semibold text-zinc-100 break-words">${s.trades ? `<a href="${tradesLink(s.rosterId)}" title="See only this manager's trades" class="hover:text-amber-200 hover:underline underline-offset-4">${Vault.escapeHtml(s.teamName)}</a>` : Vault.escapeHtml(s.teamName)}</h2>
+          <h2 class="text-[16px] sm:text-[18px] font-semibold text-zinc-100 break-words">${s.trades ? `<a href="${tradesLink(s.rosterId)}" title="See only this manager's trades" class="hover:text-white hover:underline underline-offset-4">${Vault.escapeHtml(s.teamName)}</a>` : Vault.escapeHtml(s.teamName)}</h2>
           <div class="flex items-center gap-2 mt-1 flex-wrap">
             <span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span>
             ${s.record ? `<span class="text-[12px] mono text-zinc-400">${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''} season</span>` : ''}
@@ -198,7 +198,7 @@ function renderSummaryTable(rows, teams) {
               const user = nameOf.get(s.rosterId);
               return `<tr class="align-top">
                 <td class="px-4 py-3 min-w-[170px]">
-                  <div class="font-medium text-zinc-100">${s.trades ? `<a href="${tradesLink(s.rosterId)}" title="See only this manager's trades" class="hover:text-amber-200 hover:underline underline-offset-4">${Vault.escapeHtml(s.teamName)}</a>` : Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
+                  <div class="font-medium text-zinc-100">${s.trades ? `<a href="${tradesLink(s.rosterId)}" title="See only this manager's trades" class="hover:text-white hover:underline underline-offset-4">${Vault.escapeHtml(s.teamName)}</a>` : Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
                   <div class="text-[12px] text-zinc-400">${[user ? '@' + Vault.escapeHtml(user) : '', s.record ? `${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''}` : ''].filter(Boolean).join(' • ')}</div>
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap"><span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
@@ -263,12 +263,12 @@ function renderPaysUp(stats, allGraded, league) {
   if (!rows.length) { box.classList.add('hidden'); return; }
   const cell = c => {
     if (!c) return '<span class="text-zinc-600">—</span>';
-    const v = Math.round(c.avg), tone = Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-amber-300' : 'text-sky-300';
+    const v = Math.round(c.avg), tone = Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-orange-300' : 'text-sky-300';
     return `<span class="mono ${tone} ${c.n < 2 ? 'opacity-60' : ''}" title="${c.n} trade${c.n === 1 ? '' : 's'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}%</span><span class="hidden sm:inline text-[11px] text-zinc-500"> (${c.n})</span>`;
   };
   box.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Who pays up</div>
     <div class="card rounded-vault-sm overflow-hidden">
-      <div class="px-4 pt-3 text-[12px] text-zinc-400 leading-relaxed">What each manager paid over market (<span class="text-amber-300">+</span>) or got as a bargain (<span class="text-sky-300">−</span>) in this league's trades, by the position of the best piece they got. Managers who pay up are who to sell to: Trade Coach's Sell high puts them first.</div>
+      <div class="px-4 pt-3 text-[12px] text-zinc-400 leading-relaxed">What each manager paid over market (<span class="text-orange-300">+</span>) or got as a bargain under it (<span class="text-sky-300">−</span>) in this league's trades, by the position of the best piece they got. Managers who pay up are who to sell to: Trade Coach's Sell high puts them first.</div>
       <div class="overflow-x-auto"><table class="w-full text-[12px] sm:text-[13px]">
         <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left pl-3 sm:pl-4 pr-2 py-2.5">Manager</th>${PAYS_POS.map(p => `<th class="text-right px-1.5 sm:px-3 py-2.5">${p === 'Pick' ? 'Picks' : p}</th>`).join('')}</tr></thead>
         <tbody class="divide-y divide-white/5">${rows.map(s => `<tr><td class="pl-3 sm:pl-4 pr-2 py-2.5 text-zinc-100">${Vault.escapeHtml(s.teamName)}</td>${PAYS_POS.map(p => `<td class="px-1.5 sm:px-3 py-2.5 text-right whitespace-nowrap">${cell(pays.get(s.rosterId)[p])}</td>`).join('')}</tr>`).join('')}</tbody>

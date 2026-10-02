@@ -7,7 +7,7 @@
 <title>Trade Database — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=8412668f">
+<link rel="stylesheet" href="tailwind.css?v=cbca5524">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -19,12 +19,9 @@
     <h1 class="display text-[28px] font-semibold gold-text">Trade Database</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
   </div>
-  <p class="text-[12px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
-    Completed trades from other KeepTradeCut-tracked leagues, filtered to match
-    <span class="text-zinc-400">this league's own format</span> — team count, QB slots,
-    PPR, and TE premium — so what you're seeing actually happened under rules like yours.
-    Rolling ~8-day window; PPR/TE-premium tiers are matched by nearest scoring convention,
-    not an exact KeepTradeCut setting id.
+  <p class="text-[13px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
+    Completed dynasty trades from leagues set up like yours (team count, QB slots, PPR, TE premium), and how lopsided they usually are.
+    <a href="how_we_grade.html#market" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How it works</a>
   </p>
 
   <div id="matchBar" class="card rounded-vault-sm p-4 mb-4"></div>
@@ -47,7 +44,7 @@
       <span class="block text-[16px] font-semibold text-zinc-100">Market highs &amp; lows, and market trends</span>
       <span class="block text-[12px] text-zinc-400 mt-0.5">Who's selling above or below KTC, who's rising or cooling, and how each position trades: on the Player Market page.</span>
     </span>
-    <span class="text-[12px] text-amber-300/80 shrink-0">Open →</span>
+    <span class="text-[12px] text-zinc-300 shrink-0">Open →</span>
   </a>
 
   <!-- Over time: Sleeper dynasty trades in your league's exact price format, month by month. -->
@@ -64,10 +61,10 @@
 
   <div class="flex items-center gap-3 mb-5">
     <input id="searchSideA" type="text" autocomplete="off" aria-label="One side of the trade: player or pick" placeholder="e.g. Justin Herbert"
-      class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
+      class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-white/30 transition-colors" />
     <span class="text-[11px] text-zinc-400 uppercase tracking-wider shrink-0">for</span>
     <input id="searchSideB" type="text" autocomplete="off" aria-label="Other side of the trade (optional): player or pick" placeholder="e.g. Brock Purdy"
-      class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-amber-500/40 transition-colors" />
+      class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-white/30 transition-colors" />
     <button id="searchClear" class="hidden shrink-0 text-[12px] text-zinc-400 hover:text-white px-2">Clear</button>
   </div>
 
@@ -187,7 +184,8 @@ const BUCKETS = ['Great', 'Good', 'Fair', 'Lopsided', 'Unfair'];
 const fairOrBetter = rows => mkShare(rows.filter(r => ['Great', 'Good', 'Fair'].includes(r.bucket)).length, rows.length);
 const mkMedian = list => { if (!list.length) return null; const s = [...list].sort((a, b) => a - b); return s[Math.floor((s.length - 1) / 2)]; };
 const mkPct = v => `${Math.round(v)}%`;
-const mkSigned = v => `${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%`;
+// A premium against KTC value, said as a price: "12% over", "5% under", "even".
+const mkSigned = v => (Math.abs(v) < 0.5 ? 'even' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'over' : 'under'}`);
 const mkShare = (n, of) => of ? n / of * 100 : 0;
 
 // One trade's row. s1 / s2 = what each team received: [{ value, pos }] (pos null for picks).
@@ -289,7 +287,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
             <div class="w-full rounded-t-[3px] ${BUCKET_FILL[binBucket(b)]} group-hover/bar:brightness-125 group-focus/bar:brightness-125" style="height:${(b.n / maxBin * 100).toFixed(2)}%"></div>
           </div>`).join('')}</div>
         <div id="mkTip" class="hidden absolute z-10 -translate-x-1/2 -translate-y-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 whitespace-nowrap pointer-events-none shadow-xl"></div>
-        ${lg ? `<div class="relative h-3 mt-1" aria-label="Your league's trades">${lg.map(r => `<span class="absolute top-0 w-px h-3 bg-amber-300/80" style="left:${xOf(r.pct).toFixed(2)}%" title="${Vault.escapeHtml(r.label)}: ${mkPct(r.pct)} off"></span>`).join('')}</div>` : ''}
+        ${lg ? `<div class="relative h-3 mt-1" aria-label="Your league's trades">${lg.map(r => `<span class="absolute top-0 w-px h-3 bg-zinc-100" style="left:${xOf(r.pct).toFixed(2)}%" title="${Vault.escapeHtml(r.label)}: ${mkPct(r.pct)} off"></span>`).join('')}</div>` : ''}
         <div class="relative h-4 mt-1 text-[10px] text-zinc-500">${[0, 20, 40, 60, 80].map(v => `<span class="absolute -translate-x-1/2" style="left:${xOf(v)}%">${v}%${v === MK_TOP ? '+' : ''}</span>`).join('')}</div>
       </div>
       <div class="text-[12px] text-zinc-400 mt-1">% off on KTC value. Fair is under ${VAULT_CONFIG.FAIR_PCT}%, Unfair is ${VAULT_CONFIG.LOPSIDED_PCT}% or more: the same lines the Trade Calculator and Trade Grades use.</div>
@@ -303,7 +301,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
       <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">Typical % off, and what the side getting fewer pieces paid over KTC (after KTC's own consolidation adjustment).</div>
       ${shapes.map(({ s, g }) => {
         const m = mkMedian(g.map(r => r.pct)), paid = mkMedian(g.filter(r => r.paid != null).map(r => r.paid));
-        return mkBarRow(s, m, shapeMax, `${mkPct(m)} off${paid != null ? ` <span class="${paid >= 0 ? 'text-amber-300' : 'text-zinc-400'}">· paid ${mkSigned(paid)}</span>` : ''}`, `${s}: ${g.length.toLocaleString()} trades`);
+        return mkBarRow(s, m, shapeMax, `${mkPct(m)} off${paid != null ? ` <span class="${paid >= 0 ? 'text-orange-300' : 'text-zinc-400'}">· paid ${mkSigned(paid)}</span>` : ''}`, `${s}: ${g.length.toLocaleString()} trades`);
       }).join('')}
       <div class="text-[11px] text-zinc-500 mt-2">${shapes.map(({ s, g }) => `${s}: ${g.length.toLocaleString()}`).join(' · ')} trades</div>
     </div>`;
@@ -333,7 +331,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
             <td class="py-2 pr-2 sm:pr-3"><div class="flex items-center justify-end sm:justify-start gap-2"><div class="hidden sm:block flex-1 h-2 rounded-full bg-white/[0.04]"><div class="h-full rounded-full bg-sky-400/70" style="width:${share.toFixed(2)}%"></div></div><span class="mono text-zinc-300 w-9 text-right">${mkPct(share)}</span></div></td>
             <td class="py-2 pr-2 sm:pr-3 text-right mono text-zinc-300">${mkPct(mkMedian(g.map(r => r.pct)))}</td>
             <td class="py-2 pr-2 sm:pr-3 text-right mono text-zinc-300">${mkPct(mkShare(g.filter(r => r.oneForOne).length, g.length))}</td>
-            <td class="py-2 text-right mono ${prem != null && prem >= 0 ? 'text-amber-300' : 'text-zinc-300'}">${prem == null ? '—' : mkSigned(prem)}</td>
+            <td class="py-2 text-right mono ${prem != null && prem >= 0 ? 'text-orange-300' : 'text-zinc-300'}">${prem == null ? '—' : mkSigned(prem)}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
@@ -449,7 +447,7 @@ async function renderHistory(field) {
             <td class="py-2 pr-2 sm:pr-3"><div class="flex h-2 rounded-full overflow-hidden gap-[2px]" title="${split.map(x => `${mkPct(x.w)} ${x.b}`).join(', ')}">${split.map(x => (x.w ? `<div class="${BUCKET_FILL[x.b]}" style="width:${x.w.toFixed(2)}%"></div>` : '')).join('')}</div>
               <div class="text-[11px] mt-1">${split.map(x => `<span class="${BUCKET_TEXT[x.b]}">${mkPct(x.w)}</span>`).join(' <span class="text-zinc-600">/</span> ')}</div></td>
             <td class="hidden sm:table-cell py-2 pr-3 text-right mono text-zinc-300">${mkPct(mkShare(one, s.n))}</td>
-            <td class="py-2 text-right mono ${prem != null && prem >= 0 ? 'text-amber-300' : 'text-zinc-300'}">${prem == null ? '—' : mkSigned(prem)}</td>
+            <td class="py-2 text-right mono ${prem != null && prem >= 0 ? 'text-orange-300' : 'text-zinc-300'}">${prem == null ? '—' : mkSigned(prem)}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
@@ -525,7 +523,7 @@ async function init() {
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <div class="text-[13px] font-medium text-zinc-200">${sig.teams}-team, ${isSF ? 'Superflex' : '1QB'}, ${pprLabel(sig.ppr)}, ${tepLabel(sig.tep)}</div>
-          <div class="text-[12px] text-amber-300/70 mt-1">${TIER_LABEL[tier]}</div>
+          <div class="text-[12px] text-zinc-400 mt-1">${TIER_LABEL[tier]}</div>
         </div>
         <div class="text-[12px] text-zinc-400 shrink-0">${pool.length.toLocaleString()} matching trade${pool.length === 1 ? '' : 's'} found</div>
       </div>

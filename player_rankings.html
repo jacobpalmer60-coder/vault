@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=8412668f">
+<link rel="stylesheet" href="tailwind.css?v=cbca5524">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -472,7 +472,7 @@
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time</div>
       ${ppgChart}
       ${historySection}
-      <a href="compare.html?league_id=${encodeURIComponent(Vault.getLeagueId())}&p=${encodeURIComponent(r.norm)}" class="mt-4 inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40">Compare with another player →</a>
+      <a href="compare.html?league_id=${encodeURIComponent(Vault.getLeagueId())}&p=${encodeURIComponent(r.norm)}" class="mt-4 inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">Compare with another player →</a>
     `;
   }
 
@@ -520,12 +520,12 @@
         return;
       }
       const at = v => Math.round(r.value * (1 + v / 100)).toLocaleString();
-      const pct = Math.round(mp.adj), tone = Math.abs(pct) < 3 ? 'text-zinc-300' : pct > 0 ? 'text-emerald-300' : 'text-amber-300';
+      const pct = Math.round(mp.adj), tone = Math.abs(pct) < 3 ? 'text-zinc-300' : pct > 0 ? 'text-emerald-300' : 'text-orange-300';
       const read = Math.abs(pct) < 3 ? 'right about his KTC value' : pct > 0 ? `${pct}% more than KTC says` : `${-pct}% less than KTC says`;
       box.innerHTML = shell(`
         <div class="flex items-baseline gap-3 flex-wrap mt-1">
-          <span class="mono text-[22px] font-semibold text-zinc-100">${at(mp.adj)}</span>
-          <span class="text-[13px] ${tone}">${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}% vs KTC (${fmtInt(r.value)})</span>
+          <span class="num text-[30px] text-zinc-100">${at(mp.adj)}</span>
+          <span class="text-[13px] ${tone}">${Math.abs(pct) < 1 ? 'even with' : `${Math.abs(pct)}% ${pct > 0 ? 'over' : 'under'}`} KTC value <span class="text-zinc-500">(${fmtInt(r.value)})</span></span>
         </div>
         <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">Teams getting him paid ${read}, usually ${at(m.low)} to ${at(m.high)}. Median of ${m.n} completed trades he headlined, from leagues like yours (${m.like}), over ${m.days} day${m.days === 1 ? '' : 's'}. KTC's consolidation adjustment is included, so sending more pieces to get him is already part of KTC's number.</div>${liqLine}`);
     });
@@ -732,7 +732,7 @@
     const frag = document.createDocumentFragment();
     filteredRows.forEach((r, i) => {
       const tr = document.createElement('tr');
-      tr.className = 'hover:bg-amber-500/5 transition cursor-pointer';
+      tr.className = 'hover:bg-white/[0.03] transition cursor-pointer';
       tr.title = 'View player card';
       tr.dataset.kbd = ''; // Tab + Enter opens it too (vault-nav.js)
       tr.setAttribute('aria-label', `${r.player}: open player card`);
@@ -752,12 +752,12 @@
         <td class="px-4 py-3 text-right mono text-zinc-400">${fmtFloat(r.ppg, 2)}</td>
         <td class="px-4 py-3 text-right mono ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-400'}">${r.vorp != null ? fmtSigned(r.vorp) : '—'}</td>
         <td class="px-4 py-3 text-right mono">
-          <span class="${r.vpRatio != null && r.vpRatio < 300 ? 'text-emerald-400' : r.vpRatio != null && r.vpRatio > 600 ? 'text-amber-400' : 'text-zinc-300'}">
+          <span class="${r.vpRatio != null && r.vpRatio < 300 ? 'text-emerald-400' : r.vpRatio != null && r.vpRatio > 600 ? 'text-orange-400' : 'text-zinc-300'}">
             ${r.vpRatio != null ? fmtFloat(r.vpRatio, 0) : '—'}
           </span>
         </td>
         <td class="px-4 py-3 text-right mono">
-          <span class="${r.vVorpRatio != null && r.vVorpRatio <= vorpRatioCuts[0] ? 'text-emerald-400' : r.vVorpRatio != null && r.vVorpRatio >= vorpRatioCuts[1] ? 'text-amber-400' : 'text-zinc-300'}">
+          <span class="${r.vVorpRatio != null && r.vVorpRatio <= vorpRatioCuts[0] ? 'text-emerald-400' : r.vVorpRatio != null && r.vVorpRatio >= vorpRatioCuts[1] ? 'text-orange-400' : 'text-zinc-300'}">
             ${r.vVorpRatio != null ? fmtFloat(r.vVorpRatio, 0) : '—'}
           </span>
         </td>

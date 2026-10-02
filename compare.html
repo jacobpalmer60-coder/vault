@@ -7,7 +7,7 @@
 <title>Compare Players — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=8412668f">
+<link rel="stylesheet" href="tailwind.css?v=cbca5524">
 <style>
   /* Up to four series, in the dataviz reference order for dark surfaces
      (blue, orange, aqua, yellow), validated on this card surface for adjacent
@@ -40,7 +40,7 @@
       <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
     </div>
     <div class="flex items-center gap-2">
-      <button id="shareBtn" onclick="shareCompare(this)" class="hidden text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40 transition-colors">Share</button>
+      <button id="shareBtn" onclick="shareCompare(this)" class="hidden text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25 transition-colors">Share</button>
       <a id="tradeBtn" class="hidden text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid"></a>
     </div>
   </div>
@@ -240,7 +240,7 @@ function setupControls() {
 // ---- Pickers ----
 function renderPickers() {
   $('pickers').innerHTML = picked.map((n, i) => `<div class="relative" data-slot="${i}">
-      <div class="flex items-center gap-2 bg-black/50 border border-white/10 rounded-xl px-3 py-2 focus-within:border-amber-500/60">
+      <div class="flex items-center gap-2 bg-black/50 border border-white/10 rounded-xl px-3 py-2 focus-within:border-white/30">
         <span class="sw sw${i + 1}"></span>
         <input type="text" autocomplete="off" placeholder="Search a player…" aria-label="Player ${i + 1}" class="flex-1 min-w-0 bg-transparent outline-none text-[14px]">
         ${picked.length > 2 ? `<button type="button" data-remove="${i}" aria-label="Remove player ${i + 1}" class="text-zinc-500 hover:text-rose-300 text-[14px] leading-none px-1">✕</button>` : ''}
@@ -667,7 +667,7 @@ function renderStatsPanel(ps) {
     const list = StatCatalog.STATS.filter(s => s.cat === cat && s.pos.some(p => posSet.has(p)));
     if (!list.length) return '';
     return `<div class="mb-3"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">${label}</div><div class="flex flex-wrap gap-1.5">${list.map(s =>
-      `<button type="button" data-stat="${s.id}" title="${Vault.escapeHtml(s.tip || '')}" class="text-[12px] px-2 py-1 rounded-md border transition-colors ${shown.has(s.id) ? 'bg-amber-500/15 border-amber-500/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${s.label}</button>`).join('')}</div></div>`;
+      `<button type="button" data-stat="${s.id}" title="${Vault.escapeHtml(s.tip || '')}" class="text-[12px] px-2 py-1 rounded-md border transition-colors ${shown.has(s.id) ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${s.label}</button>`).join('')}</div></div>`;
   }).join('') + `<div class="flex justify-between items-center pt-2 border-t border-white/5"><button type="button" id="statsDefaults" class="text-[12px] text-zinc-400 hover:text-white">Reset to defaults</button><button type="button" id="statsDone" class="text-[12px] px-3 py-1 rounded-lg btn-gold-solid">Done</button></div>`;
   $('statsPanel').querySelectorAll('[data-stat]').forEach(b => b.onclick = () => {
     const set = new Set(shownStats(players()).map(s => s.id));
@@ -697,7 +697,7 @@ function renderWeekChips(sd, ps) {
   const on = wk => !selWeeks || selWeeks.has(wk);
   const quick = [['All', null], ['Last 4', all.slice(-4)], ['Last 8', all.slice(-8)]];
   box.innerHTML = `<span class="text-[12px] text-zinc-400 mr-1">Games</span>` +
-    all.map(wk => `<button type="button" data-wk="${wk}" aria-pressed="${on(wk)}" class="size-7 text-[12px] rounded-md border transition-colors ${on(wk) ? 'bg-amber-500/15 border-amber-500/40 text-amber-100' : 'border-white/10 text-zinc-500 hover:text-white'}">${wk}</button>`).join('') +
+    all.map(wk => `<button type="button" data-wk="${wk}" aria-pressed="${on(wk)}" class="size-7 text-[12px] rounded-md border transition-colors ${on(wk) ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-500 hover:text-white'}">${wk}</button>`).join('') +
     quick.map(([l, wks], i) => `<button type="button" data-quick="${i}" class="text-[12px] px-2 py-1 rounded-md border border-white/10 text-zinc-400 hover:text-white ml-${i ? 1 : 2}">${l}</button>`).join('');
   box.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => {
     const set = new Set(selWeeks || all), wk = +b.dataset.wk;
