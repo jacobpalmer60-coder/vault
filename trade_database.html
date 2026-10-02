@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>Trade Database — The Vault</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=247f7d51">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="tailwind.css?v=1500dcad">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -76,7 +76,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=426274a4"></script>
+<script src="vault-core.js?v=90c73e61"></script>
 <script src="vault-nav.js?v=d210e85b"></script>
 <script>
 const TIER_LABEL = {
@@ -122,7 +122,7 @@ function marketRead(t, playerMap, pickMap) {
   const pct = Math.abs(gave1 - gave2) / avg * 100;
   return { pct, signed: (gave1 - gave2) / avg * 100, bucket: Vault.fairnessBucket(pct, 0, 0) };
 }
-const BUCKET_PILL = { Fair: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25', Lopsided: 'bg-amber-500/10 text-amber-300 border-amber-500/25', Unfair: 'bg-rose-500/10 text-rose-300 border-rose-500/25' };
+const BUCKET_PILL = { Fair: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25', Lopsided: 'bg-orange-500/10 text-orange-300 border-orange-500/25', Unfair: 'bg-rose-500/10 text-rose-300 border-rose-500/25' };
 
 function renderCard(t, playerMap, pickMap) {
   const date = new Date(t.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
@@ -178,8 +178,8 @@ const MK_MIN_POOL = 1500;       // trades needed before the charts narrow to a c
 const MK_SHAPES = ['1-for-1', '1-for-2', '1-for-3', '1-for-4+', '2-for-2', '2-for-3', '2-for-4+', '3-for-3', '3-for-4+'];
 const MK_STARS = [[8000, Infinity, '8,000+'], [6000, 8000, '6,000–8,000'], [4000, 6000, '4,000–6,000'], [2000, 4000, '2,000–4,000'], [0, 2000, 'Under 2,000']];
 const MK_POS = ['QB', 'RB', 'WR', 'TE', 'Pick'];
-const BUCKET_FILL = { Great: 'bg-violet-400/70', Good: 'bg-sky-400/70', Fair: 'bg-emerald-400/70', Lopsided: 'bg-amber-400/70', Unfair: 'bg-rose-400/70' };
-const BUCKET_TEXT = { Great: 'text-violet-300', Good: 'text-sky-300', Fair: 'text-emerald-300', Lopsided: 'text-amber-300', Unfair: 'text-rose-300' };
+const BUCKET_FILL = { Great: 'bg-violet-400/70', Good: 'bg-sky-400/70', Fair: 'bg-emerald-400/70', Lopsided: 'bg-orange-400/70', Unfair: 'bg-rose-400/70' };
+const BUCKET_TEXT = { Great: 'text-violet-300', Good: 'text-sky-300', Fair: 'text-emerald-300', Lopsided: 'text-orange-300', Unfair: 'text-rose-300' };
 // Great and Good are Fair trades that also fit one or both rosters well: only
 // gradable with both teams' rosters at the time, so only your league's trades
 // (Trade Grades) have them; market trades stop at Fair.
@@ -529,7 +529,7 @@ async function init() {
         </div>
         <div class="text-[12px] text-zinc-400 shrink-0">${pool.length.toLocaleString()} matching trade${pool.length === 1 ? '' : 's'} found</div>
       </div>
-      ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded with the Trade Calculator's own value math: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-amber-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(${priced.length.toLocaleString()} fully priced)</span></div>` : ''}`;
+      ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded with the Trade Calculator's own value math: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-orange-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(${priced.length.toLocaleString()} fully priced)</span></div>` : ''}`;
 
     // The market at a glance: completed trades from leagues like this one. Steps down
     // Vault.tradeFormatTiers (exact settings -> any team count -> QB + TE premium

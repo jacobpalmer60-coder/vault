@@ -411,7 +411,7 @@ async function coachBest(me, progress) {
       const fit = c.result.bucket === 'Great' ? 'A strong fit for both rosters.' : c.result.bucket === 'Good' ? 'A strong fit for one side.' : '';
       // The piece behind a market edge for you: one you get that goes for more, or send that goes for less.
       const edgeBy = mk && mk.delta >= 3 && mk.movers.find(m => (m.gets ? m.adj : -m.adj) > 0);
-      const mkt = edgeBy ? `At market prices it's about ${Math.round(mk.delta)}% better for you than KTC says: ${marketMoverText(edgeBy)}.` : '';
+      const mkt = edgeBy ? `${marketMoverText(edgeBy)}.` : '';
       list.push({ partner: c.partner, give: c.giveA, get: c.giveB, edge: j.edge, id: negKeys(c.giveA).join() + '>' + negKeys(c.giveB).join(), why: [fit, mkt].filter(Boolean).join(' ') });
     });
   if (!list.length) return { empty: `No trade across the league is both Fair for ${Vault.escapeHtml(me.teamName)} and one the other manager would likely take right now. Try Get a player or Fix a position.` };
@@ -864,9 +864,44 @@ function renderCoach() {
       ${coachSummaryHtml(me)}
       <button onclick="coachFind()" ${Coach.busy ? 'disabled' : ''} class="shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Coach.busy ? 'opacity-60' : ''}">${fresh ? 'Search again' : 'Find trades'}</button>
     </div>
-    <div class="text-[12px] text-zinc-500 mb-1 max-w-[680px]">Every trade here is one the other manager would likely take, and Fair for you unless it says otherwise. Predicted from their roster, needs, timeline, and trade history; the managers themselves may answer differently.</div>
+    <div class="text-[12px] text-zinc-500 mb-1">Trades the other manager would likely take, Fair for you unless marked. Predictions, not promises. <a href="how_we_grade.html#coach" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How this works</a></div>
     <div id="coachStatus" role="status" class="text-[12px] text-zinc-400 min-h-[18px] ${Coach.busy ? '' : 'hidden'}">Searching…</div>
     ${Coach.busy || !fresh ? '' : coachResultsHtml(r)}`;
+}
+
+// One Trade Coach option. Leads with the price you'd pay, said the way people talk about prices:
+// "5% under KTC value" (you'd get more KTC value than you send; over = you'd overpay), and, when
+// the pieces have market reads, the same against what managers actually pay ("31% under market
+// price"). Then the pieces, one line of why, and the button.
+function coachCardHtml(o, i) {
+  const lop = o.edge >= VAULT_CONFIG.FAIR_PCT, you = -o.edge;
+  const mk = typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get) : null;
+  const atMarket = mk && Math.abs(mk.delta) >= 1 ? you + mk.delta : null;
+  // Your edge as a price: under (you'd get more than you send) or over (you'd overpay), against KTC or the market.
+  const priceStat = (v, label, tip) => `<div><div class="num text-[30px] ${Math.abs(v) < 1 ? 'text-zinc-100' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Math.abs(v) < 1 ? 'Even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`}</div><div class="text-[11px] text-zinc-500 mt-1.5" title="${tip}">${Math.abs(v) < 1 ? 'with' : ''} ${label}</div></div>`;
+  const row = (label, a, first) => `<div class="grid grid-cols-[36px_minmax(0,1fr)_auto] items-baseline gap-2 py-1.5 ${first ? 'border-t border-white/[0.06]' : ''}">
+      <span class="text-[11px] text-zinc-500">${label}</span>
+      <span class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span></span>
+      <span class="text-[12px] mono text-zinc-400">${Math.round(a.value).toLocaleString()}</span>
+    </div>`;
+  const side = (label, list) => list.map((a, k) => row(k ? '' : label, a, !k)).join('');
+  return `<div class="p-4 rounded-xl border ${lop ? 'border-orange-500/25' : 'border-white/[0.07]'} bg-white/[0.02] flex flex-col">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="text-[12px] text-zinc-400 min-w-0 truncate">Trade with <span class="text-zinc-100 font-medium">${Vault.escapeHtml(o.partner.teamName)}</span></span>
+        <span class="text-[11px] font-semibold text-right ${lop ? 'text-orange-300' : 'text-emerald-300'}">${lop ? `Lopsided against ${Vault.escapeHtml(coachMe().teamName)}` : 'Fair'}</span>
+      </div>
+      <div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(coachMe().teamName)} pays</div>
+      <div class="grid grid-cols-2 gap-3 mt-1 mb-3">
+        ${priceStat(you, 'KTC value', 'KTC value, with its consolidation adjustment: what the grade uses')}
+        ${atMarket == null ? '' : priceStat(atMarket, 'market price', 'What managers usually pay for these players and picks in completed trades')}
+      </div>
+      <div class="border-b border-white/[0.06]">${side('Give', o.give)}${side('Get', o.get)}</div>
+      ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}
+      <div class="flex items-center justify-between gap-2 mt-auto pt-3">
+        <span class="text-[12px] text-zinc-400"><span class="inline-block size-1.5 rounded-full bg-emerald-400 align-middle mr-1.5"></span>${Vault.escapeHtml(o.partner.teamName)} would likely say yes</span>
+        <button onclick="coachLoad(${i})" class="shrink-0 whitespace-nowrap text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder</button>
+      </div>
+    </div>`;
 }
 
 // One side of an offer: each piece on its own line with its position tag and value.
@@ -888,25 +923,8 @@ function coachResultsHtml(r) {
       <div class="text-[12px] text-zinc-500">${r.list.length} option${r.list.length > 1 ? 's' : ''}, best for you first</div>
     </div>
     ${r.planNote ? `<div class="text-[12px] text-zinc-300 mb-2">${r.planNote}</div>` : ''}
-    ${over ? '<div class="text-[12px] text-amber-300 mb-2">Some of these pay a premium: nobody would take a Fair offer for them. Those are marked Lopsided. Nothing here is Unfair.</div>' : ''}
-    <div class="grid gap-2.5 md:grid-cols-2">${r.list.map((o, i) => {
-      const lop = o.edge >= VAULT_CONFIG.FAIR_PCT;
-      return `<div class="p-3 rounded-xl border ${lop ? 'border-amber-500/20' : 'border-white/5'} bg-black/30 flex flex-col">
-        <div class="flex items-center justify-between gap-2 mb-1.5">
-          <span class="text-[13px] text-zinc-100 font-medium">With ${Vault.escapeHtml(o.partner.teamName)}</span>
-          <span class="text-[11px] px-1.5 py-0.5 rounded border ${lop ? 'border-amber-500/30 text-amber-300 bg-amber-500/10' : 'border-emerald-500/25 text-emerald-300 bg-emerald-500/10'}">${lop ? 'Lopsided for you' : 'Fair'}</span>
-        </div>
-        <div class="grid grid-cols-2 gap-3 my-1">
-          <div class="min-w-0"><div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1">You give</div>${coachPieces(o.give)}</div>
-          <div class="min-w-0"><div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1">You get</div>${coachPieces(o.get)}</div>
-        </div>
-        ${o.why ? `<div class="text-[12px] text-zinc-400 mt-1">${o.why}</div>` : ''}
-        <div class="text-[12px] text-zinc-400 mt-1">They'd likely accept. ${negLean(-o.edge)}</div>
-        <div class="flex flex-wrap gap-2 mt-auto pt-2.5">
-          <button onclick="coachLoad(${i})" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder →</button>
-        </div>
-      </div>`;
-    }).join('')}</div>`;
+    ${over ? '<div class="text-[12px] text-orange-300 mb-2">Some of these pay a premium: nobody would take a Fair offer for them. Those are marked Lopsided. Nothing here is Unfair.</div>' : ''}
+    <div class="grid gap-3 md:grid-cols-2">${r.list.map((o, i) => coachCardHtml(o, i)).join('')}</div>`;
 }
 
 // Negotiate option: a prompt to offer the loaded trade. Once rounds exist

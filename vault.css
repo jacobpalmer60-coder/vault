@@ -7,8 +7,10 @@
 
    COLOR TOKENS (below, on :root). Use these instead of new hex values.
 
-   TYPE: Inter for everything, headings included. Numbers use tabular
-   figures (.mono / tabular-nums) so columns line up.
+   TYPE: Inter for reading and tables; Barlow Condensed (.display, .num)
+   for page titles, section titles and the big numbers a view leads with,
+   like a stat sheet. Table numbers stay Inter with tabular figures
+   (.mono / tabular-nums) so columns line up.
      11  eyebrow — UPPERCASE labels and table headers only (with tracking)
      12  small   — secondary text, badges, chips, captions
      13  body-sm — table cells, list rows, dense UI
@@ -16,7 +18,7 @@
      16  strong  — emphasized stats, lead text
      20  title   — card / subsection titles
      24  section — section headers ("Trade Analysis")
-     28  page    — page <h1>
+     38  page    — page <h1> (condensed)
      42  hero    — landing page only
    Nothing smaller than 11px.
 
@@ -48,8 +50,12 @@ body {
 }
 ::selection { background: rgba(227, 176, 75, 0.3); }
 
-/* Headings: Inter, tighter tracking. (Kept as a class so existing markup works.) */
-.display { font-family: inherit; font-weight: 600; letter-spacing: -0.02em; }
+/* Titles: Barlow Condensed, the stat-sheet voice. Page titles run larger, since condensed type reads small. */
+.display { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; letter-spacing: 0.005em; }
+h1.display { font-size: 38px; line-height: 1.05; }
+@media (max-width: 639px) { h1.display { font-size: 34px; } }
+/* The number a card or tile leads with: condensed, even-width digits. */
+.num { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; line-height: 1; }
 /* Numbers: same face as the text, with even-width digits so columns align. */
 .mono, .font-mono { font-family: inherit !important; font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .tabular-nums { font-variant-numeric: tabular-nums; }
@@ -94,8 +100,10 @@ body {
   color: var(--text-2);
 }
 .stat-tile .stat-value {
-  font-size: 20px;
+  font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif;
+  font-size: 26px;
   font-weight: 600;
+  line-height: 1.1;
   margin-top: 4px;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -201,3 +209,6 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
 
 /* Trade Calculator: the "How it changes each team" section only shows once there's a trade. */
 #teamImpact:has(#analysisA.hidden) { display: none; }
+
+/* .mono pins table numbers to Inter; a tile's lead number and .num stay condensed even when also marked .mono. */
+.stat-tile .stat-value.mono, .num.mono { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif !important; }

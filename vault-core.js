@@ -1968,12 +1968,12 @@ const Vault = {
   // is a bonus signal, not a discount. A trade can never climb out of
   // Lopsided/Unfair by having great fit, only move from Fair up to Good or Great.
   // One color per grade everywhere on the site, matching the fairness bar's
-  // bands: Great violet, Good blue, Fair green, Lopsided amber, Unfair red.
+  // bands: Great violet, Good blue, Fair green, Lopsided orange, Unfair red (gold is the brand, not a grade).
   BUCKET_STYLE: {
     Great: { text: 'text-violet-300', dot: 'bg-violet-400', banner: 'bg-violet-500/[0.06] border-violet-500/25', pill: 'bg-violet-500/10 text-violet-200 border-violet-500/30' },
     Good: { text: 'text-sky-300', dot: 'bg-sky-400', banner: 'bg-sky-500/[0.06] border-sky-500/25', pill: 'bg-sky-500/10 text-sky-200 border-sky-500/30' },
     Fair: { text: 'text-emerald-400', dot: 'bg-emerald-400', banner: 'bg-emerald-500/[0.06] border-emerald-500/25', pill: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25' },
-    Lopsided: { text: 'text-amber-400', dot: 'bg-amber-400', banner: 'bg-amber-500/[0.06] border-amber-500/25', pill: 'bg-amber-500/10 text-amber-300 border-amber-500/30' },
+    Lopsided: { text: 'text-orange-400', dot: 'bg-orange-400', banner: 'bg-orange-500/[0.06] border-orange-500/25', pill: 'bg-orange-500/10 text-orange-300 border-orange-500/30' },
     Unfair: { text: 'text-rose-400', dot: 'bg-rose-400', banner: 'bg-rose-500/[0.06] border-rose-500/25', pill: 'bg-rose-500/10 text-rose-300 border-rose-500/30' }
   },
   // A graded past trade (Vault.gradeTrade) re-graded at today's prices: today's
@@ -2063,13 +2063,13 @@ const Vault = {
       <div class="relative ${wrap}">
         <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 ${track} rounded-full overflow-hidden${mini ? ' opacity-80' : ''}" style="background: linear-gradient(to right,
           #fb7185 0%, #fb7185 ${lopLo}%,
-          #fbbf24 ${lopLo}%, #fbbf24 ${fairLo}%,
+          #fb923c ${lopLo}%, #fb923c ${fairLo}%,
           #34d399 ${fairLo}%, #34d399 ${goodLo}%,
           #38bdf8 ${goodLo}%, #38bdf8 ${greatLo}%,
           #a78bfa ${greatLo}%, #a78bfa ${greatHi}%,
           #38bdf8 ${greatHi}%, #38bdf8 ${goodHi}%,
           #34d399 ${goodHi}%, #34d399 ${fairHi}%,
-          #fbbf24 ${fairHi}%, #fbbf24 ${lopHi}%,
+          #fb923c ${fairHi}%, #fb923c ${lopHi}%,
           #fb7185 ${lopHi}%, #fb7185 100%);">
           ${band ? `<div class="absolute top-0 bottom-0 bg-white/30" style="left:${Math.min(band.lo, band.hi)}%; width:${Math.max(0.75, Math.abs(band.hi - band.lo))}%;"></div>` : ''}
         </div>

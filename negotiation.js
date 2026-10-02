@@ -611,9 +611,9 @@ function negAskHtml(r, i) {
   const chip = (p, label) => `<button onclick="negAsk(${i}, '${p}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on(p) ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`;
   const res = r.ask ? (r.ask.list.length ? `${r.ask.closest ? `<div class="text-[12px] text-amber-300 mt-2">Nothing Fair works with ${Vault.escapeHtml(r.ask.label)}. The closest they'd take:</div>` : ''}<div class="grid gap-2 sm:grid-cols-3 mt-2">${r.ask.list.map((o, k) => {
       const lop = o.edge >= VAULT_CONFIG.FAIR_PCT;
-      return `<div class="p-2.5 rounded-lg border ${lop ? 'border-amber-500/20' : 'border-white/10'} bg-black/30 flex flex-col">
+      return `<div class="p-2.5 rounded-lg border ${lop ? 'border-orange-500/20' : 'border-white/10'} bg-black/30 flex flex-col">
         <div class="text-[12px] text-zinc-300">They'd send <span class="text-zinc-100 font-medium">${negNames(negAssets(r.R, o.keys))}</span></div>
-        <div class="text-[12px] mt-1 ${lop ? 'text-amber-300' : 'text-zinc-400'}">${negLean(-o.edge)}</div>
+        <div class="text-[12px] mt-1 ${lop ? 'text-orange-300' : 'text-zinc-400'}">${negLean(-o.edge)}</div>
         <button onclick="negAskOffer(${i}, ${k})" class="mt-2 self-start text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Offer this</button>
       </div>`;
     }).join('')}</div>` : `<div class="text-[12px] text-zinc-400 mt-2">They wouldn't do any ${Vault.escapeHtml(r.ask.label)} deal for what you're offering, even a lopsided one.</div>`) : '';
@@ -733,7 +733,7 @@ function negRender() {
         <div class="flex items-center gap-2 mb-1.5"><span class="text-[12px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">${who}</span></div>
         ${r.reply ? `<div class="mb-2.5 px-3 py-2 rounded-lg rounded-tl-sm bg-white/[0.04] border border-white/10 text-[13px] text-zinc-100">"${r.reply}"</div>` : ''}
         ${negReasonsHtml(r)}
-        ${r.decision === 'accept' && r.edge >= VAULT_CONFIG.FAIR_PCT ? `<div class="text-[12px] text-amber-300 mb-1.5">Heads up: they'd accept because it now leans ${capPct(r.edge).toFixed(0)}% their way — ${r.edge >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided'} for you.${negAssets(r.O, r.offer[r.O]).length < negAssets(r.R, r.offer[r.R]).length ? ' On KTC\'s math, extra smaller pieces on your side count for less than the premium on the best player in the deal, so asking for a throw-in can make it worse for you.' : ''}</div>` : ''}
+        ${r.decision === 'accept' && r.edge >= VAULT_CONFIG.FAIR_PCT ? `<div class="text-[12px] text-orange-300 mb-1.5">Heads up: they'd accept because it now leans ${capPct(r.edge).toFixed(0)}% their way — ${r.edge >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided'} for you.${negAssets(r.O, r.offer[r.O]).length < negAssets(r.R, r.offer[r.R]).length ? ' On KTC\'s math, extra smaller pieces on your side count for less than the premium on the best player in the deal, so asking for a throw-in can make it worse for you.' : ''}</div>` : ''}
         ${r.decision === 'accept' ? `<div class="text-[12px] text-zinc-400">They'd take this as offered — make the offer in Sleeper.</div>` : ''}
         ${r.interests?.length ? `<div class="text-[12px] text-zinc-400 mb-1.5">On your roster, they'd be more interested in:</div>
           <div class="flex flex-wrap gap-1.5 mb-2">${negAssets(r.O, r.interests).map(a => `<button onclick="negAddInterest('${a.key}')" title="Add to your side" class="text-[12px] px-2 py-1 rounded-md border border-white/10 text-zinc-300 hover:text-white hover:border-amber-500/40">+ ${Vault.escapeHtml(a.name)} <span class="mono text-zinc-500">${Math.round(a.value).toLocaleString()}</span></button>`).join('')}</div>` : ''}

@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>Managers — The Vault</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=247f7d51">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="tailwind.css?v=1500dcad">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -36,7 +36,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=426274a4"></script>
+<script src="vault-core.js?v=90c73e61"></script>
 <script src="vault-nav.js?v=d210e85b"></script>
 <script src="market-data.js?v=40cbe071"></script>
 <script>
@@ -102,7 +102,7 @@ function renderCard(s, rank, maxAbsNet) {
         <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[12px] text-zinc-400">Trades</div></div>
         <div title="Trades ahead vs. behind on value: at today's prices, and (below) on the day"><div class="text-[14px] mono">${s.wonNow}-${s.lostNow} <span class="text-[12px] text-zinc-500">now</span></div><div class="text-[12px] text-zinc-400">${s.won}-${s.lost} then</div></div>
         <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.avgFit, 1)}</div><div class="text-[12px] text-zinc-400">Avg Fit</div></div>
-        <div title="How many of this manager's trades graded Fair, Lopsided, and Unfair: at today's prices, and (below) on the day"><div class="text-[14px] mono"><span class="text-emerald-400">${s.fairNow}</span> · <span class="text-amber-400">${s.lopsidedNow}</span> · <span class="text-rose-400">${s.unfairNow}</span> <span class="text-[12px] text-zinc-500">now</span></div><div class="text-[12px] text-zinc-400"><span class="text-emerald-400">${s.fair}</span> · <span class="text-amber-400">${s.lopsided}</span> · <span class="text-rose-400">${s.unfair}</span> then</div><div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">Fair · Lop · Unfair</div></div>
+        <div title="How many of this manager's trades graded Fair, Lopsided, and Unfair: at today's prices, and (below) on the day"><div class="text-[14px] mono"><span class="text-emerald-400">${s.fairNow}</span> · <span class="text-orange-400">${s.lopsidedNow}</span> · <span class="text-rose-400">${s.unfairNow}</span> <span class="text-[12px] text-zinc-500">now</span></div><div class="text-[12px] text-zinc-400"><span class="text-emerald-400">${s.fair}</span> · <span class="text-orange-400">${s.lopsided}</span> · <span class="text-rose-400">${s.unfair}</span> then</div><div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">Fair · Lop · Unfair</div></div>
       </div>
 
       <div class="space-y-2 mb-4">

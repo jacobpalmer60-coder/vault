@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>Patch Notes — The Vault</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=247f7d51">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="tailwind.css?v=1500dcad">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -29,7 +29,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=426274a4"></script>
+<script src="vault-core.js?v=90c73e61"></script>
 <script src="vault-nav.js?v=d210e85b"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -37,6 +37,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'improved', page: 'Trade Calculator', text: 'Trade Coach cards, redesigned: each trade now leads with the price, naming the team: "Skat Happens Chase Love pays 5% under KTC value · 31% under market price" (under means getting more than you send; over means overpaying), then the pieces as one tight list, one line on why (e.g. "Rome Odunze trades about 18% below his KTC value"), and "Walker Touchdown stRanger would likely say yes". The paragraph above the list is now one line with a How this works link.' },
+    { kind: 'improved', page: 'Everywhere', text: 'New look, first steps: page titles and big numbers use a condensed stat-sheet typeface, and Lopsided is orange everywhere (grades, the fairness bar, Trade Database charts, Trade Coach), so gold only means The Vault.' },
     { kind: 'improved', page: 'Everywhere', text: 'Pages line up: the header and every page now share the same edges (wide pages like League Overview, Rankings, the Trade Calculator and Managers at one width, card pages like Player Market and Trade Grades at another), with even margins on phones. The start page lists what\'s inside as a clean list instead of three boxes, and says where the data comes from: KeepTradeCut values and Sleeper league data, with The Vault an independent fan project not affiliated with either.' },
     { kind: 'improved', page: 'Everywhere', text: 'A cleaner, calmer look: a real logo (a vault dial) in the header and on browser tabs, gold kept for the one main button on a page and the page you\'re on (selected filters and toggles are now plain white), League Overview\'s little bars in one quiet tone instead of red-to-green, and Player Rankings\' two big "players / format" boxes folded into one line.' },
     { kind: 'new', page: 'Player Rankings', text: 'How often a player changes hands: the player card and the Player Market lookup now say how many completed trades he was part of in the last 30 days, next to the 10 players at his position closest to his value (e.g. Drake Maye 379 vs 194 for QBs near him: changes hands often). Stars usually change hands less than the players just below them, because their owners rarely sell.' },
