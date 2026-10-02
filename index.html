@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <title>The Vault — Sleeper x KeepTradeCut</title>
+  <title>The Vault — Dynasty tools for Sleeper</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-  <link rel="stylesheet" href="tailwind.css?v=fa81841d">
+  <link rel="stylesheet" href="tailwind.css?v=247f7d51">
 </head>
 <body class="min-h-screen text-zinc-100 antialiased">
   <div class="vault-bg"></div>
@@ -65,20 +65,21 @@
       </div>
 
       <!-- What's inside, so a first visit knows what it's signing up for. -->
-      <div class="mt-6 grid sm:grid-cols-3 gap-3 text-[12px]">
-        <div class="card rounded-vault-sm p-4">
-          <div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">League</div>
-          <p class="text-zinc-300 leading-relaxed">Every team ranked by dynasty value, with playoff odds, contention windows, and a deep dive on any team.</p>
+      <dl class="mt-8 border-t border-white/[0.07] divide-y divide-white/[0.07] text-[13px]">
+        <div class="grid grid-cols-[76px_1fr] gap-4 py-3.5">
+          <dt class="text-zinc-500">League</dt>
+          <dd class="text-zinc-300 leading-relaxed">Every team ranked by dynasty value, with playoff odds, contention windows, and a deep dive on any team.</dd>
         </div>
-        <div class="card rounded-vault-sm p-4">
-          <div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Players</div>
-          <p class="text-zinc-300 leading-relaxed">Rankings scored to your league's settings, side-by-side comparisons, and what players actually go for in completed trades.</p>
+        <div class="grid grid-cols-[76px_1fr] gap-4 py-3.5">
+          <dt class="text-zinc-500">Players</dt>
+          <dd class="text-zinc-300 leading-relaxed">Rankings scored to your league's settings, side-by-side comparisons, and what players actually go for in completed trades.</dd>
         </div>
-        <div class="card rounded-vault-sm p-4">
-          <div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Trades</div>
-          <p class="text-zinc-300 leading-relaxed">A trade calculator with a coach that finds deals the other manager would likely take, plus grades for every trade in your league.</p>
+        <div class="grid grid-cols-[76px_1fr] gap-4 py-3.5">
+          <dt class="text-zinc-500">Trades</dt>
+          <dd class="text-zinc-300 leading-relaxed">A trade calculator with a coach that finds deals the other manager would likely take, plus grades for every trade in your league.</dd>
         </div>
-      </div>
+      </dl>
+      <p class="mt-8 text-center text-[11px] text-zinc-500 leading-relaxed">Player values from KeepTradeCut. League data from Sleeper. The Vault is a free, independent fan project, not affiliated with either.</p>
     </div>
   </main>
 

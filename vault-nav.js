@@ -69,7 +69,7 @@
     // Phones: one button naming the current page; it opens the same groups as a list.
     const here = [...TABS, ...INFO].find(t => t.key === active);
     const menuHtml = `
-      <div class="vn-menu max-w-[1800px] mx-auto px-4 py-2 relative">
+      <div class="vn-menu max-w-[1400px] mx-auto px-4 py-2 relative">
         <button id="navMenuBtn" type="button" aria-expanded="false" aria-controls="navMenu"
           class="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-white/[0.05] border border-white/10 text-[14px] font-medium text-zinc-100">
           <span>${here ? here.label : 'Pages'}</span>
@@ -113,7 +113,7 @@
         <!-- Two rows: brand + settings on top, page tabs underneath (full width,
              scrolls sideways on phones), so adding a page never pushes the
              settings onto a wrapped row. -->
-        <div class="max-w-[1800px] mx-auto px-4 sm:px-6 pt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 pt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <a href="index.html" class="flex items-center gap-2.5 shrink-0 py-1">
             <svg class="size-8 shrink-0 " viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#e3b04b"/><circle cx="16" cy="16" r="9" fill="none" stroke="#1c1406" stroke-width="2.2"/><path d="M16 8.6v3.6M16 19.8v3.6M8.6 16h3.6M19.8 16h3.6" stroke="#1c1406" stroke-width="2.2" stroke-linecap="round"/><circle cx="16" cy="16" r="2.6" fill="#1c1406"/></svg>
             <div class="leading-none">
@@ -128,7 +128,7 @@
           </div>
         </div>
         <nav aria-label="Pages">
-          <div class="vn-row max-w-[1800px] mx-auto px-4 sm:px-6 py-2 items-center overflow-x-auto scrollbar">${tabsHtml}</div>
+          <div class="vn-row max-w-[1400px] mx-auto px-4 sm:px-6 py-2 items-center overflow-x-auto scrollbar">${tabsHtml}</div>
           ${menuHtml}
         </nav>
       </header>`;

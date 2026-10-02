@@ -7,14 +7,14 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=89e3b3bd">
-<link rel="stylesheet" href="tailwind.css?v=fa81841d">
+<link rel="stylesheet" href="tailwind.css?v=247f7d51">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[860px] mx-auto p-6 lg:p-10">
+<div class="max-w-[860px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Patch Notes</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1"></p>
@@ -30,13 +30,14 @@
 </div>
 
 <script src="vault-core.js?v=426274a4"></script>
-<script src="vault-nav.js?v=4074a7e2"></script>
+<script src="vault-nav.js?v=d210e85b"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-01', items: [
+    { kind: 'improved', page: 'Everywhere', text: 'Pages line up: the header and every page now share the same edges (wide pages like League Overview, Rankings, the Trade Calculator and Managers at one width, card pages like Player Market and Trade Grades at another), with even margins on phones. The start page lists what\'s inside as a clean list instead of three boxes, and says where the data comes from: KeepTradeCut values and Sleeper league data, with The Vault an independent fan project not affiliated with either.' },
     { kind: 'improved', page: 'Everywhere', text: 'A cleaner, calmer look: a real logo (a vault dial) in the header and on browser tabs, gold kept for the one main button on a page and the page you\'re on (selected filters and toggles are now plain white), League Overview\'s little bars in one quiet tone instead of red-to-green, and Player Rankings\' two big "players / format" boxes folded into one line.' },
     { kind: 'new', page: 'Player Rankings', text: 'How often a player changes hands: the player card and the Player Market lookup now say how many completed trades he was part of in the last 30 days, next to the 10 players at his position closest to his value (e.g. Drake Maye 379 vs 194 for QBs near him: changes hands often). Stars usually change hands less than the players just below them, because their owners rarely sell.' },
     { kind: 'improved', page: 'How We Grade', text: 'Two checks on the new trade data, written up: the Fair / Lopsided / Unfair cutoffs hold up on about 137,000 Sleeper trades (the Fair line matches; if anything the Unfair line is generous), and paying above KTC for a player does not predict KTC raising his value later, so the market is what you can get now, not a forecast.' },
