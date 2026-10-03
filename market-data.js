@@ -269,7 +269,7 @@ function marketNet(league, give, get) {
 }
 // "Rashee Rice trades about 13% above his KTC value", for the piece that moved a trade most.
 function marketMoverText(m) {
-  return `${Vault.escapeHtml(m.a.name)} trades about ${Math.abs(Math.round(m.adj))}% ${m.adj > 0 ? 'above' : 'below'} his KTC value`;
+  return `${Vault.escapeHtml(m.a.name)} trades about ${Math.abs(Math.round(m.adj))}% ${m.adj > 0 ? 'above' : 'below'} ${m.a.type === 'pick' ? 'its' : 'his'} KTC value`;
 }
 
 /* ---------- How often a player changes hands ----------

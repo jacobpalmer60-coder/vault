@@ -193,8 +193,9 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
     const w = Math.max(-NEG.MARKET_MAX, Math.min(NEG.MARKET_MAX, mk.delta * NEG.MARKET_SCALE));
     if (Math.abs(w) >= 1 && why) {
       const nm = Vault.escapeHtml(why.a.name);
-      const R = Vault.escapeHtml(teamR.teamName), mp = capPct(Math.abs(mk.market)).toFixed(0);
-      concerns.push({ w, text: `At market prices ${R} pays ${Math.abs(mk.market) < 1 ? 'about even' : `${mp}% ${mk.market > 0 ? 'under' : 'over'}`}, ${w > 0 ? 'better' : 'worse'} for them than on KTC: ${marketMoverText(why)}.`,
+      const R = Vault.escapeHtml(teamR.teamName);
+      const price = v => (Math.abs(v) < 1 ? 'about even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`);
+      concerns.push({ w, text: `At market prices ${R} pays ${price(mk.market)}, against ${price(mk.ktc)} on KTC value: ${marketMoverText(why)}.`,
         say: why.gets ? (why.adj > 0 ? `${nm} goes for more than KTC says, so I like this.` : `${nm} doesn't go for what KTC says.`)
                       : (why.adj > 0 ? `${nm} goes for more than KTC says. You'd have to pay up.` : `Moving ${nm} at KTC value works for me.`) });
     }

@@ -875,6 +875,7 @@ function renderCoach() {
 // price"). Then the pieces, one line of why, and the button.
 function coachCardHtml(o, i) {
   const lop = o.edge >= VAULT_CONFIG.FAIR_PCT, you = -o.edge;
+  const forYou = you >= VAULT_CONFIG.FAIR_PCT ? (you >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided') : null; // leans past Fair your way
   const mk = typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get) : null;
   const atMarket = mk && Math.abs(mk.delta) >= 1 ? you + mk.delta : null;
   const row = (label, a, first) => `<div class="grid grid-cols-[36px_minmax(0,1fr)_auto] items-baseline gap-2 py-1.5 ${first ? 'border-t border-white/[0.06]' : ''}">
@@ -886,7 +887,7 @@ function coachCardHtml(o, i) {
   return `<div class="p-4 rounded-xl border ${lop ? 'border-orange-500/25' : 'border-white/[0.07]'} bg-white/[0.02] flex flex-col">
       <div class="flex items-baseline justify-between gap-2">
         <span class="text-[12px] text-zinc-400 min-w-0 truncate">Trade with <span class="text-zinc-100 font-medium">${Vault.escapeHtml(o.partner.teamName)}</span></span>
-        <span class="text-[11px] font-semibold text-right ${lop ? 'text-orange-300' : 'text-emerald-300'}">${lop ? `Lopsided against ${Vault.escapeHtml(coachMe().teamName)}` : 'Fair'}</span>
+        <span class="text-[11px] font-semibold text-right ${forYou ? (Vault.BUCKET_STYLE[forYou] || Vault.BUCKET_STYLE.Lopsided).text : lop ? 'text-orange-300' : 'text-emerald-300'}">${forYou ? `${forYou}, in ${Vault.escapeHtml(coachMe().teamName)}'s favor` : lop ? `Lopsided against ${Vault.escapeHtml(coachMe().teamName)}` : 'Fair'}</span>
       </div>
       <div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(coachMe().teamName)} pays</div>
       <div class="grid grid-cols-2 gap-3 mt-1 mb-3">
