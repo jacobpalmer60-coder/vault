@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-03', items: [
+    { kind: 'fixed', page: 'Data status', text: 'The trade collector had stalled since October 2: each run stopped after a set number of calls rather than a set time, and with Sleeper answering about 430 calls a minute that took longer than the hour GitHub allows, so runs were cut off before saving. It now stops at 48 minutes on the clock, leaving time to save and price every run.' },
     { kind: 'new', page: 'Player Market', text: 'A KTC value filter on All players, Highs & lows and Rising & cooling: Any value, Under 2,000, 2,000+, 4,000+, 5,000+, 6,000+, 8,000+, or type any minimum (say 4,500). One setting covers all three tabs and is remembered for next time. Highs & lows\' "By position" line also reads "QB 4% over" instead of "+4%".' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'Trade Coach called every suggestion "Fair" unless it leaned against you, so a deal 52% in your favor (Trey McBride for Caleb Williams and Kenneth Walker) was labeled Fair. Cards now give the real grade, like "Unfair, in Skat Happens Chase Love\'s favor".' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'The market line in negotiations shows both prices ("At market prices Molon Labe pays 23% over, against 37% over on KTC value") instead of the confusing "17% over, better for them than on KTC", and picks are "its" KTC value, not "his".' },

@@ -54,6 +54,10 @@ const API = 'https://api.sleeper.app/v1';
 const CALLS_PER_MIN = +process.env.CALLS_PER_MIN || 500;
 const RUN_MINUTES = +process.env.RUN_MINUTES || 50;
 const CALL_BUDGET = Math.floor(RUN_MINUTES * CALLS_PER_MIN);
+// Stop on the clock too: one call at a time, Sleeper's answers hold the real rate
+// near 430 a minute, so the call budget alone ran ~58 minutes and hit the job's
+// time limit before anything was saved (every run 2026-10-02 to 10-03).
+const DEADLINE = Date.now() + RUN_MINUTES * 60000;
 const MIN_SEASON = 2021;
 const SEEDS = ['1313454100225990656'];                  // The League of Gold
 const ROOT = path.join(__dirname, '..');
@@ -64,9 +68,10 @@ const UA = 'TheVault-trade-research/1.0 (non-commercial; github.com/jacobpalmer6
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const hash = id => crypto.createHash('sha1').update(String(id)).digest('hex').slice(0, 12);
 let calls = 0, lastCall = 0, stopped = '', retries = 0;
+const budgetSpent = () => calls >= CALL_BUDGET || Date.now() >= DEADLINE; // out of calls or out of time
 
 async function get(p, retry = true) {
-  if (calls >= CALL_BUDGET || stopped) return null;
+  if (budgetSpent() || stopped) return null;
   const wait = lastCall + 60000 / CALLS_PER_MIN - Date.now();
   if (wait > 0) await sleep(wait);
   lastCall = Date.now();
@@ -117,7 +122,7 @@ async function crawlLeague(state, id, nfl) {
   if (state.seenLeagues[id]) return;
   state.seenLeagues[id] = 1;
   const league = await get(`/league/${id}`);
-  if (!league) { if (stopped || calls >= CALL_BUDGET) delete state.seenLeagues[id]; return; }
+  if (!league) { if (stopped || budgetSpent()) delete state.seenLeagues[id]; return; }
   const season = +league.season;
   if (league.settings?.type !== 2 || season < MIN_SEASON) return; // dynasty leagues only
   // Previous seasons of the same league go next, so each league's history fills in.
@@ -131,7 +136,7 @@ async function crawlLeague(state, id, nfl) {
   // No trades after a league's trade deadline (99 = none), so those weeks are skipped.
   const deadline = +league.settings?.trade_deadline || 99;
   const lastWeek = Math.min(deadline, season < nfl.season ? 18 : Math.max(1, Math.min(18, nfl.week)));
-  if (!(await fetchWeeks(id, season, 1, lastWeek))) { if (stopped || calls >= CALL_BUDGET) { delete state.seenLeagues[id]; state.leagues.unshift(id); } return; }
+  if (!(await fetchWeeks(id, season, 1, lastWeek))) { if (stopped || budgetSpent()) { delete state.seenLeagues[id]; state.leagues.unshift(id); } return; }
   await fetchRookieDrafts(id, season);
   // This season's leagues keep trading: come back for the new weeks (revisitDue).
   if (season === nfl.season && lastWeek < deadline) state.revisit[id] = { week: lastWeek, at: today(), dl: deadline };
@@ -180,7 +185,7 @@ async function revisitDue(state, nfl) {
   const cutoff = new Date(Date.now() - REVISIT_DAYS * 864e5).toISOString().slice(0, 10);
   const stopAt = calls + Math.floor(CALL_BUDGET / 5);
   for (const [id, r] of Object.entries(state.revisit)) {
-    if (calls >= stopAt || stopped) break;
+    if (calls >= stopAt || stopped || budgetSpent()) break;
     if (r.at > cutoff) continue;
     const dl = r.dl || 99, to = Math.min(dl, Math.max(1, Math.min(18, nfl.week)));
     if (!(await fetchWeeks(id, nfl.season, r.week, to))) continue;
@@ -191,7 +196,7 @@ async function revisitDue(state, nfl) {
 
 async function expandUser(state, uid, nfl) {
   const leagues = await get(`/user/${uid}/leagues/nfl/${nfl.season}`);
-  if (leagues == null) { if (stopped || calls >= CALL_BUDGET) state.users.unshift(uid); return; }
+  if (leagues == null) { if (stopped || budgetSpent()) state.users.unshift(uid); return; }
   // The list carries each league's settings, so non-dynasty leagues are skipped for free.
   leagues.filter(l => l.settings?.type === 2 && !state.seenLeagues[l.league_id]).forEach(l => state.leagues.push(l.league_id));
 }
@@ -237,7 +242,7 @@ async function main() {
   await seedFromKtc(state);
   await revisitDue(state, nfl);
   let lastSave = calls;
-  while (calls < CALL_BUDGET && !stopped) {
+  while (!budgetSpent() && !stopped) {
     if (state.leagues.length) await crawlLeague(state, state.leagues.shift(), nfl);
     else if (state.users.length) await expandUser(state, state.users.shift(), nfl);
     else break;
