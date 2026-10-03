@@ -9,7 +9,7 @@
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=1a03d3c5">
+<link rel="stylesheet" href="tailwind.css?v=41f20e2a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -87,6 +87,7 @@
     <p id="allSub" class="text-[12px] text-zinc-400 mt-0.5">Every player, ranked by what managers pay for him in completed trades.</p>
     <div class="flex flex-wrap items-center gap-2 mt-3 mb-3">
       <div id="allPos" class="flex flex-wrap gap-1.5"></div>
+      <div id="allValue" class="basis-full order-last"></div>
       <input id="allSearch" type="text" autocomplete="off" placeholder="Find a player…" aria-label="Find a player" class="ml-auto w-full sm:w-56 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[13px] outline-none focus:border-amber-500/40">
     </div>
     <div class="overflow-x-auto"><table class="w-full text-[12px]">
@@ -124,6 +125,29 @@ const ORD = n => n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n] || 'th');
 const posChip = q => (q === 'ALL' ? 'All' : q === 'Pick' ? 'Picks' : q);
 let pickHistory = null, pickHistoryLoading = null;
 const POS_MIN_MONTH = 15, MOVE_MIN = 5, MOVE_DAYS = 30, MOVE_SHOW = 8;
+
+/* ---------- KTC value filter ----------
+   One filter for All players, Highs & lows and Rising & cooling: a preset
+   band (e.g. 5,000+) or any minimum typed in. Remembered in this browser. */
+const VALUE_BANDS = [['Any value', 0, Infinity], ['Under 2,000', 0, 2000], ['2,000+', 2000, Infinity], ['4,000+', 4000, Infinity], ['5,000+', 5000, Infinity], ['6,000+', 6000, Infinity], ['8,000+', 8000, Infinity]];
+let [valueMin, valueMax] = (() => { try { const v = JSON.parse(localStorage.getItem('vault_market_value') || 'null'); return Array.isArray(v) ? [v[0], v[1] == null ? Infinity : v[1]] : [0, Infinity]; } catch { return [0, Infinity]; } })();
+const inValueBand = v => v >= valueMin && v < valueMax;
+function setValueBand(min, max = Infinity) {
+  valueMin = Math.max(0, +min || 0); valueMax = max;
+  try { localStorage.setItem('vault_market_value', JSON.stringify([valueMin, Number.isFinite(valueMax) ? valueMax : null])); } catch {}
+  allShown = ALL_PAGE; drawAll(); if (moversRows.length >= 4) drawMovers(); renderMoves();
+}
+function valueFilterHtml() {
+  const preset = VALUE_BANDS.find(([, a, b]) => a === valueMin && b === valueMax);
+  const chip = ([label, a, b]) => `<button onclick="setValueBand(${a}, ${Number.isFinite(b) ? b : 'Infinity'})" aria-pressed="${preset && preset[0] === label}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${preset && preset[0] === label ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`;
+  return `<div class="flex flex-wrap items-center gap-1.5">
+      <span class="text-[11px] uppercase tracking-wider text-zinc-500 mr-1">KTC value</span>
+      ${VALUE_BANDS.map(chip).join('')}
+      <label class="inline-flex items-center gap-1.5 text-[12px] text-zinc-400 ml-1">or at least
+        <input type="number" inputmode="numeric" min="0" step="250" value="${!preset && valueMin ? valueMin : ''}" placeholder="4500" aria-label="Minimum KTC value"
+          onchange="setValueBand(this.value)" class="w-20 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-zinc-100 outline-none focus:border-white/30"></label>
+    </div>`;
+}
 // A price against KTC value, said the way people talk about prices: "13% over", "8% under", "even".
 const signed = v => (Math.abs(v) < 0.5 ? 'even' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'over' : 'under'}`);
 const esc = s => Vault.escapeHtml(s);
@@ -206,14 +230,14 @@ function renderMoves() {
   const rows = [];
   Object.entries(daily.players).forEach(([norm, pts]) => {
     const who = byNorm.get(norm);
-    if (!who || !POS_COLOR[who.pos]) return;
+    if (!who || !POS_COLOR[who.pos] || !inValueBand(who.value)) return;
     const recent = pts.filter(p => p[0] > latest - MOVE_DAYS), before = pts.filter(p => p[0] <= latest - MOVE_DAYS && p[0] > latest - 2 * MOVE_DAYS);
     const n1 = recent.reduce((t, p) => t + p[2], 0), n0 = before.reduce((t, p) => t + p[2], 0);
     if (n1 < MOVE_MIN || n0 < MOVE_MIN) return;
     const now = wMedian(recent.map(p => [p[1], p[2]])), then = wMedian(before.map(p => [p[1], p[2]]));
     rows.push({ ...who, norm, now, then, change: now - then, n: n0 + n1 });
   });
-  if (rows.length < 2) { box.innerHTML = collecting(`Players appear here once they have ${MOVE_MIN}+ completed trades in each of the last two 30-day stretches.`); return; }
+  if (rows.length < 2) { box.innerHTML = (valueMin || Number.isFinite(valueMax) ? `<div class="mb-3">${valueFilterHtml()}</div><div class="text-[12px] text-zinc-500 py-3">No players in this value range have ${MOVE_MIN}+ completed trades in each of the last two 30-day stretches. Try a wider range.</div>` : collecting(`Players appear here once they have ${MOVE_MIN}+ completed trades in each of the last two 30-day stretches.`)); return; }
   const item = r => `<button onclick="openLookup('${encodeURIComponent(r.norm)}')" class="w-full text-left grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0 hover:bg-white/[0.02]">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
       <span class="min-w-0"><span class="block text-[13px] text-zinc-100 truncate">${esc(r.name)}</span>
@@ -225,7 +249,7 @@ function renderMoves() {
   const list = (title, sub, items) => `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
       <div class="text-[13px] font-medium text-zinc-200">${title}</div><div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${sub}</div>
       ${items.length ? items.map(item).join('') : '<div class="text-[12px] text-zinc-500 py-3">None yet.</div>'}</div>`;
-  box.innerHTML = `<div class="grid lg:grid-cols-2 gap-3">${list('Rising', 'Managers are paying more for these than a month ago, against KTC.', up)}${list('Cooling', 'Managers are paying less for these than a month ago, against KTC.', down)}</div>
+  box.innerHTML = `<div class="mb-3">${valueFilterHtml()}</div><div class="grid lg:grid-cols-2 gap-3">${list('Rising', 'Managers are paying more for these than a month ago, against KTC.', up)}${list('Cooling', 'Managers are paying less for these than a month ago, against KTC.', down)}</div>
     <div class="text-[11px] text-zinc-500 mt-3">Points: the change in each player's median paid over KTC (completed trades he headlined, any shape). Click a player to see his chart.</div>`;
 }
 
@@ -376,13 +400,13 @@ async function renderMovers(league, playerMap) {
 }
 function setMoversPos(pos) { moversPos = pos; drawMovers(); }
 function drawMovers() {
-  const rows = moversRows.filter(r => moversPos === 'ALL' || r.pos === moversPos);
+  const rows = moversRows.filter(r => (moversPos === 'ALL' || r.pos === moversPos) && inValueBand(r.value));
   const highs = rows.filter(r => r.m.vsPeers >= 1).sort((a, b) => b.m.vsPeers - a.m.vsPeers).slice(0, HL_SHOW);
   const lows = rows.filter(r => r.m.vsPeers <= -1).sort((a, b) => a.m.vsPeers - b.m.vsPeers).slice(0, HL_SHOW);
   const trades = moversRows.reduce((t, r) => t + r.m.n, 0);
   document.getElementById('moversSub').textContent = `Who managers pay more or less for than other players at the same position and KTC value, in completed trades they headlined. ${moversRows.length} players with ${HL_MIN_TRADES}+ such trades.`;
   const byPos = marketPeerBaseline(false)?.byPos || {};
-  const posLine = Object.keys(byPos).length ? `<div class="text-[12px] text-zinc-400 mb-3">By position, against KTC: ${Object.entries(byPos).map(([p, v]) => `<span class="text-zinc-300">${p}</span> <span class="mono ${Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${v >= 0.5 ? '+' : v <= -0.5 ? '−' : ''}${Math.abs(Math.round(v))}%</span>`).join(' <span class="text-zinc-600">·</span> ')} <span class="text-zinc-500">(how each position trades as a whole, in the same trades)</span></div>` : '';
+  const posLine = Object.keys(byPos).length ? `<div class="text-[12px] text-zinc-400 mb-3">By position, against KTC: ${Object.entries(byPos).map(([p, v]) => `<span class="text-zinc-300">${p}</span> <span class="mono ${Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${signed(v)}</span>`).join(' <span class="text-zinc-600">·</span> ')} <span class="text-zinc-500">(how each position trades as a whole, in the same trades)</span></div>` : '';
   const row = r => {
     const market = Math.round(r.value * (1 + r.m.premium / 100)), up = r.m.vsPeers > 0, peer = r.m.premium - r.m.vsPeers;
     return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0" title="KTC ${Math.round(r.value).toLocaleString()}, market ${market.toLocaleString()} (usually ${Math.round(r.value * (1 + r.m.low / 100)).toLocaleString()} to ${Math.round(r.value * (1 + r.m.high / 100)).toLocaleString()}) · leagues like yours (${r.m.like})">
@@ -401,7 +425,8 @@ function drawMovers() {
     </div>`;
   const chip = p => `<button onclick="setMoversPos('${p}')" aria-pressed="${moversPos === p}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${moversPos === p ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${p === 'ALL' ? 'All' : p}</button>`;
   document.getElementById('moversBody').innerHTML = `
-    <div class="flex flex-wrap gap-1.5 mb-3">${['ALL', 'QB', 'RB', 'WR', 'TE', 'Pick'].map(chip).join('')}</div>
+    <div class="flex flex-wrap gap-1.5 mb-2">${['ALL', 'QB', 'RB', 'WR', 'TE', 'Pick'].map(chip).join('')}</div>
+    <div class="mb-3">${valueFilterHtml()}</div>
     ${posLine}
     <div class="grid lg:grid-cols-2 gap-3">
       ${list('Market highs', 'Managers pay more for these than for others at their position and KTC value. A chance to sell high.', highs)}
@@ -440,7 +465,8 @@ function drawAll() {
     b.className = `text-[12px] px-3 py-1 rounded-lg border transition-colors ${on ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}`;
   });
   const { key, dir } = allSort;
-  const rows = allRows.filter(r => (allPos === 'ALL' || r.pos === allPos) && (!allQuery || r.name.toLowerCase().includes(allQuery)))
+  document.getElementById('allValue').innerHTML = valueFilterHtml();
+  const rows = allRows.filter(r => (allPos === 'ALL' || r.pos === allPos) && inValueBand(r.value) && (!allQuery || r.name.toLowerCase().includes(allQuery)))
     .sort((a, b) => (a[key] == null) - (b[key] == null) || dir * ((a[key] ?? 0) - (b[key] ?? 0)) || b.value - a.value);
   // [sort key, label, align]; the Market # column sorts by market value.
   // [sort key, label, align, hide on phones]. On a phone KTC moves under the name so Market and vs KTC fit.

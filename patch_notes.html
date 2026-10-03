@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=1a03d3c5">
+<link rel="stylesheet" href="tailwind.css?v=41f20e2a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-03', items: [
+    { kind: 'new', page: 'Player Market', text: 'A KTC value filter on All players, Highs & lows and Rising & cooling: Any value, Under 2,000, 2,000+, 4,000+, 5,000+, 6,000+, 8,000+, or type any minimum (say 4,500). One setting covers all three tabs and is remembered for next time. Highs & lows\' "By position" line also reads "QB 4% over" instead of "+4%".' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'Trade Coach called every suggestion "Fair" unless it leaned against you, so a deal 52% in your favor (Trey McBride for Caleb Williams and Kenneth Walker) was labeled Fair. Cards now give the real grade, like "Unfair, in Skat Happens Chase Love\'s favor".' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'The market line in negotiations shows both prices ("At market prices Molon Labe pays 23% over, against 37% over on KTC value") instead of the confusing "17% over, better for them than on KTC", and picks are "its" KTC value, not "his".' },
     { kind: 'fixed', page: 'Player Market', text: 'Rookie drafts: with six rookie classes collected, the season buttons ran off the side of a phone screen; they wrap now.' },
