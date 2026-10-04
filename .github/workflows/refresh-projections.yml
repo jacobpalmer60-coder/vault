@@ -1,0 +1,45 @@
+name: Refresh projections
+
+# Sleeper updates its projections through the week (injury news, depth charts,
+# matchups), so this season's lineups and projected records refresh every 3
+# hours instead of only with the nightly data update. Only data/projections.json
+# (about 100 KB compressed); injury labels still come from the nightly Sleeper
+# player list, which Sleeper asks apps to fetch once a day.
+on:
+  schedule:
+    - cron: '20 */3 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-projections
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: node scripts/fetch-projections.js
+
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Only the timestamp changed: nothing to publish.
+          if git show HEAD:data/projections.json | node -e "const a = JSON.parse(require('fs').readFileSync(0, 'utf8')), b = require('./data/projections.json'); process.exit(JSON.stringify([a.players, a.fromWeek]) === JSON.stringify([b.players, b.fromWeek]) ? 0 : 1)"; then
+            echo "Projections unchanged"; git checkout -- data/projections.json; exit 0
+          fi
+          git add data/projections.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Refresh projections"
+          # The hourly Sleeper crawl and the nightly update also push, so catch up first.
+          git pull --rebase
+          git push

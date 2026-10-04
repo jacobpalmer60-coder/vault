@@ -1222,7 +1222,7 @@ const Vault = {
   // for no week at all (no return date known) is out for the weeks left;
   // `availGuess` keeps his label at "On IR" rather than claiming a return week.
   availOf(proj, sleeper, pid) {
-    const out = proj?.wk ? { avail: proj.wk }
+    const out = proj?.wk ? { avail: proj.wk, ...(proj.wp ? { wp: proj.wp } : {}) }
       : sleeper && VAULT_CONFIG.SIDELINED_STATUSES.includes(sleeper.injury_status) ? { avail: '0'.repeat(18), availGuess: true } : {};
     if (pid && out.avail) Vault._availById.set(pid, out);
     return out;
@@ -1237,20 +1237,37 @@ const Vault = {
   typicalPool(plist, weeks = Vault._lineupWeeks) {
     return plist.filter(p => Vault.availShare(p, weeks) >= 0.5);
   },
+  // Each week's matchup for one player: his projected points that week over
+  // his average across the weeks he plays (Sleeper's weekly projections, `wp`),
+  // so a soft matchup lifts his PPG for that week and a tough one lowers it.
+  // Kept within 0.6-1.5 so one odd projection can't swing a lineup. null
+  // without weekly points.
+  matchupFactors(p, weeks) {
+    if (!p.wp) return null;
+    const vals = weeks.map(w => p.wp[w - 1] || 0), played = vals.filter(v => v > 0);
+    if (!played.length) return null;
+    const avg = played.reduce((a, b) => a + b, 0) / played.length;
+    return vals.map(v => (v > 0 ? Math.max(0.6, Math.min(1.5, v / avg)) : 1));
+  },
   // This season's lineup: the best lineup each week from who's available that
-  // week, averaged. total/vorpTotal are per week; starters is the typical
-  // week's lineup, each with `starts` (weeks he'd start of `weeks`).
+  // week at that week's matchup, averaged. total/vorpTotal are per week;
+  // byWeek is each week's total (Vault.simulateSeason plays each week at it);
+  // starters is the typical week's lineup, each with `starts` (weeks he'd
+  // start of `weeks`), at his plain PPG.
   seasonLineupDetail(plist, slots, weeks = Vault._lineupWeeks) {
-    if (!weeks.length || !plist.some(p => p.avail)) return { ...Vault.optimalLineupDetail(plist, slots), starts: null, weeks: 0 };
+    if (!weeks.length || !plist.some(p => p.avail)) return { ...Vault.optimalLineupDetail(plist, slots), starts: null, weeks: 0, byWeek: null };
     let total = 0, vorpTotal = 0;
-    const starts = new Map();
-    weeks.forEach(w => {
-      const d = Vault.optimalLineupDetail(plist.filter(p => Vault.availableIn(p, w)), slots);
-      total += d.total; vorpTotal += d.vorpTotal;
+    const starts = new Map(), byWeek = new Map();
+    const factors = plist.map(p => Vault.matchupFactors(p, weeks));
+    weeks.forEach((w, i) => {
+      const pool = [];
+      plist.forEach((p, k) => { if (Vault.availableIn(p, w)) pool.push(factors[k] ? { ...p, ppg: p.ppg * factors[k][i] } : p); });
+      const d = Vault.optimalLineupDetail(pool, slots);
+      total += d.total; vorpTotal += d.vorpTotal; byWeek.set(w, d.total);
       d.starters.forEach(s => { if (s.id) starts.set(s.id, (starts.get(s.id) || 0) + 1); });
     });
     const typical = Vault.optimalLineupDetail(Vault.typicalPool(plist, weeks), slots);
-    return { total: total / weeks.length, vorpTotal: vorpTotal / weeks.length, starters: typical.starters.map(s => ({ ...s, starts: starts.get(s.id) || 0 })), starts, weeks: weeks.length };
+    return { total: total / weeks.length, vorpTotal: vorpTotal / weeks.length, starters: typical.starters.map(s => ({ ...s, starts: starts.get(s.id) || 0 })), starts, weeks: weeks.length, byWeek };
   },
 
   // A Sleeper player's injury tag, carried on each roster entry (and so on every
@@ -1383,7 +1400,7 @@ const Vault = {
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
-      const { total: opt, vorpTotal, starters: lineup } = Vault.seasonLineupDetail(plist, slots);
+      const { total: opt, vorpTotal, starters: lineup, byWeek: optByWeek } = Vault.seasonLineupDetail(plist, slots);
       // Real season standings (Sleeper's own scoreboard record), not a value or
       // trade-derived stat — wins/losses/ties are tracked directly on the roster.
       const rs = r.settings || {};
@@ -1399,7 +1416,7 @@ const Vault = {
       // there apart from plist.length alone. String ids, matching plist's own p.id.
       const taxiIds = new Set((r.taxi || []).map(String));
       const reserveIds = new Set((r.reserve || []).map(String));
-      return { rosterId: r.roster_id, ownerId: r.owner_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, vorpTotal, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [], record, taxiIds, reserveIds };
+      return { rosterId: r.roster_id, ownerId: r.owner_id, teamName: tn, username: un, total, qb, rb, wr, te, age, opt, optByWeek, vorpTotal, lineup, plist, posCount, posPpg, startable, picks: own.get(r.roster_id) || [], record, taxiIds, reserveIds };
     });
 
     /* ---------- Per-player value/production divergence ----------
@@ -1653,11 +1670,11 @@ const Vault = {
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
-      const { total: opt, vorpTotal, starters: lineup } = Vault.seasonLineupDetail(plist, slots);
+      const { total: opt, vorpTotal, starters: lineup, byWeek: optByWeek } = Vault.seasonLineupDetail(plist, slots);
       const removedKeys = new Set(removedPicks.map(pickKey));
       const picks = [...team.picks.filter(p => !removedKeys.has(pickKey(p))), ...addedPicks];
       const picksValue = picks.reduce((s, p) => s + (p.value || 0), 0);
-      return { ...team, plist, total, qb, rb, wr, te, age, opt, vorpTotal, lineup, posCount, posPpg, picks, picksValue, overall: total + picksValue };
+      return { ...team, plist, total, qb, rb, wr, te, age, opt, optByWeek, vorpTotal, lineup, posCount, posPpg, picks, picksValue, overall: total + picksValue };
     }
 
     const newA = rebuild(A, giveAPlayers, giveBPlayers, giveAPicks, giveBPicks);
@@ -3784,9 +3801,34 @@ const Vault = {
       return avgOpt * ((1 - w) * (t.opt / avgOpt) + w * ((t.record.fpts / wk) / avgActual));
     };
     // opts.strengthDelta: rosterId -> pts/week added for the games left (a trade's
-    // change to that team's best lineup). opts.seed: fixed draws (see _seededRandn).
+    // change to that team's best lineup): a number, or { flat, byWeek } where
+    // byWeek is the change in each week's lineup (Map week -> pts) and flat is
+    // added every week (depth). opts.seed: fixed draws (see _seededRandn).
     const delta = opts.strengthDelta || new Map();
-    const strength = new Map(teams.map(t => [t.rosterId, Math.max(0, rating(t) + (delta.get(t.rosterId) || 0))]));
+    const deltaAt = (id, w) => {
+      const d = delta.get(id);
+      if (d == null) return 0;
+      if (typeof d === 'number') return d;
+      return (d.flat || 0) + (d.byWeek?.has(w) ? d.byWeek.get(w) : (d.avg || 0));
+    };
+    const avgDelta = id => {
+      const d = delta.get(id);
+      if (d == null || typeof d === 'number') return d || 0;
+      return (d.flat || 0) + (d.avg || 0);
+    };
+    // Each week is played at that week's lineup (t.optByWeek: who's available,
+    // byes, matchups), moved by the same blend with actual points as the
+    // season average. The playoff bracket uses the playoff weeks' average.
+    const base = new Map(teams.map(t => [t.rosterId, rating(t)]));
+    const weekShift = (t, w) => (t.optByWeek?.has(w) ? t.optByWeek.get(w) - t.opt : 0);
+    const strengthAt = (t, w) => Math.max(0, base.get(t.rosterId) + weekShift(t, w) + deltaAt(t.rosterId, w));
+    const weekStrength = new Map(remainingWeeks.map(wk => [wk.week, new Map(teams.map(t => [t.rosterId, strengthAt(t, wk.week)]))]));
+    const playoffWeeks = (Vault._lineupWeeks || []).filter(w => w >= (league.settings?.playoff_week_start || 15));
+    const strength = new Map(teams.map(t => {
+      const ws = playoffWeeks.filter(w => t.optByWeek?.has(w));
+      const s = ws.length ? ws.reduce((a, w) => a + strengthAt(t, w), 0) / ws.length : Math.max(0, base.get(t.rosterId) + avgDelta(t.rosterId));
+      return [t.rosterId, s];
+    }));
     const randn = opts.seed != null ? Vault._seededRandn(opts.seed) : Vault._randn;
     const baseWins = new Map(teams.map(t => [t.rosterId, t.record?.wins || 0]));
     const baseLosses = new Map(teams.map(t => [t.rosterId, t.record?.losses || 0]));
@@ -3794,8 +3836,8 @@ const Vault = {
     const baseFpts = new Map(teams.map(t => [t.rosterId, t.record?.fpts || 0]));
 
     const totals = new Map(rosterIds.map(id => [id, { winsSum: 0, lossesSum: 0, tiesSum: 0, playoffCount: 0, champCount: 0 }]));
-    const drawScore = id => {
-      const mean = strength.get(id) || 0;
+    const drawScore = (id, week) => {
+      const mean = weekStrength.get(week)?.get(id) ?? strength.get(id) ?? 0;
       return Math.max(0, mean + randn() * mean * sigmaPct);
     };
 
@@ -3804,7 +3846,7 @@ const Vault = {
       remainingWeeks.forEach(wk => {
         // One score per roster for the week — reused for both the head-to-head
         // result AND the median comparison, since it's the same real game.
-        const weekScores = new Map(rosterIds.map(id => [id, drawScore(id)]));
+        const weekScores = new Map(rosterIds.map(id => [id, drawScore(id, wk.week)]));
         wk.pairs.forEach(([a, b]) => {
           const sa = weekScores.get(a), sb = weekScores.get(b);
           fpts.set(a, fpts.get(a) + sa); fpts.set(b, fpts.get(b) + sb);

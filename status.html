@@ -9,7 +9,7 @@
 <title>Data Status — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=154396c5">
+<link rel="stylesheet" href="tailwind.css?v=19201d0c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -28,7 +28,7 @@
 
   <section class="mb-6">
     <h2 class="text-[13px] uppercase tracking-wider text-zinc-400 mb-2">Background jobs</h2>
-    <div id="jobs" class="grid md:grid-cols-2 gap-3"></div>
+    <div id="jobs" class="grid md:grid-cols-3 gap-3"></div>
   </section>
 
   <section class="mb-6">
@@ -56,7 +56,7 @@
   </section>
 </div>
 
-<script src="vault-core.js?v=a14a9c29"></script>
+<script src="vault-core.js?v=735ef58d"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* ============================================================
@@ -109,7 +109,7 @@ async function jobs() {
         <div class="flex gap-1 mt-2" aria-label="Last runs, oldest first">${strip}</div>
       </div>`;
   };
-  box.innerHTML = (await Promise.all([job('update-data.yml', 'Update data', 'daily', 30), job('crawl-sleeper.yml', 'Crawl Sleeper trades', 'hourly', 3)])).join('');
+  box.innerHTML = (await Promise.all([job('update-data.yml', 'Update data', 'daily', 30), job('crawl-sleeper.yml', 'Crawl Sleeper trades', 'hourly', 3), job('refresh-projections.yml', 'Refresh projections', 'every 3 hours', 7)])).join('');
 }
 
 async function values() {

@@ -24,8 +24,17 @@
 // Weekly players also get `wk`: one character per week 1-FANTASY_WEEKS, '1' when
 // Sleeper projects him to score that week, '0' for a bye or a week he's expected
 // to miss (Sleeper zeroes out injured players until their projected return, e.g.
-// a season-ending surgery is all 0s from then on). The site builds this season's
-// lineups week by week from it (Vault.seasonLineupDetail).
+// a season-ending surgery is all 0s from then on), and `wp`: his projected PPR
+// points each week (0 for those weeks). The site builds this season's lineups
+// week by week from them (Vault.seasonLineupDetail), `wp` as each week's
+// matchup relative to his average.
+//
+// Rest of season: a weekly player's stats and gp cover only the weeks still to
+// play (Sleeper's current NFL week on), so his PPG follows his current role and
+// health, not projections for weeks already played. Out for every week left: the
+// whole season instead, so his PPG stays his rate when he plays. Preseason and
+// offseason: the whole season. Runs every 3 hours (refresh-projections.yml) as
+// well as nightly, since Sleeper updates projections through the week.
 // So: use the real weekly sum wherever Sleeper actually provides one (real variance,
 // real bye), and fall back to the season-long total for everyone else, dividing it
 // by FANTASY_WEEKS - 1 rather than trusting Sleeper's placeholder gp — this league's
@@ -92,6 +101,11 @@ async function main() {
     };
   }
 
+  // First week still to play (see header). Sleeper's state says which NFL week
+  // it is; anything but the regular season of this projection year uses all weeks.
+  const state = await fetch('https://api.sleeper.app/v1/state/nfl').then(r => (r.ok ? r.json() : null)).catch(() => null);
+  const fromWeek = state && String(state.season) === String(season) && state.season_type === 'regular' ? Math.max(1, +state.week || 1) : 1;
+
   // Overlay real weekly sums wherever Sleeper actually provides them, replacing
   // the season-long fallback entirely (real gp, real per-week variance) rather
   // than blending the two together.
@@ -107,13 +121,22 @@ async function main() {
       const pts = row.stats || {};
       if (!Object.keys(weekStats).length || !(pts.pts_ppr > 0 || pts.pts_half_ppr > 0 || pts.pts_std > 0)) continue;
       let acc = weeklySums[row.player_id];
-      if (!acc) acc = weeklySums[row.player_id] = { name: `${row.player.first_name || ''} ${row.player.last_name || ''}`.trim(), pos, team: row.player.team || '', stats: {}, wk: '0'.repeat(FANTASY_WEEKS) };
-      for (const [k, v] of Object.entries(weekStats)) acc.stats[k] = (acc.stats[k] || 0) + v;
+      if (!acc) acc = weeklySums[row.player_id] = { name: `${row.player.first_name || ''} ${row.player.last_name || ''}`.trim(), pos, team: row.player.team || '', stats: {}, ros: {}, wk: '0'.repeat(FANTASY_WEEKS), wp: new Array(FANTASY_WEEKS).fill(0) };
       const w = weeks.indexOf(rows);
+      for (const [k, v] of Object.entries(weekStats)) {
+        acc.stats[k] = (acc.stats[k] || 0) + v;
+        if (w + 1 >= fromWeek) acc.ros[k] = (acc.ros[k] || 0) + v;
+      }
       acc.wk = acc.wk.slice(0, w) + '1' + acc.wk.slice(w + 1);
+      acc.wp[w] = Math.round((pts.pts_ppr || pts.pts_half_ppr || pts.pts_std || 0) * 10) / 10;
     }
   }
-  for (const [pid, p] of Object.entries(weeklySums)) players[pid] = p;
+  let rosCount = 0;
+  for (const [pid, p] of Object.entries(weeklySums)) {
+    const { ros, ...rest } = p;
+    if (ros.gp > 0) { rest.stats = ros; rosCount++; }
+    players[pid] = rest;
+  }
 
   const count = Object.keys(players).length;
   if (count < 500) {
@@ -124,6 +147,7 @@ async function main() {
   const payload = {
     source: 'api.sleeper.app/projections (weekly sum where available, season-long fallback otherwise)',
     season,
+    fromWeek,
     updated: new Date().toISOString(),
     count,
     players
@@ -132,7 +156,7 @@ async function main() {
   const outPath = path.join(__dirname, '..', 'data', 'projections.json');
   await fs.mkdir(path.dirname(outPath), { recursive: true });
   await fs.writeFile(outPath, JSON.stringify(payload));
-  console.log(`Wrote ${count} players (season ${season}) to ${outPath} — ${weeklyCount} from real weekly sums, ${count - weeklyCount} from season-long fallback.`);
+  console.log(`Wrote ${count} players (season ${season}, rest of season from week ${fromWeek}) to ${outPath} — ${weeklyCount} from real weekly sums (${rosCount} rest of season), ${count - weeklyCount} from season-long fallback.`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

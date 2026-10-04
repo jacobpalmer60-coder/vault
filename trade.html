@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=154396c5">
+<link rel="stylesheet" href="tailwind.css?v=19201d0c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -230,7 +230,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=a14a9c29"></script>
+<script src="vault-core.js?v=735ef58d"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1421,7 +1421,8 @@ const SEASON_TRIALS = 4000, SEASON_SEED = 20260929;
 let seasonBase = null, seasonBaseKey = '';
 const seasonCache = new Map();
 function seasonOdds(deltas) {
-  const key = [...deltas].map(([id, d]) => `${id}:${d.toFixed(2)}`).join('|');
+  const r = v => (+v || 0).toFixed(2);
+  const key = [...deltas].map(([id, d]) => `${id}:${typeof d === 'number' ? r(d) : `${r(d.flat)}/${r(d.avg)}/${d.byWeek ? [...d.byWeek.values()].map(r).join(',') : ''}`}`).join('|');
   if (!seasonCache.has(key)) {
     if (seasonCache.size > 50) seasonCache.clear();
     seasonCache.set(key, Vault.simulateSeason(teams, league, remainingWeeks, { trials: SEASON_TRIALS, seed: SEASON_SEED, strengthDelta: deltas }));
@@ -1441,7 +1442,13 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
   const depA = Vault.depthShift('contend', before.A, after.A, slots).perWeek, depB = Vault.depthShift('contend', before.B, after.B, slots).perWeek;
   const dA = lineA + depA, dB = lineB + depB;
   const parts = { [teamA.rosterId]: [lineA, depA], [teamB.rosterId]: [lineB, depB] };
-  const next = seasonOdds(new Map([[teamA.rosterId, dA], [teamB.rosterId, dB]]));
+  // Each week moves by that week's lineup change (Vault.seasonLineupDetail's
+  // byWeek: who's available, matchups), plus depth every week.
+  const weekly = (bef, aft, dep, line) => {
+    if (!bef.optByWeek || !aft.optByWeek) return line + dep;
+    return { flat: dep, avg: line, byWeek: new Map([...aft.optByWeek].map(([w, v]) => [w, v - (bef.optByWeek.get(w) ?? v)])) };
+  };
+  const next = seasonOdds(new Map([[teamA.rosterId, weekly(before.A, after.A, depA, lineA)], [teamB.rosterId, weekly(before.B, after.B, depB, lineB)]]));
   const pct = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
   const change = (b, a) => {
     const d = Math.round(a) - Math.round(b);

@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=154396c5">
+<link rel="stylesheet" href="tailwind.css?v=19201d0c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=a14a9c29"></script>
+<script src="vault-core.js?v=735ef58d"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-04', items: [
+    { kind: 'changed', page: 'Everywhere', text: 'Projected points per game now come from Sleeper\'s projections for the rest of the season instead of the whole season, so a player who takes over a starting job or loses his role moves Opt PPG right away rather than being averaged with projections for weeks already played.' },
+    { kind: 'changed', page: 'League Overview', text: 'Projected records, playoff odds and title odds now play each week at that week\'s lineup: who\'s available (byes, injuries, return dates) and each player\'s matchup that week. A team missing its RB1 until week 8 is weaker in those weeks only, and title odds use the playoff weeks\' lineups. A trade\'s This season odds (Trade Calculator, Trade Grades) move each week by that week\'s lineup change.' },
+    { kind: 'changed', page: 'Data status', text: 'Projections refresh every 3 hours instead of once a night, so injury news and depth chart changes reach lineups, records and odds within hours. Injury labels still update nightly with Sleeper\'s player list.' },
     { kind: 'changed', page: 'League Overview', text: 'A team\'s Best lineup now says it\'s the average per week over the weeks left ("Avg per week, wks 4-17"), and a starter who misses some of those weeks shows how many he starts ("Starts 12 of 14 wks"), so the total adding up to less than the players\' PPG makes sense. Injured players are tagged in the lineup and the position lists ("Out for season", "Back wk 8", "IR"). Same on Team Analyzer.' },
     { kind: 'fixed', page: 'Managers', text: 'The line over the table said The Gambler "has traded best" while the table ranked Skat Happens Chase Love first. They were measured differently: the line used market prices, the table today\'s KTC values. It now names both: who\'s furthest ahead at today\'s KTC values (what the table is ranked by) and who\'s furthest ahead and behind at market prices.' },
     { kind: 'fixed', page: 'Managers', text: 'Fit was a total across every trade, so a busy trader showed a big number without the "usually fit" note, while a one-trade manager got it. Fit is now the average per trade, the same number the note is based on.' },

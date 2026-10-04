@@ -9,7 +9,7 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=154396c5">
+<link rel="stylesheet" href="tailwind.css?v=19201d0c">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,7 +39,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=a14a9c29"></script>
+<script src="vault-core.js?v=735ef58d"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=1f512ca8"></script>
 <script>
@@ -200,8 +200,15 @@ function seasonEffect(g) {
     // Weekly strength change from undoing it: best lineup plus depth (missed-game cover).
     const dOf = side => (after[side].opt - before[side].opt) + Vault.depthShift('contend', before[side], after[side], ctx.slots).perWeek;
     const dA = dOf('A'), dB = dOf('B');
+    // In the simulation each week moves by that week's lineup change (who's
+    // available, matchups); dA/dB stay the per-week average shown.
+    const weekly = side => {
+      const bef = before[side], aft = after[side];
+      if (!bef.optByWeek || !aft.optByWeek) return dOf(side);
+      return { flat: Vault.depthShift('contend', bef, aft, ctx.slots).perWeek, avg: aft.opt - bef.opt, byWeek: new Map([...aft.optByWeek].map(([w, v]) => [w, v - (bef.optByWeek.get(w) ?? v)])) };
+    };
     const without = Vault.simulateSeason(ctx.teams, ctx.league, ctx.remainingWeeks, { trials: SEASON_TRIALS, seed: SEASON_SEED,
-      strengthDelta: new Map([[A.rosterId, dA], [B.rosterId, dB]]) });
+      strengthDelta: new Map([[A.rosterId, weekly('A')], [B.rosterId, weekly('B')]]) });
     const row = (team, d) => ({ team, now: seasonBase.get(team.rosterId), without: without.get(team.rosterId), ppw: -d });
     out = [row(A, dA), row(B, dB)];
   }
@@ -225,7 +232,7 @@ function seasonHtml(g) {
           <span class="text-zinc-200 w-[160px] shrink-0 truncate">${Vault.escapeHtml(r.team.teamName)}</span>
           <span class="text-zinc-400">Playoffs <span class="mono text-zinc-200">${pct(r.now.playoffPct)}</span> vs ${pct(r.without.playoffPct)} without ${chg(r.now.playoffPct, r.without.playoffPct)}</span>
           <span class="text-zinc-400">Title <span class="mono text-zinc-200">${pct(r.now.championshipPct)}</span> vs ${pct(r.without.championshipPct)} ${chg(r.now.championshipPct, r.without.championshipPct)}</span>
-          <span class="mono ${Math.abs(r.ppw) < 0.05 ? 'text-zinc-500' : r.ppw > 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.ppw >= 0 ? '+' : '−'}${Math.abs(r.ppw).toFixed(1)} pts/week</span>
+          <span class="mono ${Math.abs(r.ppw) < 0.05 ? 'text-zinc-500' : r.ppw > 0 ? 'text-emerald-400' : 'text-rose-400'}">${Math.abs(r.ppw) < 0.05 ? '0.0' : `${r.ppw > 0 ? '+' : '−'}${Math.abs(r.ppw).toFixed(1)}`} pts/week</span>
         </div>`).join('')}</div>
     </div>`;
 }
