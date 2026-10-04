@@ -880,7 +880,7 @@ function coachCardHtml(o, i) {
   const atMarket = mk && Math.abs(mk.delta) >= 1 ? you + mk.delta : null;
   const row = (label, a, first) => `<div class="grid grid-cols-[36px_minmax(0,1fr)_auto] items-baseline gap-2 py-1.5 ${first ? 'border-t border-white/[0.06]' : ''}">
       <span class="text-[11px] text-zinc-500">${label}</span>
-      <span class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span></span>
+      <span class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span>${Vault.injuryText(a) ? ` <span class="text-[11px] text-rose-300" title="From Sleeper's weekly projections; this season's lineups only count the weeks he's projected to play.">${Vault.injuryText(a)}</span>` : ''}</span>
       <span class="text-[12px] mono text-zinc-400">${Math.round(a.value).toLocaleString()}</span>
     </div>`;
   const side = (label, list) => list.map((a, k) => row(k ? '' : label, a, !k)).join('');

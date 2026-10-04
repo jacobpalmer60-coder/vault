@@ -38,7 +38,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=7d5cce61"></script>
+<script src="vault-core.js?v=6f770995"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=1f512ca8"></script>
 <script>
@@ -191,7 +191,7 @@ function renderSummaryTable(rows, teams) {
               ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's KTC prices")}
               ${th('W-L Market', 'wlMarket', 'text-right', "Trades ahead vs. behind at what players actually go for: today's KTC values times each piece's market value from completed trades")}
               ${th('Net Market', 'netMarket', 'text-right', "Net value across every trade at what players actually go for (today's KTC values times each piece's market value from completed trades)")}
-              ${th('Fit', 'fitSum', 'text-right', 'Timeline and positional-need fit, summed across every trade: how well the pieces they got suited their roster', 'px-4')}
+              ${th('Fit', 'avgFit', 'text-right', 'Timeline and positional-need fit, averaged per trade: how well the pieces they got suited their roster. 1.5 or more reads as usually fitting.', 'px-4')}
             </tr>
           </thead>
           <tbody class="divide-y divide-white/5">
@@ -212,7 +212,7 @@ function renderSummaryTable(rows, teams) {
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValueToday) : '—'}</td>
                 <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades && s.netMarket != null ? `${s.wonMarket}-${s.lostMarket}` : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades && s.netMarket != null ? signedCell(s.netMarket) : '—'}</td>
-                <td class="px-4 py-3 text-right mono ${s.fitSum > 0.5 ? 'text-emerald-400' : s.fitSum < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.trades ? (s.fitSum >= 0 ? '+' : '') + s.fitSum.toFixed(1) : '—'}</td>
+                <td class="px-4 py-3 text-right mono ${s.avgFit > 0.5 ? 'text-emerald-400' : s.avgFit < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.trades ? (s.avgFit >= 0 ? '+' : '−') + Math.abs(s.avgFit).toFixed(1) : '—'}</td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -249,7 +249,9 @@ function marketLine(rows) {
   if (traded.length < 2) return '';
   const top = traded.reduce((m, s) => (s.netMarket > m.netMarket ? s : m)), low = traded.reduce((m, s) => (s.netMarket < m.netMarket ? s : m));
   const pts = v => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v)).toLocaleString()}`;
-  return `<div class="text-[12px] text-zinc-400 mb-2">At market prices (what managers actually pay in completed trades), <span class="text-emerald-300">${Vault.escapeHtml(top.teamName)}</span> has traded best (${pts(top.netMarket)} across ${top.trades} trade${top.trades === 1 ? '' : 's'}) and <span class="text-amber-300">${Vault.escapeHtml(low.teamName)}</span> has given up the most (${pts(low.netMarket)}). See the Market columns.</div>`;
+  const ktcTop = traded.reduce((m, s) => (s.netValueToday > m.netValueToday ? s : m));
+  const name = s => `<span class="text-zinc-100">${Vault.escapeHtml(s.teamName)}</span>`;
+  return `<div class="text-[12px] text-zinc-400 mb-2">Ranked by Net now: each manager's trades at today's KTC values, where ${name(ktcTop)} is furthest ahead (${pts(ktcTop.netValueToday)}). At market prices (what managers actually pay in completed trades), ${name(top)} is furthest ahead (${pts(top.netMarket)} across ${top.trades} trade${top.trades === 1 ? '' : 's'}) and ${name(low)} furthest behind (${pts(low.netMarket)}).</div>`;
 }
 
 /* ---------- Who pays up ----------

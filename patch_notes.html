@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=7d5cce61"></script>
+<script src="vault-core.js?v=6f770995"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,11 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-04', items: [
+    { kind: 'fixed', page: 'Managers', text: 'The line over the table said The Gambler "has traded best" while the table ranked Skat Happens Chase Love first. They were measured differently: the line used market prices, the table today\'s KTC values. It now names both: who\'s furthest ahead at today\'s KTC values (what the table is ranked by) and who\'s furthest ahead and behind at market prices.' },
+    { kind: 'fixed', page: 'Managers', text: 'Fit was a total across every trade, so a busy trader showed a big number without the "usually fit" note, while a one-trade manager got it. Fit is now the average per trade, the same number the note is based on.' },
+    { kind: 'fixed', page: 'Managers', text: 'Descriptions no longer contradict the columns. "Aged poorly" isn\'t used for a team still well ahead ("still ahead today, by less"). Coming out ahead while losing most deals says so ("though they won only 7 of 16: the wins were bigger"). When market prices tell a different story than KTC, the description adds it ("At market prices, about even"). One-trade managers read "the deal" and "the trade fit", not "usually".' },
+    { kind: 'fixed', page: 'Trade Calculator', text: 'Links that open a Trade Coach option (like "Find trades with them") lost the option when you hadn\'t picked your team yet. After you pick it, the option opens.' },
+    { kind: 'changed', page: 'Trade Calculator', text: 'Trade Coach cards tag injured pieces ("Jonah Coleman RB, Out, back week 7 (ankle)"), and This season shows 0.0 instead of −0.0 for no change.' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'The grade\'s roster fit and timeline now follow the same week-by-week lineups. Trading Rome Odunze and Jonah Coleman for Jaxson Dart read "Good, 10% in Skat Happens Chase Love\'s favor", partly because Dart still counted as adding a starter and as a win-now piece. It\'s Fair, 7% now: a player projected to miss most of the weeks left adds no lineup points and gets no win-now credit in the timeline. This also applies in Trade Coach and in Trade Grades\' This season.' },
     { kind: 'changed', page: 'Trade Calculator', text: 'The Roster fit and Timeline bars (with Overall and KTC value) moved up under the grade, so you see what moved the verdict without scrolling past both rosters.' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'Injured players counted as healthy starters: Jaxson Dart, out for the season after knee surgery, showed as adding 1.1 points a week to whoever traded for him, over Kyler Murray. This season\'s lineups are now built week by week for every week left, playoffs included, from the players Sleeper projects to play that week. Byes count for real, and so do injuries: Dart adds nothing this season, and A.J. Brown counts from week 8, when he\'s projected back. The calculator tags these players ("Out for the season (knee)", "Out, back week 8 (ankle)") and says how many weeks a new starter would start ("A.J. Brown, 9 of 14 weeks"). Applies everywhere the lineup is used: League Overview, Team Analyzer, This season odds and Trade Coach. KTC values are unchanged.' },

@@ -3489,25 +3489,39 @@ const Vault = {
       'value trader': 'No clear lean toward youth, veterans, or picks.'
     }[core];
 
-    // Value at trade time, then how it has aged — the connector depends on
-    // whether the aging agrees with the original result ("and ... even better")
-    // or cuts against it ("but ...").
-    const ahead = s.netValue >= 250, behind = s.netValue <= -250;
+    // Value at trade time, then how it has aged. Each clause says where things
+    // stand today, so "aged poorly" never sits next to a team still well ahead.
+    const one = s.trades === 1, deals = one ? 'the deal' : 'the deals';
+    const side = v => (v >= 250 ? 1 : v <= -250 ? -1 : 0);
+    const then = side(s.netValue), now = side(s.netValueToday);
     const swing = s.netValueToday - s.netValue;
-    const agedUp = swing >= 1000, agedDown = swing <= -1000;
-    let outcome = ahead ? `Came out ahead at trade time (${fmt(s.netValue)})`
-      : behind ? `Gave up value at trade time (${fmt(s.netValue)})`
+    const today = `${fmt(s.netValueToday)} today`;
+    let outcome = then > 0 ? `Came out ahead at trade time (${fmt(s.netValue)})`
+      : then < 0 ? `Gave up value at trade time (${fmt(s.netValue)})`
       : 'Roughly even at trade time';
-    if (agedUp) outcome += ahead ? `, and the deals have aged even better (${fmt(s.netValueToday)} today)`
-      : behind ? `, but the deals have aged well since (${fmt(s.netValueToday)} today)`
-      : `; the deals have aged well since (${fmt(s.netValueToday)} today)`;
-    else if (agedDown) outcome += ahead ? `, but the deals have aged poorly (${fmt(s.netValueToday)} today)`
-      : behind ? `, and the deals have aged even worse (${fmt(s.netValueToday)} today)`
-      : `; the deals have aged poorly since (${fmt(s.netValueToday)} today)`;
+    // Ahead overall while losing most deals (or the reverse): a few big results
+    // outweighed more small ones. Said, so it doesn't read as a contradiction
+    // of the W-L column.
+    if (!one && then > 0 && s.won < s.lost) outcome += `, though they won only ${s.won} of ${s.trades}: ${s.won === 1 ? 'the win was' : 'the wins were'} bigger`;
+    else if (!one && then < 0 && s.won > s.lost) outcome += `, though they won ${s.won} of ${s.trades}: ${s.lost === 1 ? 'the loss was' : 'the losses were'} bigger`;
+    if (Math.abs(swing) >= 1000 || now !== then) {
+      if (now === then) outcome += then === 0 ? `; still about even (${today})`
+        : (swing > 0) === (then > 0) ? `, and ${deals} ${one ? 'has' : 'have'} aged even ${then > 0 ? 'better' : 'worse'} (${today})`
+        : `; still ${then > 0 ? 'ahead' : 'behind'} today, by less (${fmt(s.netValueToday)})`;
+      else outcome += now > 0 ? `; ${deals} ${one ? 'has' : 'have'} aged well since (${today})`
+        : now < 0 ? `; ${deals} ${one ? 'has' : 'have'} aged poorly since (${today})`
+        : `; about even today (${today})`;
+    }
+    // Market prices (managers.html adds netMarket) only when they tell a
+    // different story than today's KTC values.
+    let market = '';
+    if (s.netMarket != null && side(s.netMarket) !== now) {
+      market = ` At market prices, ${side(s.netMarket) > 0 ? 'ahead' : side(s.netMarket) < 0 ? 'behind' : 'about even'} (${fmt(s.netMarket)}).`;
+    }
 
-    const fit = s.avgFit >= 1.5 ? ' Their trades usually fit their own timeline and needs.'
-      : s.avgFit <= -1.5 ? ' Their trades often work against their own timeline or needs.' : '';
-    return { style, tone, blurb: `${how} ${outcome}.${fit}` };
+    const fit = s.avgFit >= 1.5 ? (one ? ' The trade fit their own timeline and needs.' : ' Their trades usually fit their own timeline and needs.')
+      : s.avgFit <= -1.5 ? (one ? ' The trade worked against their own timeline or needs.' : ' Their trades often work against their own timeline or needs.') : '';
+    return { style, tone, blurb: `${how} ${outcome}.${market}${fit}` };
   },
 
   managerTendencyNotes(s, leagueAvgTrades) {
