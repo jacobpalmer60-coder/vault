@@ -230,7 +230,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=46506adb"></script>
+<script src="vault-core.js?v=7d5cce61"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1640,7 +1640,9 @@ function updateTrade() {
     <div class="flex gap-10 mt-1">${priceStatHtml(ktcEdge, 'KTC value', PRICE_TIP.ktc)}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market) : ''}</div>` : ''}`;
   diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% KTC value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than KTC value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side.`;
   diffLabelEl.className = '';
-  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? fairnessBarHtml(fairness.overallSigned, diffBandPct) : '';
+  // The overall bar plus the three it's made of (KTC value, roster fit, timeline),
+  // right under the grade.
+  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? Vault.fairnessPanelHtml(fairness, diffBandPct, teamA.teamName, teamB.teamName, `${offPct.toFixed(0)}% off`) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
   renderSeasonImpact(teamA, teamB, aAssets, bAssets);
   renderLineups(teamA, teamB, analysis);
@@ -2082,7 +2084,6 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
       ${offeredBy ? Vault.gradePill(bucket) : ''}
     </div>
     <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.text}</div>
-    <div class="max-w-xl mt-4">${Vault.fairnessPanelHtml(fairness, bandPct, teamA.teamName, teamB.teamName, `${capPct(fairness.fitMovedIt ? overallPct : pctDiff).toFixed(0)}% off`)}</div>
     <div class="text-[12px] text-zinc-400 mt-3">${[fairness.fitMovedIt ? `KTC value alone: ${capPct(pctDiff).toFixed(0)}% off` : '', confidenceText, needNote, `<a href="${Vault.linkTo('how_we_grade.html')}" class="text-amber-300/80 hover:text-amber-200">How is this graded?</a>`].filter(Boolean).join(' · ')}</div>`;
 }
 

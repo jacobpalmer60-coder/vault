@@ -1215,14 +1215,17 @@ const Vault = {
     return weeks;
   },
   availableIn(p, w) { return !p.avail || p.avail[w - 1] !== '0'; },
+  // Every rostered player's availOf result by Sleeper id, for simulateTrade.
+  _availById: new Map(),
   // A roster entry's weekly availability: Sleeper's projected weeks when it has
   // them. A player on IR, PUP, suspended or not reporting whom Sleeper projects
   // for no week at all (no return date known) is out for the weeks left;
   // `availGuess` keeps his label at "On IR" rather than claiming a return week.
-  availOf(proj, sleeper) {
-    if (proj?.wk) return { avail: proj.wk };
-    if (sleeper && VAULT_CONFIG.SIDELINED_STATUSES.includes(sleeper.injury_status)) return { avail: '0'.repeat(18), availGuess: true };
-    return {};
+  availOf(proj, sleeper, pid) {
+    const out = proj?.wk ? { avail: proj.wk }
+      : sleeper && VAULT_CONFIG.SIDELINED_STATUSES.includes(sleeper.injury_status) ? { avail: '0'.repeat(18), availGuess: true } : {};
+    if (pid && out.avail) Vault._availById.set(pid, out);
+    return out;
   },
   // Share of the weeks left he's projected to play (1 with no weekly data).
   availShare(p, weeks = Vault._lineupWeeks) {
@@ -1295,6 +1298,7 @@ const Vault = {
     // Weeks left to build this season's lineups over (Vault.seasonLineupDetail);
     // only when the projections are for this league's season.
     Vault._lineupWeeks = String(projData.season) === String(league.season) ? Vault.lineupWeeks(league, rosters) : [];
+    Vault._availById = new Map();
 
     // Replacement-level PPG per position, for VORP (see Vault.computeReplacementLevels)
     // — needs PPG joined by NAME across the whole KTC universe, not just rostered
@@ -1330,7 +1334,7 @@ const Vault = {
         const p = players[String(pid)] || {};
         const nm = `${p.first_name || ''} ${p.last_name || ''}`.trim();
         const ppg = ppgMap.get(String(pid)) || 0;
-        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), ...Vault.availOf(projData.players?.[String(pid)], p), ...Vault.injuryOf(p) };
+        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), ...Vault.availOf(projData.players?.[String(pid)], p, String(pid)), ...Vault.injuryOf(p) };
       });
       const total = plist.reduce((s, p) => s + p.value, 0);
       const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);
@@ -1609,7 +1613,9 @@ const Vault = {
 
     function rebuild(team, removedPlayers, addedPlayers, removedPicks, addedPicks) {
       const removedIds = new Set(removedPlayers.map(p => p.id));
-      const plist = [...team.plist.filter(p => !removedIds.has(p.id)), ...addedPlayers];
+      // Incoming players get their weekly availability by id (Vault._availById):
+      // callers often pass slimmed copies of the asset without it.
+      const plist = [...team.plist.filter(p => !removedIds.has(p.id)), ...addedPlayers.map(p => ({ ...(Vault._availById.get(String(p.id)) || {}), ...p }))];
       const total = plist.reduce((s, p) => s + p.value, 0);
       const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);
       const rb = plist.filter(p => p.pos === 'RB').reduce((s, p) => s + p.value, 0);
@@ -2800,6 +2806,10 @@ const Vault = {
       const cls = Vault.assetTimelineClass(a);
       if (cls == null) return null; // prime-years player — good for either timeline
       if (mode === 'rebuild') return { fitsMode: cls === 'young', cls };
+      // A win-now read is about this season: a player projected to miss most of
+      // the weeks left (Jaxson Dart, out for the season) gives a contender
+      // nothing now, young star or veteran, so no signal either way.
+      if (Vault.availShare({ ...(Vault._availById.get(String(a.id)) || {}), ...a }) < 0.5) return null;
       // contend: an already-elite young producer fits a win-now plan the same way a
       // veteran does (see module comment); a young player who hasn't proven it yet
       // gets no signal either way.

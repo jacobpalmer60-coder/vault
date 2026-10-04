@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=46506adb"></script>
+<script src="vault-core.js?v=7d5cce61"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-04', items: [
+    { kind: 'fixed', page: 'Trade Calculator', text: 'The grade\'s roster fit and timeline now follow the same week-by-week lineups. Trading Rome Odunze and Jonah Coleman for Jaxson Dart read "Good, 10% in Skat Happens Chase Love\'s favor", partly because Dart still counted as adding a starter and as a win-now piece. It\'s Fair, 7% now: a player projected to miss most of the weeks left adds no lineup points and gets no win-now credit in the timeline. This also applies in Trade Coach and in Trade Grades\' This season.' },
+    { kind: 'changed', page: 'Trade Calculator', text: 'The Roster fit and Timeline bars (with Overall and KTC value) moved up under the grade, so you see what moved the verdict without scrolling past both rosters.' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'Injured players counted as healthy starters: Jaxson Dart, out for the season after knee surgery, showed as adding 1.1 points a week to whoever traded for him, over Kyler Murray. This season\'s lineups are now built week by week for every week left, playoffs included, from the players Sleeper projects to play that week. Byes count for real, and so do injuries: Dart adds nothing this season, and A.J. Brown counts from week 8, when he\'s projected back. The calculator tags these players ("Out for the season (knee)", "Out, back week 8 (ankle)") and says how many weeks a new starter would start ("A.J. Brown, 9 of 14 weeks"). Applies everywhere the lineup is used: League Overview, Team Analyzer, This season odds and Trade Coach. KTC values are unchanged.' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'Roster cuts ignored open IR slots. Trading Rome Odunze and Jonah Coleman (on IR) for Jaxson Dart said The Gambler would have to cut 2 players, but Coleman can go straight into one of their open IR slots, so it\'s 1. When the count is higher because a player being sent away is already on IR or taxi, the reason now says so.' },
   ]},
