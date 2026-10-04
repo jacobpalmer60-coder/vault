@@ -31,13 +31,17 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=90c73e61"></script>
+<script src="vault-core.js?v=f1f01997"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-04', items: [
+    { kind: 'fixed', page: 'Trade Calculator', text: 'Injured players counted as healthy starters: Jaxson Dart, on IR after knee surgery, showed as adding 1.1 points a week to whoever traded for him. The site now reads Sleeper\'s injury list every day. Players on IR or PUP, suspended or not reporting keep their KTC value but no longer count toward this season\'s lineup anywhere (League Overview, Team Analyzer, This season odds, Trade Coach), and the calculator tags them, like "On IR (knee)".' },
+    { kind: 'fixed', page: 'Trade Calculator', text: 'Roster cuts ignored open IR slots. Trading Rome Odunze and Jonah Coleman (on IR) for Jaxson Dart said The Gambler would have to cut 2 players, but Coleman can go straight into one of their open IR slots, so it\'s 1. When the count is higher because a player being sent away is already on IR or taxi, the reason now says so.' },
+  ]},
   { date: '2026-10-03', items: [
     { kind: 'fixed', page: 'Data status', text: 'The trade collector had stalled since October 2: each run stopped after a set number of calls rather than a set time, and with Sleeper answering about 430 calls a minute that took longer than the hour GitHub allows, so runs were cut off before saving. It now stops at 48 minutes on the clock, leaving time to save and price every run.' },
     { kind: 'new', page: 'Player Market', text: 'A KTC value filter on All players, Highs & lows and Rising & cooling: Any value, Under 2,000, 2,000+, 4,000+, 5,000+, 6,000+, 8,000+, or type any minimum (say 4,500). One setting covers all three tabs and is remembered for next time. Highs & lows\' "By position" line also reads "QB 4% over" instead of "+4%".' },

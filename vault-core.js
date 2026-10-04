@@ -35,6 +35,12 @@ const VAULT_CONFIG = {
   // same 0-9999 scale, so the same constant applies without needing to look it up
   // fresh from our own dataset every time.
   CONSOLIDATION_GLOBAL_MAX: 10099,
+  // Sleeper injury statuses that mean "out for weeks, not days" (NFL injured
+  // reserve, PUP, suspended, did not report). These players keep their dynasty
+  // value but don't count toward this season's best lineup anywhere on the site:
+  // a QB on IR after knee surgery can't start for whoever trades for him. Weekly
+  // tags (Questionable, Doubtful, Out) still count.
+  SIDELINED_STATUSES: ['IR', 'PUP', 'Sus', 'DNR'],
   // How much a position's need/surplus status (see Vault.positionalProfile) scales
   // an asset's value to the team involved — a real need is worth more than sticker
   // price to the team receiving it (or costs more than sticker price to give up),
@@ -1153,7 +1159,8 @@ const Vault = {
      (which only needs the total, re-run on a hypothetical post-trade roster), and
      anywhere else that only cares about the number. */
   optimalLineupDetail(plist, slots) {
-    const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
+    // Players out long term (Vault.isSidelined) can't start this season.
+    const pool = plist.filter(p => !p.out).sort((a, b) => b.ppg - a.ppg);
     const used = new Set();
     const starters = [];
     let total = 0;
@@ -1180,6 +1187,21 @@ const Vault = {
 
   optimalLineup(plist, slots) {
     return Vault.optimalLineupDetail(plist, slots).total;
+  },
+
+  // A Sleeper player's injury tag, carried on each roster entry (and so on every
+  // trade asset built from one): `out` marks the long-term ones
+  // (VAULT_CONFIG.SIDELINED_STATUSES) that optimalLineupDetail leaves out.
+  injuryOf(p) {
+    if (!p || !p.injury_status) return {};
+    return { injury: p.injury_status, injuryPart: p.injury_body_part || '', out: VAULT_CONFIG.SIDELINED_STATUSES.includes(p.injury_status) };
+  },
+  // How a sidelined player reads in the UI, e.g. "On IR (knee)".
+  injuryText(a) {
+    if (!a || !a.out) return '';
+    const label = { IR: 'On IR', PUP: 'On PUP', Sus: 'Suspended', DNR: 'Not reporting' }[a.injury] || a.injury;
+    const part = (a.injuryPart || '').split(' - ')[0].toLowerCase();
+    return part ? `${label} (${part})` : label;
   },
 
   /* ---------- Full league team-building pipeline ----------
@@ -1233,7 +1255,7 @@ const Vault = {
         const p = players[String(pid)] || {};
         const nm = `${p.first_name || ''} ${p.last_name || ''}`.trim();
         const ppg = ppgMap.get(String(pid)) || 0;
-        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels) };
+        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), ...Vault.injuryOf(p) };
       });
       const total = plist.reduce((s, p) => s + p.value, 0);
       const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);
@@ -1262,7 +1284,7 @@ const Vault = {
       // position that isn't actually producing (hurt, buried, aging) or middling
       // value can be outproducing it — positionalProfile blends both signals
       // instead of trusting price alone.
-      const topPpg = (pos, n) => plist.filter(p => p.pos === pos).map(p => p.ppg)
+      const topPpg = (pos, n) => plist.filter(p => p.pos === pos && !p.out).map(p => p.ppg)
         .sort((a, b) => b - a).slice(0, n).reduce((s, v) => s + v, 0);
       const posPpg = {
         qb: topPpg('QB', startable.qb),
@@ -1530,7 +1552,7 @@ const Vault = {
         wr: plist.filter(p => p.pos === 'WR' && p.value >= posFloor).length,
         te: plist.filter(p => p.pos === 'TE' && p.value >= posFloor).length
       };
-      const topPpg = (pos, n) => plist.filter(p => p.pos === pos).map(p => p.ppg)
+      const topPpg = (pos, n) => plist.filter(p => p.pos === pos && !p.out).map(p => p.ppg)
         .sort((a, b) => b - a).slice(0, n).reduce((s, v) => s + v, 0);
       const posPpg = {
         qb: topPpg('QB', team.startable.qb),

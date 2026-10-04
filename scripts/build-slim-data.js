@@ -20,7 +20,9 @@
 
    3. data/sleeper-players.json — Sleeper's /players/nfl (~15 MB) cut to the
       fields the site reads: first_name, last_name, position, age, team,
-      years_exp. Every player is kept (old trades and IDP rosters still need
+      years_exp, injury_status and injury_body_part (so players out long term,
+      like those on NFL injured reserve, stay out of this season's lineups).
+      Every player is kept (old trades and IDP rosters still need
       names). Also keeps the site to one players/nfl call a day, which is
       what Sleeper asks of API users.
    ============================================================ */
@@ -30,7 +32,7 @@ const path = require('path');
 const DATA = path.join(__dirname, '..', 'data');
 const HISTORY_DIR = path.join(DATA, 'history');
 const FIELDS = [['sf', null], ['oneQB', null], ['sf_tep', 'sf'], ['sf_tepp', 'sf'], ['oneQB_tep', 'oneQB'], ['oneQB_tepp', 'oneQB']];
-const SLEEPER_FIELDS = ['first_name', 'last_name', 'position', 'age', 'team', 'years_exp'];
+const SLEEPER_FIELDS = ['first_name', 'last_name', 'position', 'age', 'team', 'years_exp', 'injury_status', 'injury_body_part'];
 
 function encodeSeries(values) {
   // values: array aligned to dates, null where missing. Returns [start, first, ...deltas]

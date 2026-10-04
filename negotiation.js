@@ -175,6 +175,10 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   const fit = { roster: VAULT_CONFIG.ROSTER_FIT_SCALE * an.rosterFit.B, timeline: VAULT_CONFIG.TIMELINE_FIT_SCALE * an.timelineFit.B }; // theirs only
   const own = Vault.ownTradeRead(fair.value, an.rosterFit.B, an.timelineFit.B);
   const drops = rosterCap ? Math.max(0, projectedRosterCount(teamR, rAssets, oAssets) - rosterCap) : 0;
+  // Players they send off taxi or IR free no active spot, which is why a 2-for-1
+  // can still mean 2 cuts. Named in the summary so the count makes sense.
+  const stashed = drops ? rAssets.filter(a => a.type === 'player' && (teamR.taxiIds?.has(a.id) || teamR.reserveIds?.has(a.id)))
+    .map(a => `${Vault.escapeHtml(a.name)} is on their ${teamR.reserveIds?.has(a.id) ? 'IR' : 'taxi squad'}`) : [];
   const concerns = negConcerns(rAssets, oAssets, ctx, drops);
   // Getting the trade's single best piece for more pieces than they send: real
   // managers pay a premium to consolidate (the market's ~1.5x), so they'll accept
@@ -205,7 +209,7 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   if (siteSaysNo) concerns.push({ w: -NEG.SITE_NO_PENALTY, text: 'Graded from their side, it reads as a bad trade for them.' });
   const will = own + concerns.reduce((t, c) => t + c.w, 0);
   const accepts = will >= ctx.ask && drops <= 1;
-  return { an, edge, own, will, drops, concerns, accepts, siteSaysNo, fair, fit, headO: an.heads.A };
+  return { an, edge, own, will, drops, stashed, concerns, accepts, siteSaysNo, fair, fit, headO: an.heads.A };
 }
 
 // The manager's reply in their own words: what bothers them most, then what
@@ -249,7 +253,7 @@ function negReasons(j, ctx) {
   [...j.concerns].sort((x, y) => Math.abs(y.w) - Math.abs(x.w)).forEach(c => (c.w > 0 ? yes : no).push(c.text));
   let summary;
   if (j.accepts) summary = no.length ? 'What they gain outweighs what gives them pause.' : 'Nothing here gives them pause.';
-  else if (j.drops > 1) summary = `They'd have to cut ${j.drops} players to make room, so they'd pass.`;
+  else if (j.drops > 1) summary = `They'd have to cut ${j.drops} players to make room${j.stashed?.length ? ` (${j.stashed.join(', ')}, so sending ${j.stashed.length === 1 ? 'him' : 'them'} frees no roster spot)` : ''}, so they'd pass.`;
   else if (ctx.basis === 'history' && ctx.ask > -6 && j.will < ctx.ask && j.will > ctx.ask - 6) summary = 'Their trade history says they rarely come out behind, so they want it close to even.';
   else summary = 'What gives them pause outweighs what they gain.';
   const style = ctx.style && ctx.style.trades ? `Their trade history: ${Vault.escapeHtml(ctx.style.style.toLowerCase())}.` : '';

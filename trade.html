@@ -230,7 +230,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=90c73e61"></script>
+<script src="vault-core.js?v=f1f01997"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -568,6 +568,12 @@ async function shareTrade(btn) {
 // .pos-badge-*), instead of plain grey position text — one consistent color
 // system across the site instead of one page having it and the rest not.
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+// Long-term injury tag (Vault.injuryText), e.g. "On IR (knee)". These players
+// don't count toward this season's lineup, which the badge's tooltip says.
+function injuryBadge(a) {
+  const t = Vault.injuryText(a);
+  return t ? `<span class="text-[11px] px-1 py-px rounded border border-rose-500/30 text-rose-300 whitespace-nowrap" title="Sleeper lists ${Vault.escapeHtml(a.name)} as ${t.toLowerCase()}. His KTC value already reflects it; he isn't counted in this season's lineups.">${t}</span>` : '';
+}
 function assetRow(side, a, isSelected, extra) {
   const sub = a.type === 'pick' ? `<span class="text-[12px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400">${a.team || ''}</span>`;
   // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
@@ -611,6 +617,7 @@ function assetRow(side, a, isSelected, extra) {
         <div class="flex items-center justify-between gap-2 mt-1">
           <div class="flex items-center gap-1.5 flex-wrap min-w-0">
             ${sub}
+            ${injuryBadge(a)}
             ${volBadge}
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -1461,7 +1468,8 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
       <span class="text-[11px] uppercase tracking-wider text-zinc-400">This season</span>
       <span class="text-[11px] text-zinc-500">${remainingWeeks.length} regular-season week${remainingWeeks.length === 1 ? '' : 's'} left, simulated ${SEASON_TRIALS.toLocaleString()} times from projections and points scored so far</span>
     </div>
-    <div class="grid md:grid-cols-2 gap-3">${side(Vault.escapeHtml(teamA.teamName), teamA, before.A, after.A, dA)}${side(Vault.escapeHtml(teamB.teamName), teamB, before.B, after.B, dB)}</div>`;
+    <div class="grid md:grid-cols-2 gap-3">${side(Vault.escapeHtml(teamA.teamName), teamA, before.A, after.A, dA)}${side(Vault.escapeHtml(teamB.teamName), teamB, before.B, after.B, dB)}</div>
+    ${(() => { const hurt = [...aAssets, ...bAssets].filter(a => a.out); return hurt.length ? `<div class="mt-2.5 text-[12px] text-zinc-400">${hurt.map(a => `${Vault.escapeHtml(a.name)}: ${Vault.injuryText(a).replace(/^On /, 'on ').replace(/^Suspended/, 'suspended').replace(/^Not reporting/, 'not reporting')}`).join('; ')}. ${hurt.length === 1 ? 'He isn\'t' : 'They aren\'t'} counted in either lineup until Sleeper lists ${hurt.length === 1 ? 'him' : 'them'} as active again.</div>` : ''; })()}`;
   box.classList.remove('hidden');
 }
 
@@ -1580,6 +1588,7 @@ function updateTrade() {
   const giveChip = (side, a) => `<div class="flex items-center gap-2 min-w-0">
       <span class="text-[11px] font-semibold w-9 text-center py-0.5 rounded border shrink-0 ${POS_BADGE(a.type === 'pick' ? '' : a.pos)}">${a.type === 'pick' ? 'Pick' : a.pos}</span>
       <span class="text-[14px] font-medium text-zinc-100 truncate min-w-0 flex-1">${Vault.escapeHtml(a.name)}${a.type === 'pick' && a.tier ? ` <span class="text-[12px] font-normal text-zinc-500">${a.tier}</span>` : ''}</span>
+      ${injuryBadge(a)}
       <span class="text-[13px] mono text-zinc-400 shrink-0">${Math.round(a.value).toLocaleString()}</span>
       <button onclick="toggle('${side}','${a.key}')" title="Remove from trade" aria-label="Remove ${Vault.escapeHtml(a.name)} from the trade" class="size-7 shrink-0 grid place-items-center rounded-md text-zinc-500 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"><span aria-hidden="true">✕</span></button>
     </div>`;
@@ -1813,16 +1822,22 @@ function acceptanceVerdict(side, heads, teamA, teamB) {
 // trade, against rosterCap. Picks don't count — they don't occupy a roster spot
 // until drafted. An outgoing player only frees an active spot if they weren't
 // already stashed on taxi/IR (trading away a taxi rookie doesn't help you fit a
-// newly-acquired veteran); an incoming player always needs a real active spot,
-// since a trade can't assume the other team's taxi/IR eligibility carries over.
+// newly-acquired veteran). An incoming player needs a real active spot unless
+// he can go straight onto IR: Sleeper lists him as IR (or a status this league
+// lets onto IR, like Out) and the team has an IR slot open after the trade
+// (sending an IR player away opens his slot). Taxi eligibility isn't assumed.
 // A consolidation trade can be fine on value and fit and still force a drop the
 // rest of the app has no other way to surface.
 function projectedRosterCount(team, outgoing, incoming) {
   const isStashed = a => team.taxiIds?.has(a.id) || team.reserveIds?.has(a.id);
   const outActive = outgoing.filter(a => a.type === 'player' && !isStashed(a)).length;
-  const inPlayers = incoming.filter(a => a.type === 'player').length;
+  const inPlayers = incoming.filter(a => a.type === 'player');
+  const s = league?.settings || {};
+  const irOk = a => a.injury === 'IR' || ({ Out: s.reserve_allow_out, Sus: s.reserve_allow_sus, DNR: s.reserve_allow_dnr, Doubtful: s.reserve_allow_doubtful, NA: s.reserve_allow_na, COV: s.reserve_allow_cov })[a.injury] === 1;
+  const irOpen = Math.max(0, (s.reserve_slots || 0) - (team.reserveIds?.size || 0) + outgoing.filter(a => a.type === 'player' && team.reserveIds?.has(a.id)).length);
+  const toIr = Math.min(irOpen, inPlayers.filter(irOk).length);
   const currentActive = team.plist.length - (team.taxiIds?.size || 0) - (team.reserveIds?.size || 0);
-  return currentActive - outActive + inPlayers;
+  return currentActive - outActive + inPlayers.length - toIr;
 }
 
 // Labels the trade itself — not either team's fit, but what kind of transaction this is.
@@ -1864,8 +1879,8 @@ function classifyTrade(resA, resB, aAssets, bAssets, teamA, teamB) {
   if (rosterCap) {
     const newA = projectedRosterCount(teamA, aAssets, bAssets);
     const newB = projectedRosterCount(teamB, bAssets, aAssets);
-    if (newA > rosterCap) desc += ` This leaves ${a} needing ${newA}/${rosterCap} active roster spots — they'll need to drop ${newA - rosterCap} (taxi/IR don't count unless the incoming piece actually qualifies).`;
-    if (newB > rosterCap) desc += ` This leaves ${b} needing ${newB}/${rosterCap} active roster spots — they'll need to drop ${newB - rosterCap} (taxi/IR don't count unless the incoming piece actually qualifies).`;
+    if (newA > rosterCap) desc += ` This leaves ${a} needing ${newA}/${rosterCap} active roster spots — they'll need to drop ${newA - rosterCap} (counting IR slots for incoming injured players; taxi eligibility isn't assumed).`;
+    if (newB > rosterCap) desc += ` This leaves ${b} needing ${newB}/${rosterCap} active roster spots — they'll need to drop ${newB - rosterCap} (counting IR slots for incoming injured players; taxi eligibility isn't assumed).`;
   }
 
   return { label, desc };
@@ -2060,7 +2075,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=85a490e8"></script>
+<script src="negotiation.js?v=53666d13"></script>
 <script src="market-data.js?v=1f512ca8"></script>
 <script src="market.js?v=3c123b1b"></script>
 <script src="coach.js?v=dd8cbf32"></script>
