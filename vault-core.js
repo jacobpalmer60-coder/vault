@@ -36,10 +36,9 @@ const VAULT_CONFIG = {
   // fresh from our own dataset every time.
   CONSOLIDATION_GLOBAL_MAX: 10099,
   // Sleeper injury statuses that mean "out for weeks, not days" (NFL injured
-  // reserve, PUP, suspended, did not report). These players keep their dynasty
-  // value but don't count toward this season's best lineup anywhere on the site:
-  // a QB on IR after knee surgery can't start for whoever trades for him. Weekly
-  // tags (Questionable, Doubtful, Out) still count.
+  // reserve, PUP, suspended, did not report). How long a player is out comes
+  // from Sleeper's weekly projections (Vault.seasonLineupDetail); this list only
+  // labels players when there are none, like the offseason.
   SIDELINED_STATUSES: ['IR', 'PUP', 'Sus', 'DNR'],
   // How much a position's need/surplus status (see Vault.positionalProfile) scales
   // an asset's value to the team involved — a real need is worth more than sticker
@@ -120,6 +119,10 @@ const VAULT_CONFIG = {
   // DEPTH_SEASON_WEEKS for a per-week figure.
   DEPTH_MISSED_GAMES: 3.5,
   DEPTH_SEASON_WEEKS: 17,
+  // In season, this season's lineups are built week by week from Sleeper's
+  // weekly projections (Vault.seasonLineupDetail), so byes are already counted
+  // and depth only has to cover the injuries nobody knows about yet.
+  DEPTH_BYE_WEEKS: 1,
   // In the grade and Trade Coach, a point of depth counts this many times a point
   // of healthy-lineup gain: thin depth is a risk, not just an average (about 1 in 6
   // starters misses 6+ games a season), and managers should very much value it.
@@ -1159,8 +1162,7 @@ const Vault = {
      (which only needs the total, re-run on a hypothetical post-trade roster), and
      anywhere else that only cares about the number. */
   optimalLineupDetail(plist, slots) {
-    // Players out long term (Vault.isSidelined) can't start this season.
-    const pool = plist.filter(p => !p.out).sort((a, b) => b.ppg - a.ppg);
+    const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
     const used = new Set();
     const starters = [];
     let total = 0;
@@ -1189,19 +1191,89 @@ const Vault = {
     return Vault.optimalLineupDetail(plist, slots).total;
   },
 
+  /* ---------- This season, week by week ----------
+     A player's PPG is what he scores in the games he plays. How many he'll
+     play comes from Sleeper's weekly projections (scripts/fetch-projections.js
+     stores `wk`, one character per week: '1' projected to score, '0' a bye or
+     a week he's expected to miss; Sleeper zeroes injured players until their
+     projected return). Vault._lineupWeeks is the league's weeks still to play,
+     playoffs included (Vault.lineupWeeks), set by buildLeagueTeams. Empty in
+     the offseason or when projections are for another season, and then every
+     player counts every week, as before. */
+  _lineupWeeks: [],
+  lineupWeeks(league, rosters) {
+    const s = league.settings || {};
+    if (league.status === 'complete') return [];
+    const perWeek = s.league_average_match === 1 ? 2 : 1;
+    const played = Math.max(0, ...rosters.map(r => ((r.settings?.wins || 0) + (r.settings?.losses || 0) + (r.settings?.ties || 0)) / perWeek));
+    const start = Math.max(Math.floor(played) + 1, s.leg || 1);
+    const rounds = Math.ceil(Math.log2(Math.max(2, s.playoff_teams || 6)));
+    const playoffStart = s.playoff_week_start || 15;
+    const last = Math.min(18, playoffStart - 1 + (s.playoff_round_type === 2 ? 2 * rounds : rounds + (s.playoff_round_type === 1 ? 1 : 0)));
+    const weeks = [];
+    for (let w = start; w <= last; w++) weeks.push(w);
+    return weeks;
+  },
+  availableIn(p, w) { return !p.avail || p.avail[w - 1] !== '0'; },
+  // A roster entry's weekly availability: Sleeper's projected weeks when it has
+  // them. A player on IR, PUP, suspended or not reporting whom Sleeper projects
+  // for no week at all (no return date known) is out for the weeks left;
+  // `availGuess` keeps his label at "On IR" rather than claiming a return week.
+  availOf(proj, sleeper) {
+    if (proj?.wk) return { avail: proj.wk };
+    if (sleeper && VAULT_CONFIG.SIDELINED_STATUSES.includes(sleeper.injury_status)) return { avail: '0'.repeat(18), availGuess: true };
+    return {};
+  },
+  // Share of the weeks left he's projected to play (1 with no weekly data).
+  availShare(p, weeks = Vault._lineupWeeks) {
+    if (!p.avail || !weeks.length) return 1;
+    return weeks.filter(w => Vault.availableIn(p, w)).length / weeks.length;
+  },
+  // Players who'll play at least half the weeks left: the "typical week" pool
+  // for the lineup shown on the page and for depth.
+  typicalPool(plist, weeks = Vault._lineupWeeks) {
+    return plist.filter(p => Vault.availShare(p, weeks) >= 0.5);
+  },
+  // This season's lineup: the best lineup each week from who's available that
+  // week, averaged. total/vorpTotal are per week; starters is the typical
+  // week's lineup, each with `starts` (weeks he'd start of `weeks`).
+  seasonLineupDetail(plist, slots, weeks = Vault._lineupWeeks) {
+    if (!weeks.length || !plist.some(p => p.avail)) return { ...Vault.optimalLineupDetail(plist, slots), starts: null, weeks: 0 };
+    let total = 0, vorpTotal = 0;
+    const starts = new Map();
+    weeks.forEach(w => {
+      const d = Vault.optimalLineupDetail(plist.filter(p => Vault.availableIn(p, w)), slots);
+      total += d.total; vorpTotal += d.vorpTotal;
+      d.starters.forEach(s => { if (s.id) starts.set(s.id, (starts.get(s.id) || 0) + 1); });
+    });
+    const typical = Vault.optimalLineupDetail(Vault.typicalPool(plist, weeks), slots);
+    return { total: total / weeks.length, vorpTotal: vorpTotal / weeks.length, starters: typical.starters.map(s => ({ ...s, starts: starts.get(s.id) || 0 })), starts, weeks: weeks.length };
+  },
+
   // A Sleeper player's injury tag, carried on each roster entry (and so on every
-  // trade asset built from one): `out` marks the long-term ones
-  // (VAULT_CONFIG.SIDELINED_STATUSES) that optimalLineupDetail leaves out.
+  // trade asset built from one).
   injuryOf(p) {
     if (!p || !p.injury_status) return {};
-    return { injury: p.injury_status, injuryPart: p.injury_body_part || '', out: VAULT_CONFIG.SIDELINED_STATUSES.includes(p.injury_status) };
+    return { injury: p.injury_status, injuryPart: p.injury_body_part || '' };
   },
-  // How a sidelined player reads in the UI, e.g. "On IR (knee)".
-  injuryText(a) {
-    if (!a || !a.out) return '';
-    const label = { IR: 'On IR', PUP: 'On PUP', Sus: 'Suspended', DNR: 'Not reporting' }[a.injury] || a.injury;
+  // How an injured player reads in the UI, from his weekly projections:
+  // "Out for the season (knee)", "Out, back week 8 (hamstring)". A week or two
+  // off can be a bye, so short gaps only show for IR-type statuses. With no
+  // weekly data (the offseason, or no projection at all), IR-type statuses
+  // read "On IR (knee)".
+  injuryText(a, weeks = Vault._lineupWeeks) {
+    if (!a || !a.injury) return '';
     const part = (a.injuryPart || '').split(' - ')[0].toLowerCase();
-    return part ? `${label} (${part})` : label;
+    const withPart = t => (part ? `${t} (${part})` : t);
+    const longTerm = VAULT_CONFIG.SIDELINED_STATUSES.includes(a.injury);
+    if (a.avail && !a.availGuess && weeks.length) {
+      const next = weeks.find(w => Vault.availableIn(a, w));
+      if (next == null) return withPart('Out for the season');
+      if (next > weeks[0] + 1 || (next > weeks[0] && longTerm)) return withPart(`Out, back week ${next}`);
+      return '';
+    }
+    if (!longTerm) return '';
+    return withPart({ IR: 'On IR', PUP: 'On PUP', Sus: 'Suspended', DNR: 'Not reporting' }[a.injury] || a.injury);
   },
 
   /* ---------- Full league team-building pipeline ----------
@@ -1220,6 +1292,9 @@ const Vault = {
 
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
+    // Weeks left to build this season's lineups over (Vault.seasonLineupDetail);
+    // only when the projections are for this league's season.
+    Vault._lineupWeeks = String(projData.season) === String(league.season) ? Vault.lineupWeeks(league, rosters) : [];
 
     // Replacement-level PPG per position, for VORP (see Vault.computeReplacementLevels)
     // — needs PPG joined by NAME across the whole KTC universe, not just rostered
@@ -1255,7 +1330,7 @@ const Vault = {
         const p = players[String(pid)] || {};
         const nm = `${p.first_name || ''} ${p.last_name || ''}`.trim();
         const ppg = ppgMap.get(String(pid)) || 0;
-        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), ...Vault.injuryOf(p) };
+        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), ...Vault.availOf(projData.players?.[String(pid)], p), ...Vault.injuryOf(p) };
       });
       const total = plist.reduce((s, p) => s + p.value, 0);
       const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);
@@ -1284,7 +1359,7 @@ const Vault = {
       // position that isn't actually producing (hurt, buried, aging) or middling
       // value can be outproducing it — positionalProfile blends both signals
       // instead of trusting price alone.
-      const topPpg = (pos, n) => plist.filter(p => p.pos === pos && !p.out).map(p => p.ppg)
+      const topPpg = (pos, n) => plist.filter(p => p.pos === pos).map(p => p.ppg * Vault.availShare(p))
         .sort((a, b) => b - a).slice(0, n).reduce((s, v) => s + v, 0);
       const posPpg = {
         qb: topPpg('QB', startable.qb),
@@ -1295,7 +1370,7 @@ const Vault = {
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
-      const { total: opt, vorpTotal, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
+      const { total: opt, vorpTotal, starters: lineup } = Vault.seasonLineupDetail(plist, slots);
       // Real season standings (Sleeper's own scoreboard record), not a value or
       // trade-derived stat — wins/losses/ties are tracked directly on the roster.
       const rs = r.settings || {};
@@ -1552,7 +1627,7 @@ const Vault = {
         wr: plist.filter(p => p.pos === 'WR' && p.value >= posFloor).length,
         te: plist.filter(p => p.pos === 'TE' && p.value >= posFloor).length
       };
-      const topPpg = (pos, n) => plist.filter(p => p.pos === pos && !p.out).map(p => p.ppg)
+      const topPpg = (pos, n) => plist.filter(p => p.pos === pos).map(p => p.ppg * Vault.availShare(p))
         .sort((a, b) => b - a).slice(0, n).reduce((s, v) => s + v, 0);
       const posPpg = {
         qb: topPpg('QB', team.startable.qb),
@@ -1563,7 +1638,7 @@ const Vault = {
       const vAge = plist.filter(p => p.value > 0 && p.age > 0);
       const sumV = vAge.reduce((s, p) => s + p.value, 0);
       const age = sumV ? vAge.reduce((s, p) => s + p.value * p.age, 0) / sumV : 0;
-      const { total: opt, vorpTotal, starters: lineup } = Vault.optimalLineupDetail(plist, slots);
+      const { total: opt, vorpTotal, starters: lineup } = Vault.seasonLineupDetail(plist, slots);
       const removedKeys = new Set(removedPicks.map(pickKey));
       const picks = [...team.picks.filter(p => !removedKeys.has(pickKey(p))), ...addedPicks];
       const picksValue = picks.reduce((s, p) => s + (p.value || 0), 0);
@@ -2587,19 +2662,30 @@ const Vault = {
      of each roster and league on its own (a 6-WR lineup with 7 WRs has little
      cover; a superflex QB's bye costs whatever the next-best superflex option
      scores). Kept high on purpose (VAULT_CONFIG.DEPTH_MISSED_GAMES), since depth
-     is easy to undervalue. */
+     is easy to undervalue. In season the bye comes off that count: byes and known
+     injuries are already in the week-by-week lineup (Vault.seasonLineupDetail). */
   _missedCache: new WeakMap(),
+  // Who can cover for a starter. In season: anyone projected to play at least
+  // half the weeks left (a player back from IR in week 8 counts, one out for
+  // the season doesn't). Otherwise: everyone not on injured reserve (taxi
+  // players can be promoted, so they count).
+  depthPool(team) {
+    const plist = team.plist || [];
+    return Vault._lineupWeeks.length && plist.some(p => p.avail) ? Vault.typicalPool(plist) : plist.filter(p => !team.reserveIds?.has?.(p.id));
+  },
+  depthMissedGames(team) {
+    const weekly = Vault._lineupWeeks.length && (team.plist || []).some(p => p.avail);
+    return VAULT_CONFIG.DEPTH_MISSED_GAMES - (weekly ? VAULT_CONFIG.DEPTH_BYE_WEEKS : 0);
+  },
   missedGameCost(team, slots) {
     const hit = Vault._missedCache.get(team);
     if (hit && hit.slots === slots) return hit.out;
-    // Only players who can actually play: injured reserve can't cover a bye
-    // (taxi players can be promoted, so they count).
-    const plist = (team.plist || []).filter(p => !team.reserveIds?.has?.(p.id));
+    const plist = Vault.depthPool(team), games = Vault.depthMissedGames(team);
     const base = Vault.optimalLineupDetail(plist, slots);
     let perSeason = 0, hardest = null;
     base.starters.filter(s => s.id).forEach(s => {
       const drop = base.total - Vault.optimalLineupDetail(plist.filter(p => p.id !== s.id), slots).total;
-      perSeason += drop * VAULT_CONFIG.DEPTH_MISSED_GAMES;
+      perSeason += drop * games;
       if (!hardest || drop > hardest.drop) hardest = { name: s.name, pos: s.pos, drop };
     });
     const out = { perSeason, hardest };

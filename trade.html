@@ -230,7 +230,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=f1f01997"></script>
+<script src="vault-core.js?v=46506adb"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -568,11 +568,11 @@ async function shareTrade(btn) {
 // .pos-badge-*), instead of plain grey position text — one consistent color
 // system across the site instead of one page having it and the rest not.
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
-// Long-term injury tag (Vault.injuryText), e.g. "On IR (knee)". These players
-// don't count toward this season's lineup, which the badge's tooltip says.
+// Injury tag (Vault.injuryText), e.g. "Out for the season (knee)" or "Out until
+// week 8". This season's lineups skip the weeks he's projected to miss.
 function injuryBadge(a) {
   const t = Vault.injuryText(a);
-  return t ? `<span class="text-[11px] px-1 py-px rounded border border-rose-500/30 text-rose-300 whitespace-nowrap" title="Sleeper lists ${Vault.escapeHtml(a.name)} as ${t.toLowerCase()}. His KTC value already reflects it; he isn't counted in this season's lineups.">${t}</span>` : '';
+  return t ? `<span class="text-[11px] px-1 py-px rounded border border-rose-500/30 text-rose-300 whitespace-nowrap" title="From Sleeper's weekly projections. His KTC value already reflects it; this season's lineups only count the weeks he's projected to play.">${t}</span>` : '';
 }
 function assetRow(side, a, isSelected, extra) {
   const sub = a.type === 'pick' ? `<span class="text-[12px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400">${a.team || ''}</span>`;
@@ -1446,9 +1446,22 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
       <div class="text-[15px] mono text-zinc-100 mt-0.5">${pct(b)} <span class="text-zinc-500">→</span> ${pct(a)}</div>${change(b, a)}</div>`;
   // Who actually moves in or out of the starting lineup (not just who's traded).
   const moves = (bef, aft) => {
-    const was = new Set(bef.lineup.filter(s => s.id).map(s => s.id)), now = new Set(aft.lineup.filter(s => s.id).map(s => s.id));
     const name = s => `${Vault.escapeHtml(s.name)} <span class="text-zinc-500">${s.pos}</span>`;
-    const into = aft.lineup.filter(s => s.id && !was.has(s.id)).map(name), out = bef.lineup.filter(s => s.id && !now.has(s.id)).map(name);
+    let into, out;
+    const sb = Vault.seasonLineupDetail(bef.plist, slots), sa = Vault.seasonLineupDetail(aft.plist, slots);
+    if (sb.starts && sa.starts) {
+      // Weeks started, before vs after: a bye-week fill-in shifting a week or
+      // two isn't a lineup change; a quarter of the season or more is.
+      const W = sb.weeks, min = Math.max(2, Math.ceil(W / 4));
+      const who = new Map([...bef.plist, ...aft.plist].map(p => [p.id, p]));
+      const ids = [...new Set([...sb.starts.keys(), ...sa.starts.keys()])];
+      const d = id => (sa.starts.get(id) || 0) - (sb.starts.get(id) || 0);
+      into = ids.filter(id => d(id) >= min).map(id => { const n = sa.starts.get(id); return name(who.get(id)) + (n < W - 1 ? ` <span class="text-zinc-500">· ${n} of ${W} weeks</span>` : ''); });
+      out = ids.filter(id => d(id) <= -min).map(id => { const n = sa.starts.get(id) || 0; return name(who.get(id)) + (n ? ` <span class="text-zinc-500">· still ${n} of ${W} weeks</span>` : ''); });
+    } else {
+      const was = new Set(bef.lineup.filter(s => s.id).map(s => s.id)), now = new Set(aft.lineup.filter(s => s.id).map(s => s.id));
+      into = aft.lineup.filter(s => s.id && !was.has(s.id)).map(name); out = bef.lineup.filter(s => s.id && !now.has(s.id)).map(name);
+    }
     return into.length || out.length
       ? `${into.length ? `<div><span class="text-emerald-400/90">Starts:</span> ${into.join(', ')}</div>` : ''}${out.length ? `<div><span class="text-rose-400/90">Leaves the lineup:</span> ${out.join(', ')}</div>` : ''}`
       : '<div class="text-zinc-500">Starting lineup unchanged</div>';
@@ -1459,7 +1472,7 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
     return `<div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0">
         <div class="flex items-baseline justify-between gap-2 mb-2"><span class="text-[13px] font-medium text-zinc-100 truncate">${label}</span>
           <span class="text-[12px] mono shrink-0 ${Math.abs(d) < 0.05 ? 'text-zinc-500' : d > 0 ? 'text-emerald-400' : 'text-rose-400'}">${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)} pts/week</span></div>
-        <div class="text-[11px] text-zinc-500 -mt-1 mb-2">${(() => { const [l, dp] = parts[team.rosterId]; const s = v => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`; return `Lineup ${s(l)} · Depth ${s(dp)} <span title="Depth: what bye and injury weeks cost the lineup (each starter is out about ${VAULT_CONFIG.DEPTH_MISSED_GAMES} weeks a season, bye included)." class="cursor-help underline decoration-dotted underline-offset-2">?</span>`; })()}</div>
+        <div class="text-[11px] text-zinc-500 -mt-1 mb-2">${(() => { const [l, dp] = parts[team.rosterId]; const s = v => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`; return `Lineup ${s(l)} · Depth ${s(dp)} <span title="${Vault.depthMissedGames(team) < VAULT_CONFIG.DEPTH_MISSED_GAMES ? `Lineup: points per week over the weeks left, from who Sleeper projects to play each week (byes and known injuries included). Depth: what injuries nobody knows about yet would cost (each starter misses about ${Vault.depthMissedGames(team)} games a season).` : `Depth: what bye and injury weeks cost the lineup (each starter is out about ${VAULT_CONFIG.DEPTH_MISSED_GAMES} weeks a season, bye included).`}" class="cursor-help underline decoration-dotted underline-offset-2">?</span>`; })()}</div>
         <div class="grid grid-cols-2 gap-2">${stat('Playoffs', b.playoffPct, a.playoffPct)}${stat('Title', b.championshipPct, a.championshipPct)}</div>
         <div class="mt-2.5 text-[12px] text-zinc-300 space-y-0.5">${moves(bef, aft)}</div>
       </div>`;
@@ -1469,7 +1482,7 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
       <span class="text-[11px] text-zinc-500">${remainingWeeks.length} regular-season week${remainingWeeks.length === 1 ? '' : 's'} left, simulated ${SEASON_TRIALS.toLocaleString()} times from projections and points scored so far</span>
     </div>
     <div class="grid md:grid-cols-2 gap-3">${side(Vault.escapeHtml(teamA.teamName), teamA, before.A, after.A, dA)}${side(Vault.escapeHtml(teamB.teamName), teamB, before.B, after.B, dB)}</div>
-    ${(() => { const hurt = [...aAssets, ...bAssets].filter(a => a.out); return hurt.length ? `<div class="mt-2.5 text-[12px] text-zinc-400">${hurt.map(a => `${Vault.escapeHtml(a.name)}: ${Vault.injuryText(a).replace(/^On /, 'on ').replace(/^Suspended/, 'suspended').replace(/^Not reporting/, 'not reporting')}`).join('; ')}. ${hurt.length === 1 ? 'He isn\'t' : 'They aren\'t'} counted in either lineup until Sleeper lists ${hurt.length === 1 ? 'him' : 'them'} as active again.</div>` : ''; })()}`;
+    ${(() => { const hurt = [...aAssets, ...bAssets].filter(a => Vault.injuryText(a)); return hurt.length ? `<div class="mt-2.5 text-[12px] text-zinc-400">${hurt.map(a => `${Vault.escapeHtml(a.name)}: ${Vault.injuryText(a).replace(/^(\w)/, c => c.toLowerCase())}`).join('; ')}. Each lineup only counts the weeks Sleeper projects a player to play.</div>` : ''; })()}`;
   box.classList.remove('hidden');
 }
 
@@ -1481,7 +1494,7 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
    whose cover changed by a point or more. */
 const SLOT_LABEL = { SUPER_FLEX: 'SF', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T' };
 function lineupCover(team) {
-  const plist = (team.plist || []).filter(p => !team.reserveIds?.has?.(p.id));
+  const plist = Vault.depthPool(team);
   const base = Vault.optimalLineupDetail(plist, slots);
   const ids = new Set(base.starters.map(s => s.id));
   return base.starters.filter(s => s.id).map(s => {

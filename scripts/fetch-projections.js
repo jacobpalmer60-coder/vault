@@ -20,6 +20,12 @@
 //    season total doesn't equal the sum of its own weekly projections for reasons
 //    Sleeper doesn't expose (checked directly — e.g. Christian McCaffrey's season
 //    total sits ~22% below the sum of his 18 weekly projections).
+//
+// Weekly players also get `wk`: one character per week 1-FANTASY_WEEKS, '1' when
+// Sleeper projects him to score that week, '0' for a bye or a week he's expected
+// to miss (Sleeper zeroes out injured players until their projected return, e.g.
+// a season-ending surgery is all 0s from then on). The site builds this season's
+// lineups week by week from it (Vault.seasonLineupDetail).
 // So: use the real weekly sum wherever Sleeper actually provides one (real variance,
 // real bye), and fall back to the season-long total for everyone else, dividing it
 // by FANTASY_WEEKS - 1 rather than trusting Sleeper's placeholder gp — this league's
@@ -96,10 +102,15 @@ async function main() {
       if (!SKILL_POSITIONS.includes(pos)) continue;
       if (!row.player_id) continue;
       const weekStats = filterStats(row.stats);
-      if (!Object.keys(weekStats).length) continue; // bye week / no real projection this week
+      // A bye or a week he's out has no stats, or only stray ones (a few kick
+      // return yards, gp: 1) worth 0 fantasy points; neither counts as a game.
+      const pts = row.stats || {};
+      if (!Object.keys(weekStats).length || !(pts.pts_ppr > 0 || pts.pts_half_ppr > 0 || pts.pts_std > 0)) continue;
       let acc = weeklySums[row.player_id];
-      if (!acc) acc = weeklySums[row.player_id] = { name: `${row.player.first_name || ''} ${row.player.last_name || ''}`.trim(), pos, team: row.player.team || '', stats: {} };
+      if (!acc) acc = weeklySums[row.player_id] = { name: `${row.player.first_name || ''} ${row.player.last_name || ''}`.trim(), pos, team: row.player.team || '', stats: {}, wk: '0'.repeat(FANTASY_WEEKS) };
       for (const [k, v] of Object.entries(weekStats)) acc.stats[k] = (acc.stats[k] || 0) + v;
+      const w = weeks.indexOf(rows);
+      acc.wk = acc.wk.slice(0, w) + '1' + acc.wk.slice(w + 1);
     }
   }
   for (const [pid, p] of Object.entries(weeklySums)) players[pid] = p;

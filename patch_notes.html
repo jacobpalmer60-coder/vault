@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=f1f01997"></script>
+<script src="vault-core.js?v=46506adb"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,7 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-04', items: [
-    { kind: 'fixed', page: 'Trade Calculator', text: 'Injured players counted as healthy starters: Jaxson Dart, on IR after knee surgery, showed as adding 1.1 points a week to whoever traded for him. The site now reads Sleeper\'s injury list every day. Players on IR or PUP, suspended or not reporting keep their KTC value but no longer count toward this season\'s lineup anywhere (League Overview, Team Analyzer, This season odds, Trade Coach), and the calculator tags them, like "On IR (knee)".' },
+    { kind: 'fixed', page: 'Trade Calculator', text: 'Injured players counted as healthy starters: Jaxson Dart, out for the season after knee surgery, showed as adding 1.1 points a week to whoever traded for him, over Kyler Murray. This season\'s lineups are now built week by week for every week left, playoffs included, from the players Sleeper projects to play that week. Byes count for real, and so do injuries: Dart adds nothing this season, and A.J. Brown counts from week 8, when he\'s projected back. The calculator tags these players ("Out for the season (knee)", "Out, back week 8 (ankle)") and says how many weeks a new starter would start ("A.J. Brown, 9 of 14 weeks"). Applies everywhere the lineup is used: League Overview, Team Analyzer, This season odds and Trade Coach. KTC values are unchanged.' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'Roster cuts ignored open IR slots. Trading Rome Odunze and Jonah Coleman (on IR) for Jaxson Dart said The Gambler would have to cut 2 players, but Coleman can go straight into one of their open IR slots, so it\'s 1. When the count is higher because a player being sent away is already on IR or taxi, the reason now says so.' },
   ]},
   { date: '2026-10-03', items: [
