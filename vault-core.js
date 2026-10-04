@@ -1259,6 +1259,15 @@ const Vault = {
     if (!p || !p.injury_status) return {};
     return { injury: p.injury_status, injuryPart: p.injury_body_part || '' };
   },
+  // injuryText cut down for narrow lists: "Out for season", "Back wk 8", "IR".
+  injuryShort(a) {
+    const t = Vault.injuryText(a);
+    if (!t) return '';
+    const back = t.match(/back week (\d+)/);
+    if (back) return `Back wk ${back[1]}`;
+    if (t.startsWith('Out for the season')) return 'Out for season';
+    return { 'On IR': 'IR', 'On PUP': 'PUP', Suspended: 'Susp.', 'Not reporting': 'DNR' }[t.split(' (')[0]] || t;
+  },
   // How an injured player reads in the UI, from his weekly projections:
   // "Out for the season (knee)", "Out, back week 8 (hamstring)". A week or two
   // off can be a bye, so short gaps only show for IR-type statuses. With no
@@ -3858,16 +3867,36 @@ const Vault = {
 
   Vault.teamRosterPanel = function (t, teams = []) {
     const esc = Vault.escapeHtml;
-    const lineup = [...(t.lineup || [])].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)).map(s => `<div class="flex items-center gap-2 text-[12px]">
+    // In season the lineup total is the average over the weeks left
+    // (Vault.seasonLineupDetail), so a starter who misses weeks says how many
+    // he starts; the total then won't be a plain sum of the PPGs shown.
+    const weeks = Vault._lineupWeeks || [], W = weeks.length;
+    const byId = new Map((t.plist || []).map(p => [p.id, p]));
+    // A name with an optional second line under it (injury, or weeks started),
+    // so narrow columns never squeeze the name itself.
+    const tag = p => {
+      const short = p && Vault.injuryShort(p);
+      return short ? `<span class="block text-[11px] text-rose-300 truncate" title="${esc(Vault.injuryText(p))}, from Sleeper's weekly projections">${short}</span>` : '';
+    };
+    const named = (name, sub) => `<span class="min-w-0 flex-1"><span class="block text-zinc-300 truncate" title="${esc(name)}">${esc(name) || '—'}</span>${sub}</span>`;
+    const lineup = [...(t.lineup || [])].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)).map(s => {
+      const p = byId.get(s.id);
+      const part = W && s.name && s.starts != null && s.starts < W - 1 && !(p && Vault.injuryShort(p))
+        ? `<span class="block text-[11px] text-zinc-500 truncate">Starts ${s.starts} of ${W} wks</span>` : '';
+      return `<div class="flex items-center gap-2 text-[12px]">
         <span class="inline-flex items-center justify-center w-9 shrink-0 px-1 py-px rounded text-[11px] font-semibold border uppercase ${badge(s.pos || '')}">${SLOT_LABEL[s.slot] || s.slot}</span>
-        <span class="text-zinc-300 truncate flex-1">${esc(s.name) || '—'}</span>
+        ${named(s.name, tag(p) || part)}
         <span class="mono text-zinc-400">${s.name ? s.ppg.toFixed(1) : '—'}</span>
-      </div>`).join('');
-    const lineupHead = head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${t.vorpTotal.toFixed(1)} VORP` : ''}`);
+      </div>`;
+    }).join('');
+    const lineupTip = W
+      ? `Points per week averaged over weeks ${weeks[0]}–${weeks[W - 1]} (playoffs included), from who Sleeper projects to play each week, so byes and injuries count. Each player's number is per game he plays.`
+      : "Projected points per game for the best lineup.";
+    const lineupHead = `<div title="${lineupTip}" class="cursor-help">${head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${t.vorpTotal.toFixed(1)} VORP` : ''}`)}${W ? `<div class="text-[11px] text-zinc-500 -mt-1.5 mb-2">Avg per week, wks ${weeks[0]}–${weeks[W - 1]}</div>` : ''}</div>`;
     const positions = ['QB', 'RB', 'WR', 'TE'].map(pos => {
       // Every player at the position, so real depth shows (not just the top few).
       const ps = (t.plist || []).filter(p => p.pos === pos).sort((a, b) => b.value - a.value);
-      return `<div>${head(pos, ps.length ? String(ps.length) : '')}<div class="space-y-1.5">${ps.map(p => `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate">${esc(p.name) || '—'}</span><span class="mono text-zinc-400">${n(p.value)}</span></div>`).join('') || none}</div></div>`;
+      return `<div>${head(pos, ps.length ? String(ps.length) : '')}<div class="space-y-1.5">${ps.map(p => `<div class="flex items-center gap-2 text-[12px]">${named(p.name, tag(p))}<span class="mono text-zinc-400">${n(p.value)}</span></div>`).join('') || none}</div></div>`;
     }).join('');
     const picks = [...(t.picks || [])].sort((a, b) => a.season - b.season || a.round - b.round);
     const years = picks.length ? [Math.min(...picks.map(p => p.season)), Math.max(...picks.map(p => p.season))] : null;
