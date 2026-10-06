@@ -145,7 +145,7 @@ async function trades() {
   document.getElementById('trades').innerHTML = [
     tile("KTC's trade feed", n(ktcTrades?.count), `latest trades, ${esc(dates[0] || '—')} to ${esc(dates[dates.length - 1] || '—')} · updated ${ago(ktcTrades?.updated)}`, fresh(ktcTrades?.updated, 30)),
     tile('Daily KTC summaries', n(days.size), `days saved since ${esc([...days].sort()[0] || '—')}, ${n(counted)} priced trades in all`),
-    tile('Recent Sleeper trades', n(recent.reduce((t, r) => t + (r?.trades?.length || 0), 0)), `priced, last ~95 days (Superflex ${n(recent[0]?.trades?.length)}, 1QB ${n(recent[1]?.trades?.length)}) · for the market charts`, fresh(recent[0]?.updated, 3)),
+    tile('Recent Sleeper trades', n(recent.reduce((t, r) => t + (r?.trades?.length || 0), 0)), `priced, spread evenly over the last 45 days (Superflex ${n(recent[0]?.trades?.length)}, 1QB ${n(recent[1]?.trades?.length)}) · for the market charts`, fresh(recent[0]?.updated, 3)),
     tile('Market points', n(players(keys[0]) + players(keys[1])), `players with a day-by-day market (Superflex ${n(players(keys[0]))}, 1QB ${n(players(keys[1]))}), plus ${n(picks)} pick rounds`)
   ].join('');
 }

@@ -26,10 +26,14 @@
    and data/market-history/<format>-players.json, by month, for players in
    at least 2 trades that month:
      { months: { 'YYYY-MM': { sleeperId: [trades, asMainPiece, medianPaid, oneForOne] } } }
-   and data/market-history/recent-<sf|oneQB>.json, every priced trade from the
-   last RECENT_DAYS days (all TE-premium tiers of that QB format, each priced
-   in its own league's format), newest first, for the pages to pool with KTC's
-   feed (they use only the days before KTC's feed starts, so no trade counts twice):
+   and data/market-history/recent-<sf|oneQB>.json, priced trades from the last
+   RECENT_DAYS days (all TE-premium tiers of that QB format, each priced in its
+   own league's format), newest first, for the pages to pool with KTC's feed
+   (they use only the days before KTC's feed starts, so no trade counts twice).
+   At most RECENT_MAX trades, spread evenly over those days (recentSpread): the
+   crawl finds thousands a day, so keeping only the newest would shrink the
+   window to about a week. Days KTC's feed covers get none, since the pages
+   skip them anyway:
      { updated, names: { sleeperId: [name, pos] },
        trades: [[date, [[id, value], ...], [[id, value], ...], [rec, bonusRecTe, teams]]] }
    (picks: 'p<season>-<round>'; the last part is the league's PPR, TE premium
@@ -67,7 +71,7 @@ const DATA = path.join(ROOT, 'data');
 const IN = path.join(DATA, 'sleeper-trades');
 const OUT = path.join(DATA, 'market-history');
 const LOOKBACK = 14; // a missing day's price falls back to the last one within two weeks
-const RECENT_DAYS = 95, RECENT_MAX = 30000;
+const RECENT_DAYS = 45, RECENT_MAX = 30000;
 const ROOKIE_MIN_DRAFTS = 5, ROOKIE_MIN_PICKS = 3, ROOKIE_SHOW = 96;
 const PICK_TIER_LOOKBACK = 45; // days back to find KTC's value for a drafted pick slot
 const DAILY_KEEP_DAYS = 400; // day-by-day market points kept; older ones by month (monthly-<sf|oneQB>.json)
@@ -273,14 +277,46 @@ function main() {
 
   // Recent trades for the pages to pool with KTC's feed, with names for the players in them.
   Object.entries(recent).forEach(([qb, list]) => {
-    const keep = list.sort((x, y) => y.date.localeCompare(x.date)).slice(0, RECENT_MAX), names = {};
+    const keep = recentSpread(list, ktcFeedFrom(qb)), names = {};
     const side = s => s.map(a => {
       if (a.type === 'player' && !names[a.id]) { const p = sleeper[a.id]; names[a.id] = [`${p.first_name || ''} ${p.last_name || ''}`.trim(), p.position]; }
       return [a.id, Math.round(a.value)];
     });
     fs.writeFileSync(path.join(OUT, `recent-${qb}.json`), JSON.stringify({ updated: new Date().toISOString(), names, trades: keep.map(t => [t.date, side(t.s1), side(t.s2), t.f]) }));
-    console.log(`recent-${qb}: ${keep.length} trades since ${recentFrom}`);
+    const days = new Set(keep.map(t => t.date));
+    console.log(`recent-${qb}: ${keep.length} of ${list.length} trades over ${days.size} days since ${recentFrom}`);
   });
+}
+
+// First day of KTC's own trade feed for this QB format (data/ktc-trades-<sf|oneQB>.json,
+// refreshed nightly); the pages use Sleeper trades only from before it. null if missing.
+function ktcFeedFrom(qb) {
+  try {
+    const d = readJson(path.join(DATA, `ktc-trades-${qb}.json`));
+    const dates = (d.trades || []).map(t => String(d.dates ? d.dates[t[0]] : t.date).slice(0, 10)).filter(Boolean).sort();
+    return dates[0] || null;
+  } catch { return null; }
+}
+
+// Up to RECENT_MAX trades spread evenly across the days before `ktcFrom`: each day
+// gets an equal share, and a quiet day's unused share passes to the busier ones.
+// Within a day the pick is by a hash of the trade itself, not its position in the
+// crawl, so the same trades stay chosen from run to run (the file changes little).
+function recentSpread(list, ktcFrom) {
+  const byDay = new Map();
+  list.forEach(t => { if (!ktcFrom || t.date < ktcFrom) (byDay.get(t.date) || byDay.set(t.date, []).get(t.date)).push(t); });
+  const hash = t => { let h = 2166136261; for (const c of JSON.stringify([t.date, t.s1.map(a => a.id), t.s2.map(a => a.id)])) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+  const days = [...byDay.keys()].sort((a, b) => byDay.get(a).length - byDay.get(b).length); // quietest first
+  let budget = RECENT_MAX;
+  const keep = [];
+  days.forEach((d, i) => {
+    const share = Math.floor(budget / (days.length - i));
+    const day = byDay.get(d);
+    const take = day.length <= share ? day : day.map(t => [hash(t), t]).sort((a, b) => a[0] - b[0]).slice(0, share).map(x => x[1]);
+    keep.push(...take);
+    budget -= take.length;
+  });
+  return keep.sort((x, y) => y.date.localeCompare(x.date));
 }
 
 main();

@@ -3,7 +3,7 @@
    Loads completed dynasty trades for a league's QB format from two sources that
    never overlap: KTC's trade database (data/ktc-trades-<sf|oneQB>.json, its last few
    days, priced at today's KTC values for the league's format) and, for the
-   ~90 days before that, completed trades from Sleeper dynasty leagues
+   ~40 days before that (45 in all), completed trades from Sleeper dynasty leagues
    (data/market-history/recent-<sf|oneQB>.json, each priced at KTC values
    from its own day in its own league's format). Only trades where every
    piece has a price. Players are matched across the two by name
