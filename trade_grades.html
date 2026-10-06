@@ -9,14 +9,14 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=19201d0c">
+<link rel="stylesheet" href="tailwind.css?v=8853d942">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
+<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10" data-league-required>
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Trade Grades</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
@@ -39,7 +39,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=735ef58d"></script>
+<script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=1f512ca8"></script>
 <script>
@@ -141,7 +141,7 @@ const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? p
 function deltaHtml(d) {
   const r = Math.round(d);
   const color = r > 0 ? 'text-emerald-400' : r < 0 ? 'text-rose-400' : 'text-zinc-400';
-  return `<span class="${color}">${r > 0 ? '+' : ''}${r.toLocaleString()}</span>`;
+  return `<span class="${color}">${Vault.signed(r)}</span>`;
 }
 
 // Each asset's KTC price on the trade date and today (when the trade was
@@ -169,13 +169,13 @@ function sideValueLine(list) {
 function optDeltaHtml(dOpt) {
   if (Math.abs(dOpt) <= 0.05) return '';
   const color = dOpt > 0 ? 'text-emerald-400/80' : 'text-rose-400/80';
-  return ` · Opt PPG <span class="${color}">${dOpt > 0 ? '+' : ''}${dOpt.toFixed(1)}</span>`;
+  return ` · Opt PPG <span class="${color}">${Vault.signed(dOpt, x => x.toFixed(1))}</span>`;
 }
 
 function vorpDeltaHtml(dVorp) {
   if (!Number.isFinite(dVorp) || Math.abs(dVorp) <= 0.05) return '';
   const color = dVorp > 0 ? 'text-emerald-400/80' : 'text-rose-400/80';
-  return ` · VORP <span class="${color}" title="Real, scarcity-adjusted edge over replacement — see the VORP column on Player Rankings">${dVorp > 0 ? '+' : ''}${dVorp.toFixed(1)}</span>`;
+  return ` · VORP <span class="${color}" title="Real, scarcity-adjusted edge over replacement — see the VORP column on Player Rankings">${Vault.signed(dVorp, x => x.toFixed(1))}</span>`;
 }
 
 /* This season: what the trade is doing for each team's playoff and title odds

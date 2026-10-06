@@ -9,14 +9,14 @@
 <title>Team Analyzer — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=19201d0c">
+<link rel="stylesheet" href="tailwind.css?v=8853d942">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in">
+<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" data-league-required>
   <!-- League is picked once, in the nav's Switch League. The full league table
        lives on League Overview; this page is one team at a time. -->
   <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
@@ -31,7 +31,7 @@
   <section id="singleCard" class="mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=735ef58d"></script>
+<script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 const $ = s => document.querySelector(s);

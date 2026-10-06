@@ -9,7 +9,7 @@
   <title>The Vault — Dynasty tools for Sleeper</title>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vault.css?v=655a9195">
-  <link rel="stylesheet" href="tailwind.css?v=19201d0c">
+  <link rel="stylesheet" href="tailwind.css?v=8853d942">
 </head>
 <body class="min-h-screen text-zinc-100 antialiased">
   <div class="vault-bg"></div>
@@ -84,7 +84,7 @@
     </div>
   </main>
 
-  <script src="vault-core.js?v=735ef58d"></script>
+  <script src="vault-core.js?v=a2b8d376"></script>
   <script>
     (() => {
       const $ = id => document.getElementById(id);
@@ -146,7 +146,7 @@
       const lastLeague = stored('vault_league_id');
       if (lastLeague) {
         fetch(`https://api.sleeper.app/v1/league/${lastLeague}`).then(r => r.json()).then(l => {
-          if (!l || !l.name) return;
+          if (!l || !l.name || !Vault.isDynastyLeague(l)) return; // only offer leagues that work
           $('resumeName').textContent = `${l.name} • ${l.season}`;
           $('resumeBtn').href = Vault.linkTo('app.html', lastLeague);
           $('resume').classList.remove('hidden');

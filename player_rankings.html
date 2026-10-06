@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=19201d0c">
+<link rel="stylesheet" href="tailwind.css?v=8853d942">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -118,7 +118,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=735ef58d"></script>
+<script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=1f512ca8"></script>
 <script>
@@ -158,7 +158,7 @@
 
   const fmtInt = Vault.fmtInt;
   const fmtFloat = Vault.fmtFloat;
-  const fmtSigned = n => Number.isFinite(n) ? (n >= 0 ? '+' : '') + n.toFixed(1) : '—';
+  const fmtSigned = n => Number.isFinite(n) ? Vault.signed(n, x => x.toFixed(1)) : '—';
   const posColor = pos => `pos-badge-${['QB','RB','WR','TE'].includes(pos) ? pos : 'default'}`;
 
   // Official primary/secondary brand colors, keyed by Sleeper's canonical team
@@ -756,7 +756,7 @@
         <td class="px-4 py-3 text-right mono text-xs whitespace-nowrap ${r.marketAdj == null || Math.abs(r.marketAdj) < 3 ? 'text-zinc-400' : r.marketAdj > 0 ? 'text-emerald-400' : 'text-orange-400'}" title="${r.marketAdj == null ? 'Not enough completed trades yet' : 'Market price ' + fmtInt(r.value * (1 + r.marketAdj / 100)) + (Math.abs(r.marketRaw) > 25 ? ' or more. Full read: ' + Math.abs(Math.round(r.marketRaw)) + '% ' + (r.marketRaw > 0 ? 'over' : 'under') + ' (trade math caps it at 25%)' : '')}">${r.marketText || '—'}</td>
         <td class="px-4 py-3 text-right">
           ${r.trendDelta != null
-            ? `<div class="flex items-center justify-end gap-2">${sparkline(r.trendValues)}<span class="mono text-xs ${r.trendDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.trendDelta >= 0 ? '+' : ''}${fmtInt(r.trendDelta)}</span></div>`
+            ? `<div class="flex items-center justify-end gap-2">${sparkline(r.trendValues)}<span class="mono text-xs ${r.trendDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.trendDelta > 0 ? '+' : r.trendDelta < 0 ? '−' : ''}${fmtInt(Math.abs(r.trendDelta))}</span></div>`
             : '<span class="text-zinc-400 text-xs">—</span>'}
         </td>
         <td class="px-4 py-3 text-right mono text-zinc-400">${fmtFloat(r.ppg, 2)}</td>

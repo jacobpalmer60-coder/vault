@@ -193,6 +193,15 @@ const Vault = {
 
   // Storage access is guarded everywhere below: it can throw in private windows
   // or with site data blocked, and a shared link still has to open.
+  // A signed number the way the site writes them: "+1,234", "−0.8" (a real
+  // minus sign), and no sign at all when it rounds to zero ("0.0", never
+  // "−0.0"). `fmt` formats the size, e.g. x => x.toFixed(1).
+  signed(n, fmt = x => Math.round(x).toLocaleString()) {
+    const s = String(fmt(Math.abs(n)));
+    if (!/[1-9]/.test(s)) return s;
+    return (n > 0 ? '+' : '−') + s;
+  },
+
   getLeagueId() {
     const fromUrl = new URLSearchParams(location.search).get('league_id');
     if (fromUrl) {
@@ -517,9 +526,33 @@ const Vault = {
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`).then(r => r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`).then(r => r.json()).catch(() => [])
     ]);
-    if (!league || league.error) throw new Error('League not found. Double-check the league ID.');
-    if (!Vault.isDynastyLeague(league)) throw new Error(`"${league.name}" is a redraft/keeper league, not dynasty — The Vault only supports dynasty leagues.`);
+    if (!league || league.error) {
+      Vault.leagueProblem('League not found', "Sleeper doesn't have a league with this ID. Check the ID, or pick your league again.");
+      throw new Error('League not found. Double-check the league ID.');
+    }
+    if (!Vault.isDynastyLeague(league)) {
+      Vault.leagueProblem('Not a dynasty league', `"${league.name}" is a redraft or keeper league. The Vault works with dynasty leagues only, where players and picks carry over from season to season.`);
+      throw new Error(`"${league.name}" is a redraft/keeper league, not dynasty — The Vault only supports dynasty leagues.`);
+    }
     return { league, users, rosters, players, traded, drafts };
+  },
+
+  // On a page that can't work without a dynasty league (its content wrapper has
+  // data-league-required), swap the content for one clear card with a way out,
+  // instead of a status line over empty tables. The page's own content is only
+  // hidden, so its error handling still finds its elements.
+  leagueProblem(title, text) {
+    const wrap = document.querySelector('[data-league-required]');
+    if (!wrap || document.getElementById('leagueProblem')) return;
+    const esc = Vault.escapeHtml;
+    wrap.style.display = 'none';
+    wrap.insertAdjacentHTML('beforebegin', `<div id="leagueProblem" class="max-w-xl mx-auto px-4 py-16">
+        <div class="card rounded-2xl p-6 sm:p-8 text-center">
+          <h1 class="display text-[28px] text-zinc-100">${esc(title)}</h1>
+          <p class="text-[14px] text-zinc-400 mt-3 leading-relaxed">${esc(text)}</p>
+          <a href="index.html" class="inline-block mt-6 btn-gold-solid px-5 py-2.5 rounded-xl text-[14px]">Switch league</a>
+        </div>
+      </div>`);
   },
 
   // A league can carry multiple draft records for the same season (an abandoned

@@ -9,14 +9,14 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=19201d0c">
+<link rel="stylesheet" href="tailwind.css?v=8853d942">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10" data-league-required>
   <div class="flex items-center justify-between mb-8">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Trade Calculator</h1>
@@ -230,7 +230,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=735ef58d"></script>
+<script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -626,7 +626,7 @@ function assetRow(side, a, isSelected, extra) {
             ${volBadge}
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            ${a.trend != null ? `<div class="text-[11px] mono ${a.trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Value change over the last ${TREND_WINDOW_DAYS} days">${a.trend >= 0 ? '+' : ''}${Math.round(a.trend).toLocaleString()}</div>` : ''}
+            ${a.trend != null ? `<div class="text-[11px] mono ${a.trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}" title="Value change over the last ${TREND_WINDOW_DAYS} days">${Vault.signed(a.trend)}</div>` : ''}
             <div class="flex gap-1.5 opacity-0 group-hover/item:opacity-100 group-focus-within/item:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
               ${matchAction ? `<button onclick="event.stopPropagation(); ${matchAction}" title="${matchTitle}" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Match</button>` : ''}
               <button onclick="event.stopPropagation(); ${findAction}" title="${findTitle}" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">${findLabel}</button>
@@ -1323,7 +1323,7 @@ function matchTarget(side, key) {
   render('A'); render('B');
 }
 
-function fmtSigned(n) { return (n >= 0 ? '+' : '') + Math.round(n).toLocaleString(); }
+function fmtSigned(n) { return Vault.signed(n); }
 
 function fairnessBucket(pct, fitA, fitB) {
   return Vault.fairnessBucket(pct, fitA, fitB);

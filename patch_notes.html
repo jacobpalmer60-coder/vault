@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=19201d0c">
+<link rel="stylesheet" href="tailwind.css?v=8853d942">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,13 +31,18 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=735ef58d"></script>
+<script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-06', items: [
+    { kind: 'fixed', page: 'Everywhere', text: 'Opening a redraft or keeper league, or a league ID that doesn\'t exist, showed a one-line note above empty tables. League Overview, Team Analyzer, the Trade Calculator, Trade Grades and Managers now show one clear card ("Not a dynasty league" or "League not found") with a Switch league button, and the start page no longer offers to reopen a league that won\'t work.' },
+    { kind: 'fixed', page: 'Managers', text: 'Who pays up reads "40% over" and "21% under" (over or under market price) instead of +40% and −21%.' },
+    { kind: 'fixed', page: 'Everywhere', text: 'Negative numbers use a real minus sign everywhere (Rankings trend, League Overview changes, Trade Grades value, Opt PPG and VORP changes, Compare VORP, the Player Market chart), and a change that rounds to zero shows no sign at all.' },
+  ]},
   { date: '2026-10-04', items: [
     { kind: 'changed', page: 'Everywhere', text: 'Projected points per game now come from Sleeper\'s projections for the rest of the season instead of the whole season, so a player who takes over a starting job or loses his role moves Opt PPG right away rather than being averaged with projections for weeks already played.' },
     { kind: 'changed', page: 'League Overview', text: 'Projected records, playoff odds and title odds now play each week at that week\'s lineup: who\'s available (byes, injuries, return dates) and each player\'s matchup that week. A team missing its RB1 until week 8 is weaker in those weeks only, and title odds use the playoff weeks\' lineups. A trade\'s This season odds (Trade Calculator, Trade Grades) move each week by that week\'s lineup change.' },

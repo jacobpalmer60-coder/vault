@@ -9,14 +9,14 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=19201d0c">
+<link rel="stylesheet" href="tailwind.css?v=8853d942">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in">
+<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" data-league-required>
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">League Overview</h1>
@@ -103,7 +103,7 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=735ef58d"></script>
+<script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 }, expanded = new Set();
@@ -301,7 +301,7 @@ function renderValueHistory(history, currentTeams) {
           <span class="size-2 rounded-full shrink-0" style="background:${s.color}"></span>
           <span class="text-zinc-300 truncate">${Vault.escapeHtml(s.name)}</span>
           <span class="text-zinc-400 mono ml-auto">${last != null ? fmt(last) : '—'}</span>
-          ${delta != null ? `<span class="mono w-16 text-right ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${delta >= 0 ? '+' : ''}${fmt(delta)}</span>` : ''}
+          ${delta != null ? `<span class="mono w-16 text-right ${delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${Vault.signed(delta, fmt)}</span>` : ''}
         </div>`).join('')}
     </div>`;
 

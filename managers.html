@@ -9,14 +9,14 @@
 <title>Managers — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=19201d0c">
+<link rel="stylesheet" href="tailwind.css?v=8853d942">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10" data-league-required>
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Managers</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
@@ -38,13 +38,13 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=735ef58d"></script>
+<script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=1f512ca8"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc-400' };
-function fmtSigned(n, decimals = 0) { return (n >= 0 ? '+' : '') + n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); }
+function fmtSigned(n, decimals = 0) { return Vault.signed(n, x => x.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })); }
 function fmtDate(ts) { return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
 
 function bestWorstLine(rec, label, tone) {
@@ -268,11 +268,11 @@ function renderPaysUp(stats, allGraded, league) {
   const cell = c => {
     if (!c) return '<span class="text-zinc-600">—</span>';
     const v = Math.round(c.avg), tone = Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-orange-300' : 'text-sky-300';
-    return `<span class="mono ${tone} ${c.n < 2 ? 'opacity-60' : ''}" title="${c.n} trade${c.n === 1 ? '' : 's'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}%</span><span class="hidden sm:inline text-[11px] text-zinc-500"> (${c.n})</span>`;
+    return `<span class="mono ${tone} ${c.n < 2 ? 'opacity-60' : ''}" title="${c.n} trade${c.n === 1 ? '' : 's'}">${v ? `${Math.abs(v)}% ${v > 0 ? 'over' : 'under'}` : 'even'}</span><span class="hidden sm:inline text-[11px] text-zinc-500"> (${c.n})</span>`;
   };
   box.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Who pays up</div>
     <div class="card rounded-vault-sm overflow-hidden">
-      <div class="px-4 pt-3 text-[12px] text-zinc-400 leading-relaxed">What each manager paid over market (<span class="text-orange-300">+</span>) or got as a bargain under it (<span class="text-sky-300">−</span>) in this league's trades, by the position of the best piece they got. Managers who pay up are who to sell to: Trade Coach's Sell high puts them first.</div>
+      <div class="px-4 pt-3 text-[12px] text-zinc-400 leading-relaxed">What each manager paid <span class="text-orange-300">over</span> market price or got <span class="text-sky-300">under</span> it (a bargain) in this league's trades, by the position of the best piece they got. Managers who pay up are who to sell to: Trade Coach's Sell high puts them first.</div>
       <div class="overflow-x-auto"><table class="w-full text-[12px] sm:text-[13px]">
         <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left pl-3 sm:pl-4 pr-2 py-2.5">Manager</th>${PAYS_POS.map(p => `<th class="text-right px-1.5 sm:px-3 py-2.5">${p === 'Pick' ? 'Picks' : p}</th>`).join('')}</tr></thead>
         <tbody class="divide-y divide-white/5">${rows.map(s => `<tr><td class="pl-3 sm:pl-4 pr-2 py-2.5 text-zinc-100">${Vault.escapeHtml(s.teamName)}</td>${PAYS_POS.map(p => `<td class="px-1.5 sm:px-3 py-2.5 text-right whitespace-nowrap">${cell(pays.get(s.rosterId)[p])}</td>`).join('')}</tr>`).join('')}</tbody>
