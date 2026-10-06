@@ -54,8 +54,10 @@
          buys: { '<round>-<early|mid|late>': [players, medianKtcValue, medianKtcPickValue] } } } }
    A draft position is in rounds from the first pick, (round - 1) +
    (slot - 1) / teams, so leagues of any size line up (0.25 = a quarter of
-   the way through round 1, "1.04" in a 12-team league). Players taken in at
-   least ROOKIE_MIN_PICKS drafts. "buys": the KTC value, on the draft's own
+   the way through round 1, "1.04" in a 12-team league). Only real rookie
+   drafts (at least ROOKIE_MIN_SHARE of the picks are that class's rookies, by
+   Sleeper's years_exp) and only that class's rookies; each listed in at least
+   ROOKIE_MIN_PICKS drafts and ROOKIE_MIN_PICKED of the class's drafts. "buys": the KTC value, on the draft's own
    day in its league's format, of the players taken at each round's early /
    mid / late third, as a median: what that pick actually bought. Next to it,
    what KTC said that pick slot was worth on the same day (its last value
@@ -73,6 +75,8 @@ const OUT = path.join(DATA, 'market-history');
 const LOOKBACK = 14; // a missing day's price falls back to the last one within two weeks
 const RECENT_DAYS = 45, RECENT_MAX = 30000;
 const ROOKIE_MIN_DRAFTS = 5, ROOKIE_MIN_PICKS = 3, ROOKIE_SHOW = 96;
+const ROOKIE_MIN_PICKED = 0.005; // a rookie listed must be taken in at least this share of the class's drafts
+const ROOKIE_MIN_SHARE = 0.6; // share of a draft's picks that must be that class's rookies to count as a rookie draft
 const PICK_TIER_LOOKBACK = 45; // days back to find KTC's value for a drafted pick slot
 const DAILY_KEEP_DAYS = 400; // day-by-day market points kept; older ones by month (monthly-<sf|oneQB>.json)
 
@@ -242,15 +246,27 @@ function main() {
   const priceCache = new Map(), pricesFor = f => priceCache.get(f) || priceCache.set(f, playerPrices(f)).get(f);
   const rookies = { sf: new Map(), oneQB: new Map() };
   const med = l => { const s = [...l].sort((a, b) => a - b); return s[Math.floor((s.length - 1) / 2)]; };
+  // Whether a player was a rookie in a given class, from Sleeper's years_exp
+  // (0 in his first season; Sleeper's player list is for the current NFL
+  // season, which turns over in March). null when Sleeper doesn't say.
+  const now = new Date(), nflSeason = now.getUTCMonth() >= 2 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  const rookieOf = (pid, season) => { const y = sleeper[pid]?.years_exp; return y == null ? null : nflSeason - y === +season; };
+  let skippedDrafts = 0;
   docs.forEach(doc => Object.values(doc.drafts || {}).forEach(([date, lh, teams, picks]) => {
     const fmt = doc.leagues[lh];
     if (!fmt || !teams) return;
+    // The crawl keeps drafts of 6 rounds or fewer, which still lets in some
+    // that aren't rookie drafts (small startups, veteran or dispersal drafts),
+    // putting Josh Allen at 1.01 in a rookie class. A real rookie draft is
+    // nearly all that class's rookies: skip any where under ROOKIE_MIN_SHARE are.
+    const known = picks.map(([, , pid]) => rookieOf(pid, doc.season)).filter(x => x != null);
+    if (known.length && known.filter(Boolean).length / known.length < ROOKIE_MIN_SHARE) { skippedDrafts++; return; }
     const qb = fmt[0] === 2 ? 'sf' : 'oneQB', format = qb + tepSuffix(fmt[1]), season = String(doc.season);
     const S = rookies[qb].get(season) || rookies[qb].set(season, { drafts: 0, players: new Map(), buys: new Map(), ktc: new Map() }).get(season);
     S.drafts++;
     picks.forEach(([no, round, pid]) => {
       const slot = no - (round - 1) * teams;
-      if (slot < 1 || slot > teams) return;
+      if (slot < 1 || slot > teams || rookieOf(pid, season) === false) return; // a veteran taken in a rookie draft
       (S.players.get(pid) || S.players.set(pid, []).get(pid)).push((round - 1) + (slot - 1) / teams);
       const pl = sleeper[pid], value = pl && pricesFor(format).at(normalizeName(`${pl.first_name || ''} ${pl.last_name || ''}`.trim()), date);
       const tier = slot <= teams / 3 ? 'early' : slot <= (2 * teams) / 3 ? 'mid' : 'late';
@@ -259,11 +275,12 @@ function main() {
       if (said) (S.ktc.get(`${round}-${tier}`) || S.ktc.set(`${round}-${tier}`, []).get(`${round}-${tier}`)).push(said);
     });
   }));
+  console.log(`rookie drafts: skipped ${skippedDrafts} that weren't mostly rookies`);
   Object.entries(rookies).forEach(([qb, bySeason]) => {
     const seasons = {};
     bySeason.forEach((S, season) => {
       if (S.drafts < ROOKIE_MIN_DRAFTS) return;
-      const players = [...S.players.entries()].filter(([, l]) => l.length >= ROOKIE_MIN_PICKS).map(([pid, l]) => {
+      const players = [...S.players.entries()].filter(([, l]) => l.length >= Math.max(ROOKIE_MIN_PICKS, S.drafts * ROOKIE_MIN_PICKED)).map(([pid, l]) => {
         const pl = sleeper[pid] || {};
         return [pid, `${pl.first_name || ''} ${pl.last_name || ''}`.trim(), pl.position || '', l.length, +med(l).toFixed(3), +Math.min(...l).toFixed(3), +Math.max(...l).toFixed(3)];
       }).sort((a, b) => a[4] - b[4]).slice(0, ROOKIE_SHOW);
