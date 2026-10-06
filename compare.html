@@ -106,7 +106,7 @@
 
 <script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
-<script src="market-data.js?v=648c6129"></script>
+<script src="market-data.js?v=c6a081e4"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -351,7 +351,7 @@ function renderCards(ps) {
         <div class="basis-full sm:basis-auto pl-[68px] sm:pl-0 sm:text-right shrink-0">
           <div class="num text-[30px] text-zinc-100">${fmt(p.value)}</div>
           <div class="text-[12px] text-zinc-400 mt-1">KTC value · ${p.pos}${p.valueRank}</div>
-          ${(m => m ? `<div class="text-[12px] mt-0.5 text-zinc-400" title="What managers pay for him in completed trades (${m.read.n} trades)">market ${fmt(p.value * (1 + m.adj / 100))}${(Math.abs(m.read.premium) > MARKET_ADJ_CAP ? '+' : '')} · <span class="${Math.abs(m.adj) < 3 ? 'text-zinc-300' : m.adj > 0 ? 'text-emerald-300' : 'text-orange-300'}">${marketAdjText(m)}</span></div>` : '')(marketOf(p))}
+          ${(m => m ? `<div class="text-[12px] mt-0.5 text-zinc-400" title="What managers pay for him in completed trades (${m.read.n} trades)">market ${fmt(p.value * (1 + m.adj / 100))}${(Math.abs(m.read.premium) > MARKET_ADJ_CAP ? '+' : '')} · <span title="${MARKET_PEER_TIP}" class="${Math.abs(marketPeerPct(m) ?? 0) < 3 ? 'text-zinc-300' : marketPeerPct(m) > 0 ? 'text-emerald-300' : 'text-orange-300'}">${marketPeerPhrase(m)}</span></div>` : '')(marketOf(p))}
         </div>
       </div>
       <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/5 text-center">
@@ -513,7 +513,7 @@ function renderH2H(ps) {
     row('KTC value', ps.map(p => p.value), fmt, 'high'),
     ...(ps.some(p => marketOf(p)) ? [
       row('Market price', ps.map(p => { const m = marketOf(p); return m ? p.value * (1 + m.adj / 100) : NaN; }), (v, i) => fmt(v) + (marketOf(ps[i]) && Math.abs(marketOf(ps[i]).read.premium) > MARKET_ADJ_CAP ? '+' : ''), 'high'),
-      row('Market vs KTC', ps.map(p => marketOf(p)?.read.premium ?? NaN), (v, i) => (marketOf(ps[i]) ? marketAdjText(marketOf(ps[i])) : '—'), null)
+      row('Vs similar players', ps.map(p => marketPeerPct(marketOf(p)) ?? NaN), (v, i) => (marketOf(ps[i]) ? marketPeerText(marketOf(ps[i])) : '—'), null)
     ] : []),
     rankRow('Position rank by value', 'valueRank'),
     row('Change, last 30 days', ps.map(p => changeOver(p.norm, 30)), signed, 'high'),

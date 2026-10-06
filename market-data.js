@@ -240,6 +240,36 @@ function marketAdjText(mp) {
   if (!capped && Math.abs(raw) < 0.5) return 'even';
   return `${capped ? MARKET_ADJ_CAP : Math.abs(Math.round(raw))}%${capped ? '+' : ''} ${raw > 0 ? 'over' : 'under'}`;
 }
+/* Over or under against similar players: how his market price compares with
+   players at his position and KTC value (marketValue's vsPeers: the median of
+   each of his trades' premium minus what players like him usually got). This
+   is the over/under shown next to a market price, and what Sell high, Buy low,
+   Your market and the Market column rank by. Below about 2,000 KTC nearly
+   every player goes for more than KTC (KTC's low end is squeezed: the
+   cheapest piece you can send back is usually worth more), so "over KTC"
+   said little about the player himself. The price stays the real one (KTC x
+   (1 + premium)), and the trade math ("At market prices", Trade Coach's
+   edges, Managers) keeps using it. */
+const MARKET_PEER_TIP = 'Against players at the same position and KTC value (within about 15%), in completed trades they headlined. The price is what he actually goes for.';
+function marketPeerPct(mp) { const v = mp && mp.read ? mp.read.vsPeers : null; return Number.isFinite(v) ? v : null; }
+// "12% over", "8% under", "even", or "25%+ over" past MARKET_ADJ_CAP; '' without a read.
+function marketPeerText(mp) {
+  const v = marketPeerPct(mp);
+  if (v == null) return '';
+  const capped = Math.abs(v) > MARKET_ADJ_CAP;
+  if (!capped && Math.abs(v) < 0.5) return 'even';
+  return `${capped ? MARKET_ADJ_CAP : Math.abs(Math.round(v))}%${capped ? '+' : ''} ${v > 0 ? 'over' : 'under'}`;
+}
+// The same as a phrase: "12% over similar players", "in line with similar players".
+function marketPeerPhrase(mp) { const t = marketPeerText(mp); return !t ? '' : t === 'even' ? 'in line with similar players' : `${t} similar players`; }
+// For a trade piece, capped like marketAdj; 0 without a read.
+function marketPeerAdj(league, a) {
+  if (!a) return 0;
+  const mp = a.type === 'pick' ? (marketKeyOf(a) ? marketPlayer(league, marketKeyOf(a), 'Pick') : null) : marketPlayer(league, a.name, a.pos);
+  const v = marketPeerPct(mp);
+  return v == null ? 0 : Math.max(-MARKET_ADJ_CAP, Math.min(MARKET_ADJ_CAP, v));
+}
+
 // A trade at market prices vs KTC, from the side that gives `give` and gets `get`:
 // ktc / market = % in that side's favor (consolidation-adjusted, as the grade
 // measures), delta = market - ktc, and the pieces that moved it most.

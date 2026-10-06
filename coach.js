@@ -276,11 +276,11 @@ function coachSaleOffers(me, v, filter) {
    high is a player managers pay more than KTC for, so the way to cash in is
    to sell him for more than his KTC value; a market low goes for less, so buy
    him for less than his.
-   - Sell high: your pieces going for MARKET_SELL_AT % or more over KTC (or the
-     ones under Sell these), shopped to every team (coachSaleOffers: the best
+   - Sell high: your pieces going for MARKET_SELL_AT % or more over similar
+     players (same position and KTC value; marketPeerAdj), or the ones under Sell these, shopped to every team (coachSaleOffers: the best
      package each team would likely take, Fair or better for you on KTC).
    - Buy low: the other teams' pieces going for MARKET_BUY_AT % or more under
-     KTC (worth at least MARKET_MIN_VALUE), with your best packages for each
+     similar players (worth at least MARKET_MIN_VALUE), with your best packages for each
      that their manager would likely take (coachOffers; your Must include
      pieces go in every package).
    Kept only when you come out at least MARKET_MIN_GAIN % ahead on KTC value,
@@ -294,14 +294,16 @@ const PAYS_UP_AT = 8, PAYS_UP_MIN = 2, PAYS_UP_MAX = 15;
 async function coachMarket(me, progress, kind) {
   if (typeof marketAdj !== 'function' || !Market.data || Market.data.failed) return { empty: 'Market prices aren\'t loaded yet. Try again in a moment.' };
   const must = coachMust(me), off = coachOffLimits(me);
-  const adj = a => marketAdj(league, a);
+  // Picked and described against similar players (marketPeerAdj): cheap players
+  // nearly all go for more than KTC, so "over KTC" would fill these with them.
+  const adj = a => marketPeerAdj(league, a);
   const pctOf = a => Math.abs(Math.round(adj(a)));
   const gainOf = o => marketEdge(league, o.give, o.get).ktc; // % ahead for you on KTC value
   // Every reason a deal fits: each market high you sell, each market low you buy.
   // (The card itself already says they'd likely accept and how far ahead you come out.)
   const why = o => {
-    const sells = o.give.filter(x => adj(x) >= MARKET_SELL_AT).map(x => `${Vault.escapeHtml(x.name)} sells for ${pctOf(x)}% over KTC`);
-    const buys = o.get.filter(x => adj(x) <= -MARKET_BUY_AT).map(x => `${Vault.escapeHtml(x.name)} sells for ${pctOf(x)}% under KTC`);
+    const sells = o.give.filter(x => adj(x) >= MARKET_SELL_AT).map(x => `${Vault.escapeHtml(x.name)} sells for ${pctOf(x)}% more than similar players`);
+    const buys = o.get.filter(x => adj(x) <= -MARKET_BUY_AT).map(x => `${Vault.escapeHtml(x.name)} sells for ${pctOf(x)}% less than similar players`);
     const parts = kind === 'sell' ? [sells.length ? `Sell high: ${sells.join('; ')}` : '', buys.length ? `Also buys low: ${buys.join('; ')}` : '']
       : [buys.length ? `Buy low: ${buys.join('; ')}` : '', sells.length ? `Also sells high: ${sells.join('; ')}` : ''];
     return parts.filter(Boolean).map((t, i) => t + (i === 0 ? ' in completed trades.' : '.')).join(' ');
@@ -312,7 +314,7 @@ async function coachMarket(me, progress, kind) {
     const payUp = (partner, a) => { const c = pays.get(partner.rosterId)?.[a.type === 'pick' ? 'Pick' : a.pos]; return c && c.n >= PAYS_UP_MIN && c.avg >= PAYS_UP_AT ? c : null; };
     const highs = (must.length ? must : me.assets.filter(x => !off.has(x.key) && x.value >= 1000 && adj(x) >= MARKET_SELL_AT))
       .sort((x, y) => adj(y) * y.value - adj(x) * x.value).slice(0, 8);
-    if (!highs.length) return { empty: `None of your players or picks sells for ${MARKET_SELL_AT}%+ over KTC in completed trades right now. Check back as more trades come in, or pick pieces under Sell these.` };
+    if (!highs.length) return { empty: `None of your players or picks sells for ${MARKET_SELL_AT}%+ more than similar players in completed trades right now. Check back as more trades come in, or pick pieces under Sell these.` };
     for (const v of highs) {
       progress(`Selling ${v.name} high…`);
       await coachTick();
@@ -326,7 +328,7 @@ async function coachMarket(me, progress, kind) {
   } else {
     const lows = teams.filter(t => t !== me && coachPartnerOK(t)).flatMap(t => t.assets.filter(x => !coachTheirOff(x) && x.value >= MARKET_MIN_VALUE && adj(x) <= -MARKET_BUY_AT).map(x => ({ t, a: x })))
       .sort((x, y) => adj(x.a) * x.a.value - adj(y.a) * y.a.value).slice(0, 15);
-    if (!lows.length) return { empty: `No player or pick on another team sells for ${MARKET_BUY_AT}%+ under KTC in completed trades right now. Check back as more trades come in.` };
+    if (!lows.length) return { empty: `No player or pick on another team sells for ${MARKET_BUY_AT}%+ less than similar players in completed trades right now. Check back as more trades come in.` };
     for (const { t, a: target } of lows) {
       progress(`Buying ${target.name} low…`);
       await coachTick();

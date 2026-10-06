@@ -71,7 +71,7 @@
             <th class="px-4 py-3 font-medium sortable" data-key="team">Team <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="age">Age <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="value">Value <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="marketRaw" title="What managers pay for him in completed trades, against his KTC value (Player Market). Sort to find who sells over or under KTC. 25%+ means the read goes further than that; trade math caps it there.">Market <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="marketRaw" title="What managers pay for him in completed trades, against similar players (same position and KTC value; Player Market). Sort to find who sells over or under players like him. 25%+ means the read goes further than that.">Market <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="trendDelta" title="Value change over the selected trend window (see the 3mo/6mo/1yr/All toggle above the table) — tracked for players rostered in your league only">Trend <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg">PPG <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="vorp" title="Value Over Replacement Player — PPG above the best player at this position who wouldn't start anywhere in your league. Comparable ACROSS positions, unlike raw PPG — this is why a Superflex QB is worth so much more than a similar-PPG RB: replacement-level QB is far worse relative to a starter.">VORP <span class="sort-ind"></span></th>
@@ -120,7 +120,7 @@
 
 <script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
-<script src="market-data.js?v=648c6129"></script>
+<script src="market-data.js?v=c6a081e4"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -523,13 +523,13 @@
         return;
       }
       const at = v => Math.round(r.value * (1 + v / 100)).toLocaleString();
-      const pct = Math.round(mp.adj), tone = Math.abs(pct) < 3 ? 'text-zinc-300' : pct > 0 ? 'text-emerald-300' : 'text-orange-300';
+      const pct = Math.round(mp.adj), peer = Math.round(marketPeerPct(mp) ?? 0), tone = Math.abs(peer) < 3 ? 'text-zinc-300' : peer > 0 ? 'text-emerald-300' : 'text-orange-300';
       const label = marketAdjText(mp), amount = label.replace(/ (over|under)$/, '');
       const read = Math.abs(pct) < 3 ? 'right about his KTC value' : `${amount} ${pct > 0 ? 'more' : 'less'} than KTC says`;
       box.innerHTML = shell(`
         <div class="flex items-baseline gap-3 flex-wrap mt-1">
           <span class="num text-[30px] text-zinc-100">${at(mp.adj)}${(Math.abs(m.premium) > MARKET_ADJ_CAP ? '+' : '')}</span>
-          <span class="text-[13px] ${tone}">${label === 'even' ? 'even with' : label} KTC value <span class="text-zinc-500">(${fmtInt(r.value)})</span></span>
+          <span class="text-[13px] ${tone} cursor-help" title="${MARKET_PEER_TIP}">${marketPeerPhrase(mp)}</span><span class="text-[13px] text-zinc-500">KTC value ${fmtInt(r.value)}</span>
         </div>
         <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">Teams getting him paid ${read}, usually ${at(m.low)} to ${at(m.high)}. Median of ${m.n} completed trades he headlined, from leagues like yours (${m.like}), over ${m.days} day${m.days === 1 ? '' : 's'}. KTC's consolidation adjustment is included, so sending more pieces to get him is already part of KTC's number.</div>${liqLine}`);
     });
@@ -684,7 +684,7 @@
       applyFiltersAndRender();
       if (leagueObj) marketLoad(leagueObj).then(() => {
         if (!Market.data || Market.data.failed) return;
-        allRows.forEach(r => { const m = marketPlayer(leagueObj, r.player, r.pos); r.marketAdj = m.read ? m.adj : null; r.marketRaw = m.read ? m.read.premium : null; r.marketText = m.read ? marketAdjText(m) : null; });
+        allRows.forEach(r => { const m = marketPlayer(leagueObj, r.player, r.pos); r.marketAdj = m.read ? m.adj : null; r.marketRaw = m.read ? marketPeerPct(m) : null; r.marketPeer = m.read ? marketPeerPct(m) : null; r.marketText = m.read ? marketPeerText(m) : null; });
         applyFiltersAndRender();
       }).catch(() => {});
     } catch (e) {
@@ -753,7 +753,7 @@
         <td class="px-4 py-3 text-zinc-400 mono text-xs">${Vault.escapeHtml(r.team) || '—'}</td>
         <td class="px-4 py-3 text-right mono text-xs text-zinc-400">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
         <td class="px-4 py-3 text-right mono font-medium text-zinc-100">${fmtInt(r.value)}</td>
-        <td class="px-4 py-3 text-right mono text-xs whitespace-nowrap ${r.marketAdj == null || Math.abs(r.marketAdj) < 3 ? 'text-zinc-400' : r.marketAdj > 0 ? 'text-emerald-400' : 'text-orange-400'}" title="${r.marketAdj == null ? 'Not enough completed trades yet' : 'Market price ' + fmtInt(r.value * (1 + r.marketAdj / 100)) + (Math.abs(r.marketRaw) > 25 ? ' or more. Full read: ' + Math.abs(Math.round(r.marketRaw)) + '% ' + (r.marketRaw > 0 ? 'over' : 'under') + ' (trade math caps it at 25%)' : '')}">${r.marketText || '—'}</td>
+        <td class="px-4 py-3 text-right mono text-xs whitespace-nowrap ${r.marketPeer == null || Math.abs(r.marketPeer) < 3 ? 'text-zinc-400' : r.marketPeer > 0 ? 'text-emerald-400' : 'text-orange-400'}" title="${r.marketAdj == null ? 'Not enough completed trades yet' : 'Market price ' + fmtInt(r.value * (1 + r.marketAdj / 100)) + '. Against similar players (same position and KTC value): ' + r.marketText + (Math.abs(r.marketPeer) > 25 ? ' (full read ' + Math.abs(Math.round(r.marketPeer)) + '%)' : '') + '.'}">${r.marketText || '—'}</td>
         <td class="px-4 py-3 text-right">
           ${r.trendDelta != null
             ? `<div class="flex items-center justify-end gap-2">${sparkline(r.trendValues)}<span class="mono text-xs ${r.trendDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.trendDelta > 0 ? '+' : r.trendDelta < 0 ? '−' : ''}${fmtInt(Math.abs(r.trendDelta))}</span></div>`

@@ -102,7 +102,7 @@
 
 <script src="vault-core.js?v=a2b8d376"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
-<script src="market-data.js?v=648c6129"></script>
+<script src="market-data.js?v=c6a081e4"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -244,13 +244,23 @@ function renderMoves() {
         <span class="block text-[11px] text-zinc-400">From <span class="mono">${signed(r.then)}</span> to <span class="mono text-zinc-300">${signed(r.now)}</span> vs KTC <span class="text-zinc-500">· ${r.n} trades</span></span></span>
       <span class="text-[13px] mono font-semibold ${r.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${r.change > 0 ? '+' : '−'}${Math.abs(Math.round(r.change))} pts</span>
     </button>`;
-  const up = rows.filter(r => r.change >= 1).sort((a, b) => b.change - a.change).slice(0, MOVE_SHOW);
-  const down = rows.filter(r => r.change <= -1).sort((a, b) => a.change - b.change).slice(0, MOVE_SHOW);
+  // Ranked by how big the move is for players at that value: cheap players'
+  // reads swing far more month to month (a few KTC points is a big %), so a
+  // 40-point swing there is ordinary while 15 points for a starter is not.
+  // Each move over the median swing of players in its value range.
+  const MOVE_BANDS = [0, 2000, 4000, 6000, Infinity];
+  const bandOf = v => MOVE_BANDS.findIndex((b, i) => v >= b && v < MOVE_BANDS[i + 1]);
+  const medAbs = l => { const s = l.map(Math.abs).sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
+  const overall = medAbs(rows.map(r => r.change)) || 1;
+  const swing = MOVE_BANDS.slice(0, -1).map((_, i) => { const l = rows.filter(r => bandOf(r.value) === i).map(r => r.change); return l.length >= 8 ? medAbs(l) || overall : overall; });
+  rows.forEach(r => { r.score = r.change / swing[bandOf(r.value)]; });
+  const up = rows.filter(r => r.change >= 1).sort((a, b) => b.score - a.score).slice(0, MOVE_SHOW);
+  const down = rows.filter(r => r.change <= -1).sort((a, b) => a.score - b.score).slice(0, MOVE_SHOW);
   const list = (title, sub, items) => `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
       <div class="text-[13px] font-medium text-zinc-200">${title}</div><div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${sub}</div>
       ${items.length ? items.map(item).join('') : '<div class="text-[12px] text-zinc-500 py-3">None yet.</div>'}</div>`;
   box.innerHTML = `<div class="mb-3">${valueFilterHtml()}</div><div class="grid lg:grid-cols-2 gap-3">${list('Rising', 'Managers are paying more for these than a month ago, against KTC.', up)}${list('Cooling', 'Managers are paying less for these than a month ago, against KTC.', down)}</div>
-    <div class="text-[11px] text-zinc-500 mt-3">Points: the change in each player's median paid over KTC (completed trades he headlined, any shape). Click a player to see his chart.</div>`;
+    <div class="text-[11px] text-zinc-500 mt-3">Points: the change in each player's median paid over KTC (completed trades he headlined, any shape). Ranked by how big that is for players at his value, since cheap players' prices swing more. Click a player to see his chart.</div>`;
 }
 
 function collecting(extra = '') {
@@ -292,7 +302,7 @@ async function lookUp(norm) {
   const head = `<div class="flex items-center gap-2 flex-wrap mb-2">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(who.pos)}">${who.pos || '—'}</span>
       <span class="text-[15px] font-semibold text-zinc-100">${esc(who.name)}</span>
-      <span class="text-[12px] text-zinc-400 basis-full flex flex-wrap items-end gap-x-8 gap-y-2 mt-1"><span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value)}</span>KTC value</span>${read ? `<span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}${(Math.abs(read.premium) > MARKET_ADJ_CAP ? '+' : '')}</span>market price, <span class="${Math.abs(mp.adj) < 3 ? 'text-zinc-300' : mp.adj > 0 ? 'text-emerald-300' : 'text-orange-300'}">${marketAdjText(mp)} KTC</span></span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
+      <span class="text-[12px] text-zinc-400 basis-full flex flex-wrap items-end gap-x-8 gap-y-2 mt-1"><span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value)}</span>KTC value</span>${read ? `<span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}${(Math.abs(read.premium) > MARKET_ADJ_CAP ? '+' : '')}</span>market price, <span title="${MARKET_PEER_TIP}" class="cursor-help ${Math.abs(marketPeerPct(mp) ?? 0) < 3 ? 'text-zinc-300' : marketPeerPct(mp) > 0 ? 'text-emerald-300' : 'text-orange-300'}">${marketPeerPhrase(mp)}</span></span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
     </div>${liq ? `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">${liq}</div>` : ''}`;
   if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
   const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
@@ -446,7 +456,7 @@ let allRows = [], allSort = { key: 'market', dir: -1 }, allPos = 'ALL', allQuery
 function buildAll() {
   allRows = [...byNorm.entries()].map(([norm, p]) => {
     const mp = marketPlayer(league, p.key || p.name, p.pos), m = mp.read;
-    return { ...p, norm, read: m, market: m ? p.value * (1 + mp.adj / 100) : null, adj: m ? mp.adj : null, raw: m ? m.premium : null, n: m ? m.n : null };
+    return { ...p, norm, read: m, market: m ? p.value * (1 + mp.adj / 100) : null, adj: m ? mp.adj : null, raw: m ? m.premium : null, peer: m ? marketPeerPct(mp) : null, n: m ? m.n : null };
   });
   const rank = (key, field) => [...allRows].filter(r => r[field] != null).sort((a, b) => b[field] - a[field]).forEach((r, i) => { r[key] = i + 1; });
   rank('ktcRank', 'value'); rank('mktRank', 'market');
@@ -470,7 +480,7 @@ function drawAll() {
     .sort((a, b) => (a[key] == null) - (b[key] == null) || dir * ((a[key] ?? 0) - (b[key] ?? 0)) || b.value - a.value);
   // [sort key, label, align]; the Market # column sorts by market value.
   // [sort key, label, align, hide on phones]. On a phone KTC moves under the name so Market and vs KTC fit.
-  const cols = [['market', 'Market #', 'right'], [null, 'Player', 'left'], ['value', 'KTC', 'right', true], ['market', 'Market', 'right'], ['raw', 'vs KTC', 'right', true], ['n', 'Trades', 'right', true]];
+  const cols = [['market', 'Market #', 'right'], [null, 'Player', 'left'], ['value', 'KTC', 'right', true], ['market', 'Market', 'right'], ['peer', 'vs similar', 'right', true], ['n', 'Trades', 'right', true]];
   document.getElementById('allHead').innerHTML = `<tr class="text-[11px] uppercase tracking-wider text-zinc-500">${cols.map(([k, l, al, wide]) => !k
     ? `<th class="font-normal pb-2 pr-3 text-left">${l}</th>`
     : `<th class="font-normal pb-2 pr-3 text-${al}${wide ? ' hidden sm:table-cell' : ''}" aria-sort="${key === k ? (dir < 0 ? 'descending' : 'ascending') : 'none'}"><button onclick="sortAll('${k}')" class="uppercase tracking-wider hover:text-zinc-200 ${key === k ? 'text-amber-200' : ''}">${l}${key === k ? (dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`).join('')}</tr>`;
@@ -483,8 +493,8 @@ function drawAll() {
       <td class="py-2 pr-3 text-right mono text-zinc-300 whitespace-nowrap">${r.mktRank ? '#' + r.mktRank : dash}${move ? ` <span class="text-[10px] ${move > 0 ? 'text-emerald-300' : 'text-orange-300'}" title="KTC rank #${r.ktcRank}">${move > 0 ? '▲' : '▼'}${Math.abs(move)}</span>` : ''}</td>
       <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="min-w-0"><span class="block text-zinc-100 truncate">${esc(r.name)}</span><span class="sm:hidden block text-[11px] text-zinc-500 mono">KTC ${Vault.fmtInt(r.value)}</span></span></span></td>
       <td class="hidden sm:table-cell py-2 pr-3 text-right mono text-zinc-300">${Vault.fmtInt(r.value)}</td>
-      <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market) + (Math.abs(r.raw) > MARKET_ADJ_CAP ? '+' : '')}<span class="sm:hidden block text-[11px]">${r.adj == null ? '' : `<span class="${tone(r.adj)}">${marketAdjText({ read: r.read })}</span>`}</span></td>
-      <td class="hidden sm:table-cell py-2 pr-3 text-right mono" title="${r.read ? `Usually ${signed(r.read.low)} to ${signed(r.read.high)}` : ''}">${r.adj == null ? dash : `<span class="${tone(r.adj)}">${marketAdjText({ read: r.read })}</span>`}</td>
+      <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market) + (Math.abs(r.raw) > MARKET_ADJ_CAP ? '+' : '')}<span class="sm:hidden block text-[11px]">${r.peer == null ? '' : `<span class="${tone(r.peer)}">${marketPeerText({ read: r.read })}</span>`}</span></td>
+      <td class="hidden sm:table-cell py-2 pr-3 text-right mono" title="${r.read ? `${MARKET_PEER_TIP} Paid vs KTC: median ${signed(r.read.premium)}, usually ${signed(r.read.low)} to ${signed(r.read.high)}.` : ''}">${r.peer == null ? dash : `<span class="${tone(r.peer)}">${marketPeerText({ read: r.read })}</span>`}</td>
       <td class="hidden sm:table-cell py-2 text-right mono text-zinc-400" title="${r.read ? 'Leagues like yours (' + esc(r.read.like) + ')' : ''}">${r.n || dash}</td>
     </tr>`;
   }).join('');
@@ -506,6 +516,8 @@ const NUDGE_AT = 8, NUDGE_HIGHS = 3, NUDGE_LOWS = 2;
    by trades, needing WEEK_MIN and PRIOR_MIN trades; changes of WEEK_SHOW_AT
    points or more, biggest first. */
 const WEEK_DAYS = 7, PRIOR_DAYS = 30, WEEK_MIN = 3, PRIOR_MIN = 5, WEEK_SHOW_AT = 3, WEEK_SHOW = 3; // fewer trades than that is noise, not a trend
+// "20% under", "45% over", "even" for a paid-vs-KTC %.
+const overUnder = v => (Math.abs(v) < 0.5 ? 'even with' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'over' : 'under'}`);
 function weekMovers(daily, pieces) {
   if (!daily || !daily.from) return [];
   const all = Object.values(daily.players).flat();
@@ -530,7 +542,7 @@ async function renderMarketNudge() {
   await marketLoad(league);
   if (!Market.data || Market.data.failed) return;
   const pieces = [...me.plist.map(p => ({ ...p, type: 'player' })), ...me.picks.map(p => ({ ...p, type: 'pick', name: `${p.season} ${['', '1st', '2nd', '3rd', '4th'][p.round] || 'R' + p.round}` }))]
-    .filter(a => a.value >= 1000).map(a => ({ ...a, adj: marketAdj(league, a) }));
+    .filter(a => a.value >= 1000).map(a => ({ ...a, adj: marketPeerAdj(league, a) }));
   const week = weekMovers(daily, pieces);
   const highs = pieces.filter(a => a.adj >= NUDGE_AT).sort((x, y) => y.adj * y.value - x.adj * x.value).slice(0, NUDGE_HIGHS);
   const lows = pieces.filter(a => a.adj <= -NUDGE_AT).sort((x, y) => x.adj * x.value - y.adj * y.value).slice(0, NUDGE_LOWS);
@@ -539,15 +551,15 @@ async function renderMarketNudge() {
   const keyOf = a => (a.type === 'pick' ? marketKeyOf(a) : Vault.normalizeName(a.name));
   const link = a => `${Vault.linkTo('market.html')}&p=${encodeURIComponent(keyOf(a))}" onclick="event.preventDefault(); openLookup('${encodeURIComponent(keyOf(a))}')`;
   const chip = (a, up) => `<a href="${link(a)}" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors">
-      <span class="text-zinc-100">${Vault.escapeHtml(a.name)}</span><span class="mono text-[12px] ${up ? 'text-emerald-300' : 'text-orange-300'}">${marketAdjText(marketPlayer(league, a.type === 'pick' ? marketKeyOf(a) : a.name, a.type === 'pick' ? 'Pick' : a.pos))}</span></a>`;
+      <span class="text-zinc-100">${Vault.escapeHtml(a.name)}</span><span class="mono text-[12px] ${up ? 'text-emerald-300' : 'text-orange-300'}" title="${MARKET_PEER_TIP}">${marketPeerText(marketPlayer(league, a.type === 'pick' ? marketKeyOf(a) : a.name, a.type === 'pick' ? 'Pick' : a.pos))}</span></a>`;
   box.innerHTML = `<div class="card rounded-vault-sm px-5 py-4 flex flex-wrap items-center gap-x-5 gap-y-3">
       <div class="min-w-0">
         <div class="text-[11px] uppercase tracking-wider text-zinc-400">Your market · ${Vault.escapeHtml(me.teamName)}</div>
-        <div class="text-[12px] text-zinc-400 mt-0.5">Your pieces selling above or below their KTC value in completed trades.</div>
+        <div class="text-[12px] text-zinc-400 mt-0.5">Your pieces going for more or less than similar players (same position and KTC value) in completed trades.</div>
       </div>
       ${highs.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-emerald-300/90">Sells high</span>${highs.map(a => chip(a, true)).join('')}</div>` : ''}
       ${lows.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-orange-300/90">Sells low</span>${lows.map(a => chip(a, false)).join('')}</div>` : ''}
-      ${week.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-zinc-400">This week</span>${week.map(m => `<a href="${link(m)}" title="Paid vs KTC: ${m.then >= 0 ? '+' : '−'}${Math.abs(Math.round(m.then))}% before, ${m.now >= 0 ? '+' : '−'}${Math.abs(Math.round(m.now))}% this week (${m.n} trade${m.n === 1 ? '' : 's'})" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors"><span class="text-zinc-100">${Vault.escapeHtml(m.name)}</span><span class="mono text-[12px] ${m.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${m.change > 0 ? '▲ +' : '▼ −'}${Math.abs(Math.round(m.change))} pts</span></a>`).join('')}</div>` : ''}
+      ${week.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-zinc-400">This week</span>${week.map(m => `<a href="${link(m)}" title="Paid vs KTC: ${m.then >= 0 ? '+' : '−'}${Math.abs(Math.round(m.then))}% before, ${m.now >= 0 ? '+' : '−'}${Math.abs(Math.round(m.now))}% this week (${m.n} trade${m.n === 1 ? '' : 's'})" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors"><span class="text-zinc-100">${Vault.escapeHtml(m.name)}</span><span class="text-[12px] ${m.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${m.change > 0 ? '▲' : '▼'} from ${overUnder(m.then)} to ${overUnder(m.now)} KTC</span></a>`).join('')}</div>` : ''}
       <div class="ml-auto flex flex-wrap gap-2 shrink-0">
         <a href="${Vault.linkTo('trade.html')}&coach=sellhigh" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Sell high →</a>
         <a href="${Vault.linkTo('trade.html')}&coach=buylow" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Buy low →</a>
