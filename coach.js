@@ -28,14 +28,14 @@ const COACH = {
   TARGET_SHOW: 8     // offers for one player (Get a player)
 };
 const COACH_OPTIONS = {
-  best: { label: 'Best trades', blurb: 'The fairest trades across the league for your team that the other manager would likely accept, best for you first.' },
+  best: { label: 'Best trades', blurb: 'The fairest trades across the league for your team that the other manager would likely accept, closest to even first.' },
   sellhigh: { label: 'Sell high', blurb: 'Your players and picks that sell for more than KTC in completed trades, each shopped for more than its KTC value. Only deals the other manager would likely take, most ahead for you first.' },
   buylow: { label: 'Buy low', blurb: 'Players and picks on other teams that sell for less than KTC in completed trades, with offers that get them for less than their KTC value. Only deals the other manager would likely take, most ahead for you first.' },
   negotiate: { label: 'Negotiate a trade', blurb: 'Offer the trade loaded in the calculator. Their manager answers in their own words, and you can steer what you ask for next.' },
   shop: { label: 'Shop a player', blurb: 'Pick one of your players or picks and see the best offer from every team, any return.' },
   target: { label: 'Get a player', blurb: 'Pick any player on another team and see offers their manager would likely take for them.' },
   downtier: { label: 'Down-tier a player', blurb: 'Pick one of your players. See trades where you get back a lesser player plus extra pieces, so you gain total value, that their manager would likely take.' },
-  team: { label: 'Trade with a team', blurb: 'Pick a team and see the trades their manager would likely take, best for you first.' },
+  team: { label: 'Trade with a team', blurb: 'Pick a team and see the trades their manager would likely take, closest to even first.' },
   position: { label: 'Fix a position', blurb: 'Pick a position. These trades upgrade your weakest starter there without giving up your other starters.' },
   rebuild: { label: 'Rebuild', blurb: 'Throw in the towel on this season: trades that turn your aging players into picks and players 24 or under while they still hold value.' },
   contend: { label: 'Go all-in', blurb: 'Win now: trades that spend picks, prospects, and bench players on starters for this season. Your starters stay put.' }
@@ -62,7 +62,15 @@ function coachPlanHtml(me, chip) {
     </div>`;
 }
 const coachMe = () => teamOf('A'); // the calculator's left side is always your team
-const coachFairFirst = (x, y) => (x.edge >= VAULT_CONFIG.FAIR_PCT) - (y.edge >= VAULT_CONFIG.FAIR_PCT);
+// How every list ranks trades: Fair both ways first (within FAIR_PCT either
+// way), then closest to a small edge your way (COACH_AIM). edge is the other
+// team's side, so -4 is about 4% your way. The coach used to keep the trade most
+// in your favor that it guessed they'd still take, which filled lists with deals
+// 20-25% your way that the market reads as a stretch (2026-10-06: down-tiering
+// Ja'Marr Chase).
+const COACH_AIM = -4;
+const coachKey = e => (Math.abs(e) < VAULT_CONFIG.FAIR_PCT ? 0 : 1000) + Math.abs(e - COACH_AIM);
+const coachFairFirst = (x, y) => (Math.abs(x.edge) >= VAULT_CONFIG.FAIR_PCT) - (Math.abs(y.edge) >= VAULT_CONFIG.FAIR_PCT);
 
 // Your team after a trade, for lineup gains.
 function coachAfter(meId, partnerId, give, get) {
@@ -149,13 +157,13 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
       fillers.forEach(fl => {
         const g2 = [...get, fl];
         const j = negJudgeFor(me, x.give, partner, g2, ctx);
-        if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || j.edge < best.edge)) best = { partner, give: x.give, get: g2, edge: j.edge, note: `They add ${Vault.escapeHtml(fl.name)} to even it out.` };
+        if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || coachKey(j.edge) < coachKey(best.edge))) best = { partner, give: x.give, get: g2, edge: j.edge, note: `They add ${Vault.escapeHtml(fl.name)} to even it out.` };
       });
       if (best) found.push(best);
     });
   }
   const count = new Map();
-  return found.filter(o => coachGroupsOK(o.give, o.get)).sort((x, y) => x.edge - y.edge).filter(o => {
+  return found.filter(o => coachGroupsOK(o.give, o.get)).sort((x, y) => coachKey(x.edge) - coachKey(y.edge)).filter(o => {
     const lead = ([...o.give].filter(a => !mustKeys.has(a.key)).sort((x, y) => y.value - x.value)[0] || { key: 'must' }).key;
     const n = count.get(lead) || 0;
     if (n >= perLead) return false;
@@ -265,11 +273,11 @@ function coachSaleOffers(me, v, filter) {
     let best = null;
     packs.filter(pack => coachGroupsOK([v], pack)).forEach(pack => {
       const j = negJudgeFor(me, [v], t, pack, negContextFor(t));
-      if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || j.edge < best.edge)) best = { partner: t, give: [v], get: pack, edge: j.edge };
+      if (j.accepts && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || coachKey(j.edge) < coachKey(best.edge))) best = { partner: t, give: [v], get: pack, edge: j.edge };
     });
     if (best) offers.push(best);
   });
-  return offers.sort((x, y) => x.edge - y.edge);
+  return offers.sort((x, y) => coachKey(x.edge) - coachKey(y.edge));
 }
 
 /* Sell high and Buy low (market-data.js), two Trade Coach options. A market
@@ -403,9 +411,9 @@ async function coachBest(me, progress) {
   const sameValue = c => picksOnly(c) && Math.round(sumValue(c.giveA)) === Math.round(sumValue(c.giveB));
   pool.filter(c => !sameValue(c))
     .map(c => ({ c, j: negJudgeFor(me, c.giveA, c.partner, c.giveB, negContextFor(c.partner)) }))
-    .filter(x => x.j.accepts && x.j.edge < VAULT_CONFIG.FAIR_PCT)
+    .filter(x => x.j.accepts && Math.abs(x.j.edge) < VAULT_CONFIG.FAIR_PCT)
     .map(x => ({ ...x, mk: market(x.c) }))
-    .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || (x.j.edge - (x.mk?.delta || 0)) - (y.j.edge - (y.mk?.delta || 0)))
+    .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || (coachKey(x.j.edge) + 0.5 * Math.abs(x.j.edge - (x.mk?.delta || 0) - COACH_AIM)) - (coachKey(y.j.edge) + 0.5 * Math.abs(y.j.edge - (y.mk?.delta || 0) - COACH_AIM)))
     .forEach(({ c, j, mk }) => {
       const n = perPartner.get(c.partner.rosterId) || 0;
       if (n >= 2 || list.length >= 10) return;
@@ -456,14 +464,14 @@ async function coachTeam(me, progress) {
   // by construction, so closest-to-Fair says little about them.
   const picksOnly = o => [...o.give, ...o.get].every(a => a.type === 'pick');
   const perLead = new Map();
-  const varied = found.sort((x, y) => picksOnly(x) - picksOnly(y) || x.edge - y.edge).filter(o => {
+  const varied = found.sort((x, y) => picksOnly(x) - picksOnly(y) || coachKey(x.edge) - coachKey(y.edge)).filter(o => {
     const lead = [...o.get].sort((x, y) => y.value - x.value)[0].key, n = perLead.get(lead) || 0;
     if (n >= 2) return false;
     perLead.set(lead, n + 1);
     return true;
   });
-  const fair = varied.filter(o => o.edge < VAULT_CONFIG.FAIR_PCT);
-  const list = (fair.length >= 3 ? fair : fair.concat(varied.filter(o => o.edge >= VAULT_CONFIG.FAIR_PCT).slice(0, 3))).slice(0, COACH.TARGET_SHOW);
+  const fair = varied.filter(o => Math.abs(o.edge) < VAULT_CONFIG.FAIR_PCT);
+  const list = (fair.length >= 3 ? fair : fair.concat(varied.filter(o => Math.abs(o.edge) >= VAULT_CONFIG.FAIR_PCT).slice(0, 3))).slice(0, COACH.TARGET_SHOW);
   if (!list.length) return { empty: `No trade with ${name} is one their manager would likely take right now.` };
   return { title: `Trades with ${name}`, list };
 }
@@ -493,20 +501,20 @@ async function coachDowntier(me, progress) {
       let best = null;
       packs.filter(p => sumValue(p) > sent && sumValue(p) <= sent * 2 && coachGroupsOK(give, p)).forEach(p => {
         const j = negJudgeFor(me, give, t, p, ctx);
-        if (j.accepts && j.edge < VAULT_CONFIG.LOPSIDED_PCT && (!best || j.edge < best.edge)) best = { partner: t, give, get: p, edge: j.edge, lead: L };
+        if (j.accepts && j.edge < VAULT_CONFIG.LOPSIDED_PCT && (!best || coachKey(j.edge) < coachKey(best.edge))) best = { partner: t, give, get: p, edge: j.edge, lead: L };
       });
       if (best) found.push(best);
     });
   }
   const perTeam = new Map();
-  const varied = found.sort((x, y) => x.edge - y.edge).filter(o => {
+  const varied = found.sort((x, y) => coachKey(x.edge) - coachKey(y.edge)).filter(o => {
     const n = perTeam.get(o.partner.rosterId) || 0;
     if (n >= 2) return false;
     perTeam.set(o.partner.rosterId, n + 1);
     return true;
   });
-  const fair = varied.filter(o => o.edge < VAULT_CONFIG.FAIR_PCT);
-  const list = (fair.length >= 3 ? fair : fair.concat(varied.filter(o => o.edge >= VAULT_CONFIG.FAIR_PCT).slice(0, 3))).slice(0, COACH.TARGET_SHOW)
+  const fair = varied.filter(o => Math.abs(o.edge) < VAULT_CONFIG.FAIR_PCT);
+  const list = (fair.length >= 3 ? fair : fair.concat(varied.filter(o => Math.abs(o.edge) >= VAULT_CONFIG.FAIR_PCT).slice(0, 3))).slice(0, COACH.TARGET_SHOW)
     .map(o => {
       const n = x => Math.round(x).toLocaleString(), rest = o.get.filter(a => a !== o.lead);
       return { ...o, id: negKeys(o.give).join() + '>' + negKeys(o.get).join(),
@@ -866,7 +874,7 @@ function renderCoach() {
       ${coachSummaryHtml(me)}
       <button onclick="coachFind()" ${Coach.busy ? 'disabled' : ''} class="shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Coach.busy ? 'opacity-60' : ''}">${fresh ? 'Search again' : 'Find trades'}</button>
     </div>
-    <div class="text-[12px] text-zinc-500 mb-1">Trades the other manager would likely take, Fair for you unless marked. Predictions, not promises. <a href="how_we_grade.html#coach" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How this works</a></div>
+    <div class="text-[12px] text-zinc-500 mb-1">Trades the other manager would likely take, Fair unless marked. Predictions, not promises. <a href="how_we_grade.html#coach" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How this works</a></div>
     <div id="coachStatus" role="status" class="text-[12px] text-zinc-400 min-h-[18px] ${Coach.busy ? '' : 'hidden'}">Searching…</div>
     ${Coach.busy || !fresh ? '' : coachResultsHtml(r)}`;
 }
@@ -921,7 +929,7 @@ function coachResultsHtml(r) {
   return `
     <div class="mt-3 mb-2 flex items-baseline justify-between gap-3 flex-wrap">
       <div class="text-[15px] font-medium text-zinc-100">${r.title}</div>
-      <div class="text-[12px] text-zinc-500">${r.list.length} option${r.list.length > 1 ? 's' : ''}, best for you first</div>
+      <div class="text-[12px] text-zinc-500">${r.list.length} option${r.list.length > 1 ? 's' : ''}, closest to even first</div>
     </div>
     ${r.planNote ? `<div class="text-[12px] text-zinc-300 mb-2">${r.planNote}</div>` : ''}
     ${over ? '<div class="text-[12px] text-orange-300 mb-2">Some of these pay a premium: nobody would take a Fair offer for them. Those are marked Lopsided. Nothing here is Unfair.</div>' : ''}
