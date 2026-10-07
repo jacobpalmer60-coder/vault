@@ -538,7 +538,7 @@ async function coachFind() {
   const status = document.getElementById('coachStatus');
   const progress = text => { if (status) status.textContent = text; };
   if (!Negotiation.styles) { progress('Reading every manager\'s trade history…'); await Promise.race([negPreloadStyles(), new Promise(r => setTimeout(r, 8000))]); }
-  // What players go for in completed trades: "Will they take it?" and Best trades use it.
+  // What players go for in completed trades: Best trades and the acceptable read use it.
   if (typeof marketLoad === 'function' && !Market.data) { progress('Reading what players go for in completed trades…'); await Promise.race([marketLoad(league), new Promise(r => setTimeout(r, 8000))]); }
   try {
     Coach.results[option] = { ...(await COACH_RUN[option](me, progress)), meId: me.rosterId, key: coachInputKey(), planNote };
@@ -880,8 +880,6 @@ function coachCardHtml(o, i) {
   const forYou = you >= VAULT_CONFIG.FAIR_PCT ? (you >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided') : null; // leans past Fair your way
   const mk = typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get) : null;
   const atMarket = mk && Math.abs(mk.delta) >= 1 ? you + mk.delta : null;
-  // Same strength as the calculator's "Will they take it?": likely when it clears their bar by 3+.
-  const nctx = negContextFor(o.partner), likely = negJudgeFor(coachMe(), o.give, o.partner, o.get, nctx).will - nctx.ask >= 3;
   const row = (label, a, first) => `<div class="grid grid-cols-[36px_minmax(0,1fr)_auto] items-baseline gap-2 py-1.5 ${first ? 'border-t border-white/[0.06]' : ''}">
       <span class="text-[11px] text-zinc-500">${label}</span>
       <span class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span>${Vault.injuryText(a) ? ` <span class="text-[11px] text-rose-300" title="From Sleeper's weekly projections; this season's lineups only count the weeks he's projected to play.">${Vault.injuryText(a)}</span>` : ''}</span>
@@ -901,8 +899,7 @@ function coachCardHtml(o, i) {
       <div class="border-b border-white/[0.06]">${side('Give', o.give)}${side('Get', o.get)}</div>
       ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}
       ${typeof marketAcceptHtml === 'function' ? marketAcceptHtml(marketAcceptable(league, o.give, o.get), coachMe().teamName, o.partner.teamName, 'mt-2.5', true) : ''}
-      <div class="flex items-center justify-between gap-2 mt-auto pt-3">
-        <span class="text-[12px] text-zinc-400"><span class="inline-block size-1.5 rounded-full bg-emerald-400 align-middle mr-1.5"></span>${Vault.escapeHtml(o.partner.teamName)} would ${likely ? 'likely' : 'probably'} say yes</span>
+      <div class="flex items-center justify-end gap-2 mt-auto pt-3">
         <button onclick="coachLoad(${i})" class="shrink-0 whitespace-nowrap text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder</button>
       </div>
     </div>`;

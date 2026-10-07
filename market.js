@@ -79,7 +79,7 @@ function renderMarketRead(aAssets, bAssets) {
   if (!aAssets.length || !bAssets.length) { box.innerHTML = ''; return; }
   if (!Market.data) {
     box.innerHTML = '';
-    // Once loaded, redraw the whole card: "Will they take it?" uses market prices too.
+    // Once loaded, redraw the whole card: the acceptable read uses market prices too.
     marketLoad(league).then(() => { if (token === marketToken) { if (typeof updateTrade === 'function') updateTrade(); else renderMarketRead(aAssets, bAssets); } });
     return;
   }

@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=1a5eaeed">
+<link rel="stylesheet" href="tailwind.css?v=95c7d4c4">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-06', items: [
+    { kind: 'changed', page: 'Trade Calculator', text: 'Removed the Will they take it? box from the trade card. It ran a separate guess at the other manager\'s answer that could disagree with the acceptable read right above it. The acceptable line (what managers actually pay for these players) is now the one read on that question; Offer still plays out the negotiation, and Trade Coach cards drop their would likely say yes line.' },
     { kind: 'fixed', page: 'Trade Calculator', text: '"To even it up, you could add…" now actually evens it up. It was sizing the piece on plain KTC value, but trade value counts an added piece for less, so in a sweep of 27 lopsided trades none reached Fair after adding the suggestion; now it checks the trade each piece really makes and says where it lands ("that makes it Fair, 6% off on trade value").' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'Price ranges come from every trade a player headlined, not just trades shaped like this one. A star\'s 1-for-1s are a skewed slice (stars rarely move straight up, and the few that do are mostly discounts), which made Chris Olave for Puka Nacua read Acceptable at 16% off; it now reads A stretch, and the Market box and the acceptable line quote the same range.' },
     { kind: 'fixed', page: 'Trade Calculator', text: 'Wording cleanup from a full sweep of the calculator: team cards give the real number ("12% ahead on trade value") instead of "Even on sticker value"; "net trade value" instead of "value Δ (adj)"; the Adjusted row only shows when need, fit or timeline move it; the Market box speaks from the paying team\'s side ("TURBONUTZ pays 12% over KTC: more than most pay for him"); "The grade uses trade value"; the confidence note shows once; "Scrooge McDucks\' favor"; no more "−0.0".' },

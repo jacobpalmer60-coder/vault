@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=1a5eaeed">
+<link rel="stylesheet" href="tailwind.css?v=95c7d4c4">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -107,15 +107,14 @@
         <div id="giveB" class="space-y-1"></div>
       </section>
     </div>
-    <!-- The decision: the grade, and whether they'd take it. -->
-    <div class="border-t border-white/5 px-4 sm:px-5 py-4 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)] gap-x-8 gap-y-4 items-center">
+    <!-- The decision: the grade, how acceptable it is, and the market. -->
+    <div class="border-t border-white/5 px-4 sm:px-5 py-4">
       <div class="min-w-0">
         <div id="diffLabel" aria-live="polite"></div>
         <div id="diffBar" class="mt-2.5 max-w-[560px]"></div>
         <!-- What managers paid for the headline player (market.js). -->
         <div id="marketRead" class="mt-3 max-w-[560px]"></div>
       </div>
-      <div id="acceptRead" aria-live="polite" class="min-w-0"></div>
     </div>
     <!-- This season: playoff and title odds before → after, and who moves into each lineup. -->
     <div id="seasonImpact" class="hidden border-t border-white/5 px-4 sm:px-5 py-4"></div>
@@ -1693,7 +1692,6 @@ function updateTrade() {
   renderSeasonImpact(teamA, teamB, aAssets, bAssets);
   renderLineups(teamA, teamB, analysis);
   if (typeof renderMarketRead === 'function') renderMarketRead(aAssets, bAssets);
-  if (typeof renderAcceptRead === 'function') renderAcceptRead(aAssets, bAssets);
 
   // Gap-closer suggestion
   const gapBox = document.getElementById('gapClose');
@@ -2154,9 +2152,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=3a18e4a6"></script>
+<script src="negotiation.js?v=5efdd772"></script>
 <script src="market-data.js?v=fb0369eb"></script>
-<script src="market.js?v=2599ea5a"></script>
-<script src="coach.js?v=c9ebe67f"></script>
+<script src="market.js?v=36b1f08b"></script>
+<script src="coach.js?v=9b23b460"></script>
 </body>
 </html>
