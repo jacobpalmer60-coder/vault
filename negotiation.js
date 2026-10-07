@@ -524,9 +524,12 @@ function renderAcceptRead(aAssets, bAssets) {
       if (!m || gain < MORE_MIN_GAIN) return;
       acceptMore = m;
       const still = negJudge(m.A, m.B, R, ctx).will - ctx.ask >= 3 ? 'likely' : 'probably';
+      // Asking for another piece, or giving less (a piece back, or a cheaper one)?
+      const asks = negKeys(O === 'A' ? m.B : m.A).some(k => !negKeys(O === 'A' ? bAssets : aAssets).includes(k));
+      const now = Vault.tradeSideValues(aAssets, bAssets), nowOff = Math.abs(now.valueA - now.valueB) / (((now.valueA + now.valueB) / 2) || 1) * 100;
       draw(`<div class="mt-2 pt-2 border-t border-white/5 flex items-start justify-between gap-3">
-          <span class="text-[12px] text-zinc-200"><span class="font-medium text-emerald-300">You could ask for more.</span> ${m.text} They'd still ${still} say yes, it stays Fair, and the grade moves about ${Math.round(gain)}% your way.</span>
-          <button onclick="applyAcceptMore()" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10 transition-colors">Ask for it</button>
+          <span class="text-[12px] text-zinc-200"><span class="font-medium text-emerald-300">${asks ? 'You could ask for more.' : 'You could give less.'}</span> ${m.text} They'd still ${still} say yes, it ${nowOff < VAULT_CONFIG.FAIR_PCT ? 'stays' : 'becomes'} Fair, and the grade moves about ${Math.round(gain)}% your way.</span>
+          <button onclick="applyAcceptMore()" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-emerald-400/30 text-emerald-200 hover:bg-emerald-400/10 transition-colors">${asks ? 'Ask for it' : 'Make that change'}</button>
         </div>`);
     }, 0);
     return;

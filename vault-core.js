@@ -2102,6 +2102,9 @@ const Vault = {
      other side (the one getting the bigger single pieces) gets a consolidation
      bonus bringing it to the same ratio as the curve. A 1-for-1 has no bonus. */
   // The curve's strength for a trade whose best piece is worth `top` (VAULT_CONFIG.TRADE_VALUE_CURVE).
+  // "TURBONUTZ's", "Scrooge McDucks'" (pass an already-escaped name for HTML).
+  possessive(name) { return `${name}${/s$/i.test(name) ? "'" : "'s"}`; },
+
   tradeValueP(top) {
     const k = VAULT_CONFIG.TRADE_VALUE_CURVE, x = Math.log(Math.max(top || 0, 500));
     if (x <= Math.log(k[0][0])) return k[0][1];

@@ -31,32 +31,19 @@ function marketRead(aAssets, bAssets) {
   const d = Market.data;
   if (!d || d.failed) return null;
   const players = [...aAssets, ...bAssets].filter(a => a.type === 'player').sort((x, y) => y.value - x.value).slice(0, 2);
-  const formats = Vault.tradeFormatTiers(Vault.tradeFormatSig(league)); // this league's settings, narrowest first
   for (const p of players) {
-    const comps = marketComps(p.name);
-    if (comps.length < MARKET_MIN_COMPS) continue;
     const youGet = bAssets.includes(p);
     const pSide = youGet ? bAssets : aAssets, oSide = youGet ? aAssets : bAssets;
-    const shape = `${marketShape(pSide.length)}-${marketShape(oSide.length)}`;
-    const dir = Math.sign(oSide.length - pSide.length); // 1: the team getting him sends more pieces
+    // The same trades the acceptable read uses (marketPiecePool), so both quote one range.
+    const hit = marketPiecePool(league, p, pSide, oSide);
+    if (!hit) continue;
+    const { pool, like, dir } = hit;
     const pieces = n => n >= 3 ? '3 or more pieces' : `${n} piece${n === 1 ? '' : 's'}`;
     // Finishes "N trades had {name}…".
-    const exact = pSide.length === 1 && oSide.length === 1 ? ' in a 1-for-1, like this one'
-      : ` ${pSide.length === 1 ? 'alone' : pSide.length >= 3 ? 'plus 2 or more' : 'plus 1 more'} for ${pieces(oSide.length)}, like this one`;
-    const shapes = [
-      [c => c.shape === shape, exact],
-      [c => c.main && c.dir === dir, ` as the main piece, ${dir > 0 ? 'for more pieces back' : dir < 0 ? 'for fewer pieces back' : 'with the same number of pieces each way'}`],
-      [c => c.main, ' as the main piece']
-    ];
-    let pool = null, qual = '', like = '';
-    for (const [f, q] of shapes) {
-      for (const [i, tier] of formats.entries()) {
-        const hit = comps.filter(c => f(c) && tier.match(c.t.fmt));
-        if (hit.length >= (i === formats.length - 1 ? MARKET_MIN_COMPS : MARKET_MIN_NARROW)) { pool = hit; qual = q; like = tier.label; break; }
-      }
-      if (pool) break;
-    }
-    if (!pool) continue;
+    const qual = hit.level === 0 ? (pSide.length === 1 && oSide.length === 1 ? ' in a 1-for-1, like this one'
+      : ` ${pSide.length === 1 ? 'alone' : pSide.length >= 3 ? 'plus 2 or more' : 'plus 1 more'} for ${pieces(oSide.length)}, like this one`)
+      : hit.level === 1 ? ` as the main piece, ${dir > 0 ? 'for more pieces back' : dir < 0 ? 'for fewer pieces back' : 'with the same number of pieces each way'}`
+      : ' as the main piece';
     const sorted = pool.map(c => c.paid).sort((x, y) => x - y);
     const ours = marketPaid(pSide, oSide);
     const ourRaw = oSide.reduce((s, a) => s + a.value, 0) || 1;
@@ -101,7 +88,7 @@ function renderMarketRead(aAssets, bAssets) {
   // Shown when that moves the trade at least 2 points from KTC; never the grade.
   const mk = marketEdge(league, aAssets, bAssets);
   // The market price is in the verdict above; this names who moves it away from KTC.
-  const check = mk.movers.length && Math.abs(mk.delta) >= 2 ? `<div class="mt-2 text-[12px] leading-relaxed text-zinc-400"><span class="text-zinc-500">Market vs KTC:</span> ${mk.movers.slice(0, 2).map(marketMoverText).join(', and ')}. The grade uses KTC.</div>` : '';
+  const check = mk.movers.length && Math.abs(mk.delta) >= 2 ? `<div class="mt-2 text-[12px] leading-relaxed text-zinc-400"><span class="text-zinc-500">Market vs KTC:</span> ${mk.movers.slice(0, 2).map(marketMoverText).join(', and ')}. The grade uses trade value.</div>` : '';
   const m = marketRead(aAssets, bAssets);
   if (!m) { box.innerHTML = check; return; }
   const name = Vault.escapeHtml(m.player.name);
@@ -112,8 +99,7 @@ function renderMarketRead(aAssets, bAssets) {
   const where = m.ours < m.low ? 'below' : m.ours > m.high ? 'above' : 'within';
   const goodForYou = (where === 'below' && m.youGet) || (where === 'above' && !m.youGet);
   const verdict = where === 'within' ? { text: 'about what the market pays', cls: 'text-zinc-200' }
-    : goodForYou ? { text: m.youGet ? 'less than most pay' : 'more than most get for him', cls: 'text-emerald-300' }
-    : { text: m.youGet ? 'more than most pay' : 'less than most get for him', cls: 'text-orange-300' };
+    : { text: where === 'below' ? 'less than most pay for him' : 'more than most pay for him', cls: goodForYou ? 'text-emerald-300' : 'text-orange-300' };
   // The strip: every real trade's price as a dot, the middle half shaded, this trade marked.
   const x = v => ((Math.max(-MARKET_STRIP_RANGE, Math.min(MARKET_STRIP_RANGE, v)) + MARKET_STRIP_RANGE) / (2 * MARKET_STRIP_RANGE) * 100).toFixed(2);
   const strip = `<div class="relative h-9 mt-1" role="img" aria-label="${m.n} completed trades from ${marketSigned(m.sorted[0])} to ${marketSigned(m.sorted[m.sorted.length - 1])}; this trade: ${marketSigned(m.ours)}">

@@ -230,7 +230,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=a8026b8d"></script>
+<script src="vault-core.js?v=3e268e31"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1416,6 +1416,8 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
   const n = v => Math.round(v).toLocaleString();
   const d = v => `<span class="${Math.abs(v) < 1 ? 'text-zinc-300' : v > 0 ? 'text-emerald-400' : 'text-rose-400'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${n(Math.abs(v))}</span>`;
   const held = Math.abs(fairness.blend) < Math.abs(fairness.value) - 0.5;
+  // The Adjusted row only when need, fit and timeline actually move the numbers.
+  const showAdj = Math.abs(adjGive - giveVal) >= 1 || Math.abs(adjGet - getVal) >= 1;
   const favored = fairness.roster + fairness.timeline > 0 ? partner.teamName : me.teamName; // who fit leans toward (positive = partner)
   return `<div class="grid grid-cols-[auto_auto_auto_auto] gap-x-4 gap-y-1 items-baseline text-right tabular-nums">
       <span></span>
@@ -1430,12 +1432,12 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
       <span class="text-[14px] text-zinc-400">${n(ktc.valueA)}</span>
       <span class="text-[14px] text-zinc-400">${n(ktc.valueB)}</span>
       <span class="text-[14px] font-medium">${d(ktc.valueB - ktc.valueA)}</span>` : ''}
-      <span class="text-[12px] text-zinc-400 text-left" title="The same trade after positional need, each starting lineup's change, and each team's rebuild/contend timeline — weighted ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline, the same blend as the grade.">Adjusted</span>
+      ${!showAdj ? '' : `<span class="text-[12px] text-zinc-400 text-left" title="The same trade after positional need, each starting lineup's change, and each team's rebuild/contend timeline — weighted ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline, the same blend as the grade.">Adjusted</span>
       <span class="text-[14px] text-zinc-100">${n(adjGive)}</span>
       <span class="text-[14px] text-zinc-100">${n(adjGet)}</span>
-      <span class="text-[14px] font-medium">${d(adjGet - adjGive)}</span>
+      <span class="text-[14px] font-medium">${d(adjGet - adjGive)}</span>`}
     </div>
-    <details class="mt-1 text-right"><summary class="py-1 text-[12px] text-zinc-400 hover:text-zinc-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">About these numbers ▾</summary><div class="text-[12px] text-zinc-400 mt-1">${bonusGive >= 1 || bonusGet >= 1 ? `Trade value adds +${n(Math.max(bonusGive, bonusGet))} to the side with the bigger pieces (${Vault.escapeHtml(bonusGive >= bonusGet ? me.teamName : partner.teamName)} sends them), the premium real trades pay to consolidate` : 'No consolidation premium (no side has bigger single pieces)'}${ktc && (ktc.bonusA >= 1 || ktc.bonusB >= 1) ? ` · KTC's calculator adds +${n(Math.max(ktc.bonusA, ktc.bonusB))} instead` : ''} · Adjusted = need, fit, and timeline${held ? ` · fit favors ${Vault.escapeHtml(favored)}, but grades never read closer to even than trade value` : ''}</div></details>`;
+    <details class="mt-1 text-right"><summary class="py-1 text-[12px] text-zinc-400 hover:text-zinc-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">About these numbers ▾</summary><div class="text-[12px] text-zinc-400 mt-1">${bonusGive >= 1 || bonusGet >= 1 ? `Trade value adds +${n(Math.max(bonusGive, bonusGet))} to the side with the bigger pieces (${Vault.escapeHtml(bonusGive >= bonusGet ? me.teamName : partner.teamName)} sends them), the premium real trades pay to consolidate` : 'No consolidation premium (no side has bigger single pieces)'}${ktc && (ktc.bonusA >= 1 || ktc.bonusB >= 1) ? ` · KTC's calculator adds +${n(Math.max(ktc.bonusA, ktc.bonusB))} instead` : ''}${showAdj ? ' · Adjusted = need, fit, and timeline' : ''}${held ? ` · fit favors ${Vault.escapeHtml(favored)}, but grades never read closer to even than trade value` : ''}</div></details>`;
 }
 
 /* ---------- This season: playoff and title odds, before → after ----------
@@ -1550,7 +1552,7 @@ function renderLineups(teamA, teamB, analysis) {
     const had = new Set(bef.plist.map(p => p.id)), keeps = new Set(aft.plist.map(p => p.id));
     const worst = now.reduce((m, s) => (s.drop > (m?.drop ?? -1) ? s : m), null);
     const lineup = aft.opt - bef.opt, depth = Vault.depthShift('contend', bef, aft, slots).perWeek;
-    const signed = v => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`;
+    const signed = v => (Math.abs(v) < 0.05 ? '0.0' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`);
     const rows = now.map(s => {
       const prev = was.get(s.id);
       const changed = prev && Math.abs(prev.drop - s.drop) >= 1;
@@ -1559,7 +1561,7 @@ function renderLineups(teamA, teamB, analysis) {
           <span class="w-10 shrink-0 text-center text-[11px] font-semibold py-0.5 rounded border ${POS_BADGE(SLOT_LABEL[s.slot] ? '' : s.slot)}">${SLOT_LABEL[s.slot] || s.slot}</span>
           <div class="min-w-0 flex-1">
             <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(s.name)} <span class="text-zinc-500 text-[12px]">${s.pos}</span>${prev ? '' : had.has(s.id) ? ' <span class="ml-1 text-[10px] uppercase tracking-wide px-1 py-px rounded border border-white/15 text-zinc-300" title="Was on the bench">Starts</span>' : ' <span class="ml-1 text-[10px] uppercase tracking-wide px-1 py-px rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/25" title="Comes over in the trade">New</span>'}</div>
-            <div class="text-[11px] text-zinc-400 mt-0.5">If out: ${cover} steps in, <span class="mono ${s === worst ? 'text-rose-300' : 'text-zinc-300'}">−${s.drop.toFixed(1)}</span>${changed ? ` <span class="text-zinc-500">(was −${prev.drop.toFixed(1)})</span>` : ''}</div>
+            <div class="text-[11px] text-zinc-400 mt-0.5">If out: ${cover} steps in, <span class="mono ${s === worst ? 'text-rose-300' : 'text-zinc-300'}">${s.drop >= 0.05 ? `−${s.drop.toFixed(1)}` : 'no drop'}</span>${changed ? ` <span class="text-zinc-500">(was ${prev.drop >= 0.05 ? `−${prev.drop.toFixed(1)}` : 'no drop'})</span>` : ''}</div>
           </div>
         </div>`;
     }).join('');
@@ -1667,7 +1669,7 @@ function updateTrade() {
   // alone, show both numbers so the gap is never hidden.
   const offPct = capPct(fairness.fitMovedIt ? overallPct : pctDiff);
   // Positive overallSigned = you send more (the adjusted "you give" is the bigger side).
-  const leans = offPct < 1 ? 'dead even' : fairness.overallSigned > 0 ? `in ${Vault.escapeHtml(teamB.teamName)}'s favor` : `in ${Vault.escapeHtml(teamA.teamName)}'s favor`;
+  const leans = offPct < 1 ? 'dead even' : `in ${Vault.possessive(Vault.escapeHtml((fairness.overallSigned > 0 ? teamB : teamA).teamName))} favor`;
   // Your team's edge (positive: it gets more than it sends) on trade value (the
   // grade), on KTC's own calculator, and, once the market has loaded, at market prices.
   const tradeEdge = (bValAdj - aValAdj) / (((aValAdj + bValAdj) / 2) || 1) * 100;
@@ -1687,7 +1689,7 @@ function updateTrade() {
   // The overall bar plus the three it's made of (trade value, roster fit, timeline),
   // right under the grade.
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? Vault.fairnessPanelHtml(fairness, diffBandPct, teamA.teamName, teamB.teamName, `${offPct.toFixed(0)}% off`, accept) : '';
-  document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
+  document.getElementById('diffConfidence').innerHTML = ''; // shown once, in the summary below (renderAnalysis)
   renderSeasonImpact(teamA, teamB, aAssets, bAssets);
   renderLineups(teamA, teamB, analysis);
   if (typeof renderMarketRead === 'function') renderMarketRead(aAssets, bAssets);
@@ -1699,16 +1701,29 @@ function updateTrade() {
     const behindSide = aValAdj < bValAdj ? 'A' : 'B';
     const behindTeam = teamOf(behindSide);
     const behindSel = behindSide === 'A' ? selectedA : selectedB;
-    const neededAdj = Math.abs(aValAdj - bValAdj);
-    const pool = behindTeam.assets.filter(a => !behindSel.has(a.key));
-    // This addition flows TO the other (currently shortchanged) side, so search for
-    // whatever would actually help them, not just whatever hits the raw dollar gap.
-    const best = comboSearchAdj(pool, neededAdj, Vault.positionalProfile(teamOf(otherSide(behindSide)), teams));
-    const combo = best ? { combo: best.combo, sum: best.combo.reduce((s, a) => s + a.value, 0) } : null;
-    if (combo) {
+    // Sized on trade value: an added piece counts for less than its KTC value
+    // (Vault.tradeSideValues), so every single piece and pair is judged by the
+    // trade it actually makes. Fair with the fewest pieces wins, then the closest
+    // to even, then what fills the other team's needs (comboValue's need weight).
+    const pool = behindTeam.assets.filter(a => !behindSel.has(a.key) && a.value > 0).sort((x, y) => y.value - x.value).slice(0, 45);
+    const profile = Vault.positionalProfile(teamOf(otherSide(behindSide)), teams);
+    const offAfter = combo => {
+      const t = behindSide === 'A' ? Vault.tradeSideValues([...aAssets, ...combo], bAssets) : Vault.tradeSideValues(aAssets, [...bAssets, ...combo]);
+      return Math.abs(t.valueA - t.valueB) / (((t.valueA + t.valueB) / 2) || 1) * 100;
+    };
+    let best = null;
+    const consider = combo => {
+      const off = offAfter(combo), raw = combo.reduce((s, a) => s + a.value, 0);
+      const score = (off < VAULT_CONFIG.FAIR_PCT ? 0 : 1000 + off) + (combo.length - 1) * 6 + off * 0.5 - (comboValue(combo, profile) / (raw || 1) - 1) * 4;
+      if (!best || score < best.score) best = { combo, off, score };
+    };
+    pool.forEach(a => consider([a]));
+    for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) consider([pool[i], pool[j]]);
+    if (best && best.off < pctDiff - 1) {
+      const lands = best.off < 1 ? 'dead even' : `${Vault.fairnessBucket(best.off)}, ${Math.floor(best.off)}% off`;
       gapBox.classList.remove('hidden');
-      gapBox.innerHTML = `<div class="text-[12px] text-zinc-400 mb-2">To even it up, ${behindSide === 'A' ? 'you' : Vault.escapeHtml(behindTeam.teamName)} could add (${Math.round(neededAdj).toLocaleString()} short, value-adjusted):</div>
-        <div class="flex flex-wrap gap-2">${combo.combo.map(a => `<button onclick="toggle('${behindSide}','${a.key}')" class="px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/50 hover:text-white text-[12px] text-zinc-300">+ ${Vault.escapeHtml(a.name)} <span class="mono text-zinc-400">${Math.round(a.value).toLocaleString()}</span></button>`).join('')}</div>`;
+      gapBox.innerHTML = `<div class="text-[12px] text-zinc-400 mb-2">To even it up, ${behindSide === 'A' ? 'you' : Vault.escapeHtml(behindTeam.teamName)} could add (that makes it ${lands} on trade value):</div>
+        <div class="flex flex-wrap gap-2">${best.combo.map(a => `<button onclick="toggle('${behindSide}','${a.key}')" class="px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/50 hover:text-white text-[12px] text-zinc-300">+ ${Vault.escapeHtml(a.name)} <span class="mono text-zinc-400">${Math.round(a.value).toLocaleString()}</span></button>`).join('')}</div>`;
     } else gapBox.classList.add('hidden');
   } else gapBox.classList.add('hidden');
 
@@ -1768,17 +1783,22 @@ function analyzeSide(before, after) {
 // narrative can't read as contradicting the badge above it.
 function headline(dValue, avgSide, fit) {
   const pct = avgSide ? dValue / avgSide * 100 : 0;
-  const dpct = capPct(pct); // display only — bucket checks below use the real pct
+  const n = Math.abs(capPct(pct)).toFixed(0); // display only — bucket checks below use the real pct
+  // Always the actual number ("12% ahead on trade value"), so a card never reads
+  // "even" next to a grade that says 12% off.
+  const where = Math.abs(pct) < 1 ? 'Even on trade value' : `${n}% ${pct > 0 ? 'ahead' : 'behind'} on trade value`;
   const even = Math.abs(pct) < VAULT_CONFIG.FAIR_PCT;
   const goodFit = VAULT_CONFIG.GOOD_FIT_THRESHOLD;
-  if (pct <= -40) return { tone: 'bad', text: `Well below sticker value (${dpct.toFixed(0)}%)${fit >= goodFit ? ' — good timeline fit, but not enough to cover a discount this big' : ''}` };
-  if (even && fit >= goodFit) return { tone: 'good', text: 'Even on sticker value, strong fit — good trade' };
-  if (even && fit <= -goodFit) return { tone: 'bad', text: 'Even on sticker value, bad fit for your timeline' };
-  if (even) return { tone: 'neutral', text: 'Even on sticker value, neutral fit' };
-  if (pct >= VAULT_CONFIG.FAIR_PCT && fit >= 0) return { tone: 'good', text: `Ahead on sticker value (+${dpct.toFixed(0)}%) and fits your timeline` };
-  if (pct >= VAULT_CONFIG.FAIR_PCT) return { tone: 'neutral', text: `Ahead on sticker value (+${dpct.toFixed(0)}%), but questionable fit` };
-  if (fit >= goodFit) return { tone: 'neutral', text: `Behind on sticker value (${dpct.toFixed(0)}%), but strong timeline fit` };
-  return { tone: 'bad', text: `Behind on sticker value (${dpct.toFixed(0)}%) and a poor fit` };
+  const out = (tone, text) => ({ tone, text, pct });
+  if (pct <= -40) return out('bad', `${where}${fit >= goodFit ? ' — a good timeline fit, but not enough to cover a discount this big' : ''}`);
+  if (even && fit >= goodFit) return out('good', `${where}, strong fit — good trade`);
+  if (even && fit <= -goodFit) return out('bad', `${where}, bad fit for your timeline`);
+  if (even) return out('neutral', `${where}, neutral fit`);
+  // Well ahead on value: only a clearly bad fit holds it back.
+  if (pct >= VAULT_CONFIG.FAIR_PCT && fit > -goodFit) return out('good', `${where}${fit >= 0 ? ' and fits your timeline' : ''}`);
+  if (pct >= VAULT_CONFIG.FAIR_PCT) return out('neutral', `${where}, but a poor fit for your timeline`);
+  if (fit >= goodFit) return out('neutral', `${where}, but a strong timeline fit`);
+  return out('bad', `${where} and a poor fit`);
 }
 
 // Positional need/surplus fit lives in Vault.positionalFitNotes (vault-core.js) now —
@@ -1841,7 +1861,7 @@ function overallVerdict(toneA, toneB, resA, resB, pctDiff, dValueAdjA, teamAName
   // Below the Fair cutoff, fit decides the sub-label — the Fair/Lopsided/Unfair
   // badge next to this already communicates the price gap, this speaks to fit.
   if (toneA === 'good' && toneB === 'good') return { tone: 'good', label: 'Now That’s a Good Trade', text };
-  if (toneA === 'bad' && toneB === 'bad') return { tone: 'bad', label: 'Bad Trade for Both Sides', text };
+  if (toneA === 'bad' && toneB === 'bad') return { tone: 'bad', label: 'Fair Value, Poor Fit for Both', text };
   if (toneA === 'good' && toneB === 'bad') return { tone: 'neutral', label: `Better fit for ${teamAName}`, text };
   if (toneB === 'good' && toneA === 'bad') return { tone: 'neutral', label: `Better fit for ${teamBName}`, text };
   // One side reads as a genuinely poor fit and the OTHER isn't good either (just
@@ -1870,9 +1890,10 @@ function acceptanceVerdict(side, heads, teamA, teamB) {
   const receivingTeam = side === 'A' ? teamB : teamA;
   const head = heads[receivingSide];
   const LABEL = { good: 'Worth Accepting', neutral: 'Borderline — Worth a Counter', bad: 'Decline This' };
+  const tone = head.tone === 'neutral' && head.pct >= 5 ? 'good' : head.tone; // 5%+ your way, neutral fit: take it
   return {
-    tone: head.tone,
-    label: LABEL[head.tone] || LABEL.neutral,
+    tone,
+    label: LABEL[tone] || LABEL.neutral,
     text: `${Vault.escapeHtml(offeringTeam.teamName)} is offering this to ${Vault.escapeHtml(receivingTeam.teamName)}. ${head.text}`
   };
 }
@@ -2089,7 +2110,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           </div>
           <div class="text-right shrink-0">
             <div class="text-[13px] font-mono ${dValueAdj >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtSigned(dValueAdj)}</div>
-            <div class="text-[12px] text-zinc-400">value Δ (adj)</div>
+            <div class="text-[12px] text-zinc-400">net trade value</div>
           </div>
         </div>
         <div class="flex items-start gap-2 mb-4">
@@ -2133,9 +2154,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=7549b702"></script>
-<script src="market-data.js?v=98d19abe"></script>
-<script src="market.js?v=c495d880"></script>
-<script src="coach.js?v=14631914"></script>
+<script src="negotiation.js?v=3a18e4a6"></script>
+<script src="market-data.js?v=fb0369eb"></script>
+<script src="market.js?v=2599ea5a"></script>
+<script src="coach.js?v=c9ebe67f"></script>
 </body>
 </html>
