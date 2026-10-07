@@ -9,7 +9,7 @@
 <title>How We Grade — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=43d39203">
+<link rel="stylesheet" href="tailwind.css?v=1a5eaeed">
 <style>
   .hwg h2 { font-size: 16px; font-weight: 600; color: #f4f4f5; margin-bottom: 8px; }
   .hwg p, .hwg li { font-size: 13px; line-height: 1.7; color: #d4d4d8; }
@@ -66,7 +66,7 @@
         <li><strong>Lopsided:</strong> <span class="num" data-cfg="fair"></span> to <span class="num" data-cfg="lopsided"></span> off</li>
         <li><strong>Unfair:</strong> <span class="num" data-cfg="lopsided"></span> or more off</li>
       </ul>
-      <p><strong>Fair is not the same as acceptable.</strong> Managers accept unfair trades all the time; that doesn't make them fair. So next to the grade, the Trade Calculator and Trade Grades say how often accepted trades like this one were at least this lopsided: same kind (1-for-1, one side getting fewer pieces, or 2+ pieces each way) and same range for the best piece (under 3,000, 3,000-6,000, 6,000+), from about 667,000 Sleeper dynasty trades in the last year. <strong>Acceptable</strong>: a quarter or more of them were this lopsided. <strong>A stretch</strong>: 5-25%. <strong>Rarely accepted</strong>: under 5%. A Lopsided trade can still be acceptable; it never changes the grade.</p>
+      <p><strong>Fair is not the same as acceptable.</strong> Managers accept unfair trades all the time; that doesn't make them fair. So next to the grade, the Trade Calculator and Trade Grades check the trade against what managers actually pay. Every player and pick has a range: in completed Sleeper trades over the last 45 days where he was the main piece, what the team getting him paid against his KTC value, low to high. <strong>Acceptable</strong>: some price inside the middle half of every piece's range makes the trade even. <strong>A stretch</strong>: only the outer range does (the 10th to 90th percentile of what's been paid). <strong>Rarely accepted</strong>: not even that. Pieces without enough trades of their own get a typical player's range (10% either way, 20% outer). Tested on 9,000 trades the ranges never saw: 81% fit the middle ranges and 97% the outer ones. On the Overall bar, bright white markers show the acceptable range and faint ones the outer range; they lean toward the side the market prices higher. A Lopsided trade can still be acceptable; it never changes the grade.</p>
       <p>Those cutoffs were calibrated against about 25,000 completed dynasty trades from KeepTradeCut's trade database, so "Lopsided" means lopsided compared to what real leagues actually accept.</p>
       <p>Re-checked on 1 October 2026 against about 137,000 completed trades from Sleeper dynasty leagues, each priced on its own day: the Fair line holds (27.8% of Superflex trades and 24.4% of 1QB trades read Fair). Fewer of these trades read Unfair than in KTC's database (24% of Superflex, 28% of 1QB, against 30%), so if anything the Unfair line is generous.</p>
       <p>A Fair trade can be called out further: <strong>Great</strong> when it's also a strong fit for both teams, and <strong>Good</strong> when it's a strong fit for one. Fit can only add those labels to a trade that's already Fair.</p>
@@ -183,7 +183,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=7abedaa2"></script>
+<script src="vault-core.js?v=a8026b8d"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 // Fill every figure from the live settings so this page can't drift from the

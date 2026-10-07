@@ -195,7 +195,8 @@ function marketValue(league, name, { even = false, min = MARKET_MIN_COMPS } = {}
   const peer = marketPeerBaseline(even);
   const vsPeers = peer ? marketQuantile(pool.map(c => marketPremium(c) - peer.at(c.him.value, c.him.pos)).sort((x, y) => x - y), 0.5) : null;
   return { n: pool.length, like, even, days: spanDays(pool.map(c => c.t.date)),
-    premium: marketQuantile(prem, 0.5), low: marketQuantile(prem, 0.25), high: marketQuantile(prem, 0.75), vsPeers };
+    premium: marketQuantile(prem, 0.5), low: marketQuantile(prem, 0.25), high: marketQuantile(prem, 0.75),
+    p10: marketQuantile(prem, 0.1), p90: marketQuantile(prem, 0.9), vsPeers };
 }
 
 /* ---------- A player's market value (everywhere on the site) ----------
@@ -293,6 +294,76 @@ function marketEdge(league, give, get) {
     .filter(x => Math.abs(x.adj) >= 3).sort((x, y) => y.weight - x.weight);
   return { ktc, market, delta: market - ktc, movers };
 }
+/* ---------- Acceptable: what managers pay, low to high ----------
+   Fair is about value; acceptable is about what the market tolerates. Every
+   player has a range managers have paid for him (marketValue: the middle half,
+   25th-75th percentile, and the outer range, 10th-90th, of what the team
+   getting him paid against KTC). A trade is acceptable when some price inside
+   the usual range of every piece makes it even; a stretch when only the outer
+   range does; rarely accepted when not even that. Pieces without enough trades
+   of their own get the typical player's range (MARKET_RANGE_FALLBACK).
+   Tested 2026-10-06 on 9,000 Superflex Sleeper trades the ranges never saw
+   (ranges from the 21,000 before 9/20): 81% fit the usual ranges, 97% the
+   outer ones (1QB: 80% / 97%). Never changes the grade. */
+const MARKET_RANGE_FALLBACK = { usual: [-10, 10], outer: [-20, 20] };
+const MARKET_RANGE_CAP = 50; // one cheap throw-in's odd trades can't stretch a range past this
+function marketPriceRange(league, a) {
+  const mp = a.type === 'pick' ? (marketKeyOf(a) ? marketPlayer(league, marketKeyOf(a), 'Pick') : null) : marketPlayer(league, a.name, a.pos);
+  const r = mp && mp.read, c = v => Math.max(-MARKET_RANGE_CAP, Math.min(MARKET_RANGE_CAP, v));
+  return r ? { own: true, usual: [c(r.low), c(r.high)], outer: [c(r.p10), c(r.p90)] } : { own: false, ...MARKET_RANGE_FALLBACK };
+}
+// The acceptable read for the team sending `send` and getting `get`:
+// { level, edges: { usual: [lo, hi], outer: [lo, hi] } in signed % off (+ = the
+// sender sends more, like the fairness bar), payer ('send' | 'get' | null), key }.
+// Falls back to Vault.acceptability (how lopsided accepted trades of the kind get)
+// while the market hasn't loaded.
+function marketAcceptable(league, send, get) {
+  if (!send.length || !get.length) return null;
+  const { valueA: S, valueB: G } = Vault.tradeSideValues(send, get);
+  const f = r => 200 * (r - 1) / (r + 1), s = f(S / G);
+  if (!Market.data || Market.data.failed) {
+    const a = Vault.acceptability(send, get, Math.abs(s));
+    return a && { ...a, payer: a.level === 'acceptable' ? null : s > 0 ? 'send' : 'get', basis: 'kind' };
+  }
+  const sum = l => l.reduce((t, a) => t + a.value, 0);
+  const ranges = new Map([...send, ...get].map(a => [a, marketPriceRange(league, a)]));
+  const mult = (list, which, k) => list.reduce((t, a) => t + a.value * (1 + ranges.get(a)[which][k] / 100), 0) / (sum(list) || 1);
+  const edge = which => [f(mult(get, which, 0) / mult(send, which, 1)), f(mult(get, which, 1) / mult(send, which, 0))];
+  const usual = edge('usual'), outer = edge('outer');
+  const inside = e => s >= e[0] && s <= e[1];
+  const level = inside(usual) ? 'acceptable' : inside(outer) ? 'stretch' : 'rare';
+  // The piece that sets the price: the best piece the paying side gets.
+  const payer = level === 'acceptable' ? null : s > usual[1] ? 'send' : 'get';
+  const pool = (payer === 'get' ? send : get).filter(a => ranges.get(a).own);
+  const key = pool.length ? pool.reduce((m, a) => (a.value > m.value ? a : m), pool[0]) : null;
+  return { level, edges: { usual, outer }, payer, key: key && { name: key.name, ...ranges.get(key) }, basis: 'market' };
+}
+// One line: "A stretch · Skat Happens pays more than managers usually do for these
+// players (Brock Bowers usually goes for 6% under to 12% over KTC, at most 22% over)."
+function marketAcceptText(r, sendTeam, getTeam) {
+  if (!r) return null;
+  const label = { acceptable: 'Acceptable', stretch: 'A stretch', rare: 'Rarely accepted' }[r.level];
+  if (r.basis !== 'market') return { label, text: Vault.acceptabilityText(r).split(': ').slice(1).join(': ') };
+  const pct = v => (Math.abs(v) < 1 ? 'even' : `${Math.round(Math.abs(v))}% ${v > 0 ? 'over' : 'under'}`);
+  const usual = k => `${Vault.escapeHtml(k.name)} usually goes for ${pct(k.usual[0])} to ${pct(k.usual[1])} KTC value`;
+  if (r.level === 'acceptable') return { label, text: `inside what managers usually pay for these players${r.key ? ` (${usual(r.key)})` : ''}.` };
+  const payer = Vault.escapeHtml(r.payer === 'send' ? sendTeam : getTeam);
+  // The key piece is the best one the paying team gets, so its ceiling is what matters.
+  const k = r.key, detail = k ? ` (${usual(k)}, rarely more than ${pct(k.outer[1])})` : '';
+  return r.level === 'stretch'
+    ? { label, text: `${payer} pays more than managers usually do for these players, though some have paid this much${detail}.` }
+    : { label, text: `${payer} pays more than managers have paid for these players, even at the top of their range${detail}.` };
+}
+function marketAcceptHtml(r, sendTeam, getTeam, cls = 'mt-1.5') {
+  const t = marketAcceptText(r, sendTeam, getTeam);
+  if (!t) return '';
+  const tone = r.level === 'acceptable' ? 'text-emerald-300' : r.level === 'stretch' ? 'text-amber-300' : 'text-orange-300';
+  const tip = r.basis === 'market'
+    ? 'Not the grade: whether this trade fits what managers have paid for these players in completed trades over the last 45 days (the middle half of their prices for Acceptable, the 10th to 90th percentile for A stretch). A trade can be unfair and still get accepted.'
+    : 'Not the grade: how often accepted trades like this one are at least this lopsided on trade value. A trade can be unfair and still get accepted.';
+  return `<div class="text-[12px] text-zinc-400 ${cls}" title="${tip}"><span class="${tone} font-medium">${t.label}</span> <span class="text-zinc-500">·</span> ${t.text}</div>`;
+}
+
 // Net value of a trade for the side giving `give` and getting `get`, in KTC
 // points: on KTC (consolidation-adjusted, as the grade measures) and at market
 // prices (each side scaled by its pieces' market values, the adjustment held).

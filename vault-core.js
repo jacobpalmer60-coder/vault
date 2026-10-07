@@ -2134,8 +2134,8 @@ const Vault = {
     const level = share >= 0.25 ? 'acceptable' : share >= 0.05 ? 'stretch' : 'rare';
     const kindLabel = ['1-for-1 trades', 'trades where one side gets fewer pieces', 'trades with 2+ pieces each way'][kind];
     const bandLabel = band === 0 ? `under ${T.bands[1].toLocaleString()}` : band === 1 ? `${T.bands[1].toLocaleString()}-${T.bands[2].toLocaleString()}` : `${T.bands[2].toLocaleString()}+`;
-    // okPct: the % off where "acceptable" ends (a quarter of accepted trades like it are further off).
-    return { share, oneIn: Math.max(1, Math.round(1 / share)), level, kind, band, like: `${kindLabel} with a best piece ${bandLabel}`, n: T.n[kind][band], okPct: cuts[T.pcts.indexOf(75)] };
+    return { share, oneIn: Math.max(1, Math.round(1 / share)), level, kind, band, like: `${kindLabel} with a best piece ${bandLabel}`, n: T.n[kind][band],
+      edges: { usual: [-cuts[T.pcts.indexOf(75)], cuts[T.pcts.indexOf(75)]], outer: [-cuts[T.pcts.indexOf(95)], cuts[T.pcts.indexOf(95)]] } };
   },
   // The acceptable read in words: "A stretch: about 1 in 9 accepted trades like it are this lopsided."
   acceptabilityText(a) {
@@ -2307,8 +2307,9 @@ const Vault = {
   // need fit). Marker is a hollow ring so the band color it sits on shows
   // through; the translucent band around it is the ± confidence range.
   // `mini` draws the slimmer per-factor version used in the breakdown rows.
-  // accept (optional, from Vault.acceptability): white markers at the edges of the
-  // acceptable range (% off either way), over the colored bands, labeled above.
+  // accept (optional, marketAcceptable or Vault.acceptability): white markers at
+  // the edges of the acceptable range (accept.edges.usual, signed like the bar)
+  // and fainter ones at the outer range (a stretch), over the colored bands.
   fairnessBarHtml(signedPct, bandPct, mini = false, accept = null) {
     const half = VAULT_CONFIG.FAIRNESS_FACTOR_CAP;
     const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
@@ -2325,13 +2326,18 @@ const Vault = {
     const [wrap, track, ring] = mini
       ? ['h-2.5', 'h-1.5', 'size-2.5 border-2']
       : ['h-4', 'h-2.5', 'size-4 border-[3px]'];
-    const okLo = accept ? toX(-accept.okPct) : 0, okHi = accept ? toX(accept.okPct) : 0;
-    const acceptHtml = accept ? `
-        <div class="absolute bottom-full mb-1 text-[10px] leading-none text-zinc-400 whitespace-nowrap -translate-x-1/2" style="left:50%">acceptable range</div>
+    const E = accept && accept.edges;
+    const okLo = E ? toX(E.usual[0]) : 0, okHi = E ? toX(E.usual[1]) : 0;
+    const acceptHtml = E ? `
+        <div class="absolute bottom-full mb-1 text-[10px] leading-none text-zinc-400 whitespace-nowrap -translate-x-1/2" style="left:${Math.max(12, Math.min(88, (okLo + okHi) / 2))}%">acceptable range</div>
         <div class="absolute -top-0.5 h-px bg-white/50" style="left:${okLo}%; width:${okHi - okLo}%"></div>
+        ${E.outer.map(v => `<div class="absolute top-0 bottom-0 w-px bg-white/45 -translate-x-1/2" style="left:${toX(v)}%"></div>`).join('')}
         ${[okLo, okHi].map(x => `<div class="absolute -top-0.5 -bottom-0.5 w-0.5 rounded-full bg-white/90 ring-1 ring-black/50 -translate-x-1/2" style="left:${x}%"></div>`).join('')}` : '';
+    const acceptTip = !E ? '' : accept.basis === 'market'
+      ? 'Acceptable range: where this trade fits what managers have paid for these players (bright markers: the middle half of their prices; faint markers: the 10th to 90th percentile, a stretch). Not the grade.'
+      : 'Acceptable range: three in four accepted trades like this one are closer than the bright markers, 19 in 20 closer than the faint ones. Not the grade.';
     return `
-      <div class="relative ${wrap}${accept ? ' mt-4' : ''}"${accept ? ` title="Acceptable range: within ${Math.round(accept.okPct)}% off either way on trade value. Three in four accepted ${Vault.escapeHtml(accept.like)} are closer than that. Not the grade."` : ''}>${acceptHtml}
+      <div class="relative ${wrap}${E ? ' mt-4' : ''}"${E ? ` title="${acceptTip}"` : ''}>${acceptHtml}
         <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 ${track} rounded-full overflow-hidden${mini ? ' opacity-80' : ''}" style="background: linear-gradient(to right,
           #fb7185 0%, #fb7185 ${lopLo}%,
           #fb923c ${lopLo}%, #fb923c ${fairLo}%,
