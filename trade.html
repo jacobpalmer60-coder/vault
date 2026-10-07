@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=b7a214c9">
+<link rel="stylesheet" href="tailwind.css?v=43d39203">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -230,7 +230,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=17c68dd1"></script>
+<script src="vault-core.js?v=7abedaa2"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1698,7 +1698,7 @@ function updateTrade() {
   diffLabelEl.className = '';
   // The overall bar plus the three it's made of (trade value, roster fit, timeline),
   // right under the grade.
-  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? Vault.fairnessPanelHtml(fairness, diffBandPct, teamA.teamName, teamB.teamName, `${offPct.toFixed(0)}% off`) : '';
+  document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? Vault.fairnessPanelHtml(fairness, diffBandPct, teamA.teamName, teamB.teamName, `${offPct.toFixed(0)}% off`, aAssets.length && bAssets.length ? Vault.acceptability(aAssets, bAssets, pctDiff) : null) : '';
   document.getElementById('diffConfidence').innerHTML = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, diffBandPct, analysis.resA.fit, analysis.resB.fit);
   renderSeasonImpact(teamA, teamB, aAssets, bAssets);
   renderLineups(teamA, teamB, analysis);

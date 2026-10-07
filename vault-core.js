@@ -2134,7 +2134,8 @@ const Vault = {
     const level = share >= 0.25 ? 'acceptable' : share >= 0.05 ? 'stretch' : 'rare';
     const kindLabel = ['1-for-1 trades', 'trades where one side gets fewer pieces', 'trades with 2+ pieces each way'][kind];
     const bandLabel = band === 0 ? `under ${T.bands[1].toLocaleString()}` : band === 1 ? `${T.bands[1].toLocaleString()}-${T.bands[2].toLocaleString()}` : `${T.bands[2].toLocaleString()}+`;
-    return { share, oneIn: Math.max(1, Math.round(1 / share)), level, kind, band, like: `${kindLabel} with a best piece ${bandLabel}`, n: T.n[kind][band] };
+    // okPct: the % off where "acceptable" ends (a quarter of accepted trades like it are further off).
+    return { share, oneIn: Math.max(1, Math.round(1 / share)), level, kind, band, like: `${kindLabel} with a best piece ${bandLabel}`, n: T.n[kind][band], okPct: cuts[T.pcts.indexOf(75)] };
   },
   // The acceptable read in words: "A stretch: about 1 in 9 accepted trades like it are this lopsided."
   acceptabilityText(a) {
@@ -2306,7 +2307,9 @@ const Vault = {
   // need fit). Marker is a hollow ring so the band color it sits on shows
   // through; the translucent band around it is the ± confidence range.
   // `mini` draws the slimmer per-factor version used in the breakdown rows.
-  fairnessBarHtml(signedPct, bandPct, mini = false) {
+  // accept (optional, from Vault.acceptability): white markers at the edges of the
+  // acceptable range (% off either way), over the colored bands, labeled above.
+  fairnessBarHtml(signedPct, bandPct, mini = false, accept = null) {
     const half = VAULT_CONFIG.FAIRNESS_FACTOR_CAP;
     const toX = v => 50 + Math.max(-half, Math.min(half, v)) / half * 50;
     const F = VAULT_CONFIG.FAIR_PCT, L = VAULT_CONFIG.LOPSIDED_PCT;
@@ -2322,8 +2325,13 @@ const Vault = {
     const [wrap, track, ring] = mini
       ? ['h-2.5', 'h-1.5', 'size-2.5 border-2']
       : ['h-4', 'h-2.5', 'size-4 border-[3px]'];
+    const okLo = accept ? toX(-accept.okPct) : 0, okHi = accept ? toX(accept.okPct) : 0;
+    const acceptHtml = accept ? `
+        <div class="absolute bottom-full mb-1 text-[10px] leading-none text-zinc-400 whitespace-nowrap -translate-x-1/2" style="left:50%">acceptable range</div>
+        <div class="absolute -top-0.5 h-px bg-white/50" style="left:${okLo}%; width:${okHi - okLo}%"></div>
+        ${[okLo, okHi].map(x => `<div class="absolute -top-0.5 -bottom-0.5 w-0.5 rounded-full bg-white/90 ring-1 ring-black/50 -translate-x-1/2" style="left:${x}%"></div>`).join('')}` : '';
     return `
-      <div class="relative ${wrap}">
+      <div class="relative ${wrap}${accept ? ' mt-4' : ''}"${accept ? ` title="Acceptable range: within ${Math.round(accept.okPct)}% off either way on trade value. Three in four accepted ${Vault.escapeHtml(accept.like)} are closer than that. Not the grade."` : ''}>${acceptHtml}
         <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 ${track} rounded-full overflow-hidden${mini ? ' opacity-80' : ''}" style="background: linear-gradient(to right,
           #fb7185 0%, #fb7185 ${lopLo}%,
           #fb923c ${lopLo}%, #fb923c ${fairLo}%,
@@ -2346,7 +2354,7 @@ const Vault = {
   // row's number just points toward the side it favors, so nothing truncates.
   // Value is "trade value": KTC values combined the way real trades combine them;
   // KTC's own calculator number sits in the trade slip for checking.
-  fairnessPanelHtml(fair, bandPct, teamAName, teamBName, overallText) {
+  fairnessPanelHtml(fair, bandPct, teamAName, teamBName, overallText, accept = null) {
     const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, w = VAULT_CONFIG.FAIRNESS_WEIGHTS, esc = Vault.escapeHtml;
     const lean = x => {
       if (Math.abs(x) < 1) return 'Even';
@@ -2364,7 +2372,7 @@ const Vault = {
       </div>
       <div></div>
       <div class="text-[13px] font-medium text-zinc-100 whitespace-nowrap">Overall</div>
-      <div>${Vault.fairnessBarHtml(fair.overallSigned, bandPct)}</div>
+      <div>${Vault.fairnessBarHtml(fair.overallSigned, bandPct, false, accept)}</div>
       <div class="text-[13px] font-medium text-zinc-100 text-right tabular-nums whitespace-nowrap">${overallText}</div>
       ${row('Trade value', w.value, fair.value, "KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). KeepTradeCut's own calculator number is shown in the trade slip to check against.")}
       ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}

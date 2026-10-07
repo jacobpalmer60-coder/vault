@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=b7a214c9">
+<link rel="stylesheet" href="tailwind.css?v=43d39203">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=17c68dd1"></script>
+<script src="vault-core.js?v=7abedaa2"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-06', items: [
+    { kind: 'new', page: 'Trade Grades', text: 'The Overall bar now marks the acceptable range: two white markers labeled "acceptable range" show how far off a trade can be while three in four accepted trades like it are still further off. The colors (Fair, Lopsided, Unfair) are unchanged, so you can see at a glance when a trade is Lopsided but still inside what managers accept. Same on the Trade Calculator.' },
     { kind: 'new', page: 'Trade Calculator', text: 'Fair and acceptable are now two different reads. Managers accept unfair trades all the time, and that doesn\'t make them fair. The grade (Fair, Lopsided, Unfair) still says how even a trade is; a new line under it says how often accepted trades like it (same kind: 1-for-1, one side getting fewer pieces, or 2+ each way; and same range for the best piece) were at least this lopsided, from about 667,000 Sleeper dynasty trades in the last year: Acceptable, A stretch (only 1 in 5 to 1 in 20 are), or Rarely accepted. Also on every Trade Grades card.' },
     { kind: 'changed', page: 'Everywhere', text: 'Grades now use trade value instead of KTC\'s consolidation adjustment. Same KTC player and pick values; what changed is how a side\'s pieces add up: the best piece counts in full and each extra piece for less (less still in cheaper trades), the way 1.5 million real Sleeper dynasty trades show managers actually price them. On KTC\'s adjustment only 30% of those real trades graded Fair and the team getting fewer, better pieces looked like it overpaid by about 27% (KTC\'s bonus fades whenever the best piece coming back is close to the star). On trade value, 66% grade Fair and the lean is about 1%. Applies to the Trade Calculator, Trade Coach, Trade Grades, Managers and the Trade Database. How We Grade has the full evidence.' },
     { kind: 'new', page: 'Trade Calculator', text: 'Under the grade, three numbers side by side: what your team pays on trade value (the grade), on KTC\'s calculator (KeepTradeCut\'s own math, so you can still check it there), and at market prices. The value table shows both too, with each one\'s consolidation premium. Example: George Pickens and a 2027 1st for Nico Collins is 62% off on KTC\'s calculator (Unfair) but 20% on trade value (Lopsided), closer to what real trades like it look like.' },

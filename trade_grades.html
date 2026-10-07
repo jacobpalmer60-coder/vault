@@ -9,7 +9,7 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=b7a214c9">
+<link rel="stylesheet" href="tailwind.css?v=43d39203">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,7 +39,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=17c68dd1"></script>
+<script src="vault-core.js?v=7abedaa2"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=3ef28af0"></script>
 <script>
@@ -162,8 +162,9 @@ function assetChips(list) {
 // sums, no consolidation adjustment, so the numbers match the chips above).
 // Acceptable vs fair (Vault.acceptability): how often accepted trades like this
 // one were at least this lopsided on trade value at the time. Not the grade.
+const gradeAccept = g => g.toA.length && g.toB.length && !g.anyMissingValue ? Vault.acceptability(g.toA, g.toB, g.pctDiff) : null;
 function acceptLine(g) {
-  const a = g.toA.length && g.toB.length && !g.anyMissingValue ? Vault.acceptability(g.toA, g.toB, g.pctDiff) : null;
+  const a = gradeAccept(g);
   if (!a) return '';
   const tone = a.level === 'acceptable' ? 'text-emerald-300' : a.level === 'stretch' ? 'text-amber-300' : 'text-orange-300';
   const [label, ...rest] = Vault.acceptabilityText(a).split(': ');
@@ -304,7 +305,7 @@ function renderCard(g) {
           <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
           <span>How it's graded${notes.length ? `, and the full breakdown (${notes.length})` : ''}</span>
         </summary>
-        <div class="max-w-lg mt-3">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`)}</div>
+        <div class="max-w-lg mt-3">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`, gradeAccept(g))}</div>
         ${confidenceBandText(g)}
         <div class="space-y-1.5 mt-3">
           ${notes.map(n => `<div class="flex gap-2 text-[12px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="text-zinc-400">${Vault.escapeHtml(n.who)}:</span> <span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
