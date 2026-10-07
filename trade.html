@@ -230,7 +230,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=80111e03"></script>
+<script src="vault-core.js?v=17c68dd1"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1374,6 +1374,19 @@ function consolidationAdviceHtml(aAssets, bAssets, teamA, teamB) {
   const tone = ahead >= 55 ? 'text-emerald-300' : ahead <= 35 ? 'text-orange-300' : 'text-zinc-200';
   return `<div class="text-[12px] text-zinc-400 mt-3 leading-relaxed max-w-[560px]" title="From ${P.trades.toLocaleString()} completed Sleeper dynasty trades with uneven piece counts, each judged on trade value a year later.">${Vault.escapeHtml(team.teamName)} is consolidating (${got.length} for ${gave.length}). Teams that got a ${band} piece by sending ${paid} its KTC value came out ahead a year later <span class="${tone}">${ahead}% of the time</span>.</div>`;
 }
+/* Acceptable is a separate read from the grade: managers accept unfair trades,
+   which doesn't make them fair. How often accepted trades like this one (same
+   kind and value range) are at least this lopsided on trade value
+   (Vault.acceptability). Never changes the grade. */
+function acceptabilityHtml(aAssets, bAssets, pctOff) {
+  const a = aAssets.length && bAssets.length ? Vault.acceptability(aAssets, bAssets, pctOff) : null;
+  if (!a) return '';
+  const tone = a.level === 'acceptable' ? 'text-emerald-300' : a.level === 'stretch' ? 'text-amber-300' : 'text-orange-300';
+  const [label, ...rest] = Vault.acceptabilityText(a).split(': ');
+  const T = VAULT_CONFIG.ACCEPTED_TRADES;
+  return `<div class="text-[12px] text-zinc-400 mt-1.5" title="Not the grade: how often accepted trades like this one are at least this lopsided on trade value. Compared with ${a.n.toLocaleString()} completed Sleeper dynasty ${Vault.escapeHtml(a.like)}, since ${T.since}. A trade can be unfair and still get accepted.">
+    <span class="${tone} font-medium">${label}</span> <span class="text-zinc-500">·</span> ${rest.join(': ')}</div>`;
+}
 function priceStatHtml(v, label, tip = '', size = 'text-[30px]') {
   const even = Math.abs(v) < 1;
   return `<div><div class="num ${size} ${even ? 'text-zinc-100' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${even ? 'Even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`}</div><div class="text-[11px] text-zinc-500 mt-1.5"${tip ? ` title="${tip}"` : ''}>${even ? 'with ' : ''}${label}</div></div>`;
@@ -1677,6 +1690,7 @@ function updateTrade() {
       <span class="num text-[34px] ${bucketColor(bucket)}">${bucket}</span>
       <span class="text-[12px] text-zinc-400">${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">· roster fit and timeline included; trade value alone ${capPct(pctDiff).toFixed(0)}%</span>` : ''}</span>
     </div>
+    ${acceptabilityHtml(aAssets, bAssets, pctDiff)}
     ${aAssets.length && bAssets.length ? `<div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(teamA.teamName)} pays</div>
     <div class="flex flex-wrap gap-x-10 gap-y-3 mt-1">${priceStatHtml(tradeEdge, 'trade value', PRICE_TIP.trade)}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc)}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market) : ''}</div>
     ${consolidationAdviceHtml(aAssets, bAssets, teamA, teamB)}` : ''}`;

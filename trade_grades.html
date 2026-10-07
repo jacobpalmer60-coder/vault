@@ -39,7 +39,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=80111e03"></script>
+<script src="vault-core.js?v=17c68dd1"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=3ef28af0"></script>
 <script>
@@ -160,6 +160,16 @@ function assetChips(list) {
 
 // One side's haul, summed at the trade-date price and today's price (plain KTC
 // sums, no consolidation adjustment, so the numbers match the chips above).
+// Acceptable vs fair (Vault.acceptability): how often accepted trades like this
+// one were at least this lopsided on trade value at the time. Not the grade.
+function acceptLine(g) {
+  const a = g.toA.length && g.toB.length && !g.anyMissingValue ? Vault.acceptability(g.toA, g.toB, g.pctDiff) : null;
+  if (!a) return '';
+  const tone = a.level === 'acceptable' ? 'text-emerald-300' : a.level === 'stretch' ? 'text-amber-300' : 'text-orange-300';
+  const [label, ...rest] = Vault.acceptabilityText(a).split(': ');
+  return `<div class="text-[12px] text-zinc-400 mt-2.5" title="Not the grade: how often completed Sleeper dynasty ${Vault.escapeHtml(a.like)} are at least this lopsided on trade value (${a.n.toLocaleString()} trades). A trade can be unfair and still get accepted."><span class="${tone} font-medium">${label}</span> <span class="text-zinc-500">·</span> ${rest.join(': ')}</div>`;
+}
+
 function sideValueLine(list) {
   if (!list.length || list.some(a => a.valueToday == null)) return '';
   const then = list.reduce((s, a) => s + a.value, 0), now = list.reduce((s, a) => s + a.valueToday, 0);
@@ -285,6 +295,7 @@ function renderCard(g) {
             ${marketGrade(g) ? priceRead('market price', marketGrade(g).bucket, marketGrade(g).signed) : ''}
           </div>
         </div>
+        ${acceptLine(g)}
         ${agedText(g) ? `<div class="text-[12px] text-zinc-400 mt-2.5">${agedText(g)}</div>` : ''}
       </div>
       ${seasonHtml(g)}

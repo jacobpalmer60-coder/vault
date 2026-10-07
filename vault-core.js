@@ -36,12 +36,20 @@ const VAULT_CONFIG = {
   // fresh from our own dataset every time.
   CONSOLIDATION_GLOBAL_MAX: 10099,
   // How a trade side's pieces add up for every grade (Vault.tradeSideValues):
-  // (sum of value^p)^(1/p). Fitted on 1.5 million completed Sleeper dynasty
-  // trades (VaultValues' consolidation study, 2026-10-07); KTC's own adjustment
-  // is still shown next to it (Vault.ktcSideValues).
-  TRADE_VALUE_P: 2.25,
+  // (sum of value^p)^(1/p), p set by the trade's best piece: [KTC value, p]
+  // points, straight lines between them in ln(value). Calibrated on 1.5 million
+  // completed Sleeper dynasty trades so the median accepted trade of each value
+  // range comes out even (VaultValues' calibrate.js, 2026-10-07): in cheaper
+  // trades the best piece counts for more. KTC's own adjustment is still shown
+  // next to it (Vault.ktcSideValues).
+  TRADE_VALUE_CURVE: [[750,6],[2000,6],[3000,4.18],[4000,2.89],[5000,3],[6000,2.68],[7000,2.16],[8000,1.99],[9000,1.79]],
+  // How lopsided accepted trades get, for the "acceptable" read
+  // (Vault.acceptability): % off on trade value at each percentile (pcts), by
+  // kind (1-for-1, uneven piece counts, even with 2+ each) and the best piece's
+  // KTC value (bands). Accepted trades from Sleeper dynasty leagues since 2025-10-07.
+  ACCEPTED_TRADES: {"since":"2025-10-07","pcts":[50,60,70,75,80,85,90,92.5,95,97.5,99],"bands":[0,3000,6000],"kinds":["one","uneven","even"],"n":[[74868,97898,6408],[40285,235770,106610],[7404,70729,27259]],"cuts":[[[13.9,18.6,24.4,27.8,31.6,36.7,45,50.8,60,81,109.9],[13.2,17.2,22.7,26.3,30.7,36.1,44.2,50.1,60.5,78.2,102.2],[13.6,17.7,22.8,25.4,29.1,35.3,46.1,53.7,72.3,107.1,125.9]],[[11.9,14.7,17.8,20.3,23.4,27,32.9,37,43.6,58,82.5],[10.8,13.6,17.1,19.3,22.1,25.3,30.2,33.9,39.4,51.6,72.2],[7.3,9.4,11.9,13.6,15.5,18.1,21.6,24.1,27.9,35.1,46.1]],[[7.4,9.7,12.8,14.8,17.3,20,24,27.1,30.7,37.8,46.6],[7.6,9.9,12.8,14.6,16.7,19.4,23.1,25.8,29.7,37,47.8],[6,7.7,10,11.4,13.3,15.6,19.2,21.8,25.5,31.8,40.7]]]},
   // How consolidating worked out a year later, for the calculator's advice line:
-  // share of teams that got fewer pieces and were ahead on trade value 12 months
+  // share of teams that got fewer pieces and were ahead on trade value (the calibrated curve) 12 months
   // on, by their best piece's KTC value (rows, from bands) and the raw KTC value
   // they gave per value they got (columns, from ratios). 118,000 Sleeper dynasty
   // trades with uneven piece counts (VaultValues payoff study, 2026-10-07).
@@ -49,7 +57,7 @@ const VAULT_CONFIG = {
     trades: 118267,
     bands: [0, 3000, 5000, 7000],
     ratios: [0, 1.15, 1.4, 1.7, 2.2],
-    ahead: [[63, 46, 35, 20, 9], [65, 49, 35, 20, 8], [69, 52, 38, 24, 11], [76, 59, 50, 41, 21]]
+    ahead: [[70,57,46,30,14],[70,57,43,27,14],[71,57,43,29,14],[75,55,43,30,10]]
   },
   // Sleeper injury statuses that mean "out for weeks, not days" (NFL injured
   // reserve, PUP, suspended, did not report). How long a player is out comes
@@ -2082,9 +2090,10 @@ const Vault = {
      changed is how a side's pieces add up. Tested on 1.5 million completed
      Sleeper dynasty trades (2021-2026, each priced at KTC on its own day): the
      best piece counts in full and each extra piece for less, smoothly, as
-     (sum of value^p)^(1/p) with p = VAULT_CONFIG.TRADE_VALUE_P. On trades it
-     wasn't tuned on, that calls 63% of real trades Fair against 30% for KTC's
-     own adjustment, and leans about 5% against the side getting fewer pieces
+     (sum of value^p)^(1/p), with p set by the trade's best piece
+     (Vault.tradeValueP): stronger in cheaper trades. On trades it wasn't fitted
+     on, that calls 66% of real trades Fair against 30% for KTC's own
+     adjustment, and leans about 1% against the side getting fewer pieces
      instead of 27% (KTC's bonus fades whenever the best piece coming back is
      close to the star, and jumps around with small changes).
 
@@ -2092,12 +2101,55 @@ const Vault = {
      the side whose pieces are more spread out keeps its raw total, and the
      other side (the one getting the bigger single pieces) gets a consolidation
      bonus bringing it to the same ratio as the curve. A 1-for-1 has no bonus. */
+  // The curve's strength for a trade whose best piece is worth `top` (VAULT_CONFIG.TRADE_VALUE_CURVE).
+  tradeValueP(top) {
+    const k = VAULT_CONFIG.TRADE_VALUE_CURVE, x = Math.log(Math.max(top || 0, 500));
+    if (x <= Math.log(k[0][0])) return k[0][1];
+    for (let i = 1; i < k.length; i++) {
+      const x1 = Math.log(k[i][0]);
+      if (x <= x1) { const x0 = Math.log(k[i - 1][0]); return k[i - 1][1] + (k[i][1] - k[i - 1][1]) * (x - x0) / (x1 - x0); }
+    }
+    return k[k.length - 1][1];
+  },
+
+  /* Acceptable is not the same as fair: managers accept unfair trades, and that
+     doesn't make them fair. How often accepted trades of the same kind (1-for-1,
+     uneven piece counts, even with 2+ each) and value range are at least this
+     lopsided (pctOff on trade value), from VAULT_CONFIG.ACCEPTED_TRADES:
+     { share (0-1), oneIn, level: 'acceptable' | 'stretch' | 'rare', kind label, n }.
+     Acceptable: a quarter or more of accepted trades like it are this lopsided;
+     a stretch: 5-25%; rarely accepted: under 5%. */
+  acceptability(assetsA, assetsB, pctOff) {
+    const T = VAULT_CONFIG.ACCEPTED_TRADES;
+    if (!assetsA.length || !assetsB.length || !Number.isFinite(pctOff)) return null;
+    const kind = assetsA.length === 1 && assetsB.length === 1 ? 0 : assetsA.length !== assetsB.length ? 1 : 2;
+    const top = Math.max(...assetsA.map(a => a.value), ...assetsB.map(a => a.value));
+    const band = top >= T.bands[2] ? 2 : top >= T.bands[1] ? 1 : 0;
+    const cuts = T.cuts[kind][band];
+    // Percentile of this % off among accepted trades like it (0 off = 0th).
+    const pts = [[0, 0], ...cuts.map((c, i) => [c, T.pcts[i]])];
+    let pct = 99.5;
+    for (let i = 1; i < pts.length; i++) if (pctOff <= pts[i][0]) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i]; pct = y0 + (y1 - y0) * (pctOff - x0) / ((x1 - x0) || 1); break; }
+    const share = Math.max(0.005, 1 - pct / 100);
+    const level = share >= 0.25 ? 'acceptable' : share >= 0.05 ? 'stretch' : 'rare';
+    const kindLabel = ['1-for-1 trades', 'trades where one side gets fewer pieces', 'trades with 2+ pieces each way'][kind];
+    const bandLabel = band === 0 ? `under ${T.bands[1].toLocaleString()}` : band === 1 ? `${T.bands[1].toLocaleString()}-${T.bands[2].toLocaleString()}` : `${T.bands[2].toLocaleString()}+`;
+    return { share, oneIn: Math.max(1, Math.round(1 / share)), level, kind, band, like: `${kindLabel} with a best piece ${bandLabel}`, n: T.n[kind][band] };
+  },
+  // The acceptable read in words: "A stretch: about 1 in 9 accepted trades like it are this lopsided."
+  acceptabilityText(a) {
+    if (!a) return '';
+    if (a.level === 'acceptable') return a.share >= 0.5 ? `Acceptable: more even than most accepted trades like it (${Math.round(a.share * 100)}% are further off).` : `Acceptable: about 1 in ${a.oneIn} accepted trades like it are at least this lopsided.`;
+    if (a.level === 'stretch') return `A stretch: only about 1 in ${a.oneIn} accepted trades like it are this lopsided.`;
+    return `Rarely accepted: fewer than 1 in ${a.share < 0.01 ? 100 : 20} accepted trades like it are this lopsided.`;
+  },
+
   tradeSideValues(assetsA, assetsB) {
     const valsA = assetsA.map(a => a.value), valsB = assetsB.map(a => a.value);
     const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
     const none = { rawA, rawB, valueA: rawA, valueB: rawB, bonusA: 0, bonusB: 0, display: false };
     if (!rawA || !rawB || (valsA.length <= 1 && valsB.length <= 1)) return none;
-    const p = VAULT_CONFIG.TRADE_VALUE_P;
+    const p = Vault.tradeValueP(Math.max(...valsA, ...valsB));
     const curve = vals => Math.pow(vals.reduce((s, v) => s + Math.pow(Math.max(v, 0), p), 0), 1 / p);
     const cA = curve(valsA), cB = curve(valsB);
     // The side with the lower curve-to-raw ratio (more, smaller pieces) is the base.
