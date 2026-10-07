@@ -9,7 +9,7 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=8853d942">
+<link rel="stylesheet" href="tailwind.css?v=b7a214c9">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,9 +39,9 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=a2b8d376"></script>
+<script src="vault-core.js?v=80111e03"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
-<script src="market-data.js?v=c6a081e4"></script>
+<script src="market-data.js?v=3ef28af0"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc-400' };
@@ -90,7 +90,7 @@ function marketGrade(g) {
   const signed = Math.abs(blend) > Math.abs(v) ? blend : v;
   return { signed, bucket: Vault.fairnessBucket(Math.abs(signed), g.combinedFitA, g.combinedFitB) };
 }
-// One read of the trade as what team A paid: "21% under" with "KTC value then · Lopsided" underneath.
+// One read of the trade as what team A paid: "21% under" with "trade value then · Lopsided" underneath.
 function priceRead(label, bucket, signed) {
   const a = -signed, even = Math.abs(a) < 1;
   return `<div class="min-w-0"><div class="num text-[22px] sm:text-[26px] whitespace-nowrap text-zinc-100">${even ? 'Even' : `${capPct(Math.abs(a)).toFixed(0)}% ${a > 0 ? 'under' : 'over'}`}</div>
@@ -277,11 +277,11 @@ function renderCard(g) {
       </div>
       <div class="pt-3 border-t border-white/5">
         <p class="text-[13px] font-semibold leading-snug ${synopsisColor(bucket)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-400 font-normal">(some asset values unavailable)</span>' : ''}</p>
-        <div class="mt-3" title="Overall: KTC value blended with roster fit and timeline (${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}), never closer to even than KTC value alone. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% Lopsided, ${VAULT_CONFIG.LOPSIDED_PCT}%+ Unfair. Great and Good are Fair trades that also fit both or one side well.">
+        <div class="mt-3" title="Overall: trade value blended with roster fit and timeline (${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}), never closer to even than trade value alone. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% Lopsided, ${VAULT_CONFIG.LOPSIDED_PCT}%+ Unfair. Great and Good are Fair trades that also fit both or one side well.">
           <div class="text-[11px] text-zinc-500">${Vault.escapeHtml(g.teamA.teamName)} paid</div>
           <div class="grid grid-cols-3 gap-4 mt-1 max-w-[560px]">
-            ${priceRead(g.valuedAt === 'trade' ? 'KTC value then' : 'KTC value', bucket, g.fairness.overallSigned)}
-            ${todayGrade(g) ? priceRead('KTC value today', todayGrade(g).bucket, todayGrade(g).signed) : ''}
+            ${priceRead(g.valuedAt === 'trade' ? 'trade value then' : 'trade value', bucket, g.fairness.overallSigned)}
+            ${todayGrade(g) ? priceRead('trade value today', todayGrade(g).bucket, todayGrade(g).signed) : ''}
             ${marketGrade(g) ? priceRead('market price', marketGrade(g).bucket, marketGrade(g).signed) : ''}
           </div>
         </div>

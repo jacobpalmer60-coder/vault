@@ -10,6 +10,10 @@
    (Vault.normalizeName), the way the site matches KTC to Sleeper; each trade
    keeps its league's settings so pages can match leagues like theirs
    (Vault.tradeFormatTiers).
+   Sides are valued on trade value (Vault.tradeSideValues: pieces combined the
+   way real trades combine them), like every grade, so a market price shows how a
+   player is priced beyond the normal premium for consolidating, and the
+   calculator's market figure agrees with its grade.
    ============================================================ */
 const MARKET_MIN_COMPS = 5;     // fewer completed trades than this and we say nothing
 const MARKET_MIN_NARROW = 10;   // a closer league match needs at least this many, or the broader one is steadier

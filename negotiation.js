@@ -30,7 +30,9 @@ const NEG = {
   ACCEPT_EDGE: -12,         // a typical manager accepts up to ~12% behind (market median)...
   TOLERANCE_MIN: 4,         // ...a manager who's never come out behind still accepts ~4%...
   TOLERANCE_MAX: 30,        // ...and history never loosens it past 30%
-  CONSOLIDATION_BONUS: 20,  // getting the trade's best single piece for more pieces: they'll pay the market's premium
+  CONSOLIDATION_BONUS: 5,   // getting the trade's best single piece for more pieces. Was 20 while grades used KTC's
+                            // adjustment, which under-credits consolidating (real consolidators sat ~27% behind
+                            // on it); trade value (Vault.tradeSideValues) leaves ~5% (2026-10-07, 1.5M trades).
   SITE_NO_PENALTY: 5,       // the grade reading bad for them counts against it (no longer an automatic no)
   MARKET_SCALE: 0.5,        // half of the gap between the deal at market prices (market-data.js: what pieces
   MARKET_MAX: 8,            // go for in completed trades) and at KTC moves willingness, capped at 8 points.
@@ -241,10 +243,10 @@ function negReply(j, oGive, rGive, c, ctx) {
 function negReasons(j, ctx) {
   const yes = [], no = [];
   const v = j.fair.value, pct = x => capPct(Math.abs(x)).toFixed(0), R = Vault.escapeHtml(ctx.team.teamName);
-  if (v >= 1) yes.push(`On KTC value, ${R} pays ${pct(v)}% under.`);
-  else if (v <= -VAULT_CONFIG.LOPSIDED_PCT) no.push(`Not close on KTC value: ${R} would pay ${pct(v)}% over.`);
-  else if (v <= -1) no.push(`On KTC value, ${R} pays ${pct(v)}% over.`);
-  else yes.push('It\'s about even on KTC value.');
+  if (v >= 1) yes.push(`On trade value, ${R} pays ${pct(v)}% under.`);
+  else if (v <= -VAULT_CONFIG.LOPSIDED_PCT) no.push(`Not close on trade value: ${R} would pay ${pct(v)}% over.`);
+  else if (v <= -1) no.push(`On trade value, ${R} pays ${pct(v)}% over.`);
+  else yes.push('It\'s about even on trade value.');
   const r = j.fit.roster, tl = j.fit.timeline, when = { contend: 'win-now', rebuild: 'rebuild' }[ctx.lean];
   if (r >= 5) yes.push('It makes their starting lineup better.');
   else if (r <= -5) no.push('It makes their starting lineup worse.');
@@ -664,12 +666,12 @@ const NEG_PILL = {
   walk: ['Walked away', 'bg-white/5 text-zinc-400 border-white/10']
 };
 
-// How a deal lands for the offering team, as a price: "Skat Happens Chase Love pays 4% under KTC value."
+// How a deal lands for the offering team, as a price: "Skat Happens Chase Love pays 4% under trade value."
 const negOName = () => Vault.escapeHtml(teamOf(negOfferingSide())?.teamName || 'Your team');
 function negLean(you, name = negOName()) {
-  if (Math.abs(you) < 1) return `${name} pays about even on KTC value.`;
+  if (Math.abs(you) < 1) return `${name} pays about even on trade value.`;
   const p = capPct(Math.abs(you)).toFixed(0);
-  return you > 0 ? `${name} pays ${p}% under KTC value.` : `${name} pays ${p}% over KTC value${you > -VAULT_CONFIG.FAIR_PCT ? ' (still Fair)' : ''}.`;
+  return you > 0 ? `${name} pays ${p}% under trade value.` : `${name} pays ${p}% over trade value${you > -VAULT_CONFIG.FAIR_PCT ? ' (still Fair)' : ''}.`;
 }
 
 // The coach's box under the latest round: the recommended move first, the

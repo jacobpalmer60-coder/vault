@@ -44,8 +44,12 @@ function summarize(Vault, trades, { players: withPlayers = true } = {}) {
   const out = { n: 0, pct: Array(TOP / BIN + 1).fill(0), buckets: [0, 0, 0], shapes: {}, stars: {}, pos: {} };
   const shapes = {}, pos = {}, players = {};
   trades.forEach(({ s1, s2 }) => {
-    const { valueA: v1, valueB: v2 } = Vault.tradeSideValues(s1, s2); // what team 1 / team 2 received
-    const avg = (v1 + v2) / 2 || 1, pct = Math.abs(v1 - v2) / avg * 100;
+    // Graded on trade value (the site's grade, Vault.tradeSideValues); what a side
+    // "paid" stays against KTC's own adjustment (Vault.ktcSideValues), the market's
+    // yardstick, so the premiums keep meaning "over or under KTC".
+    const g = Vault.tradeSideValues(s1, s2), gAvg = (g.valueA + g.valueB) / 2 || 1, pct = Math.abs(g.valueA - g.valueB) / gAvg * 100;
+    const { valueA: v1, valueB: v2 } = (Vault.ktcSideValues || Vault.tradeSideValues)(s1, s2); // what team 1 / team 2 received, KTC's view
+    const avg = (v1 + v2) / 2 || 1;
     out.n++;
     out.pct[Math.min(out.pct.length - 1, Math.floor(pct / BIN))]++;
     out.buckets[['Fair', 'Lopsided', 'Unfair'].indexOf(Vault.fairnessBucket(pct, 0, 0))]++;

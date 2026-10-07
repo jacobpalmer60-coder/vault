@@ -872,7 +872,7 @@ function renderCoach() {
 }
 
 // One Trade Coach option. Leads with the price you'd pay, said the way people talk about prices:
-// "5% under KTC value" (you'd get more KTC value than you send; over = you'd overpay), and, when
+// "5% under trade value" (you'd get more value than you send; over = you'd overpay), and, when
 // the pieces have market reads, the same against what managers actually pay ("31% under market
 // price"). Then the pieces, one line of why, and the button.
 function coachCardHtml(o, i) {
@@ -893,7 +893,7 @@ function coachCardHtml(o, i) {
       </div>
       <div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(coachMe().teamName)} pays</div>
       <div class="grid grid-cols-2 gap-3 mt-1 mb-3">
-        ${priceStatHtml(you, 'KTC value', PRICE_TIP.ktc)}
+        ${priceStatHtml(you, 'trade value', PRICE_TIP.trade)}
         ${atMarket == null ? '' : priceStatHtml(atMarket, 'market price', PRICE_TIP.market)}
       </div>
       <div class="border-b border-white/[0.06]">${side('Give', o.give)}${side('Get', o.get)}</div>

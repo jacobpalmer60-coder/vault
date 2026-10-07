@@ -35,6 +35,22 @@ const VAULT_CONFIG = {
   // same 0-9999 scale, so the same constant applies without needing to look it up
   // fresh from our own dataset every time.
   CONSOLIDATION_GLOBAL_MAX: 10099,
+  // How a trade side's pieces add up for every grade (Vault.tradeSideValues):
+  // (sum of value^p)^(1/p). Fitted on 1.5 million completed Sleeper dynasty
+  // trades (VaultValues' consolidation study, 2026-10-07); KTC's own adjustment
+  // is still shown next to it (Vault.ktcSideValues).
+  TRADE_VALUE_P: 2.25,
+  // How consolidating worked out a year later, for the calculator's advice line:
+  // share of teams that got fewer pieces and were ahead on trade value 12 months
+  // on, by their best piece's KTC value (rows, from bands) and the raw KTC value
+  // they gave per value they got (columns, from ratios). 118,000 Sleeper dynasty
+  // trades with uneven piece counts (VaultValues payoff study, 2026-10-07).
+  CONSOLIDATION_PAYOFF: {
+    trades: 118267,
+    bands: [0, 3000, 5000, 7000],
+    ratios: [0, 1.15, 1.4, 1.7, 2.2],
+    ahead: [[63, 46, 35, 20, 9], [65, 49, 35, 20, 8], [69, 52, 38, 24, 11], [76, 59, 50, 41, 21]]
+  },
   // Sleeper injury statuses that mean "out for weeks, not days" (NFL injured
   // reserve, PUP, suspended, did not report). How long a player is out comes
   // from Sleeper's weekly projections (Vault.seasonLineupDetail); this list only
@@ -2048,15 +2064,48 @@ const Vault = {
     return value;
   },
 
-  /* What each side of a proposed trade is really worth once KTC's own consolidation
-     bonus (Vault.consolidationAdjustment) is applied — the raw-dollar basis for the
-     trade bar's $ number, the headline value comparison, and the recap text's
-     "gave up about $X" language, replacing a plain per-asset sum. */
-  tradeSideValues(assetsA, assetsB) {
+  /* KTC's own view of a trade: each side's raw total plus KTC's consolidation
+     bonus (Vault.consolidationAdjustment), exactly what KeepTradeCut's calculator
+     shows. No longer what the grade uses (see tradeSideValues): kept for the
+     "KTC's calculator" line, so anyone can still check a trade against KTC, and
+     for the market math (market-data.js, the market summaries), which measures
+     what managers pay against KTC. */
+  ktcSideValues(assetsA, assetsB) {
     const valsA = assetsA.map(a => a.value), valsB = assetsB.map(a => a.value);
     const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
     const { adjust1, adjust2, display } = Vault.consolidationAdjustment(valsA, valsB);
     return { rawA, rawB, valueA: rawA + adjust1, valueB: rawB + adjust2, bonusA: adjust1, bonusB: adjust2, display };
+  },
+
+  /* Trade value: what each side is worth the way managers actually trade, the
+     basis of every grade on the site. Same KTC player and pick values; what
+     changed is how a side's pieces add up. Tested on 1.5 million completed
+     Sleeper dynasty trades (2021-2026, each priced at KTC on its own day): the
+     best piece counts in full and each extra piece for less, smoothly, as
+     (sum of value^p)^(1/p) with p = VAULT_CONFIG.TRADE_VALUE_P. On trades it
+     wasn't tuned on, that calls 63% of real trades Fair against 30% for KTC's
+     own adjustment, and leans about 5% against the side getting fewer pieces
+     instead of 27% (KTC's bonus fades whenever the best piece coming back is
+     close to the star, and jumps around with small changes).
+
+     Reported the way KTC reports its adjustment, so the numbers read the same:
+     the side whose pieces are more spread out keeps its raw total, and the
+     other side (the one getting the bigger single pieces) gets a consolidation
+     bonus bringing it to the same ratio as the curve. A 1-for-1 has no bonus. */
+  tradeSideValues(assetsA, assetsB) {
+    const valsA = assetsA.map(a => a.value), valsB = assetsB.map(a => a.value);
+    const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
+    const none = { rawA, rawB, valueA: rawA, valueB: rawB, bonusA: 0, bonusB: 0, display: false };
+    if (!rawA || !rawB || (valsA.length <= 1 && valsB.length <= 1)) return none;
+    const p = VAULT_CONFIG.TRADE_VALUE_P;
+    const curve = vals => Math.pow(vals.reduce((s, v) => s + Math.pow(Math.max(v, 0), p), 0), 1 / p);
+    const cA = curve(valsA), cB = curve(valsB);
+    // The side with the lower curve-to-raw ratio (more, smaller pieces) is the base.
+    const aIsBase = cA / rawA <= cB / rawB;
+    const valueA = aIsBase ? rawA : cA * rawB / cB, valueB = aIsBase ? cB * rawA / cA : rawB;
+    const bonusA = valueA - rawA, bonusB = valueB - rawB;
+    const display = Math.max(bonusA, bonusB) >= 0.033 * (rawA + rawB);
+    return { rawA, rawB, valueA, valueB, bonusA, bonusB, display };
   },
 
   // Splits a side's already-computed total (real two-sided consolidation value, not
@@ -2239,12 +2288,12 @@ const Vault = {
       </div>`;
   },
 
-  // The overall bar and the three factor bars it's made of (KTC value, roster
+  // The overall bar and the three factor bars it's made of (trade value, roster
   // fit, timeline) in ONE grid, so all four share the same width and center.
   // Each team's full name labels its end of the bars once, above them, and each
   // row's number just points toward the side it favors, so nothing truncates.
-  // Value is labeled "KTC value" on purpose: it's the one a manager can go
-  // check; the other two are clearly labeled as ours.
+  // Value is "trade value": KTC values combined the way real trades combine them;
+  // KTC's own calculator number sits in the trade slip for checking.
   fairnessPanelHtml(fair, bandPct, teamAName, teamBName, overallText) {
     const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, w = VAULT_CONFIG.FAIRNESS_WEIGHTS, esc = Vault.escapeHtml;
     const lean = x => {
@@ -2265,7 +2314,7 @@ const Vault = {
       <div class="text-[13px] font-medium text-zinc-100 whitespace-nowrap">Overall</div>
       <div>${Vault.fairnessBarHtml(fair.overallSigned, bandPct)}</div>
       <div class="text-[13px] font-medium text-zinc-100 text-right tabular-nums whitespace-nowrap">${overallText}</div>
-      ${row('KTC value', w.value, fair.value, "KTC's own consolidation-adjusted value — the number you can check on KeepTradeCut.")}
+      ${row('Trade value', w.value, fair.value, "KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). KeepTradeCut's own calculator number is shown in the trade slip to check against.")}
       ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}
       ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend timeline, archetype, and contention window.')}
     </div>`;
