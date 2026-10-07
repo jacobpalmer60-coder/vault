@@ -229,7 +229,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=3e268e31"></script>
+<script src="vault-core.js?v=33dd5840"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -2139,7 +2139,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
   // Only worth a callout when it'd actually change how a manager reads the number —
   // otherwise it's noise repeating the badge above in slightly different words.
   const needNote = Math.abs(pctDiffNeed - pctDiff) >= 2
-    ? `<span title="Weighted by both teams' roster needs instead of raw sticker value" class="cursor-help">reads as ${capPct(pctDiffNeed).toFixed(0)}% off by need</span>` : '';
+    ? `<span title="Weighted by both teams' roster needs instead of plain trade value" class="cursor-help">reads as ${capPct(pctDiffNeed).toFixed(0)}% off by need</span>` : '';
   verdictEl.innerHTML = `
     <div class="flex items-center gap-3 mb-2">
       <span class="size-3.5 rounded-full shrink-0 ${verdictDot(displayVerdict.tone, bucket)}"></span>

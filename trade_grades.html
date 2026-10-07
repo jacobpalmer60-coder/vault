@@ -22,7 +22,7 @@
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
   </div>
   <p class="text-[13px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
-    Every completed trade in your league, graded at KTC prices from the day it happened, then read again at today's prices and at what managers actually pay.
+    Every completed trade in your league, graded on trade value from the day it happened (KTC values, combined the way real trades combine them), then read again at today's values and at what managers actually pay.
     <a id="methodLink" href="how_we_grade.html#grades" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How grading works</a>
   </p>
 
@@ -39,7 +39,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=3e268e31"></script>
+<script src="vault-core.js?v=33dd5840"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=fb0369eb"></script>
 <script>
@@ -89,6 +89,15 @@ function marketGrade(g) {
   const blend = (w.value * clamp(v) + w.roster * clamp(g.fairness.roster) + w.timeline * clamp(g.fairness.timeline)) / 100;
   const signed = Math.abs(blend) > Math.abs(v) ? blend : v;
   return { signed, bucket: Vault.fairnessBucket(Math.abs(signed), g.combinedFitA, g.combinedFitB) };
+}
+// Like the calculator: when roster fit and timeline moved the grade past trade
+// value, say what trade value alone reads ("trade value alone: 3% over").
+function valueAloneText(g) {
+  if (!g.fairness.fitMovedIt) return '';
+  const t = Vault.tradeSideValues(g.toB, g.toA), v = (t.valueB - t.valueA) / (((t.valueA + t.valueB) / 2) || 1) * 100; // + = team A got more
+  if (Math.abs(Math.abs(v) - g.fairness.overallPct) < 2) return ''; // barely moved: not worth a line
+  const said = Math.abs(v) < 1 ? 'even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`;
+  return `<div class="text-[11px] text-zinc-500 mt-1.5">Roster fit and timeline included; trade value alone: ${said}.</div>`;
 }
 // One read of the trade as what team A paid: "21% under" with "trade value then · Lopsided" underneath.
 function priceRead(label, bucket, signed) {
@@ -287,10 +296,11 @@ function renderCard(g) {
         <div class="mt-3" title="Overall: trade value blended with roster fit and timeline (${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}), never closer to even than trade value alone. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% Lopsided, ${VAULT_CONFIG.LOPSIDED_PCT}%+ Unfair. Great and Good are Fair trades that also fit both or one side well.">
           <div class="text-[11px] text-zinc-500">${Vault.escapeHtml(g.teamA.teamName)} paid</div>
           <div class="grid grid-cols-3 gap-4 mt-1 max-w-[560px]">
-            ${priceRead(g.valuedAt === 'trade' ? 'trade value then' : 'trade value', bucket, g.fairness.overallSigned)}
-            ${todayGrade(g) ? priceRead('trade value today', todayGrade(g).bucket, todayGrade(g).signed) : ''}
-            ${marketGrade(g) ? priceRead('market price', marketGrade(g).bucket, marketGrade(g).signed) : ''}
+            ${priceRead(g.valuedAt === 'trade' ? 'then' : 'at today’s values', bucket, g.fairness.overallSigned)}
+            ${todayGrade(g) ? priceRead('today', todayGrade(g).bucket, todayGrade(g).signed) : ''}
+            ${marketGrade(g) ? priceRead('at market prices', marketGrade(g).bucket, marketGrade(g).signed) : ''}
           </div>
+          ${valueAloneText(g)}
         </div>
         ${acceptLine(g)}
         ${agedText(g) ? `<div class="text-[12px] text-zinc-400 mt-2.5">${agedText(g)}</div>` : ''}
@@ -304,7 +314,7 @@ function renderCard(g) {
         <div class="max-w-lg mt-3">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`, gradeAccept(g))}</div>
         ${confidenceBandText(g)}
         <div class="space-y-1.5 mt-3">
-          ${notes.map(n => `<div class="flex gap-2 text-[12px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="text-zinc-400">${Vault.escapeHtml(n.who)}:</span> <span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
+          ${notes.map(n => `<div class="flex gap-2 text-[12px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="min-w-0"><span class="text-zinc-400">${Vault.escapeHtml(n.who)}:</span> <span class="${TONE[n.tone]}">${n.text}</span></span></div>`).join('')}
         </div>
       </details>`}
     </div>`;

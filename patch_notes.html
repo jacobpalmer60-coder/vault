@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=3e268e31"></script>
+<script src="vault-core.js?v=33dd5840"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-06', items: [
+    { kind: 'fixed', page: 'Trade Grades', text: 'Cleanup from a full sweep of Trade Grades. The paid figures are labeled then / today / at market prices (they are the overall grade, which includes roster fit and timeline), and when fit moved the grade a line adds what trade value alone says ("trade value alone: 3% over"). The intro says trades are graded on trade value, not KTC prices. Breakdown notes say KTC value instead of sticker price, and wrap cleanly on phones. Grades, filters, sorting, the team filter and every price figure checked out against the math on all 23 trades.' },
     { kind: 'changed', page: 'Trade Coach', text: 'Trade Coach now looks for trades close to even instead of the most it could squeeze out. It used to keep the deal most in your favor that it guessed the other manager would still take, so down-tiering Ja\'Marr Chase came back 20 to 25% your way on every card (and a stretch at market prices). Every list now puts Fair trades first, closest to even (aiming about 4% your way): the same Chase search now returns packages within about 4% on trade value and 0 to 9% at market prices, all inside what managers usually pay.' },
     { kind: 'changed', page: 'Trade Calculator', text: 'Removed the Will they take it? box from the trade card. It ran a separate guess at the other manager\'s answer that could disagree with the acceptable read right above it. The acceptable line (what managers actually pay for these players) is now the one read on that question; Offer still plays out the negotiation, and Trade Coach cards drop their would likely say yes line.' },
     { kind: 'fixed', page: 'Trade Calculator', text: '"To even it up, you could add…" now actually evens it up. It was sizing the piece on plain KTC value, but trade value counts an added piece for less, so in a sweep of 27 lopsided trades none reached Fair after adding the suggestion; now it checks the trade each piece really makes and says where it lands ("that makes it Fair, 6% off on trade value").' },

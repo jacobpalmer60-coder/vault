@@ -2688,7 +2688,7 @@ const Vault = {
           const swing = rebuildSurplus ? delta * VAULT_CONFIG.REBUILD_SURPLUS_DAMPEN : delta;
           dollarSwing += swing;
           notes.push(delta > 0
-            ? { tone: 'good', text: `Adds ${rawDisplay} at ${POS}, a genuine roster need — worth closer to ${weightedDisplay} to this team than sticker price.`, pos: POS, absDelta: Math.abs(delta), phrase: `addressed ${article} ${POS} need`, ...noteExtra }
+            ? { tone: 'good', text: `Adds ${rawDisplay} at ${POS}, a genuine roster need — worth closer to ${weightedDisplay} to this team than its KTC value.`, pos: POS, absDelta: Math.abs(delta), phrase: `addressed ${article} ${POS} need`, ...noteExtra }
             : rebuildSurplus
               ? { tone: 'neutral', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — a rebuild isn't fielding this year's roster, so banking more value here is fine even if it's closer to ${weightedDisplay} at this position.`, pos: POS, absDelta: Math.abs(swing), phrase: `added ${POS} depth`, ...noteExtra }
               : { tone: 'bad', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — really worth closer to ${weightedDisplay} here.`, pos: POS, absDelta: Math.abs(delta), phrase: `added ${POS} depth`, ...noteExtra });
@@ -2714,12 +2714,12 @@ const Vault = {
           const swing = dampened ? delta * VAULT_CONFIG.SPECULATIVE_NEED_DAMPEN : delta;
           dollarSwing -= swing;
           notes.push(delta < 0
-            ? { tone: 'good', text: `Deals from ${POS} surplus — still worth closer to ${weightedDisplay} to this team than its ${rawDisplay} sticker price even after the trade.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth`, ...noteExtra }
+            ? { tone: 'good', text: `Deals from ${POS} surplus — still worth closer to ${weightedDisplay} to this team than its ${rawDisplay} KTC value even after the trade.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth`, ...noteExtra }
             : isSpeculative
               ? { tone: 'neutral', text: `Gives up ${rawDisplay} of ${POS} value, but it's priced mostly on upside rather than current production — a real loss of depth, not the same as losing a proven contributor.`, pos: POS, absDelta: Math.abs(swing), phrase: `gave up speculative ${POS} depth`, ...noteExtra }
               : rebuildGiving
                 ? { tone: 'neutral', text: `Gives up ${rawDisplay} of needed ${POS} value — a real hole today, but a rebuild is playing for when it next contends, not patching this year's roster.`, pos: POS, absDelta: Math.abs(swing), phrase: `gave up needed ${POS} value`, ...noteExtra }
-                : { tone: 'bad', text: `Gives up ${POS} value and leaves this team thin there — costs more than the ${rawDisplay} sticker price suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value`, ...noteExtra });
+                : { tone: 'bad', text: `Gives up ${POS} value and leaves this team thin there — costs more than its ${rawDisplay} KTC value suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value`, ...noteExtra });
         }
       });
     };
@@ -3015,13 +3015,13 @@ const Vault = {
         if (isIncoming) {
           dollarSwing += delta;
           notes.push(fitsMode
-            ? { tone: 'good', text: `${a.name} is ${kindOf(a, cls)} — exactly what a ${planWord} wants, worth closer to ${weightedDisplay} than its ${rawDisplay} sticker price.`, ...noteExtra }
+            ? { tone: 'good', text: `${a.name} is ${kindOf(a, cls)} — exactly what a ${planWord} wants, worth closer to ${weightedDisplay} than its ${rawDisplay} KTC value.`, ...noteExtra }
             : { tone: 'bad', text: `${a.name} is ${kindOf(a, cls)} — doesn't fit a ${planWord}, really worth closer to ${weightedDisplay} here.`, ...noteExtra });
         } else {
           dollarSwing -= delta;
           notes.push(!fitsMode
             ? { tone: 'good', text: `Deals away ${a.name} (${kindOf(a, cls)}) — didn't fit the ${planWord} anyway, worth closer to ${weightedDisplay} to give up.`, ...noteExtra }
-            : { tone: 'bad', text: `Gives up ${a.name}, ${kindOf(a, cls)} that fit the ${planWord} — costs more than the ${rawDisplay} sticker price suggests.`, ...noteExtra });
+            : { tone: 'bad', text: `Gives up ${a.name}, ${kindOf(a, cls)} that fit the ${planWord} — costs more than its ${rawDisplay} KTC value suggests.`, ...noteExtra });
         }
       });
     };
@@ -3066,8 +3066,8 @@ const Vault = {
         : (an.tone === 'bad' ? `fit the ${an.planWord}` : `didn't fit the ${an.planWord} anyway`);
 
       const text = pn.isIncoming
-        ? `${an.assetName} ${needClause} ${connector} ${archClause} — netting closer to ${combinedDisplay} for this team than the ${rawDisplay} sticker price.`
-        : `Giving up ${an.assetName} (${an.kindOfLabel}) ${needClause} ${connector} ${archClause} — netting closer to ${combinedDisplay} to give up than the ${rawDisplay} sticker price.`;
+        ? `${an.assetName} ${needClause} ${connector} ${archClause} — netting closer to ${combinedDisplay} for this team than its ${rawDisplay} KTC value.`
+        : `Giving up ${an.assetName} (${an.kindOfLabel}) ${needClause} ${connector} ${archClause} — netting closer to ${combinedDisplay} to give up than its ${rawDisplay} KTC value.`;
 
       // Incoming: a combined value ABOVE sticker is good (you got more than the price
       // tag says). Outgoing: a combined value above sticker is bad (it cost you more
@@ -3717,7 +3717,7 @@ const Vault = {
       if (winRate >= 0.65) notes.push({ tone: 'good', text: `Most of their trades have come out ahead at today's values (${s.wonNow}-${s.lostNow}).` });
       else if (s.lostNow > s.wonNow && s.lostNow / s.trades >= 0.6) notes.push({ tone: 'bad', text: `Most of their trades have come out behind at today's values (${s.wonNow}-${s.lostNow}).` });
     }
-    if (s.avgFit >= 1.5) notes.push({ tone: 'good', text: `Trades tend to fit the team's own timeline and needs, not just the sticker price.` });
+    if (s.avgFit >= 1.5) notes.push({ tone: 'good', text: `Trades tend to fit the team's own timeline and needs, not just KTC value.` });
     else if (s.avgFit <= -1.5) notes.push({ tone: 'bad', text: `Trades often work against the team's own timeline or needs, even when the dollars are close.` });
     if (s.trades >= 3) {
       // Trade-type frequency, not just net dollar direction — "how often", not
