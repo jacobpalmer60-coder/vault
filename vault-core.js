@@ -170,21 +170,22 @@ const VAULT_CONFIG = {
   // out a coin flip, so a plain "Good trade" needs +15 and +10 to +15 is only a
   // Slight edge; -3 to -6 did no worse than a Toss-up. Each tier in order in
   // every format. record: that tier's real track record by timeline, for the line
-  // under the verdict: the share of sides still ahead on KTC value a year later,
-  // by timeline. Tested and left out: a penalty
+  // under the verdict: the share of sides still ahead on value a year later, by
+  // timeline, on trade value (KTC today on the trade value curve, like the
+  // grade; raw KTC sums, used at first, favored whoever got more pieces). Tested and left out: a penalty
   // for contenders buying older players (they did better, not worse) and for a
   // Superflex team selling its 3rd QB (the verdict already reads it). Only the
   // value share is quoted: a tier's average points (contenders' Bad trade tier
   // averaged +1 a week) read as a contradiction next to this trade's own points.
   // level: the coarse read colors and the offered-to-you summary go by.
   VERDICT_TIERS: [
-    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.76, rebuild: 0.86, flexible: 0.85 } },
-    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.71, rebuild: 0.63, flexible: 0.69 } },
-    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.60, rebuild: 0.62, flexible: 0.74 } },
-    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.46, rebuild: 0.58, flexible: 0.56 } },
-    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.36, rebuild: 0.47, flexible: 0.43 } },
-    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.21, rebuild: 0.47, flexible: 0.29 } },
-    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.17, rebuild: 0.22, flexible: 0.16 } }
+    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.81, rebuild: 0.87, flexible: 0.86 } },
+    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.77, rebuild: 0.70, flexible: 0.75 } },
+    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.67, rebuild: 0.64, flexible: 0.73 } },
+    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.49, rebuild: 0.55, flexible: 0.53 } },
+    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.32, rebuild: 0.40, flexible: 0.35 } },
+    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.21, rebuild: 0.35, flexible: 0.21 } },
+    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.14, rebuild: 0.20, flexible: 0.14 } }
   ],
   // Depth (Vault.missedGameCost): weeks each starter is out a season, bye
   // included. Measured, not guessed: across 2018-2025 fantasy starters (top 24
