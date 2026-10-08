@@ -1475,19 +1475,27 @@ const VERDICT_STYLE = { good: { text: 'text-emerald-300', tone: 'good' }, tossup
 // "You get 9% more value, but it costs you 3.9 points a week this season (title odds 32% → 27%)."
 function improvementReason(imp, s) {
   const r = Math.round, pc = v => (v < 1 && v > 0 ? '<1' : r(v)) + '%', n = v => Math.abs(v).toFixed(1);
-  const v = imp.valuePct, fit = imp.rosterFit + imp.timelineFit;
+  const v = imp.valuePct, fit = imp.rosterFit + imp.timelineFit, pts = imp.ptsPerWeek;
   const plan = { contend: 'win-now plans', rebuild: 'rebuild' }[imp.mode] || 'roster';
-  const clauses = [
-    { w: imp.wOwn * 0.7 * v, text: Math.abs(v) < 1 ? 'the price is even' : v > 0 ? `you get ${capPct(Math.abs(v)).toFixed(0)}% more value than you give` : `you give ${capPct(Math.abs(v)).toFixed(0)}% more value than you get` },
-    { w: imp.wPts * imp.ptsPerWeek, text: Math.abs(imp.ptsPerWeek) < 0.1 ? '' : `it ${imp.ptsPerWeek > 0 ? 'adds' : 'costs you'} ${n(imp.ptsPerWeek)} points a week this season${s && r(s.after.championshipPct) !== r(s.before.championshipPct) ? ` (title odds ${pc(s.before.championshipPct)} → ${pc(s.after.championshipPct)})` : ''}` },
-    { w: imp.wOwn * 3 * fit, text: Math.abs(fit) < 1 ? '' : fit > 0 ? `it fits your ${plan}` : `it works against your ${plan}` }
-  ].filter(c => c.text && Math.abs(c.w) >= 0.5).sort((x, y) => Math.abs(y.w) - Math.abs(x.w));
-  if (!clauses.length) return 'Little changes either way.';
-  // The biggest reason, then the tradeoff against it if there is one ("…, but
-  // you get 10% more value"), else the next biggest.
-  const a = clauses[0], b = clauses.find(c => c !== a && Math.sign(c.w) !== Math.sign(a.w)) || clauses[1];
-  const s1 = a.text[0].toUpperCase() + a.text.slice(1);
-  return b ? `${s1}, ${Math.sign(a.w) === Math.sign(b.w) ? 'and' : 'but'} ${b.text}.` : `${s1}.`;
+  // The concrete reasons first: points this season (when the timeline counts
+  // them) and value. Fit only when there's no real points change or it's clearly
+  // good or bad (GOOD_FIT_THRESHOLD), so a small lean can't read as "works
+  // against your plans" on a trade that adds points.
+  const season = imp.wPts > 0 && Math.abs(pts) >= 0.3 ? { w: imp.wPts * pts, text: `it ${pts > 0 ? 'adds' : 'costs you'} ${n(pts)} points a week this season${s && r(s.after.championshipPct) !== r(s.before.championshipPct) ? ` (title odds ${pc(s.before.championshipPct)} → ${pc(s.after.championshipPct)})` : ''}` } : null;
+  const value = Math.abs(v) < 3 ? { w: 0, even: true, text: 'at about an even price' } : { w: imp.wOwn * 0.7 * v, text: v > 0 ? `you get ${capPct(Math.abs(v)).toFixed(0)}% more value than you give` : `you give ${capPct(Math.abs(v)).toFixed(0)}% more value than you get` };
+  // Points this season already say it when fit points the same way.
+  const fitC = (!season || (Math.abs(fit) >= VAULT_CONFIG.GOOD_FIT_THRESHOLD && Math.sign(fit) !== Math.sign(pts))) && Math.abs(fit) >= 1 ? { w: imp.wOwn * 3 * fit, text: fit > 0 ? `it fits your ${plan}` : `it works against your ${plan}` } : null;
+  const ranked = [season, value.even ? null : value, fitC].filter(Boolean).sort((x, y) => Math.abs(y.w) - Math.abs(x.w));
+  const cap = t => t[0].toUpperCase() + t.slice(1);
+  if (!ranked.length) return value.even ? 'Little changes either way, at about an even price.' : 'Little changes either way.';
+  const first = ranked[0];
+  // Then the tradeoff against it if it's real ("…, but you get 10% more value"),
+  // else the next reason, else "at about an even price".
+  const opp = ranked.find(c => c !== first && Math.sign(c.w) !== Math.sign(first.w) && Math.abs(c.w) >= 1);
+  const second = opp || ranked.find(c => c !== first) || (value.even ? value : null);
+  if (!second) return cap(first.text) + '.';
+  if (second.even) return `${cap(first.text)}, ${second.text}.`;
+  return `${cap(first.text)}, ${Math.sign(first.w) === Math.sign(second.w) ? 'and' : 'but'} ${second.text}.`;
 }
 function renderForYou(teamA, aAssets, bAssets, analysis) {
   const el = document.getElementById('forYou');
