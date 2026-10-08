@@ -104,7 +104,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=0d007bcf"></script>
+<script src="vault-core.js?v=53c92135"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=fb0369eb"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
@@ -165,7 +165,7 @@ async function init() {
     const pidByName = new Map(), expByName = new Map();
     Object.entries(sleeper || {}).forEach(([pid, sp]) => {
       const key = Vault.normalizeName(`${sp.first_name || ''} ${sp.last_name || ''}`.trim());
-      if (!key || !['QB', 'RB', 'WR', 'TE'].includes(sp.position)) return;
+      if (!key || !['QB', 'RB', 'WR', 'TE'].includes(Vault.fantasyPos(sp.position, key))) return; // two-way players (Travis Hunter) by their fantasy position
       if (!pidByName.has(key)) pidByName.set(key, pid);
       if (sp.years_exp != null && !expByName.has(key)) expByName.set(key, sp.years_exp);
     });

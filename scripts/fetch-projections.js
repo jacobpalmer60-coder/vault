@@ -47,6 +47,9 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_POSITIONS = ['QB', 'RB', 'WR', 'TE'];
+// Two-way players are listed by their defensive spot (Travis Hunter: position
+// "DB", fantasy_positions DB/WR); keep them under their offensive position.
+const skillPos = player => (SKILL_POSITIONS.includes(player?.position) ? player.position : (player?.fantasy_positions || []).find(p => SKILL_POSITIONS.includes(p)));
 const DROP_PREFIXES = ['adp_', 'pos_rank_', 'rank_'];
 const DROP_KEYS = new Set(['cmp_pct', 'pts_ppr', 'pts_half_ppr', 'pts_std']);
 const FANTASY_WEEKS = 17;
@@ -88,7 +91,7 @@ async function main() {
   // with gp overridden to the real fallback games figure (see header comment).
   const players = {};
   for (const row of seasonRows) {
-    const pos = row.player && row.player.position;
+    const pos = skillPos(row.player);
     if (!SKILL_POSITIONS.includes(pos)) continue;
     if (!row.player_id) continue;
     const stats = filterStats(row.stats);
@@ -112,7 +115,7 @@ async function main() {
   const weeklySums = {};
   for (const rows of weeks) {
     for (const row of rows) {
-      const pos = row.player && row.player.position;
+      const pos = skillPos(row.player);
       if (!SKILL_POSITIONS.includes(pos)) continue;
       if (!row.player_id) continue;
       const weekStats = filterStats(row.stats);

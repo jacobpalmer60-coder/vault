@@ -28,6 +28,10 @@
     <button id="refresh" class="self-start sm:self-auto shrink-0 btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
   </div>
 
+  <div class="md:hidden flex items-center justify-end gap-2 mb-3 text-[12px] text-zinc-400">
+    <label for="mobileSort">Sort by</label>
+    <select id="mobileSort" class="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[13px] text-zinc-200 outline-none"></select>
+  </div>
   <div id="mobileCards" class="md:hidden space-y-3"></div>
 
   <div class="hidden md:block card rounded-vault overflow-hidden relative">
@@ -103,7 +107,7 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=0d007bcf"></script>
+<script src="vault-core.js?v=53c92135"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 }, expanded = new Set();
@@ -165,7 +169,7 @@ const CHART_COLORS = ['#f5c542', '#5ec7f5', '#f56e6e', '#7ee787', '#c792ea', '#f
 const VALUE_METRICS = {
   total: { label: 'Value', field: 'total', decimals: 0, desc: "Each team's total dynasty value, snapshotted daily." },
   optPpg: { label: 'Opt PPG', field: 'optPpg', decimals: 1, desc: "Each team's best-lineup projected PPG (league scoring), snapshotted daily." },
-  playerValue: { label: 'Player Value', field: 'playerValue', decimals: 0, desc: "Each team's rostered-player value only (excludes picks) — backfilled all the way to the startup draft by replaying every completed trade, waiver, and draft pick since. Value+picks together only has the ~12 real daily snapshots so far." }
+  playerValue: { label: 'Player Value', field: 'playerValue', decimals: 0, desc: "Each team's rostered-player value only (excludes picks), rebuilt back to the startup draft by replaying every completed trade, waiver and draft pick since." }
 };
 let valueHistoryMetric = 'total';
 let lastValueHistory = null, lastValueHistoryTeams = null;
@@ -441,7 +445,17 @@ function youTag(t) {
   return mine && mine.rosterId === t.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : '';
 }
 
+// The table's sorts, for phones (the table and its headers are hidden there).
+// Each pick sorts best-first; the same pick again flips the order.
+const MOBILE_SORTS = [['overall', 'Overall value'], ['playoffPct', 'Playoff odds'], ['recordWinPct', 'Record'], ['total', 'Player value'], ['picksValue', 'Pick value'], ['opt', 'Opt PPG'], ['vorpTotal', 'VORP'], ['longevity', 'Longevity'], ['age', 'Age'], ['teamName', 'Team name']];
+function renderMobileSort() {
+  const sel = document.getElementById('mobileSort');
+  if (!sel) return;
+  sel.innerHTML = MOBILE_SORTS.map(([k, label]) => `<option value="${k}" ${sort.key === k ? 'selected' : ''}>${label}${sort.key === k && sort.dir > 0 ? ' (reversed)' : ''}</option>`).join('');
+  sel.onchange = () => { const k = sel.value; if (sort.key === k) sort.dir *= -1; else { sort.key = k; sort.dir = k === 'teamName' || k === 'age' ? 1 : -1; } render(); };
+}
 function renderMobileCards(data, minOverall, maxOverall) {
+  renderMobileSort();
   const mount = document.getElementById('mobileCards');
   mount.innerHTML = data.map(t => {
     const exp = expanded.has(t.rosterId);

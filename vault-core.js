@@ -684,7 +684,18 @@ const Vault = {
     ];
   },
 
+  /* Sleeper lists two-way players by their defensive spot (Travis Hunter: "DB",
+     fantasy positions DB/WR), so they fell out of position splits, lineups and
+     roster sections. KTC prices them at their fantasy position; use that whenever
+     Sleeper's isn't QB/RB/WR/TE (filled by buildKtcValueMap). */
+  _ktcPos: new Map(),
+  fantasyPos(sleeperPos, name) {
+    if (['QB', 'RB', 'WR', 'TE'].includes(sleeperPos)) return sleeperPos;
+    return Vault._ktcPos.get(Vault.normalizeName(name || '')) || sleeperPos || '';
+  },
+
   buildKtcValueMap(ktcData, isSF, bonusRecTe) {
+    (ktcData?.players || []).forEach(p => { if (p.pos && p.name) Vault._ktcPos.set(Vault.normalizeName(p.name), p.pos); });
     const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
     const map = new Map();
     let maxVal = 0;
@@ -915,7 +926,7 @@ const Vault = {
     function currentOptPpg(r) {
       const plist = (r.players || []).map(pid => {
         const p = players[String(pid)];
-        return p ? { id: String(pid), pos: p.position || '', ppg: ppgByPid.get(String(pid)) || 0 } : null;
+        return p ? { id: String(pid), pos: Vault.fantasyPos(p.position, `${p.first_name || ''} ${p.last_name || ''}`), ppg: ppgByPid.get(String(pid)) || 0 } : null;
       }).filter(Boolean);
       return Vault.optimalLineup(plist, slots);
     }
@@ -985,7 +996,7 @@ const Vault = {
           const nameKey = Vault.normalizeName(`${p.first_name || ''} ${p.last_name || ''}`.trim());
           const v = playerVals ? Vault.resolveHistoricalValue(playerVals[nameKey], isSF, bonusRecTe) : null;
           playerValue += v || 0;
-          plist.push({ id: pid, pos: p.position || '', ppg: ppgByPid.get(pid) || 0 });
+          plist.push({ id: pid, pos: Vault.fantasyPos(p.position, `${p.first_name || ''} ${p.last_name || ''}`), ppg: ppgByPid.get(pid) || 0 });
         });
         const optPpg = Vault.optimalLineup(plist, slots);
 
@@ -1417,7 +1428,8 @@ const Vault = {
         const p = players[String(pid)] || {};
         const nm = `${p.first_name || ''} ${p.last_name || ''}`.trim();
         const ppg = ppgMap.get(String(pid)) || 0;
-        return { id: String(pid), name: nm, pos: p.position || '', age: p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), ...Vault.availOf(projData.players?.[String(pid)], p, String(pid)), ...Vault.injuryOf(p) };
+        const pos = Vault.fantasyPos(p.position, nm);
+        return { id: String(pid), name: nm, pos, age: p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, pos, replacementLevels), ...Vault.availOf(projData.players?.[String(pid)], p, String(pid)), ...Vault.injuryOf(p) };
       });
       const total = plist.reduce((s, p) => s + p.value, 0);
       const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);
@@ -3239,7 +3251,8 @@ const Vault = {
       const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || `Player ${pid}`;
       const ppg = ppgMap.get(pid) || 0;
       const volatilityPct = playerVolatility ? (playerVolatility.get(Vault.normalizeName(name)) ?? null) : null;
-      assets.push({ type: 'player', id: String(pid), name, pos: p.position || '', age: p.age || 0, team: p.team || '', ppg, vorp: Vault.vorp(ppg, p.position || '', replacementLevels), value: valMap.get(Vault.normalizeName(name)) || 0, volatilityPct });
+      const pos = Vault.fantasyPos(p.position, name);
+      assets.push({ type: 'player', id: String(pid), name, pos, age: p.age || 0, team: p.team || '', ppg, vorp: Vault.vorp(ppg, pos, replacementLevels), value: valMap.get(Vault.normalizeName(name)) || 0, volatilityPct });
     });
     (tx.draft_picks || []).forEach(pk => {
       if (pk.owner_id !== sideRosterId) return;
