@@ -22,6 +22,13 @@ const VAULT_CONFIG = {
   // spread than KTC's prices: an early 1st 1.10x mid (KTC 1.17x), a late 1st
   // 0.97x (KTC 0.94x); late 2nds went for the same as mid (1.01x). Rounds
   // without enough trades keep KTC's own prices.
+  // A rebuilding team's verdict weighs value and roster fit only, no timeline
+  // fit (2026-10-08, held-out half of 13,886 real trades: the timeline fit's
+  // reward for adding picks and getting younger made rebuilders' verdicts track
+  // value a year later, points and playoffs worse, r 0.523 -> 0.565 without it;
+  // picks are overpaid at the draft and contenders' older buys did fine).
+  // Contending and flexible keep FAIRNESS_WEIGHTS (best or tied there).
+  REBUILD_READ_WEIGHTS: { value: 85, roster: 15, timeline: 0 },
   PICK_TIER_SPREAD: { 1: { early: 1.10, late: 0.97 }, 2: { early: 1.08, late: 1.00 } },
   ODDS_CALIBRATION: { playoffs: { a: 0.88, b: 0.12 }, title: { a: 0.76, b: -0.22 } },
   PROJECTIONS_URL: 'data/projections.json',
@@ -171,11 +178,11 @@ const VAULT_CONFIG = {
   // averaged +1 a week) read as a contradiction next to this trade's own points.
   // level: the coarse read colors and the offered-to-you summary go by.
   VERDICT_TIERS: [
-    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.76, rebuild: 0.87, flexible: 0.85 } },
-    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.71, rebuild: 0.61, flexible: 0.69 } },
-    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.60, rebuild: 0.60, flexible: 0.74 } },
-    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.46, rebuild: 0.56, flexible: 0.56 } },
-    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.36, rebuild: 0.55, flexible: 0.43 } },
+    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.76, rebuild: 0.86, flexible: 0.85 } },
+    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.71, rebuild: 0.63, flexible: 0.69 } },
+    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.60, rebuild: 0.62, flexible: 0.74 } },
+    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.46, rebuild: 0.58, flexible: 0.56 } },
+    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.36, rebuild: 0.47, flexible: 0.43 } },
     { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.21, rebuild: 0.47, flexible: 0.29 } },
     { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.17, rebuild: 0.22, flexible: 0.16 } }
   ],
@@ -2384,8 +2391,8 @@ const Vault = {
   // only THEIR roster fit and timeline, using the same weights and scales as the
   // overall grade. Unlike blendedFairness it doesn't net out the other side's
   // fit: a deal fitting the other team well doesn't make it worse for this one.
-  ownTradeRead(valuePct, rosterFit, timeFit) {
-    const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP, w = VAULT_CONFIG.FAIRNESS_WEIGHTS;
+  ownTradeRead(valuePct, rosterFit, timeFit, w = VAULT_CONFIG.FAIRNESS_WEIGHTS) {
+    const cap = VAULT_CONFIG.FAIRNESS_FACTOR_CAP;
     const clamp = x => Math.max(-cap, Math.min(cap, x));
     return (w.value * clamp(valuePct) + w.roster * clamp(VAULT_CONFIG.ROSTER_FIT_SCALE * rosterFit) + w.timeline * clamp(VAULT_CONFIG.TIMELINE_FIT_SCALE * timeFit)) / 100;
   },
@@ -2401,7 +2408,8 @@ const Vault = {
      Burrow for Mahomes, Pickens and three 1sts reads Bad for a contender (-6:
      10% more value, but 3.9 points a week less) and Good for a rebuilder (+13). */
   tradeImprovement({ valuePct, rosterFit, timelineFit, mode, ptsPerWeek }) {
-    const own = Vault.ownTradeRead(valuePct, rosterFit, timelineFit);
+    // Rebuilding: value and roster fit only (VAULT_CONFIG.REBUILD_READ_WEIGHTS).
+    const own = Vault.ownTradeRead(valuePct, rosterFit, timelineFit, mode === 'rebuild' ? VAULT_CONFIG.REBUILD_READ_WEIGHTS : undefined);
     // Contending's 3 per point a week: tested 2026-10-08 on 27,327 real 2025
     // trades, it tracked contenders' playoff and title results better than 2,
     // while value still counts for the long run (value predicts who's ahead a year on).

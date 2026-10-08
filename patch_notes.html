@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=8b8843b3"></script>
+<script src="vault-core.js?v=b727c852"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -44,6 +44,7 @@ const NOTES = [
     { kind: 'fixed', page: 'Player Market', text: 'Player Market showed "Maximum call stack size exceeded" on phones instead of loading. Fixed.' },
     { kind: 'improved', page: 'Everywhere', text: 'Playoff and title odds are corrected by how often teams really made it in 9,464 team-weeks of completed 2025 leagues. They were close already, but a little too sure about long shots (teams given about 10% made the playoffs 19% of the time), so long shots now read a bit higher and each league\'s odds still add up.' },
     { kind: 'improved', page: 'Everywhere', text: 'Early and late 1sts and 2nds are priced by what managers really pay, not KTC\'s early/late prices. A pick\'s tier comes from its original team\'s projected finish, which holds only so often (projected-early 1sts ended up early 47% of the time), so managers pay a smaller spread: an early 1st about 10% over a mid 1st (KTC: 17%), a late 1st about 3% under (KTC: 6%), and a late 2nd the same as a mid 2nd.' },
+    { kind: 'changed', page: 'Trade Calculator', text: 'For a rebuilding team, the verdict now weighs value and roster fit only, not whether the trade makes you younger or adds picks. Tested on real 2025 trades, that timeline part made rebuilders\' verdicts less accurate (managers overpay for picks at the draft, and getting older didn\'t hurt), and without it the verdict tracks who\'s ahead a year later, points and playoffs better. Contending and flexible verdicts are unchanged.' },
     { kind: 'improved', page: 'Trade Calculator', text: 'At market prices (and Trade Coach\'s market edge, Trade Grades and Offer negotiation) counts 60% of each player\'s recent market premium instead of all of it: replaying about 500,000 trades showed about 60% of a premium carries over to the next trades. What a player has gone for still shows in full.' }
   ] },
   { date: '2026-10-07', items: [

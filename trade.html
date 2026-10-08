@@ -229,7 +229,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=8b8843b3"></script>
+<script src="vault-core.js?v=b727c852"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1476,7 +1476,7 @@ const VERDICT_STYLE = { good: { text: 'text-emerald-300', tone: 'good' }, tossup
 // "You get 9% more value, but it costs you 3.9 points a week this season (title odds 32% → 27%)."
 function improvementReason(imp, s) {
   const r = Math.round, pc = v => (v < 1 && v > 0 ? '<1' : r(v)) + '%', n = v => Math.abs(v).toFixed(1);
-  const v = imp.valuePct, fit = imp.rosterFit + imp.timelineFit, pts = imp.ptsPerWeek;
+  const v = imp.valuePct, fit = imp.rosterFit + (imp.mode === 'rebuild' ? 0 : imp.timelineFit), pts = imp.ptsPerWeek; // rebuilding: roster fit only (REBUILD_READ_WEIGHTS)
   const plan = { contend: 'win-now plans', rebuild: 'rebuild' }[imp.mode] || 'roster';
   // The concrete reasons first: points this season (when the timeline counts
   // them) and value. Fit only when there's no real points change or it's clearly
