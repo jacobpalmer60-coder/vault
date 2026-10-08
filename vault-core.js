@@ -6,6 +6,9 @@ const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
   VAULT_VALUES_URL: 'data/vault-values/values.json',
+  // The trade value curve's strength Vault values are fitted with (SET.curve in
+  // scripts/vault-values/nightly.js; keep the two the same).
+  VAULT_VALUES_CURVE: 0.6,
   PROJECTIONS_URL: 'data/projections.json',
   // How many future draft years to track as tradeable assets. The actual starting
   // year is computed at runtime by Vault.futurePickYears — NOT hardcoded here —
@@ -633,10 +636,12 @@ const Vault = {
      says when Vault values are showing. raw: always KTC (the market data prices
      real trades at KTC values, so its premiums stay on one scale). */
   valueSource() {
+    if (Vault._valueSource) return Vault._valueSource; // read once per page (tradeValueP asks thousands of times)
     let v = null;
     try { v = new URLSearchParams(location.search).get('values'); } catch {}
-    if (v === 'vault' || v === 'ktc') { try { localStorage.setItem('vault_value_source', v); } catch {} return v; }
-    try { return localStorage.getItem('vault_value_source') === 'vault' ? 'vault' : 'ktc'; } catch { return 'ktc'; }
+    if (v === 'vault' || v === 'ktc') { try { localStorage.setItem('vault_value_source', v); } catch {} return (Vault._valueSource = v); }
+    try { Vault._valueSource = localStorage.getItem('vault_value_source') === 'vault' ? 'vault' : 'ktc'; } catch { Vault._valueSource = 'ktc'; }
+    return Vault._valueSource;
   },
   async fetchKtcValues({ raw = false } = {}) {
     if (!raw && Vault.valueSource() === 'vault') {
@@ -2147,14 +2152,18 @@ const Vault = {
   // "TURBONUTZ's", "Scrooge McDucks'" (pass an already-escaped name for HTML).
   possessive(name) { return `${name}${/s$/i.test(name) ? "'" : "'s"}`; },
 
+  // With Vault values showing (Vault.valueSource), the curve at the strength those
+  // values were fitted with (VAULT_CONFIG.VAULT_VALUES_CURVE), so the site adds
+  // pieces up the way the values assume; KTC's numbers use it at full strength.
   tradeValueP(top) {
     const k = VAULT_CONFIG.TRADE_VALUE_CURVE, x = Math.log(Math.max(top || 0, 500));
-    if (x <= Math.log(k[0][0])) return k[0][1];
+    const s = Vault.valueSource() === 'vault' ? VAULT_CONFIG.VAULT_VALUES_CURVE : 1, at = p => 1 + s * (p - 1);
+    if (x <= Math.log(k[0][0])) return at(k[0][1]);
     for (let i = 1; i < k.length; i++) {
       const x1 = Math.log(k[i][0]);
-      if (x <= x1) { const x0 = Math.log(k[i - 1][0]); return k[i - 1][1] + (k[i][1] - k[i - 1][1]) * (x - x0) / (x1 - x0); }
+      if (x <= x1) { const x0 = Math.log(k[i - 1][0]); return at(k[i - 1][1] + (k[i][1] - k[i - 1][1]) * (x - x0) / (x1 - x0)); }
     }
-    return k[k.length - 1][1];
+    return at(k[k.length - 1][1]);
   },
 
   /* Acceptable is not the same as fair: managers accept unfair trades, and that

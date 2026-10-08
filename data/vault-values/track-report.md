@@ -1,75 +1,75 @@
 # VaultValues track record
 
-Updated 2026-10-08 18:24 UTC. Each night's values are scored on trades made after them, which they never saw, next to KTC on the same trades. **Relative error**: each trade's imbalance against how spread out the values are (lower is better; a flatter value set can't game it). "Replay" nights were rebuilt afterwards by refitting day by day.
+Updated 2026-10-08 19:29 UTC. Each night's values are scored on trades made after them, which they never saw, next to KTC on the same trades. **Relative error**: each trade's imbalance against how spread out the values are (lower is better; a flatter value set can't game it). "Replay" nights were rebuilt afterwards by refitting day by day.
 
 ## The pass bar
 
-Over 8 weeks: beat KTC's own consolidation adjustment every week · rank agreement with KTC's top 200 of 0.95+ · top-200 median daily move under 1.5% · price at least as many trades as KTC.
+Over 8 weeks: beat what the site grades with today (KTC values on its calibrated trade value curve) every week · rank agreement with KTC's top 200 of 0.95+ · top-200 median daily move under 1.5% · price at least as many trades as KTC.
 
-| Format | Weeks scored | Weeks beating KTC (its own adjustment) | Weeks beating KTC + curve | Rank agreement (latest) | Median daily move | Trades priced: ours / KTC | Status |
-|---|---|---|---|---|---|---|---|
-| sf_tep | 5 | 5/5 | 4/5 | 0.968 | 1.3% | 99.9% / 98.8% | Building (5/8 weeks) |
-| sf | 5 | 5/5 | 5/5 | 0.969 | 1.1% | 99.9% / 98.8% | Building (5/8 weeks) |
-| sf_tepp | 5 | 5/5 | 5/5 | 0.971 | 1.7% | 99.8% / 98.1% | Building (5/8 weeks) |
-| oneQB | 5 | 5/5 | 4/5 | 0.962 | 1.6% | 99.9% / 98.9% | Building (5/8 weeks) |
-| oneQB_tep | 4 | 2/4 | 1/4 | 0.944 | 1.5% | 98.8% / 98.3% | Building (4/8 weeks) |
-| oneQB_tepp | 3 | 0/3 | 0/3 | 0.893 | 1.1% | 95.4% / 97.9% | Building (3/8 weeks) |
+| Format | Weeks scored | Weeks beating the site's KTC trade value (the bar) | Weeks beating KTC + market price | Weeks beating KTC (its own adjustment) | Weeks beating KTC + curve | Rank agreement (latest) | Median daily move | Trades priced: ours / KTC | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| sf_tep | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.966 | 1.0% | 99.9% / 96.9% | Building (5/8 weeks) |
+| sf | 5 | 1/5 | 1/5 | 5/5 | 5/5 | 0.964 | 1.0% | 99.9% / 96.9% | Building (5/8 weeks) |
+| sf_tepp | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.970 | 1.4% | 99.8% / 96.3% | Building (5/8 weeks) |
+| oneQB | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.953 | 1.2% | 99.9% / 97.0% | Building (5/8 weeks) |
+| oneQB_tep | 4 | 0/4 | 0/4 | 4/4 | 2/4 | 0.945 | 1.3% | 98.7% / 95.9% | Building (4/8 weeks) |
+| oneQB_tepp | 3 | 0/3 | 0/3 | 2/3 | 0/3 | 0.892 | 0.8% | 95.1% / 95.0% | Building (3/8 weeks) |
 
 ## Week by week
 
 ### sf_tep
 
-| Week | Trades | Ours | KTC, its own adjustment | KTC + our curve | KTC plain sum |
-|---|---|---|---|---|---|
-| 09-08 to 09-13 (replay) | 3,843 | **0.193** | 0.258 | 0.223 | 0.415 |
-| 09-14 to 09-20 (replay) | 5,314 | **0.195** | 0.264 | 0.231 | 0.430 |
-| 09-21 to 09-27 (replay) | 8,158 | **0.192** | 0.243 | 0.196 | 0.393 |
-| 09-28 to 10-04 (replay) | 16,320 | **0.187** | 0.282 | 0.263 | 0.452 |
-| 10-05 to 10-05 (replay) | 290 | **0.205** | 0.264 | 0.193 | 0.436 |
+| Week | Trades | Ours | KTC, site trade value (what the site uses) | KTC, its own adjustment | KTC + market price | KTC + 60% of market price | KTC + our curve | KTC plain sum |
+|---|---|---|---|---|---|---|---|---|
+| 09-08 to 09-13 (replay) | 3,771 | **0.131** | 0.094 | 0.256 | 0.088 | 0.088 | 0.220 | 0.414 |
+| 09-14 to 09-20 (replay) | 5,237 | **0.130** | 0.098 | 0.261 | 0.084 | 0.088 | 0.228 | 0.427 |
+| 09-21 to 09-27 (replay) | 8,054 | **0.134** | 0.082 | 0.242 | 0.071 | 0.073 | 0.192 | 0.393 |
+| 09-28 to 10-04 (replay) | 16,087 | **0.128** | 0.116 | 0.283 | 0.106 | 0.108 | 0.264 | 0.452 |
+| 10-05 to 10-05 (replay) | 289 | **0.157** | 0.081 | 0.262 | 0.070 | 0.072 | 0.193 | 0.429 |
 
 ### sf
 
-| Week | Trades | Ours | KTC, its own adjustment | KTC + our curve | KTC plain sum |
-|---|---|---|---|---|---|
-| 09-08 to 09-13 (replay) | 4,204 | **0.220** | 0.278 | 0.242 | 0.451 |
-| 09-14 to 09-20 (replay) | 5,641 | **0.241** | 0.297 | 0.252 | 0.490 |
-| 09-21 to 09-27 (replay) | 8,821 | **0.225** | 0.279 | 0.236 | 0.470 |
-| 09-28 to 10-04 (replay) | 17,387 | **0.221** | 0.291 | 0.245 | 0.481 |
-| 10-05 to 10-05 (replay) | 367 | **0.262** | 0.337 | 0.291 | 0.561 |
+| Week | Trades | Ours | KTC, site trade value (what the site uses) | KTC, its own adjustment | KTC + market price | KTC + 60% of market price | KTC + our curve | KTC plain sum |
+|---|---|---|---|---|---|---|---|---|
+| 09-08 to 09-13 (replay) | 4,131 | **0.156** | 0.100 | 0.279 | 0.092 | 0.093 | 0.241 | 0.453 |
+| 09-14 to 09-20 (replay) | 5,555 | **0.169** | 0.101 | 0.297 | 0.089 | 0.092 | 0.250 | 0.491 |
+| 09-21 to 09-27 (replay) | 8,699 | **0.156** | 0.101 | 0.284 | 0.092 | 0.094 | 0.245 | 0.475 |
+| 09-28 to 10-04 (replay) | 17,127 | **0.158** | 0.103 | 0.293 | 0.091 | 0.094 | 0.248 | 0.483 |
+| 10-05 to 10-05 (replay) | 364 | **0.173** | 0.215 | 0.430 | 0.206 | 0.208 | 0.483 | 0.650 |
 
 ### sf_tepp
 
-| Week | Trades | Ours | KTC, its own adjustment | KTC + our curve | KTC plain sum |
-|---|---|---|---|---|---|
-| 09-08 to 09-13 (replay) | 1,868 | **0.213** | 0.296 | 0.273 | 0.470 |
-| 09-14 to 09-20 (replay) | 2,450 | **0.214** | 0.297 | 0.281 | 0.442 |
-| 09-21 to 09-27 (replay) | 4,004 | **0.201** | 0.271 | 0.259 | 0.412 |
-| 09-28 to 10-04 (replay) | 8,411 | **0.179** | 0.279 | 0.261 | 0.427 |
-| 10-05 to 10-05 (replay) | 132 | **0.169** | 0.237 | 0.217 | 0.425 |
+| Week | Trades | Ours | KTC, site trade value (what the site uses) | KTC, its own adjustment | KTC + market price | KTC + 60% of market price | KTC + our curve | KTC plain sum |
+|---|---|---|---|---|---|---|---|---|
+| 09-08 to 09-13 (replay) | 1,841 | **0.141** | 0.120 | 0.293 | 0.117 | 0.116 | 0.269 | 0.466 |
+| 09-14 to 09-20 (replay) | 2,421 | **0.150** | 0.125 | 0.296 | 0.111 | 0.114 | 0.280 | 0.442 |
+| 09-21 to 09-27 (replay) | 3,955 | **0.141** | 0.125 | 0.277 | 0.122 | 0.121 | 0.272 | 0.419 |
+| 09-28 to 10-04 (replay) | 8,295 | **0.123** | 0.117 | 0.280 | 0.106 | 0.109 | 0.262 | 0.429 |
+| 10-05 to 10-05 (replay) | 130 | **0.114** | 0.090 | 0.239 | 0.091 | 0.088 | 0.218 | 0.427 |
 
 ### oneQB
 
-| Week | Trades | Ours | KTC, its own adjustment | KTC + our curve | KTC plain sum |
-|---|---|---|---|---|---|
-| 09-08 to 09-13 (replay) | 2,836 | **0.276** | 0.357 | 0.273 | 0.622 |
-| 09-14 to 09-20 (replay) | 3,716 | **0.310** | 0.406 | 0.330 | 0.692 |
-| 09-21 to 09-27 (replay) | 5,607 | **0.310** | 0.387 | 0.328 | 0.674 |
-| 09-28 to 10-04 (replay) | 11,616 | **0.274** | 0.361 | 0.301 | 0.637 |
-| 10-05 to 10-05 (replay) | 254 | **0.261** | 0.371 | 0.378 | 0.528 |
+| Week | Trades | Ours | KTC, site trade value (what the site uses) | KTC, its own adjustment | KTC + market price | KTC + 60% of market price | KTC + our curve | KTC plain sum |
+|---|---|---|---|---|---|---|---|---|
+| 09-08 to 09-13 (replay) | 2,784 | **0.206** | 0.099 | 0.356 | 0.087 | 0.090 | 0.269 | 0.624 |
+| 09-14 to 09-20 (replay) | 3,656 | **0.234** | 0.118 | 0.406 | 0.104 | 0.107 | 0.329 | 0.689 |
+| 09-21 to 09-27 (replay) | 5,531 | **0.228** | 0.114 | 0.386 | 0.104 | 0.106 | 0.323 | 0.676 |
+| 09-28 to 10-04 (replay) | 11,448 | **0.199** | 0.107 | 0.362 | 0.094 | 0.097 | 0.301 | 0.638 |
+| 10-05 to 10-05 (replay) | 250 | **0.181** | 0.136 | 0.370 | 0.114 | 0.120 | 0.376 | 0.530 |
 
 ### oneQB_tep
 
-| Week | Trades | Ours | KTC, its own adjustment | KTC + our curve | KTC plain sum |
-|---|---|---|---|---|---|
-| 09-08 to 09-13 (replay) | 293 | **0.381** | 0.341 | 0.278 | 0.632 |
-| 09-14 to 09-20 (replay) | 515 | **0.441** | 0.428 | 0.374 | 0.820 |
-| 09-21 to 09-27 (replay) | 740 | **0.390** | 0.401 | 0.380 | 0.703 |
-| 09-28 to 10-04 (replay) | 1,415 | **0.286** | 0.347 | 0.315 | 0.578 |
+| Week | Trades | Ours | KTC, site trade value (what the site uses) | KTC, its own adjustment | KTC + market price | KTC + 60% of market price | KTC + our curve | KTC plain sum |
+|---|---|---|---|---|---|---|---|---|
+| 09-08 to 09-13 (replay) | 285 | **0.328** | 0.089 | 0.334 | 0.088 | 0.085 | 0.254 | 0.626 |
+| 09-14 to 09-20 (replay) | 506 | **0.375** | 0.131 | 0.431 | 0.133 | 0.129 | 0.375 | 0.814 |
+| 09-21 to 09-27 (replay) | 732 | **0.306** | 0.136 | 0.406 | 0.139 | 0.134 | 0.373 | 0.715 |
+| 09-28 to 10-04 (replay) | 1,397 | **0.250** | 0.115 | 0.351 | 0.115 | 0.112 | 0.328 | 0.587 |
 
 ### oneQB_tepp
 
-| Week | Trades | Ours | KTC, its own adjustment | KTC + our curve | KTC plain sum |
-|---|---|---|---|---|---|
-| 09-14 to 09-20 (replay) | 103 | **0.724** | 0.489 | 0.453 | 0.688 |
-| 09-21 to 09-27 (replay) | 174 | **0.652** | 0.523 | 0.541 | 0.871 |
-| 09-28 to 10-04 (replay) | 341 | **0.382** | 0.318 | 0.273 | 0.552 |
+| Week | Trades | Ours | KTC, site trade value (what the site uses) | KTC, its own adjustment | KTC + market price | KTC + 60% of market price | KTC + our curve | KTC plain sum |
+|---|---|---|---|---|---|---|---|---|
+| 09-14 to 09-20 (replay) | 100 | **0.555** | 0.150 | 0.483 | 0.179 | 0.164 | 0.451 | 0.674 |
+| 09-21 to 09-27 (replay) | 173 | **0.528** | 0.187 | 0.529 | 0.191 | 0.186 | 0.514 | 0.880 |
+| 09-28 to 10-04 (replay) | 331 | **0.296** | 0.102 | 0.320 | 0.113 | 0.106 | 0.275 | 0.549 |

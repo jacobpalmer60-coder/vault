@@ -30,11 +30,22 @@
    node scripts/vault-values/nightly.js [--backfill N] [--formats sf_tep,sf] */
 const fs = require('fs');
 const path = require('path');
-let loadTrades, weekOf, SITE_DATA, Model, buildPrior, ktcPrices, loadVault;
+let loadTrades, loadDrafts, weekOf, SITE_DATA, Model, buildPrior, ktcPrices, loadVault;
 const ROOT = __dirname;
 
 const ALL_FORMATS = ['sf_tep', 'sf', 'sf_tepp', 'oneQB', 'oneQB_tep', 'oneQB_tepp'];
-const SET = { p: 1.5, lambda: 1, kappa: 0.1, kappaHalf: 10, minTrades: 3, iters: 200, dailyIters: 60 };
+const SET = { p: 1.5, curve: 0.6, kappaPick: 1, lambda: 1, kappa: 0.1, kappaHalf: 10, minTrades: 3, iters: 200, dailyIters: 60 };
+// How pieces add up (2026-10-08): p set per trade by its best piece, the site's
+// calibrated trade value curve (VAULT_CONFIG.TRADE_VALUE_CURVE) at SET.curve of
+// its strength (p = 1 + curve x (site p - 1); 0.6 scored best on a held-out week:
+// 0.141 against 0.203 for one p of 1.5 for every trade). Set in main from vault-core.
+let KNOTS = null;
+const pFor = (best, top) => { // as Model.pAt
+  const k = KNOTS, lv = Math.log(Math.max(500, 9999 * Math.exp(best - top)));
+  if (lv <= Math.log(k[0][0])) return k[0][1];
+  for (let i = 1; i < k.length; i++) if (lv <= Math.log(k[i][0])) { const x0 = Math.log(k[i - 1][0]), x1 = Math.log(k[i][0]); return k[i - 1][1] + (k[i][1] - k[i - 1][1]) * (lv - x0) / (x1 - x0); }
+  return k[k.length - 1][1];
+};
 const MIN_SCORE_TRADES = 100; // fewer new trades than this and a night isn't scored
 // The pass bar, agreed 2026-10-06.
 const BAR = { weeks: 8, rankAgreement: 0.95, dailyMove: 0.015 };
@@ -61,9 +72,44 @@ const addPair = (mo, a, b) => { const r = a - b, m = (a + b) / 2; mo.n++; mo.r +
 const relErr = mo => { if (mo.n < 2) return null; const vr = mo.r2 / mo.n - (mo.r / mo.n) ** 2, vm = mo.m2 / mo.n - (mo.m / mo.n) ** 2; return vr / vm; };
 const pool = list => list.reduce((acc, mo) => { for (const k of Object.keys(acc)) acc[k] += mo[k]; return acc; }, emptyMoments());
 
+// KTC + market price (user, 2026-10-08: does building values from scratch beat
+// simply correcting KTC with what managers pay?). The site's market read,
+// rebuilt from the same crawl as of a day: for each player and pick (by year and
+// round), the median premium the team getting him paid over trade value in the
+// 45 days before, in trades he headlined (nothing on his side worth more), 5+
+// trades, capped at +-25%. As market-data.js (marketValue, marketPlayer), on this
+// format's crawled trades only (the site also mixes in KTC's own trade feed and
+// narrows to leagues like yours). Map key -> premium %.
+function marketReads(trades, ktc, Vault, before) {
+  const from = new Date(Date.parse(before) - 45 * 864e5).toISOString().slice(0, 10);
+  const prem = new Map();
+  const asPick = (keys, vals) => keys.map((k, i) => ({ type: k[0] === 'p' ? 'pick' : 'player', value: vals[i] }));
+  for (const t of trades) {
+    if (t.date < from || t.date >= before) continue;
+    const ka = t.a.map(k => ktc.at(k, t.date)), kb = t.b.map(k => ktc.at(k, t.date));
+    if (![...ka, ...kb].every(v => v > 0)) continue;
+    const { valueA, valueB } = Vault.tradeSideValues(asPick(t.a, ka), asPick(t.b, kb));
+    if (!valueA || !valueB) continue;
+    for (const [keys, vals, mine, theirs] of [[t.a, ka, valueA, valueB], [t.b, kb, valueB, valueA]]) {
+      const k = keys[vals.indexOf(Math.max(...vals))];
+      (prem.get(k) || prem.set(k, []).get(k)).push((theirs / mine - 1) * 100);
+    }
+  }
+  const out = new Map();
+  for (const [k, list] of prem) {
+    if (list.length < 5) continue;
+    list.sort((x, y) => x - y);
+    const m = list.length >> 1, med = list.length % 2 ? list[m] : (list[m - 1] + list[m]) / 2;
+    out.set(k, Math.max(-25, Math.min(25, med)));
+  }
+  return out;
+}
+
 // Score trades with a side-value function per system; only trades every system can price.
-function scoreTrades(list, ours, ktc, Vault, ktcP) {
-  const sys = { ours: emptyMoments(), ktcAdj: emptyMoments(), ktcCurve: emptyMoments(), ktcSum: emptyMoments() };
+// mk: marketReads as of the day before these trades (KTC + market price, in full and at
+// 60%, the share of a read that carried over to the next trades in the 2026-10-08 backtest).
+function scoreTrades(list, ours, ktc, Vault, ktcP, mk = null) {
+  const sys = { ours: emptyMoments(), ktcAdj: emptyMoments(), ktcCurve: emptyMoments(), ktcSum: emptyMoments(), ktcSite: emptyMoments(), ktcMkt: emptyMoments(), ktcMkt60: emptyMoments() };
   let oursCan = 0, ktcCan = 0;
   const asPick = (keys, vals) => keys.map((k, i) => ({ type: k[0] === 'p' ? 'pick' : 'player', value: vals[i] }));
   for (const t of list) {
@@ -78,20 +124,32 @@ function scoreTrades(list, ours, ktc, Vault, ktcP) {
     addPair(sys.ktcAdj, Math.log(valueA), Math.log(valueB));
     addPair(sys.ktcCurve, lse(ka.map(Math.log), ktcP), lse(kb.map(Math.log), ktcP));
     addPair(sys.ktcSum, Math.log(ka.reduce((s, v) => s + v, 0)), Math.log(kb.reduce((s, v) => s + v, 0)));
+    // What the site grades with today: KTC values combined by its calibrated trade value curve.
+    const { valueA: tA, valueB: tB } = Vault.tradeSideValues(asPick(t.a, ka), asPick(t.b, kb));
+    addPair(sys.ktcSite, Math.log(tA), Math.log(tB));
+    if (mk) {
+      // As the site's marketEdge: KTC's trade value, each side scaled by its pieces' market prices.
+      const scale = (keys, vals, f) => vals.reduce((s, v, i) => s + v * (1 + f * (mk.get(keys[i]) || 0) / 100), 0) / vals.reduce((s, v) => s + v, 0);
+      addPair(sys.ktcMkt, Math.log(tA * scale(t.a, ka, 1)), Math.log(tB * scale(t.b, kb, 1)));
+      addPair(sys.ktcMkt60, Math.log(tA * scale(t.a, ka, 0.6)), Math.log(tB * scale(t.b, kb, 0.6)));
+    }
   }
   return { n: list.length, oursCan, ktcCan, sys };
 }
 
 // Fit with the chosen settings: base fit, then the starting guess.
+// Picks' starting guess comes from the latest completed rookie drafts (prior.js
+// pickPrior), with a pull that doesn't fade with trade count (SET.kappaPick).
+let DRAFTS = null;
 function fitAll(trades, players, warm = null, iters = SET.iters) {
-  const base = new Model(trades, { p: SET.p, lambda: SET.lambda });
+  const base = new Model(trades, { p: SET.p, pKnots: KNOTS, lambda: SET.lambda });
   if (warm) base.warmFrom(warm.base);
   base.fit({ iters, lr: warm ? 0.02 : 0.05 });
   const counts = new Map();
   trades.forEach(t => [...t.a, ...t.b].forEach(k => counts.set(k, (counts.get(k) || 0) + 1)));
   const keys = [...counts].filter(([, n]) => n >= SET.minTrades).map(([k]) => k);
-  const prior = warm && warm.prior ? warm.prior : buildPrior(base, players, keys).prior;
-  const model = new Model(trades, { p: SET.p, lambda: SET.lambda, prior, kappa: SET.kappa, kappaHalf: SET.kappaHalf, minTrades: SET.minTrades });
+  const prior = warm && warm.prior ? warm.prior : buildPrior(base, players, keys, DRAFTS).prior;
+  const model = new Model(trades, { p: SET.p, pKnots: KNOTS, lambda: SET.lambda, prior, kappa: SET.kappa, kappaHalf: SET.kappaHalf, kappaPick: SET.kappaPick, minTrades: SET.minTrades });
   model.warmFrom(warm ? warm.model : base).fit({ iters, lr: warm ? 0.02 : 0.05 });
   return { base, model, prior };
 }
@@ -133,6 +191,9 @@ function dailyMove(prevU, u) {
 async function runFormat(format, seasons, Vault) {
   const t0 = Date.now();
   const { trades, players } = loadTrades(format, seasons);
+  DRAFTS = null;
+  for (const s of [...seasons].reverse()) { const d = loadDrafts(format, s); if (d.drafts >= 100) { DRAFTS = { season: s, ...d }; break; } }
+  log(`${format}: picks anchored to ${DRAFTS ? `the ${DRAFTS.season} rookie drafts (${DRAFTS.drafts.toLocaleString()})` : 'trades only (no rookie drafts found)'}`);
   if (trades.length < 2000) { log(`${format}: only ${trades.length} trades, skipped`); return; }
   const ktc = ktcPrices(format, players);
   const trackFile = path.join(OUT, `track-${format}.json`), stateFile = path.join(OUT, `state-${format}.json`), histFile = path.join(OUT, `history-${format}.jsonl`);
@@ -151,7 +212,7 @@ async function runFormat(format, seasons, Vault) {
       const before = trades.filter(t => t.date < d);
       const fit = fitAll(before, players, warm, warm ? SET.dailyIters : SET.iters);
       const m = fit.model;
-      const sc = scoreTrades(trades.filter(t => t.date === d), t => m.sides(t, t.week), ktc, Vault, tuneKtcP(trades, ktc, d));
+      const sc = scoreTrades(trades.filter(t => t.date === d), t => m.sides(t, t.week), ktc, Vault, tuneKtcP(trades, ktc, d), marketReads(trades, ktc, Vault, d));
       const u = lastWeekValues(m);
       record({ date: d, replay: true, ...sc, rank: rankAgreement(u, ktc, d, players), move: dailyMove(prevU, u) });
       prevU = u; warm = fit;
@@ -162,8 +223,10 @@ async function runFormat(format, seasons, Vault) {
   // 2b. Score last night's values on trades after them.
   if (state && state.u) {
     const fresh = trades.filter(t => t.date > state.fitThrough);
-    const side = keys => { const xs = keys.map(k => state.u[k]); return xs.some(x => x == null) ? null : lse(xs, state.p); };
-    const sc = scoreTrades(fresh, t => { const a = side(t.a), b = side(t.b); return a == null || b == null ? null : [a, b]; }, ktc, Vault, tuneKtcP(trades, ktc, state.fitThrough));
+    const top = Math.max(...Object.values(state.u));
+    const side = (keys, p) => { const xs = keys.map(k => state.u[k]); return xs.some(x => x == null) ? null : lse(xs, p); };
+    const pOf = t => { if (!state.curve || !KNOTS) return state.p; const xs = [...t.a, ...t.b].map(k => state.u[k]).filter(x => x != null); return xs.length ? pFor(Math.max(...xs), top) : state.p; };
+    const sc = scoreTrades(fresh, t => { const p = pOf(t), a = side(t.a, p), b = side(t.b, p); return a == null || b == null ? null : [a, b]; }, ktc, Vault, tuneKtcP(trades, ktc, state.fitThrough), marketReads(trades, ktc, Vault, new Date(Date.parse(state.fitThrough) + 864e5).toISOString().slice(0, 10)));
     if (sc.sys.ours.n >= MIN_SCORE_TRADES) record({ date: lastDate, since: state.fitThrough, ...sc });
     else log(`${format}: ${sc.sys.ours.n} new trades since ${state.fitThrough}, not scored yet`);
   }
@@ -175,7 +238,7 @@ async function runFormat(format, seasons, Vault) {
   const last = track.nights[track.nights.length - 1];
   if (last && last.date === lastDate) Object.assign(last, { rank, move });
   else if (rank != null) record({ date: lastDate, rank, move, n: 0, sys: null });
-  fs.writeFileSync(stateFile, JSON.stringify({ format, built: new Date().toISOString(), fitThrough: lastDate, p: SET.p, u }));
+  fs.writeFileSync(stateFile, JSON.stringify({ format, built: new Date().toISOString(), fitThrough: lastDate, p: SET.p, curve: SET.curve, u }));
   appendHist(lastDate, u);
   const top = Math.max(...Object.values(u));
   const nameOf = k => { if (k[0] === 'p') { const [s, r] = k.slice(1).split('-'); return `${s} ${['', '1st', '2nd', '3rd', '4th'][+r]}`; } const p = players[k] || {}; return `${p.first_name || ''} ${p.last_name || ''}`.trim(); };
@@ -254,8 +317,8 @@ function report() {
   const pct = x => (x == null ? '—' : `${(100 * x).toFixed(1)}%`);
   const f3 = x => (x == null ? '—' : x.toFixed(3));
   const md = ['# VaultValues track record', '', `Updated ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC. Each night's values are scored on trades made after them, which they never saw, next to KTC on the same trades. **Relative error**: each trade's imbalance against how spread out the values are (lower is better; a flatter value set can't game it). "Replay" nights were rebuilt afterwards by refitting day by day.`, ''];
-  md.push('## The pass bar', '', `Over ${BAR.weeks} weeks: beat KTC's own consolidation adjustment every week · rank agreement with KTC's top 200 of ${BAR.rankAgreement}+ · top-200 median daily move under ${pct(BAR.dailyMove)} · price at least as many trades as KTC.`, '');
-  md.push('| Format | Weeks scored | Weeks beating KTC (its own adjustment) | Weeks beating KTC + curve | Rank agreement (latest) | Median daily move | Trades priced: ours / KTC | Status |', '|---|---|---|---|---|---|---|---|');
+  md.push('## The pass bar', '', `Over ${BAR.weeks} weeks: beat what the site grades with today (KTC values on its calibrated trade value curve) every week · rank agreement with KTC's top 200 of ${BAR.rankAgreement}+ · top-200 median daily move under ${pct(BAR.dailyMove)} · price at least as many trades as KTC.`, '');
+  md.push('| Format | Weeks scored | Weeks beating the site\'s KTC trade value (the bar) | Weeks beating KTC + market price | Weeks beating KTC (its own adjustment) | Weeks beating KTC + curve | Rank agreement (latest) | Median daily move | Trades priced: ours / KTC | Status |', '|---|---|---|---|---|---|---|---|---|---|');
   const detail = [];
   for (const format of ALL_FORMATS) {
     const t = readJson(path.join(OUT, `track-${format}.json`));
@@ -264,19 +327,21 @@ function report() {
     const weeks = new Map();
     scored.forEach(x => { const w = weekOf(x.date); (weeks.get(w) || weeks.set(w, []).get(w)).push(x); });
     const rows = [...weeks].sort((a, b) => a[0] - b[0]).map(([w, list]) => {
-      const sys = {}; for (const k of ['ours', 'ktcAdj', 'ktcCurve', 'ktcSum']) sys[k] = relErr(pool(list.map(x => x.sys[k])));
+      const sys = {}; for (const k of ['ours', 'ktcAdj', 'ktcSite', 'ktcCurve', 'ktcSum', 'ktcMkt', 'ktcMkt60']) { const have = list.filter(x => x.sys[k]); sys[k] = have.length === list.length ? relErr(pool(have.map(x => x.sys[k]))) : null; }
       return { w, from: list[0].date, to: list[list.length - 1].date, n: list.reduce((s, x) => s + x.sys.ours.n, 0), sys, oursCan: list.reduce((s, x) => s + x.oursCan, 0), ktcCan: list.reduce((s, x) => s + x.ktcCan, 0), total: list.reduce((s, x) => s + x.n, 0), replay: list.every(x => x.replay) };
     }).filter(r => r.n >= MIN_SCORE_TRADES && r.sys.ours != null);
+    const siteRows = rows.filter(r => r.sys.ktcSite != null), beatSite = siteRows.filter(r => r.sys.ours < r.sys.ktcSite).length;
     const beat = rows.filter(r => r.sys.ours < r.sys.ktcAdj).length, beatCurve = rows.filter(r => r.sys.ours < r.sys.ktcCurve).length;
+    const mktRows = rows.filter(r => r.sys.ktcMkt != null), beatMkt = mktRows.filter(r => r.sys.ours < Math.min(r.sys.ktcMkt, r.sys.ktcMkt60)).length;
     const latest = [...t.nights].reverse().find(x => x.rank != null);
     const moves = t.nights.map(x => x.move).filter(x => x != null).slice(-14).sort((a, b) => a - b);
     const move = moves.length ? moves[Math.floor(moves.length / 2)] : null;
     const oursCan = rows.reduce((s, r) => s + r.oursCan, 0), ktcCan = rows.reduce((s, r) => s + r.ktcCan, 0), total = rows.reduce((s, r) => s + r.total, 0);
-    const pass = rows.length >= BAR.weeks && beat === rows.length && latest && latest.rank >= BAR.rankAgreement && move != null && move < BAR.dailyMove && oursCan >= ktcCan;
+    const pass = siteRows.length >= BAR.weeks && beatSite === siteRows.length && latest && latest.rank >= BAR.rankAgreement && move != null && move < BAR.dailyMove && oursCan >= ktcCan;
     const status = pass ? 'Passing' : rows.length < BAR.weeks ? `Building (${rows.length}/${BAR.weeks} weeks)` : 'Not passing';
-    md.push(`| ${format} | ${rows.length} | ${beat}/${rows.length} | ${beatCurve}/${rows.length} | ${latest ? f3(latest.rank) : '—'} | ${pct(move)} | ${pct(oursCan / (total || 1))} / ${pct(ktcCan / (total || 1))} | ${status} |`);
-    detail.push(`### ${format}`, '', '| Week | Trades | Ours | KTC, its own adjustment | KTC + our curve | KTC plain sum |', '|---|---|---|---|---|---|');
-    rows.slice(-12).forEach(r => detail.push(`| ${r.from.slice(5)} to ${r.to.slice(5)}${r.replay ? ' (replay)' : ''} | ${r.n.toLocaleString()} | **${f3(r.sys.ours)}** | ${f3(r.sys.ktcAdj)} | ${f3(r.sys.ktcCurve)} | ${f3(r.sys.ktcSum)} |`));
+    md.push(`| ${format} | ${rows.length} | ${siteRows.length ? `${beatSite}/${siteRows.length}` : '—'} | ${mktRows.length ? `${beatMkt}/${mktRows.length}` : '—'} | ${beat}/${rows.length} | ${beatCurve}/${rows.length} | ${latest ? f3(latest.rank) : '—'} | ${pct(move)} | ${pct(oursCan / (total || 1))} / ${pct(ktcCan / (total || 1))} | ${status} |`);
+    detail.push(`### ${format}`, '', '| Week | Trades | Ours | KTC, site trade value (what the site uses) | KTC, its own adjustment | KTC + market price | KTC + 60% of market price | KTC + our curve | KTC plain sum |', '|---|---|---|---|---|---|---|---|---|');
+    rows.slice(-12).forEach(r => detail.push(`| ${r.from.slice(5)} to ${r.to.slice(5)}${r.replay ? ' (replay)' : ''} | ${r.n.toLocaleString()} | **${f3(r.sys.ours)}** | ${f3(r.sys.ktcSite)} | ${f3(r.sys.ktcAdj)} | ${f3(r.sys.ktcMkt)} | ${f3(r.sys.ktcMkt60)} | ${f3(r.sys.ktcCurve)} | ${f3(r.sys.ktcSum)} |`));
     detail.push('');
   }
   md.push('', '## Week by week', '', ...detail);
@@ -290,12 +355,17 @@ function report() {
   try {
     log(`start (${FORMATS.join(', ')})`);
     const seasons = [nflSeason() - 1, nflSeason()];
-    ({ loadTrades, weekOf, SITE_DATA } = require('./load'));
+    ({ loadTrades, loadDrafts, weekOf, SITE_DATA } = require('./load'));
     ({ Model } = require('./model'));
     ({ buildPrior } = require('./prior'));
     ({ ktcPrices, loadVault } = require('./ktc'));
     log(`data from ${path.relative(ROOT, SITE_DATA) || SITE_DATA}`);
     const Vault = loadVault();
+    // VAULT_CONFIG is a const inside vault-core.js, so read the curve from its source.
+    const cm = /TRADE_VALUE_CURVE:\s*(\[\[[^\n]*\]\])/.exec(fs.readFileSync(path.join(SITE_ROOT, 'vault-core.js'), 'utf8'));
+    const curve = cm ? JSON.parse(cm[1]) : null;
+    KNOTS = curve ? curve.map(([v, p]) => [v, 1 + SET.curve * (p - 1)]) : null;
+    log(KNOTS ? `curve: p ${KNOTS.map(k => k[1].toFixed(2)).join('/')}` : 'no trade value curve found; one p for every trade');
     for (const format of FORMATS) {
       try { await runFormat(format, seasons.filter(s => fs.existsSync(path.join(RAW, `${s}.json.gz`))), Vault); }
       catch (e) { log(`${format}: failed: ${e.stack || e.message}`); }

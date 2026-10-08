@@ -5,7 +5,13 @@
      - projected PPR points per game (Sleeper's weekly projections, the site's
        data/projections.json), as log(1 + ppg),
      - rookie or not (Sleeper's years_exp is 0).
-   Picks get the average of well-traded picks in the same round.
+   Picks (pickPrior): what that round actually turned into. In the latest
+   completed rookie drafts, the average value of the players taken in each
+   round (unrated players count as nothing), in the fitted model's own values;
+   each later class discounted by the yearly drop the model shows for 1sts. A
+   pick that's a throw-in in most of its trades (3rd round and later) gets
+   little say from trades, so without this its value drifted to the middle of
+   the scale: a 2027 5th at 2,292 against a 2nd at 3,107 (2026-10-08).
    Returns Map key -> predicted log value, on the fitted model's own scale. */
 const fs = require('fs');
 const path = require('path');
@@ -53,9 +59,31 @@ function solve(X, y, r = 1e-3) {
   return A.map((row, i) => row[k] / row[i]);
 }
 
+/* Pick starting guesses from rookie-draft results: Map 'p<season>-<round>' ->
+   log value. drafts: { season, rounds: Map round -> [Sleeper ids] } from the
+   latest completed class (loadDrafts). Classes at or before it read as that
+   class; each later class one more year of discount. */
+function pickPrior(model, keys, drafts) {
+  const out = new Map();
+  if (!drafts || !drafts.rounds.size) return { prior: out, info: null };
+  const last = model.W - 1, lin = id => { const a = model.index.get(id); return a == null ? 0 : Math.exp(model.u[a * model.W + last]); };
+  const byRound = new Map();
+  for (const [r, ids] of drafts.rounds) if (ids.length >= 50) byRound.set(r, Math.log(Math.max(1e-6, ids.reduce((s, id) => s + lin(id), 0) / ids.length)));
+  // Yearly discount from the next two classes' 1sts, when both trade enough; else 0.87.
+  const next = drafts.season + 1, u1 = y => { const a = model.index.get(`p${y}-1`); return a == null || model.counts[a] < MIN_TRADES ? null : model.u[a * model.W + last]; };
+  const a1 = u1(next), a2 = u1(next + 1);
+  const logD = a1 != null && a2 != null ? Math.max(Math.log(0.6), Math.min(0, a2 - a1)) : Math.log(0.87);
+  for (const k of keys) {
+    if (k[0] !== 'p') continue;
+    const [y, r] = k.slice(1).split('-').map(Number), base = byRound.get(Math.min(5, r));
+    if (base != null) out.set(k, base + Math.max(0, y - next) * logD);
+  }
+  return { prior: out, info: { season: drafts.season, rounds: Object.fromEntries([...byRound].map(([r, v]) => [r, v])), discount: Math.exp(logD) } };
+}
+
 /* From a fitted model and its latest week: { prior: Map, fit: { n, r2 } }.
    `keys` are every asset to predict (players and picks). */
-function buildPrior(model, players, keys) {
+function buildPrior(model, players, keys, drafts = null) {
   const ppg = projectedPpg();
   const last = model.W - 1, X = [], y = [];
   model.keys.forEach((k, a) => {
@@ -69,16 +97,18 @@ function buildPrior(model, players, keys) {
   const predict = x => x.reduce((s, v, i) => s + v * b[i], 0);
   const mean = y.reduce((s, v) => s + v, 0) / y.length;
   const r2 = 1 - X.reduce((s, x, n) => s + (y[n] - predict(x)) ** 2, 0) / y.reduce((s, v) => s + (v - mean) ** 2, 0);
-  // Picks: mean of well-traded picks in the same round.
+  // Picks: from draft results (pickPrior) when there are any; else the mean of
+  // well-traded picks in the same round.
+  const picks = pickPrior(model, keys, drafts);
   const byRound = new Map();
   model.keys.forEach((k, a) => { if (k[0] === 'p' && model.counts[a] >= MIN_TRADES) { const r = k.split('-')[1]; (byRound.get(r) || byRound.set(r, []).get(r)).push(model.u[a * model.W + last]); } });
   const prior = new Map();
   for (const k of keys) {
-    if (k[0] === 'p') { const l = byRound.get(k.split('-')[1]); if (l) prior.set(k, l.reduce((s, v) => s + v, 0) / l.length); continue; }
+    if (k[0] === 'p') { if (picks.prior.has(k)) { prior.set(k, picks.prior.get(k)); continue; } const l = byRound.get(k.split('-')[1]); if (l) prior.set(k, l.reduce((s, v) => s + v, 0) / l.length); continue; }
     const x = features(k, players, ppg);
     if (x) prior.set(k, predict(x));
   }
-  return { prior, fit: { n: X.length, r2 } };
+  return { prior, fit: { n: X.length, r2 }, picks: picks.info };
 }
 
 module.exports = { buildPrior };

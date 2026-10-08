@@ -8,8 +8,10 @@
 
    Each trade: the week it happened, and the pieces each side received.
    Assets are players (Sleeper id) and picks by year and round ('p2027-1').
-   Rounds 5+ carry almost no value, so they're dropped from a side; trades
-   with anything else we don't model (kickers, defenses, IDP, players too
+   Rounds 5 and later count as one asset per year ('p2027-5'). They used to be
+   dropped from a side while the trade stayed, so "a player for a 4th, a 5th and
+   a 6th" read as "a player for a 4th" and inflated late picks (11% of trades,
+   2026-10-08). Trades with anything else we don't model (kickers, defenses, IDP, players too
    rarely traded to rate) are dropped whole. */
 const fs = require('fs');
 const path = require('path');
@@ -28,6 +30,25 @@ const DAY = 864e5;
 const BASE = Date.UTC(2024, 11, 2); // a Monday; week 0
 const weekOf = d => Math.floor((Date.parse(d + 'T00:00:00Z') - BASE) / (7 * DAY));
 const weekStart = w => new Date(BASE + w * 7 * DAY).toISOString().slice(0, 10);
+
+/* Completed rookie drafts for one format and season, from the crawl's season
+   file: Map round -> [Sleeper id of every player taken in that round] (rounds
+   5+ together as 5). Rookie drafts only: March to August of that season. */
+function loadDrafts(format, season) {
+  const f = path.join(RAW, `${season}.json.gz`);
+  const out = new Map();
+  if (!fs.existsSync(f)) return { rounds: out, drafts: 0 };
+  const doc = JSON.parse(zlib.gunzipSync(fs.readFileSync(f)));
+  let drafts = 0;
+  for (const [date, lh, , list] of Object.values(doc.drafts || {})) {
+    if (date < `${season}-03-01` || date > `${season}-08-31`) continue;
+    const lf = doc.leagues[lh];
+    if (!lf || formatOf(lf) !== format) continue;
+    drafts++;
+    for (const [, round, sid] of list) { if (!sid) continue; const r = Math.min(5, round); (out.get(r) || out.set(r, []).get(r)).push(String(sid)); }
+  }
+  return { rounds: out, drafts };
+}
 
 function readSleeperPlayers() {
   return JSON.parse(fs.readFileSync(path.join(SITE_DATA, 'sleeper-players.json'), 'utf8'));
@@ -49,7 +70,7 @@ function loadTrades(format, seasons = [2025, 2026]) {
       const side = s => {
         const out = [];
         for (const k of s) {
-          if (k[0] === 'p') { const round = +k.split('-')[1]; if (round <= 4) out.push(k); continue; }
+          if (k[0] === 'p') { const [season, round] = k.slice(1).split('-'); out.push(`p${season}-${Math.min(5, +round)}`); continue; }
           const p = players[k];
           if (!p || !POSITIONS.has(p.position)) return null; // K, DEF, IDP: not modeled
           out.push(k);
@@ -65,4 +86,4 @@ function loadTrades(format, seasons = [2025, 2026]) {
   return { trades, players };
 }
 
-module.exports = { loadTrades, readSleeperPlayers, weekOf, weekStart, SITE, SITE_DATA, ROOT, RAW, formatOf };
+module.exports = { loadDrafts, loadTrades, readSleeperPlayers, weekOf, weekStart, SITE, SITE_DATA, ROOT, RAW, formatOf };

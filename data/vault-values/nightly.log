@@ -1,0 +1,73 @@
+2026-10-08T18:45:29 start (sf_tep, sf, sf_tepp, oneQB, oneQB_tep, oneQB_tepp)
+2026-10-08T18:45:29 data from ..\..\data
+2026-10-08T18:48:15 sf_tep: replayed 28 days
+2026-10-08T18:48:17 sf_tep: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T18:48:32 sf_tep: 306,167 trades through 2026-10-06, 649 rated, rank agreement 0.968 [183s]
+2026-10-08T18:52:01 sf: replayed 28 days
+2026-10-08T18:52:03 sf: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T18:52:23 sf: 337,030 trades through 2026-10-06, 646 rated, rank agreement 0.969 [231s]
+2026-10-08T18:53:48 sf_tepp: replayed 28 days
+2026-10-08T18:53:48 sf_tepp: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T18:53:56 sf_tepp: 156,413 trades through 2026-10-06, 627 rated, rank agreement 0.971 [93s]
+2026-10-08T18:56:16 oneQB: replayed 28 days
+2026-10-08T18:56:17 oneQB: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T18:56:30 oneQB: 232,229 trades through 2026-10-06, 597 rated, rank agreement 0.962 [153s]
+2026-10-08T18:56:46 oneQB_tep: replayed 28 days
+2026-10-08T18:56:46 oneQB_tep: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T18:56:47 oneQB_tep: 28,312 trades through 2026-10-06, 505 rated, rank agreement 0.944 [17s]
+2026-10-08T18:56:52 oneQB_tepp: replayed 28 days
+2026-10-08T18:56:52 oneQB_tepp: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T18:56:53 oneQB_tepp: 6,350 trades through 2026-10-06, 406 rated, rank agreement 0.893 [6s]
+2026-10-08T18:56:53 site values: 489 players (455 of KTC's rated by us, 25 added), 36 picks
+2026-10-08T18:56:53 done
+2026-10-08T18:58:11 start (sf_tep, sf, sf_tepp, oneQB, oneQB_tep, oneQB_tepp)
+2026-10-08T18:58:11 data from ..\..\data
+2026-10-08T19:01:02 sf_tep: replayed 28 days
+2026-10-08T19:01:03 sf_tep: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:01:18 sf_tep: 306,167 trades through 2026-10-06, 649 rated, rank agreement 0.968 [186s]
+2026-10-08T19:04:35 sf: replayed 28 days
+2026-10-08T19:04:36 sf: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:04:55 sf: 337,030 trades through 2026-10-06, 646 rated, rank agreement 0.969 [217s]
+2026-10-08T19:06:19 sf_tepp: replayed 28 days
+2026-10-08T19:06:20 sf_tepp: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:06:27 sf_tepp: 156,413 trades through 2026-10-06, 627 rated, rank agreement 0.971 [93s]
+2026-10-08T19:08:42 oneQB: replayed 28 days
+2026-10-08T19:08:43 oneQB: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:08:56 oneQB: 232,229 trades through 2026-10-06, 597 rated, rank agreement 0.962 [149s]
+2026-10-08T19:09:13 oneQB_tep: replayed 28 days
+2026-10-08T19:09:13 oneQB_tep: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:09:15 oneQB_tep: 28,312 trades through 2026-10-06, 505 rated, rank agreement 0.944 [18s]
+2026-10-08T19:09:20 oneQB_tepp: replayed 28 days
+2026-10-08T19:09:20 oneQB_tepp: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:09:21 oneQB_tepp: 6,350 trades through 2026-10-06, 406 rated, rank agreement 0.893 [6s]
+2026-10-08T19:09:21 site values: 489 players (455 of KTC's rated by us, 25 added), 36 picks
+2026-10-08T19:09:21 done
+2026-10-08T19:12:58 start (sf_tep, sf, sf_tepp, oneQB, oneQB_tep, oneQB_tepp)
+2026-10-08T19:12:58 data from ..\..\data
+2026-10-08T19:12:58 curve: p 4.00/4.00/2.91/2.13/2.20/2.01/1.70/1.59/1.47
+2026-10-08T19:13:01 sf_tep: picks anchored to the 2026 rookie drafts (6,406)
+2026-10-08T19:17:24 sf_tep: replayed 28 days
+2026-10-08T19:17:26 sf_tep: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:17:50 sf_tep: 331,967 trades through 2026-10-06, 656 rated, rank agreement 0.966 [292s]
+2026-10-08T19:17:53 sf: picks anchored to the 2026 rookie drafts (7,463)
+2026-10-08T19:22:27 sf: replayed 28 days
+2026-10-08T19:22:28 sf: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:22:53 sf: 348,862 trades through 2026-10-06, 652 rated, rank agreement 0.964 [303s]
+2026-10-08T19:22:56 sf_tepp: picks anchored to the 2026 rookie drafts (3,287)
+2026-10-08T19:25:18 sf_tepp: replayed 28 days
+2026-10-08T19:25:19 sf_tepp: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:25:31 sf_tepp: 176,874 trades through 2026-10-06, 633 rated, rank agreement 0.970 [159s]
+2026-10-08T19:25:35 oneQB: picks anchored to the 2026 rookie drafts (4,914)
+2026-10-08T19:28:34 oneQB: replayed 28 days
+2026-10-08T19:28:35 oneQB: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:28:52 oneQB: 237,131 trades through 2026-10-06, 610 rated, rank agreement 0.953 [200s]
+2026-10-08T19:28:55 oneQB_tep: picks anchored to the 2026 rookie drafts (560)
+2026-10-08T19:29:17 oneQB_tep: replayed 28 days
+2026-10-08T19:29:18 oneQB_tep: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:29:20 oneQB_tep: 29,521 trades through 2026-10-06, 517 rated, rank agreement 0.945 [28s]
+2026-10-08T19:29:23 oneQB_tepp: picks anchored to the 2026 rookie drafts (146)
+2026-10-08T19:29:28 oneQB_tepp: replayed 28 days
+2026-10-08T19:29:28 oneQB_tepp: 0 new trades since 2026-10-06, not scored yet
+2026-10-08T19:29:29 oneQB_tepp: 7,008 trades through 2026-10-06, 416 rated, rank agreement 0.892 [9s]
+2026-10-08T19:29:29 site values: 488 players (455 of KTC's rated by us, 24 added), 36 picks
+2026-10-08T19:29:29 done

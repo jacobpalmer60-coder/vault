@@ -1,4 +1,7 @@
-/* Trade-implied values.
+/* Vault values: the model. Production copy of the VaultValues research
+   project's src/model.js (keep the two in step).
+
+   Trade-implied values.
 
    Every completed trade says the two sides were about even to the two
    managers who made it. We solve for each asset's value, week by week, that
@@ -8,6 +11,10 @@
    - A side's value is (sum of value^p)^(1/p). With p > 1, one star is worth
      more than two pieces that add up to the same total: our own consolidation
      curve, learned from how managers actually trade (p is chosen by holdout).
+     pKnots (optional): p set per trade by its best piece, like the site's
+     calibrated trade value curve (Vault.tradeValueP): [[value, p], ...] on a
+     0-9,999 scale (the week's top asset = 9,999), straight lines in ln(value).
+     2026-10-08: one p for every trade scored well behind the site's curve.
    - Each trade's error is log(side A) - log(side B), scored with a Huber loss
      so lopsided trades and fleeces count, but can't dominate.
    - Values drift: a penalty on each week-to-week change (lambda) keeps them
@@ -23,8 +30,9 @@
    earlier one (warmFrom), which the day-by-day test uses. */
 
 class Model {
-  constructor(trades, { p = 1.5, lambda = 30, ridge = 0.002, delta = 0.25, minTrades = 15, trainUntilWeek = Infinity, prior = null, kappa = 0, kappaHalf = Infinity, keys = null } = {}) {
+  constructor(trades, { p = 1.5, pKnots = null, lambda = 30, ridge = 0.002, delta = 0.25, minTrades = 15, trainUntilWeek = Infinity, prior = null, kappa = 0, kappaHalf = Infinity, kappaPick = null, keys = null } = {}) {
     Object.assign(this, { p, lambda, ridge, delta, kappa });
+    this.pKnots = pKnots ? pKnots.map(([v, q]) => [Math.log(v), q]) : null;
     // Assets common enough to rate (counted in the training trades only).
     const count = new Map();
     for (const t of trades) if (t.week < trainUntilWeek) for (const k of [...t.a, ...t.b]) count.set(k, (count.get(k) || 0) + 1);
@@ -57,7 +65,9 @@ class Model {
     if (prior) this.keys.forEach((k, a) => { const v = prior.get(k); if (Number.isFinite(v)) this.prior[a] = v; });
     if (prior) this.keys.forEach((k, a) => { if (Number.isFinite(this.prior[a])) this.u.fill(this.prior[a], a * this.W, (a + 1) * this.W); });
     // Each asset's pull toward its prior fades with its trade count (kappaHalf = trades at half strength).
-    this.kappaA = new Float64Array(this.A).map((_, a) => kappa / (1 + this.counts[a] / kappaHalf));
+    // kappaPick: picks' pull instead, the same however often they're traded (their
+    // trades are mostly throw-ins that say little about them; see prior.js).
+    this.kappaA = new Float64Array(this.A).map((_, a) => (kappaPick != null && this.keys[a][0] === 'p' ? kappaPick : kappa / (1 + this.counts[a] / kappaHalf)));
   }
 
   // Start from another fit: same asset, same calendar week (later weeks repeat its last week).
@@ -73,9 +83,23 @@ class Model {
     return this;
   }
 
+  // p for a best piece at log value x in a week whose top asset is at top (pKnots), else the fixed p.
+  pAt(x, top) {
+    if (!this.pKnots) return this.p;
+    const k = this.pKnots, lv = Math.log(Math.max(500, 9999 * Math.exp(x - top)));
+    if (lv <= k[0][0]) return k[0][1];
+    for (let i = 1; i < k.length; i++) if (lv <= k[i][0]) return k[i - 1][1] + (k[i][1] - k[i - 1][1]) * (lv - k[i - 1][0]) / (k[i][0] - k[i - 1][0]);
+    return k[k.length - 1][1];
+  }
+  // Each week's top log value (for pKnots), from the current values.
+  weekTops(u) {
+    const tops = new Float64Array(this.W).fill(-Infinity);
+    for (let a = 0; a < this.A; a++) for (let w = 0; w < this.W; w++) { const x = u[a * this.W + w]; if (x > tops[w]) tops[w] = x; }
+    return tops;
+  }
+
   // log(side value) for the pieces in [from, to) on side s, with softmax weights into w.
-  sideLog(u, w, from, to, side, week, out) {
-    const p = this.p;
+  sideLog(u, w, from, to, side, week, out, p = this.p) {
     let m = -Infinity;
     for (let j = from; j < to; j++) if (this.pSide[j] === side) { const x = p * u[this.pAsset[j] * this.W + week]; if (x > m) m = x; }
     let s = 0;
@@ -89,9 +113,12 @@ class Model {
     grad.fill(0);
     const wts = new Float64Array(this.pAsset.length);
     let loss = 0;
+    const tops = this.pKnots ? this.weekTops(u) : null;
     for (let i = 0; i < this.n; i++) {
       const from = this.tStart[i], to = this.tStart[i + 1], wk = this.tWeek[i];
-      const r = this.sideLog(u, wts, from, to, 1, wk, wts) - this.sideLog(u, wts, from, to, -1, wk, wts);
+      let p = this.p;
+      if (tops) { let best = -Infinity; for (let j = from; j < to; j++) { const x = u[this.pAsset[j] * W + wk]; if (x > best) best = x; } p = this.pAt(best, tops[wk]); }
+      const r = this.sideLog(u, wts, from, to, 1, wk, wts, p) - this.sideLog(u, wts, from, to, -1, wk, wts, p);
       const ar = Math.abs(r);
       loss += ar <= delta ? 0.5 * r * r : delta * (ar - 0.5 * delta);
       const g = ar <= delta ? r : delta * Math.sign(r);
@@ -125,6 +152,7 @@ class Model {
       }
       if (log && (it % 50 === 0 || it === 1)) log(`  iter ${it}: loss ${(loss / this.n).toFixed(4)} per trade`);
     }
+    this._tops = null; // sides() recomputes the week tops from the fitted values
     return loss / this.n;
   }
 
@@ -138,11 +166,18 @@ class Model {
 
   // [log(side A), log(side B)] for a trade at a given week, or null if any piece is unrated.
   sides(t, week) {
+    let p = this.p;
+    if (this.pKnots) {
+      const w = Math.max(0, Math.min(this.W - 1, week - this.minWeek));
+      if (!this._tops) this._tops = this.weekTops(this.u);
+      const all = [...t.a, ...t.b].map(k => this.logValue(k, week)).filter(x => x != null);
+      if (all.length) p = this.pAt(Math.max(...all), this._tops[w]);
+    }
     const side = keys => {
       const xs = keys.map(k => this.logValue(k, week));
       if (xs.some(x => x == null)) return null;
-      const m = Math.max(...xs.map(x => this.p * x));
-      return (m + Math.log(xs.reduce((s, x) => s + Math.exp(this.p * x - m), 0))) / this.p;
+      const m = Math.max(...xs.map(x => p * x));
+      return (m + Math.log(xs.reduce((s, x) => s + Math.exp(p * x - m), 0))) / p;
     };
     const a = side(t.a), b = side(t.b);
     return a == null || b == null ? null : [a, b];
