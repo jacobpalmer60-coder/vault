@@ -103,9 +103,19 @@ const coachImproves = o => coachScore(o) > 0;
 const coachTheyGain = j => improvementOf(j.an, 'B').score >= 0;
 // Same-position 1-for-1 swaps rarely happen at even value (the two players are
 // usually worth different amounts), so they're skipped unless something's going
-// on with one of them, like an injury (user, 2026-10-07).
+// on with one of them: hurt, or sliding (COACH_FALLING of his KTC value lost over
+// the trend window, 90 days), like Justin Herbert in October 2026 (Chargers 0-4,
+// down 22%). User, 2026-10-07.
+const COACH_FALLING = 0.15;
+const coachFalling = a => a.type === 'player' && a.trend != null && a.value - a.trend > 0 && -a.trend / (a.value - a.trend) >= COACH_FALLING;
 const coachSameSpotSwap = o => o.give.length === 1 && o.get.length === 1 && (o.give[0].type === 'pick' ? o.get[0].type === 'pick' : o.give[0].pos === o.get[0].pos)
-  && !Vault.injuryText(o.give[0]) && !Vault.injuryText(o.get[0]);
+  && !Vault.injuryText(o.give[0]) && !Vault.injuryText(o.get[0]) && !coachFalling(o.give[0]) && !coachFalling(o.get[0]);
+// Why a same-position swap made the list: "Justin Herbert has lost 22% of his KTC value in the last 90 days."
+const coachSwapNote = o => {
+  if (!(o.give.length === 1 && o.get.length === 1 && o.give[0].pos === o.get[0].pos)) return '';
+  const a = [o.give[0], o.get[0]].find(coachFalling);
+  return a ? `${Vault.escapeHtml(a.name)} has lost ${Math.round(-a.trend / (a.value - a.trend) * 100)}% of his KTC value in the last 90 days.` : '';
+};
 const coachFairFirst = (x, y) => (Math.abs(x.edge) >= VAULT_CONFIG.FAIR_PCT) - (Math.abs(y.edge) >= VAULT_CONFIG.FAIR_PCT);
 
 // Your team after a trade, for lineup gains.
@@ -587,7 +597,9 @@ async function coachFind() {
   try {
     const res = await COACH_RUN[option](me, progress);
     if (res.list) {
-      res.list = res.list.filter(o => coachImproves(o) && !coachSameSpotSwap(o)).sort((x, y) => coachFairFirst(x, y) || coachRankScore(y) - coachRankScore(x));
+      // Shopping a player you've decided to move: Toss-ups count too (not a Bad
+      // trade for you); every other list needs a real improvement.
+      res.list = res.list.filter(o => (option === 'shop' ? coachScore(o) > -3 : coachImproves(o)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachRankScore(y) - coachRankScore(x));
       if (!res.list.length) { delete res.list; res.empty = `No trade found makes ${Vault.escapeHtml(me.teamName)} better without making the other team worse right now. Try another trade type, or switch your timeline.`; }
     }
     Coach.results[option] = { ...res, meId: me.rosterId, key: coachInputKey(), planNote };
