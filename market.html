@@ -197,7 +197,7 @@ function renderPositions() {
   if (months.length < 3) { box.innerHTML = collecting(`Charts appear once at least three months have ${POS_MIN_MONTH}+ trades for a position.`); return; }
   const W = 720, H = 240, ML = 44, MR = 44, MT = 12, MB = 26, pw = W - ML - MR, ph = H - MT - MB;
   const vals = months.flatMap(r => Object.keys(POS_COLOR).map(p => r[p]?.v).filter(Number.isFinite));
-  const top = Math.max(10, Math.ceil(Math.max(...vals, 0) / 10) * 10), bot = Math.min(-10, Math.floor(Math.min(...vals, 0) / 10) * 10);
+  const top = Math.max(10, Math.ceil(Math.max(maxOf(vals), 0) / 10) * 10), bot = Math.min(-10, Math.floor(Math.min(minOf(vals), 0) / 10) * 10);
   const x = i => ML + (months.length > 1 ? i / (months.length - 1) * pw : pw / 2), y = v => MT + (top - v) / (top - bot) * ph;
   const grid = [bot, 0, top].map(v => `<line x1="${ML}" x2="${W - MR}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" class="${v === 0 ? 'text-white/25' : 'text-white/[0.06]'}"/>
       <text x="${ML - 6}" y="${y(v) + 3}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${Vault.signed(v, x => x)}%</text>`).join('');
@@ -222,11 +222,16 @@ function renderPositions() {
   svg.addEventListener('mouseleave', hideTip);
 }
 
+// Largest/smallest of a long list without spreading it into Math.max: phone Safari
+// runs out of stack on a spread of ~100,000 numbers (the daily trade points grow
+// with the crawl; "Maximum call stack size exceeded", 2026-10-08).
+const maxOf = a => a.reduce((m, x) => (x > m ? x : m), -Infinity);
+const minOf = a => a.reduce((m, x) => (x < m ? x : m), Infinity);
 /* ---------- Rising and cooling ---------- */
 function renderMoves() {
   const box = document.getElementById('moveBody');
   if (!daily) { box.innerHTML = collecting(); return; }
-  const latest = Math.max(...Object.values(daily.players).flatMap(pts => pts.map(p => p[0])));
+  const latest = maxOf(Object.values(daily.players).flatMap(pts => pts.map(p => p[0])));
   const rows = [];
   Object.entries(daily.players).forEach(([norm, pts]) => {
     const who = byNorm.get(norm);
@@ -307,7 +312,7 @@ async function lookUp(norm) {
   if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
   const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
   const all = [...series.map(p => p.value), ...market.map(m => m.value), ...trend.filter(Boolean).map(t => t.value)];
-  const lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * 0.08 || hi * 0.1;
+  const lo = minOf(all), hi = maxOf(all), pad = (hi - lo) * 0.08 || hi * 0.1;
   const yMin = Math.max(0, lo - pad), yMax = hi + pad;
   const x = i => ML + i / (series.length - 1) * pw, y = v => MT + ph - (v - yMin) / (yMax - yMin) * ph;
   const up = series[series.length - 1].value >= series[0].value, lineColor = up ? '#34d399' : '#f87171';
@@ -522,7 +527,7 @@ function weekMovers(daily, pieces) {
   if (!daily || !daily.from) return [];
   const all = Object.values(daily.players).flat();
   if (!all.length) return [];
-  const latest = Math.max(...all.map(p => p[0]));
+  const latest = maxOf(all.map(p => p[0]));
   const wMed = pts => { const s = [...pts].sort((a, b) => a[1] - b[1]), total = s.reduce((t, p) => t + p[2], 0); let seen = 0; for (const p of s) { seen += p[2]; if (seen >= total / 2) return p[1]; } return null; };
   return pieces.map(a => {
     const key = a.type === 'pick' ? marketKeyOf(a) : Vault.normalizeName(a.name);
