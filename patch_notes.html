@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=95c7d4c4">
+<link rel="stylesheet" href="tailwind.css?v=27b24598">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -42,6 +42,7 @@ const NOTES = [
     { kind: 'changed', page: 'Trade Calculator', text: 'The verdict now has tiers: Great trade, Good trade, Slight edge, Toss-up, Leans bad, Bad trade and Terrible trade. They were set by checking 13,886 real trades in 1,319 completed 2025 Sleeper dynasty leagues against what happened next: a trade just past even turned out to be a coin flip, so it takes a clear edge to read Good trade now (a trade that read Good before may now say Slight edge or Toss-up). Under the verdict, one line gives that tier\'s real track record for your timeline, for example "In real trades scored like this, 77% of contenders were still ahead on value a year later." (measured on trade value, so a star for two good players isn't scored as a win for the side that got two)' },
     { kind: 'changed', page: 'Trade Coach', text: 'Trade Coach lists trades rated Slight edge or better for your team, and each card shows the new tier for both teams. Sell high, Buy low and Shop a player also list Toss-ups (labeled as such), since those are about getting a good price.' },
     { kind: 'fixed', page: 'Player Market', text: 'Player Market showed "Maximum call stack size exceeded" on phones instead of loading. Fixed.' },
+    { kind: 'improved', page: 'Player Market', text: 'Look up a player: the trade dots are smaller and see-through and sit under the lines, so the KTC value and market trend stay readable for busy players.' },
     { kind: 'fixed', page: 'Player Market', text: 'Rising & cooling no longer shows impossible moves like "3558% over to 5947% over KTC". Those came from trades made while a player\'s KTC value was nearly nothing; moves now only count trades priced between half and double KTC.' },
     { kind: 'improved', page: 'Everywhere', text: 'Playoff and title odds are corrected by how often teams really made it in 9,464 team-weeks of completed 2025 leagues. They were close already, but a little too sure about long shots (teams given about 10% made the playoffs 19% of the time), so long shots now read a bit higher and each league\'s odds still add up.' },
     { kind: 'improved', page: 'Everywhere', text: 'Early and late 1sts and 2nds are priced by what managers really pay, not KTC\'s early/late prices. A pick\'s tier comes from its original team\'s projected finish, which holds only so often (projected-early 1sts ended up early 47% of the time), so managers pay a smaller spread: an early 1st about 10% over a mid 1st (KTC: 17%), a late 1st about 3% under (KTC: 6%), and a late 2nd the same as a mid 2nd.' },

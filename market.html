@@ -9,7 +9,7 @@
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=95c7d4c4">
+<link rel="stylesheet" href="tailwind.css?v=27b24598">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -327,12 +327,14 @@ async function lookUp(norm) {
   trend.forEach(t => { if (t) runs[runs.length - 1].push(`${x(t.i)},${y(t.value)}`); else if (runs[runs.length - 1].length) runs.push([]); });
   const trendLine = runs.filter(r => r.length > 1).map(r => `<polyline points="${r.join(' ')}" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
   const joins = trendLine || market.slice(1).map((m, k) => (m.i - market[k].i <= 7 ? `<line x1="${x(market[k].i)}" y1="${y(market[k].value)}" x2="${x(m.i)}" y2="${y(m.value)}" stroke="#fbbf24" stroke-opacity="0.35" stroke-width="1.25"/>` : '')).join('');
-  const dots = market.map(m => `<circle cx="${x(m.i)}" cy="${y(m.value)}" r="${Math.min(5.5, 2.5 + Math.log2(m.n))}" fill="#fbbf24" stroke="#0c0d10" stroke-width="1"/>`).join('');
-  box.innerHTML = head + `<svg id="lookupChart" viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${esc(who.name)}: KTC value and market points">${grid}
-      <polyline points="${series.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/>${joins}${dots}
+  // Small, see-through dots under the lines (user, 2026-10-08: a busy player's
+  // year of daily dots buried the KTC line and the trend).
+  const dots = market.map(m => `<circle cx="${x(m.i)}" cy="${y(m.value)}" r="${Math.min(3.5, 1.6 + 0.6 * Math.log2(m.n))}" fill="#fbbf24" fill-opacity="0.35"/>`).join('');
+  box.innerHTML = head + `<svg id="lookupChart" viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${esc(who.name)}: KTC value and market points">${grid}${dots}
+      <polyline points="${series.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/>${joins}
       <text x="${ML}" y="${H - 6}" font-size="10" fill="currentColor" class="text-zinc-400">${series[0].date}</text><text x="${W - MR}" y="${H - 6}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${series[series.length - 1].date}</text>
       <rect x="${ML}" y="${MT}" width="${pw}" height="${ph}" fill="transparent" style="cursor:crosshair"/></svg>
-    <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded" style="background:${lineColor}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400"></span>What managers paid that day (bigger dot, more trades)</span>${trendLine ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market trend (30-day median)</span>' : ''}${market.length ? '' : '<span class="text-zinc-500">No completed trades with him as the main piece in this range yet.</span>'}</div>`;
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded" style="background:${lineColor}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400/50"></span>What managers paid that day (bigger dot, more trades)</span>${trendLine ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market trend (30-day median)</span>' : ''}${market.length ? '' : '<span class="text-zinc-500">No completed trades with him as the main piece in this range yet.</span>'}</div>`;
   const svg = document.getElementById('lookupChart'), byI = new Map(market.map(m => [m.i, m]));
   svg.addEventListener('mousemove', e => {
     const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) / r.width * W;

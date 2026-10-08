@@ -34,7 +34,8 @@ let loadTrades, loadDrafts, weekOf, SITE_DATA, Model, buildPrior, ktcPrices, loa
 const ROOT = __dirname;
 
 const ALL_FORMATS = ['sf_tep', 'sf', 'sf_tepp', 'oneQB', 'oneQB_tep', 'oneQB_tepp'];
-const SET = { p: 1.5, curve: 0.6, kappaPick: 1, lambda: 1, kappa: 0.1, kappaHalf: 10, minTrades: 3, iters: 200, dailyIters: 60 };
+// delta 0.12 (2026-10-08): lopsided trades pull less (Huber loss), held-out weeks 0.143 -> 0.140.
+const SET = { p: 1.5, curve: 0.6, kappaPick: 1, delta: 0.12, lambda: 1, kappa: 0.1, kappaHalf: 10, minTrades: 3, iters: 200, dailyIters: 60 };
 // How pieces add up (2026-10-08): p set per trade by its best piece, the site's
 // calibrated trade value curve (VAULT_CONFIG.TRADE_VALUE_CURVE) at SET.curve of
 // its strength (p = 1 + curve x (site p - 1); 0.6 scored best on a held-out week:
@@ -142,14 +143,14 @@ function scoreTrades(list, ours, ktc, Vault, ktcP, mk = null) {
 // pickPrior), with a pull that doesn't fade with trade count (SET.kappaPick).
 let DRAFTS = null;
 function fitAll(trades, players, warm = null, iters = SET.iters) {
-  const base = new Model(trades, { p: SET.p, pKnots: KNOTS, lambda: SET.lambda });
+  const base = new Model(trades, { p: SET.p, pKnots: KNOTS, lambda: SET.lambda, delta: SET.delta });
   if (warm) base.warmFrom(warm.base);
   base.fit({ iters, lr: warm ? 0.02 : 0.05 });
   const counts = new Map();
   trades.forEach(t => [...t.a, ...t.b].forEach(k => counts.set(k, (counts.get(k) || 0) + 1)));
   const keys = [...counts].filter(([, n]) => n >= SET.minTrades).map(([k]) => k);
   const prior = warm && warm.prior ? warm.prior : buildPrior(base, players, keys, DRAFTS).prior;
-  const model = new Model(trades, { p: SET.p, pKnots: KNOTS, lambda: SET.lambda, prior, kappa: SET.kappa, kappaHalf: SET.kappaHalf, kappaPick: SET.kappaPick, minTrades: SET.minTrades });
+  const model = new Model(trades, { p: SET.p, pKnots: KNOTS, lambda: SET.lambda, delta: SET.delta, prior, kappa: SET.kappa, kappaHalf: SET.kappaHalf, kappaPick: SET.kappaPick, minTrades: SET.minTrades });
   model.warmFrom(warm ? warm.model : base).fit({ iters, lr: warm ? 0.02 : 0.05 });
   return { base, model, prior };
 }
