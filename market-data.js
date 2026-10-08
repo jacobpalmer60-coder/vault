@@ -278,6 +278,12 @@ function marketPeerAdj(league, a) {
 // A trade at market prices vs KTC, from the side that gives `give` and gets `get`:
 // ktc / market = % in that side's favor (consolidation-adjusted, as the grade
 // measures), delta = market - ktc, and the pieces that moved it most.
+// How much of a player's recent market premium to count when pricing a trade
+// ahead (At market prices, Trade Coach's market edge): on ~500,000 crawled
+// trades replayed day by day (2026-10-08), about 60% of a read carried over to
+// the next two weeks' trades, and 60% of the read predicted them best. What he
+// has gone for (the market reads pages show) stays the full read.
+const MARKET_CARRYOVER = 0.6;
 function marketEdge(league, give, get) {
   // KTC's consolidation adjustment stays as the grade computes it; each side is
   // then scaled by its own pieces' market prices. Re-running the adjustment on
@@ -285,7 +291,7 @@ function marketEdge(league, give, get) {
   // bonus from one side to the other, which is KTC's math, not the market.
   const { valueA, valueB } = Vault.tradeSideValues(give, get);
   const sum = list => list.reduce((t, a) => t + a.value, 0);
-  const mkt = list => list.reduce((t, a) => t + a.value * (1 + marketAdj(league, a) / 100), 0);
+  const mkt = list => list.reduce((t, a) => t + a.value * (1 + MARKET_CARRYOVER * marketAdj(league, a) / 100), 0);
   const vG = valueA * (sum(give) ? mkt(give) / sum(give) : 1), vR = valueB * (sum(get) ? mkt(get) / sum(get) : 1);
   const pct = (g, r) => (r - g) / (((g + r) / 2) || 1) * 100;
   const ktc = pct(valueA, valueB), market = pct(vG, vR);

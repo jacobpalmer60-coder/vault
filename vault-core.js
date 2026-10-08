@@ -9,6 +9,21 @@ const VAULT_CONFIG = {
   // The trade value curve's strength Vault values are fitted with (SET.curve in
   // scripts/vault-values/nightly.js; keep the two the same).
   VAULT_VALUES_CURVE: 0.6,
+  // Playoff and title odds, corrected by how often teams really made it
+  // (Vault.calibrateOdds). Fitted 2026-10-08 on 9,464 in-season team-weeks of
+  // real 2025 leagues (VaultValues odds-calibration.js, held-out half checked):
+  // the raw odds were close but a little too sure at the low end (teams given
+  // ~10% made the playoffs 19% of the time).
+  // Early and late picks against mid, by round: what managers really pay
+  // (VaultValues pick-tiers.js, 2026-10-08: real 2025 trades where the pick was
+  // the main piece). A pick's tier comes from its original team's projected
+  // finish, and that projection holds only so often (projected-early 1sts
+  // landed early 47% of the time, projected-late 73%), so managers pay less
+  // spread than KTC's prices: an early 1st 1.10x mid (KTC 1.17x), a late 1st
+  // 0.97x (KTC 0.94x); late 2nds went for the same as mid (1.01x). Rounds
+  // without enough trades keep KTC's own prices.
+  PICK_TIER_SPREAD: { 1: { early: 1.10, late: 0.97 }, 2: { early: 1.08, late: 1.00 } },
+  ODDS_CALIBRATION: { playoffs: { a: 0.88, b: 0.12 }, title: { a: 0.76, b: -0.22 } },
   PROJECTIONS_URL: 'data/projections.json',
   // How many future draft years to track as tradeable assets. The actual starting
   // year is computed at runtime by Vault.futurePickYears — NOT hardcoded here —
@@ -1092,7 +1107,9 @@ const Vault = {
   /* KTC's pick grid rolls forward each spring after that year's rookie draft, so its
      available seasons can lag a league's actual future pick years by a year. Map
      each of the league's years to whichever KTC season is closest rather than
-     hardcoding either. `years` comes from Vault.futurePickYears. */
+     hardcoding either. `years` comes from Vault.futurePickYears.
+     Early and late 1sts and 2nds: KTC's mid price times the spread managers
+     really pay (VAULT_CONFIG.PICK_TIER_SPREAD), not KTC's own early/late prices. */
   buildKtcPickMap(ktcData, isSF, years, bonusRecTe) {
     const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
     const raw = new Map();
@@ -1107,8 +1124,9 @@ const Vault = {
     years.forEach(year => {
       const nearest = availYears.reduce((best, y) => Math.abs(y - year) < Math.abs(best - year) ? y : best, availYears[0]);
       VAULT_CONFIG.PICK_ROUNDS.forEach(round => {
+        const spread = VAULT_CONFIG.PICK_TIER_SPREAD[round], mid = raw.get(`${nearest}-${round}-mid`);
         ['early', 'mid', 'late'].forEach(tier => {
-          const val = raw.get(`${nearest}-${round}-${tier}`);
+          const val = spread && mid != null && tier !== 'mid' ? Math.round(mid * spread[tier]) : raw.get(`${nearest}-${round}-${tier}`);
           if (val != null) map.set(`${year}-${round}-${tier}`, val);
         });
       });
@@ -4155,7 +4173,26 @@ const Vault = {
         playoffPct: t.playoffCount / trials * 100, championshipPct: t.champCount / trials * 100
       });
     });
+    Vault.calibrateOdds(out, 'playoffPct', VAULT_CONFIG.ODDS_CALIBRATION.playoffs);
+    Vault.calibrateOdds(out, 'championshipPct', VAULT_CONFIG.ODDS_CALIBRATION.title);
     return out;
+  },
+
+  /* The simulation's odds, corrected by how often teams really made it
+     (VAULT_CONFIG.ODDS_CALIBRATION): p' = logistic(a x logit(p) + b + c), with c
+     set so the league's total stays what the simulation says (one title, a
+     playoff spot per spot). Shifting on the log-odds scale keeps a 99% team near
+     99% (scaling every team by the same factor took it to 94%). 0% and 100%
+     stay put. In place. */
+  calibrateOdds(out, key, { a, b }) {
+    const rows = [...out.values()], open = rows.filter(r => r[key] > 0 && r[key] < 100);
+    if (!open.length) return;
+    const target = rows.reduce((s, r) => s + r[key], 0) - rows.filter(r => !(r[key] > 0 && r[key] < 100)).reduce((s, r) => s + r[key], 0);
+    const z = open.map(r => { const p = Math.min(0.9999, Math.max(0.0001, r[key] / 100)); return a * Math.log(p / (1 - p)) + b; });
+    const at = c => z.map(x => 100 / (1 + Math.exp(-(x + c))));
+    let lo = -10, hi = 10;
+    for (let i = 0; i < 50; i++) { const mid = (lo + hi) / 2; if (at(mid).reduce((s, x) => s + x, 0) > target) hi = mid; else lo = mid; }
+    at((lo + hi) / 2).forEach((v, i) => { open[i][key] = v; });
   }
 };
 
