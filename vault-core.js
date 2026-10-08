@@ -2259,10 +2259,16 @@ const Vault = {
     return `<span class="inline-flex items-center text-[12px] font-medium px-2 py-0.5 rounded-md border ${s.pill}">${bucket}${extra}</span>`;
   },
 
+  // Great/Good only when neither team gets a poor fit: a trade that's a strong
+  // fit for one side and a poor one for the other isn't "Good" for both
+  // (2026-10-07: Chase + Burrow for Mahomes, Pickens and three 1sts read Good
+  // while it cost the contender 5 points of title odds).
   fairnessBucket(pctDiff, fitA, fitB) {
     if (pctDiff >= VAULT_CONFIG.LOPSIDED_PCT) return 'Unfair';
     if (pctDiff >= VAULT_CONFIG.FAIR_PCT) return 'Lopsided';
-    const goodA = fitA >= VAULT_CONFIG.GOOD_FIT_THRESHOLD, goodB = fitB >= VAULT_CONFIG.GOOD_FIT_THRESHOLD;
+    const T = VAULT_CONFIG.GOOD_FIT_THRESHOLD;
+    if (fitA <= -T || fitB <= -T) return 'Fair';
+    const goodA = fitA >= T, goodB = fitB >= T;
     if (goodA && goodB) return 'Great';
     if (goodA || goodB) return 'Good';
     return 'Fair';

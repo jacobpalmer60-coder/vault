@@ -39,7 +39,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=33dd5840"></script>
+<script src="vault-core.js?v=c435c71e"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=fb0369eb"></script>
 <script>
@@ -293,7 +293,7 @@ function renderCard(g) {
       </div>
       <div class="pt-3 border-t border-white/5">
         <p class="text-[13px] font-semibold leading-snug ${synopsisColor(bucket)}">${g.verdict.text}${g.anyMissingValue ? ' <span class="text-zinc-400 font-normal">(some asset values unavailable)</span>' : ''}</p>
-        <div class="mt-3" title="Overall: trade value blended with roster fit and timeline (${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}), never closer to even than trade value alone. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% Lopsided, ${VAULT_CONFIG.LOPSIDED_PCT}%+ Unfair. Great and Good are Fair trades that also fit both or one side well.">
+        <div class="mt-3" title="Overall: trade value blended with roster fit and timeline (${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}/${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}), never closer to even than trade value alone. Under ${VAULT_CONFIG.FAIR_PCT}% off is Fair, ${VAULT_CONFIG.FAIR_PCT}-${VAULT_CONFIG.LOPSIDED_PCT}% Lopsided, ${VAULT_CONFIG.LOPSIDED_PCT}%+ Unfair. Great and Good are Fair trades that also fit both or one side well, and neither side poorly.">
           <div class="text-[11px] text-zinc-500">${Vault.escapeHtml(g.teamA.teamName)} paid</div>
           <div class="grid grid-cols-3 gap-4 mt-1 max-w-[560px]">
             ${priceRead(g.valuedAt === 'trade' ? 'then' : 'at today’s values', bucket, g.fairness.overallSigned)}

@@ -229,7 +229,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=33dd5840"></script>
+<script src="vault-core.js?v=c435c71e"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1668,6 +1668,8 @@ function updateTrade() {
   // alone, show both numbers so the gap is never hidden.
   const offPct = capPct(fairness.fitMovedIt ? overallPct : pctDiff);
   // Positive overallSigned = you send more (the adjusted "you give" is the bigger side).
+  // A team whose roster and timeline this trade hurts (fit at or below -GOOD_FIT_THRESHOLD).
+  const poorFit = [[teamA, analysis.resA.fit], [teamB, analysis.resB.fit]].filter(([, f]) => f <= -VAULT_CONFIG.GOOD_FIT_THRESHOLD).map(([t]) => t);
   const leans = offPct < 1 ? 'dead even' : `in ${Vault.possessive(Vault.escapeHtml((fairness.overallSigned > 0 ? teamB : teamA).teamName))} favor`;
   // Your team's edge (positive: it gets more than it sends) on trade value (the
   // grade), on KTC's own calculator, and, once the market has loaded, at market prices.
@@ -1677,13 +1679,13 @@ function updateTrade() {
   const accept = marketAcceptable(league, aAssets, bAssets); // acceptable: what managers pay for these players (not the grade)
   diffLabelEl.innerHTML = `<div class="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
       <span class="num text-[34px] ${bucketColor(bucket)}">${bucket}</span>
-      <span class="text-[12px] text-zinc-400">${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">· roster fit and timeline included; trade value alone ${capPct(pctDiff).toFixed(0)}%</span>` : ''}</span>
+      <span class="text-[12px] text-zinc-400">${offPct.toFixed(0)}% off, ${leans}${poorFit.length ? ` <span class="text-orange-300">· a poor fit for ${poorFit.map(t => Vault.escapeHtml(t.teamName)).join(' and ')}</span>` : ''}${fairness.fitMovedIt ? ` <span class="text-zinc-500">· roster fit and timeline included; trade value alone ${capPct(pctDiff).toFixed(0)}%</span>` : ''}</span>
     </div>
     ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}
     ${aAssets.length && bAssets.length ? `<div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(teamA.teamName)} pays</div>
     <div class="flex flex-wrap gap-x-10 gap-y-3 mt-1">${priceStatHtml(tradeEdge, 'trade value', PRICE_TIP.trade)}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc)}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market) : ''}</div>
     ${consolidationAdviceHtml(aAssets, bAssets, teamA, teamB)}` : ''}`;
-  diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than trade value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side.`;
+  diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than trade value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side, and neither side a poor fit.`;
   diffLabelEl.className = '';
   // The overall bar plus the three it's made of (trade value, roster fit, timeline),
   // right under the grade.
