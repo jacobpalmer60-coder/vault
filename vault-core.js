@@ -1592,7 +1592,9 @@ const Vault = {
       const gamesPlayed = Math.max(0, ...built.map(t => (t.record?.wins || 0) + (t.record?.losses || 0) + (t.record?.ties || 0)));
       const completedWeeks = Math.floor(gamesPlayed / gamesPerWeek);
       remainingWeeks = await Vault.fetchRemainingSchedule(leagueId, league, completedWeeks);
-      const projections = Vault.simulateSeason(built, league, remainingWeeks);
+      // Same trials and fixed seed as the Trade Calculator and Trade Grades, so the
+      // odds hold still between visits and match the calculator's "before" numbers.
+      const projections = Vault.simulateSeason(built, league, remainingWeeks, { trials: 4000, seed: 20260929 });
       built.forEach(t => {
         const p = projections.get(t.rosterId) || null;
         t.projected = p;

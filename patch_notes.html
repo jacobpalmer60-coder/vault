@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=c435c71e"></script>
+<script src="vault-core.js?v=0d007bcf"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,7 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-07', items: [
-    { kind: 'fixed', page: 'League Overview', text: 'Sorting by Playoffs now uses the odds the column shows, then title odds as the tiebreaker. Before, three teams all showing 100% were ordered by a tenth of a percent of simulation noise.' },
+    { kind: 'fixed', page: 'League Overview', text: 'Sorting by Playoffs now uses the odds the column shows, then title odds as the tiebreaker. Before, three teams all showing 100% were ordered by a tenth of a percent of simulation noise. The season odds also hold still now: the simulation runs 4,000 seasons with the same fixed draws as the Trade Calculator, so the numbers no longer shift by a point on every visit and match the odds in the calculator.' },
     { kind: 'new', page: 'Trade Calculator', text: 'New For you line under the grade. The grade says whether the price is fair for both teams; For you says whether the trade is right for your team: Worth it, Borderline or Not worth it, from trade value, roster fit and timeline on your side plus what it does to your title odds this season. For example, Ja\'Marr Chase and Joe Burrow for Patrick Mahomes, George Pickens and three 1sts reads Fair, For you: Not worth it (title odds 32% to 27%). A contender losing 3 or more points of title odds never reads Worth it. Your timeline (Contending or Rebuilding) can be switched right in that line, since the answer often flips.' },
     { kind: 'changed', page: 'Everywhere', text: 'Good and Great now need every team to be at least an okay fit. Before, Good only needed a strong fit for one side, so a trade that suited one team and hurt the other could read Good: Ja\'Marr Chase and Joe Burrow for Patrick Mahomes, George Pickens and three 1sts graded Good while it cost the league\'s best team 5 points of title odds. That trade now reads Fair, and the calculator says right next to the grade who it\'s a poor fit for. On Trade Grades, 1 of your league\'s 23 trades moves from Good to Fair.' },
   ] },
