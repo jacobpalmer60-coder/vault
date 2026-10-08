@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=95c7d4c4">
+<link rel="stylesheet" href="tailwind.css?v=c8c3bf90">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -1456,9 +1456,44 @@ function seasonOdds(deltas) {
   }
   return seasonCache.get(key);
 }
+/* ---------- For you ----------
+   The grade answers "is the price fair?" for both teams; this answers "is it
+   right for my team?" for Team A (always yours): value, roster fit and timeline
+   as your team card reads them (heads.A, the same read as "Offered to you"),
+   plus what it does to your title odds this season. With the timeline switch
+   right there, since the answer flips between contending and rebuilding.
+   (2026-10-07: Chase + Burrow for Mahomes, Pickens and three 1sts read Fair and
+   still cost the league favorite 5 points of title odds.) */
+let seasonFor = new Map();
+function renderForYou(teamA, aAssets, bAssets, analysis) {
+  const el = document.getElementById('forYou');
+  if (!el) return;
+  const h = analysis.heads && analysis.heads.A;
+  if (!h || !aAssets.length || !bAssets.length) { el.innerHTML = ''; return; }
+  let tone = h.tone === 'neutral' && h.pct >= 5 ? 'good' : h.tone; // 5%+ your way with a neutral fit: worth it
+  const s = seasonFor.get(teamA.rosterId), r = Math.round;
+  const pc = v => (v < 1 && v > 0 ? '<1' : r(v)) + '%';
+  // A contender giving up 3+ points of title odds is never simply "worth it".
+  if (tone === 'good' && s && Vault.teamMode(teamA) === 'contend' && s.before.championshipPct - s.after.championshipPct >= 3) tone = 'neutral';
+  const [label, cls] = { good: ['Worth it', 'text-emerald-300'], neutral: ['Borderline', 'text-amber-300'], bad: ['Not worth it', 'text-orange-300'] }[tone] || ['Borderline', 'text-amber-300'];
+  const odds = !s ? '' : r(s.after.championshipPct) !== r(s.before.championshipPct) ? `title odds ${pc(s.before.championshipPct)} → ${pc(s.after.championshipPct)}`
+    : r(s.after.playoffPct) !== r(s.before.playoffPct) ? `playoff odds ${pc(s.before.playoffPct)} → ${pc(s.after.playoffPct)}` : 'no change to your odds this season';
+  const chosen = Vault.planOverride[teamA.rosterId] || '';
+  const opt = (v, text) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${text}</option>`;
+  el.innerHTML = `<div class="flex items-baseline gap-x-2 gap-y-1 flex-wrap text-[13px]">
+      <label class="inline-flex items-baseline gap-1.5 text-zinc-400" title="Whether this trade is right for ${Vault.escapeHtml(teamA.teamName)}: trade value, roster fit and timeline from your side, and this season's odds. Switch the timeline to see the other answer.">For you, as
+        <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">
+          ${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}
+        </select>:</label>
+      <span class="font-semibold ${cls}">${label}</span>
+      <span class="text-zinc-400 text-[12px]">· ${h.text.replace(' — good trade', '')}${odds ? `; ${odds}` : ''}.</span>
+    </div>`;
+}
+
 function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
   const box = document.getElementById('seasonImpact');
   // Nothing to project once the regular season is over (or before a schedule exists).
+  seasonFor = new Map();
   if (!remainingWeeks.length || !(aAssets.length || bAssets.length)) { box.classList.add('hidden'); return; }
   const baseKey = teams.map(t => t.rosterId).join(',');
   if (!seasonBase || seasonBaseKey !== baseKey) { seasonBase = seasonOdds(new Map()); seasonBaseKey = baseKey; }
@@ -1508,6 +1543,7 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
   const side = (label, team, bef, aft, d) => {
     const b = seasonBase.get(team.rosterId), a = next.get(team.rosterId);
     if (!b || !a) return '';
+    seasonFor.set(team.rosterId, { before: b, after: a });
     return `<div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0">
         <div class="flex items-baseline justify-between gap-2 mb-2"><span class="text-[13px] font-medium text-zinc-100 truncate">${label}</span>
           <span class="text-[12px] mono shrink-0 ${Math.abs(d) < 0.05 ? 'text-zinc-500' : d > 0 ? 'text-emerald-400' : 'text-rose-400'}">${Math.abs(d) < 0.05 ? '0.0' : `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}`} pts/week</span></div>
@@ -1682,6 +1718,7 @@ function updateTrade() {
       <span class="text-[12px] text-zinc-400">${offPct.toFixed(0)}% off, ${leans}${poorFit.length ? ` <span class="text-orange-300">· a poor fit for ${poorFit.map(t => Vault.escapeHtml(t.teamName)).join(' and ')}</span>` : ''}${fairness.fitMovedIt ? ` <span class="text-zinc-500">· roster fit and timeline included; trade value alone ${capPct(pctDiff).toFixed(0)}%</span>` : ''}</span>
     </div>
     ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}
+    <div id="forYou" class="mt-2.5"></div>
     ${aAssets.length && bAssets.length ? `<div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(teamA.teamName)} pays</div>
     <div class="flex flex-wrap gap-x-10 gap-y-3 mt-1">${priceStatHtml(tradeEdge, 'trade value', PRICE_TIP.trade)}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc)}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market) : ''}</div>
     ${consolidationAdviceHtml(aAssets, bAssets, teamA, teamB)}` : ''}`;
@@ -1692,6 +1729,7 @@ function updateTrade() {
   document.getElementById('diffBar').innerHTML = (aAssets.length || bAssets.length) ? Vault.fairnessPanelHtml(fairness, diffBandPct, teamA.teamName, teamB.teamName, `${offPct.toFixed(0)}% off`, accept) : '';
   document.getElementById('diffConfidence').innerHTML = ''; // shown once, in the summary below (renderAnalysis)
   renderSeasonImpact(teamA, teamB, aAssets, bAssets);
+  renderForYou(teamA, aAssets, bAssets, analysis);
   renderLineups(teamA, teamB, analysis);
   if (typeof renderMarketRead === 'function') renderMarketRead(aAssets, bAssets);
 
