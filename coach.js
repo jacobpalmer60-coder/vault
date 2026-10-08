@@ -100,7 +100,12 @@ const coachImproves = o => coachScore(o) > 0;
 // win now) can't be negative. The accept guess alone let through trades that
 // were a Bad trade for nearly every partner (2026-10-07: Walker's contender
 // handing over Kenneth Walker for picks mid-season), so a manager would say no.
-const coachTheyGain = j => improvementOf(j.an, 'B').score >= 0;
+// Would they take it? The market's read only (2026-10-08): inside what managers
+// usually pay for every piece (marketAcceptable: each piece's middle-half price
+// range), which fit 81% of real trades it never saw. Not the manager's own trade
+// history (the user's call), and not their verdict score: on 27,327 real 2025
+// trades only 18% left both teams "not worse", so that rule threw out most real deals.
+const coachMarketOK = (give, get) => typeof marketAcceptable !== 'function' || !Market.data || Market.data.failed || marketAcceptable(league, give, get)?.level === 'acceptable';
 // Same-position 1-for-1 swaps rarely happen at even value (the two players are
 // usually worth different amounts), so they're skipped unless something's going
 // on with one of them: hurt, or sliding (COACH_FALLING of his KTC value lost over
@@ -177,7 +182,7 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
     pool.slice(i + 1).forEach(b => { const s = mustVal + a.value + b.value; if (s >= want * 0.7 && s <= want * 1.7) packs.push([...must, a, b]); });
   });
   const ctx = negContextFor(partner);
-  const judge = list => list.map(give => ({ give, j: negJudgeFor(me, give, partner, get, ctx) })).filter(x => x.j.accepts && coachTheyGain(x.j));
+  const judge = list => list.map(give => ({ give, j: negJudgeFor(me, give, partner, get, ctx) })).filter(x => coachMarketOK(x.give, get));
   const offer = x => ({ partner, give: x.give, get, edge: x.j.edge, score: coachScore(x.j) });
   let taken = judge(packs);
   let found = taken.filter(x => x.j.edge < ceiling).map(offer);
@@ -203,7 +208,7 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
       fillers.forEach(fl => {
         const g2 = [...get, fl];
         const j = negJudgeFor(me, x.give, partner, g2, ctx);
-        if (j.accepts && coachTheyGain(j) && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || coachKey({ edge: j.edge, an: j.an }) < coachKey(best))) best = { partner, give: x.give, get: g2, edge: j.edge, score: coachScore(j), note: `They add ${Vault.escapeHtml(fl.name)} to even it out.` };
+        if (coachMarketOK(x.give, g2) && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || coachKey({ edge: j.edge, an: j.an }) < coachKey(best))) best = { partner, give: x.give, get: g2, edge: j.edge, score: coachScore(j), note: `They add ${Vault.escapeHtml(fl.name)} to even it out.` };
       });
       if (best) found.push(best);
     });
@@ -319,7 +324,7 @@ function coachSaleOffers(me, v, filter) {
     let best = null;
     packs.filter(pack => coachGroupsOK([v], pack)).forEach(pack => {
       const j = negJudgeFor(me, [v], t, pack, negContextFor(t));
-      if (j.accepts && coachTheyGain(j) && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || coachKey({ edge: j.edge, an: j.an }) < coachKey(best))) best = { partner: t, give: [v], get: pack, edge: j.edge, score: coachScore(j) };
+      if (coachMarketOK([v], pack) && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || coachKey({ edge: j.edge, an: j.an }) < coachKey(best))) best = { partner: t, give: [v], get: pack, edge: j.edge, score: coachScore(j) };
     });
     if (best) offers.push(best);
   });
@@ -457,7 +462,7 @@ async function coachBest(me, progress) {
   const sameValue = c => picksOnly(c) && Math.round(sumValue(c.giveA)) === Math.round(sumValue(c.giveB));
   pool.filter(c => !sameValue(c))
     .map(c => ({ c, j: negJudgeFor(me, c.giveA, c.partner, c.giveB, negContextFor(c.partner)) }))
-    .filter(x => x.j.accepts && coachTheyGain(x.j) && Math.abs(x.j.edge) < VAULT_CONFIG.FAIR_PCT)
+    .filter(x => coachMarketOK(x.c.giveA, x.c.giveB) && Math.abs(x.j.edge) < VAULT_CONFIG.FAIR_PCT)
     .map(x => ({ ...x, mk: market(x.c) }))
     .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || coachKey({ edge: x.j.edge, an: x.j.an }) - coachKey({ edge: y.j.edge, an: y.j.an }))
     .forEach(({ c, j, mk }) => {
@@ -498,7 +503,7 @@ async function coachTeam(me, progress) {
     && !c.giveB.some(coachTheirOff) && coachTheirMust(partner).every(m => c.giveB.includes(m)))
     .forEach(c => {
       const j = negJudgeFor(me, c.giveA, partner, c.giveB, ctx);
-      if (j.accepts && coachTheyGain(j) && j.edge < VAULT_CONFIG.LOPSIDED_PCT) add(c.giveA, c.giveB, j.edge, c.result.bucket === 'Great' ? 'A strong fit for both rosters.' : c.result.bucket === 'Good' ? 'A strong fit for one side.' : '');
+      if (coachMarketOK(c.giveA, c.giveB) && j.edge < VAULT_CONFIG.LOPSIDED_PCT) add(c.giveA, c.giveB, j.edge, c.result.bucket === 'Great' ? 'A strong fit for both rosters.' : c.result.bucket === 'Good' ? 'A strong fit for one side.' : '');
     });
   const targets = partner.assets.filter(a => !coachTheirOff(a) && a.value >= 500).sort((x, y) => y.value - x.value).slice(0, 8);
   for (const a of targets) {
@@ -547,7 +552,7 @@ async function coachDowntier(me, progress) {
       let best = null;
       packs.filter(p => sumValue(p) > sent && sumValue(p) <= sent * 2 && coachGroupsOK(give, p)).forEach(p => {
         const j = negJudgeFor(me, give, t, p, ctx);
-        if (j.accepts && coachTheyGain(j) && j.edge < VAULT_CONFIG.LOPSIDED_PCT && (!best || coachKey({ edge: j.edge, an: j.an }) < coachKey(best))) best = { partner: t, give, get: p, edge: j.edge, score: coachScore(j), lead: L };
+        if (coachMarketOK(give, p) && j.edge < VAULT_CONFIG.LOPSIDED_PCT && (!best || coachKey({ edge: j.edge, an: j.an }) < coachKey(best))) best = { partner: t, give, get: p, edge: j.edge, score: coachScore(j), lead: L };
       });
       if (best) found.push(best);
     });
@@ -927,7 +932,7 @@ function renderCoach() {
       ${coachSummaryHtml(me)}
       <button onclick="coachFind()" ${Coach.busy ? 'disabled' : ''} class="shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Coach.busy ? 'opacity-60' : ''}">${fresh ? 'Search again' : 'Find trades'}</button>
     </div>
-    <div class="text-[12px] text-zinc-500 mb-1">Trades that make your team better without making theirs worse, so the other manager has a reason to say yes. Predictions, not promises. <a href="how_we_grade.html#coach" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How this works</a></div>
+    <div class="text-[12px] text-zinc-500 mb-1">Trades that make your team better, at prices managers actually pay for every player in them. Predictions, not promises. <a href="how_we_grade.html#coach" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How this works</a></div>
     <div id="coachStatus" role="status" class="text-[12px] text-zinc-400 min-h-[18px] ${Coach.busy ? '' : 'hidden'}">Searching…</div>
     ${Coach.busy || !fresh ? '' : coachResultsHtml(r)}`;
 }

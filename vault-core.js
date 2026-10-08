@@ -2315,14 +2315,17 @@ const Vault = {
      (trade value, % in its favor), its own roster fit and timeline
      (ownTradeRead), and, for a team playing to win now, what the trade does to
      this season's lineup (points per week, depth included). Contending: half the
-     value/fit read plus 2 per point a week; rebuilding: the value/fit read alone;
+     value/fit read plus 3 per point a week; rebuilding: the value/fit read alone;
      a flexible timeline: in between. +3 or better is a Good trade, -3 or worse a
      Bad trade, anything between a Toss-up. Set 2026-10-07 on real offers: Chase +
      Burrow for Mahomes, Pickens and three 1sts reads Bad for a contender (-6:
      10% more value, but 3.9 points a week less) and Good for a rebuilder (+13). */
   tradeImprovement({ valuePct, rosterFit, timelineFit, mode, ptsPerWeek }) {
     const own = Vault.ownTradeRead(valuePct, rosterFit, timelineFit);
-    const [wOwn, wPts] = mode === 'contend' ? [0.5, 2] : mode === 'rebuild' ? [1, 0] : [0.75, 1];
+    // Contending's 3 per point a week: tested 2026-10-08 on 27,327 real 2025
+    // trades, it tracked contenders' playoff and title results better than 2,
+    // while value still counts for the long run (value predicts who's ahead a year on).
+    const [wOwn, wPts] = mode === 'contend' ? [0.5, 3] : mode === 'rebuild' ? [1, 0] : [0.75, 1];
     const score = wOwn * own + wPts * (ptsPerWeek || 0);
     const level = score >= 3 ? 'good' : score <= -3 ? 'bad' : 'tossup';
     return { score, own, level, label: { good: 'Good trade', bad: 'Bad trade', tossup: 'Toss-up' }[level], mode, valuePct, rosterFit, timelineFit, ptsPerWeek: ptsPerWeek || 0, wOwn, wPts };

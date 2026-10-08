@@ -335,6 +335,16 @@ const MARKET_RANGE_CAP = 50; // one cheap throw-in's odd trades can't stretch a 
 // as % of the two sides' average, the Market box's measure) and, for the math,
 // as a multiplier on his value (paid p -> his price is (1 + p/2) / (1 - p/2) x KTC).
 function marketPriceRange(league, a, pSide, oSide) {
+  // A piece's range doesn't depend on the trade (every trade he headlined), so
+  // it's remembered per market load; Trade Coach checks thousands of trades.
+  const memo = Market.data && !Market.data.failed ? (Market.data.rangeMemo ||= new Map()) : null;
+  const mk = (a.type === 'pick' ? marketKeyOf(a) : 'n:' + a.name) + '|' + (league?.league_id || '');
+  if (memo && memo.has(mk)) return memo.get(mk);
+  const out = marketPriceRangeCalc(league, a, pSide, oSide);
+  if (memo) memo.set(mk, out);
+  return out;
+}
+function marketPriceRangeCalc(league, a, pSide, oSide) {
   const hit = marketPiecePool(league, a, pSide, oSide);
   if (!hit || hit.pool.length < MARKET_MIN_NARROW) return { own: false, ...MARKET_RANGE_FALLBACK, show: MARKET_RANGE_FALLBACK };
   const s = hit.pool.map(c => c.paid).sort((x, y) => x - y), q = p => Math.max(-MARKET_RANGE_CAP, Math.min(MARKET_RANGE_CAP, marketQuantile(s, p)));
