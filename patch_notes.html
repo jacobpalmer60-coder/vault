@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=c8c3bf90">
+<link rel="stylesheet" href="tailwind.css?v=95c7d4c4">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=53c92135"></script>
+<script src="vault-core.js?v=00c5f340"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-07', items: [
+    { kind: 'changed', page: 'Trade Calculator', text: 'The calculator now gives one answer: Good trade, Bad trade or Toss-up for your team, with one sentence saying why (for example "It costs you 3.9 points a week this season (title odds 32% to 28%), but you get 10% more value than you give"). It weighs value, how the trade fits your roster and timeline, and, if you\'re contending, what it does to your lineup this season; switch your timeline right next to it. The price grade (Fair, Lopsided, Unfair) moves underneath as supporting detail, and the summary at the bottom says the same thing as the verdict. Replaces the For you line.' },
+    { kind: 'changed', page: 'Trade Coach', text: 'Trade Coach now seeks improvement: it only lists trades that make your team better (by the same score as the calculator\'s verdict), best for your team first, still Fair and likely to be accepted. Each card shows Good trade or Toss-up like the calculator. Extra value beyond about 4% your way doesn\'t move a trade up the list, so it leads with real upgrades rather than the hardest bargains.' },
     { kind: 'fixed', page: 'Everywhere', text: 'Two-way players count at their fantasy position. Sleeper lists Travis Hunter as a DB (he plays both ways), so he was left out of position splits, roster sections and lineups, and the projections never included his offense. He now counts as a WR everywhere (KTC prices him as one), and the projections keep him: the next projections update (every 3 hours) adds his rest-of-season numbers.' },
     { kind: 'new', page: 'League Overview', text: 'Sort on phones: a Sort by menu above the team cards with the same choices as the table headers (overall value, playoff odds, record, player and pick value, Opt PPG, VORP, longevity, age, name). Pick the same one again to reverse it.' },
     { kind: 'fixed', page: 'League Overview', text: 'Full sweep of League Overview: every column, both sort directions, all ten team panels and every chart view checked against the math. Fixed the Player Value chart description, which still said value with picks only had about 12 daily snapshots (it has 249).' },

@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=c8c3bf90">
+<link rel="stylesheet" href="tailwind.css?v=95c7d4c4">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -229,7 +229,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=53c92135"></script>
+<script src="vault-core.js?v=00c5f340"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1338,9 +1338,10 @@ function fairnessBucket(pct, fitA, fitB) {
 // picked as offering) isn't a grade: it keeps green/amber/red for its advice
 // and shows the grade as a colored badge next to it.
 function bucketColor(bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).text; }
-function verdictColor(tone, bucket) { return offeredBy ? TONE[tone] : bucketColor(bucket); }
-function verdictDot(tone, bucket) { return offeredBy ? TONE_DOT[tone] : (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).dot; }
-function verdictBanner(tone, bucket) { return offeredBy ? TONE_BANNER[tone] : (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).banner; }
+// The summary card follows the verdict's tone whenever there is one (lastImprovement).
+function verdictColor(tone, bucket) { return offeredBy || lastImprovement ? TONE[tone] : bucketColor(bucket); }
+function verdictDot(tone, bucket) { return offeredBy || lastImprovement ? TONE_DOT[tone] : (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).dot; }
+function verdictBanner(tone, bucket) { return offeredBy || lastImprovement ? TONE_BANNER[tone] : (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).banner; }
 
 // "% off" is a ratio against the average (or target) side value, not a bounded
 // percentage — it can mathematically clear 100 when one side gives up next to
@@ -1456,38 +1457,56 @@ function seasonOdds(deltas) {
   }
   return seasonCache.get(key);
 }
-/* ---------- For you ----------
-   The grade answers "is the price fair?" for both teams; this answers "is it
-   right for my team?" for Team A (always yours): value, roster fit and timeline
-   as your team card reads them (heads.A, the same read as "Offered to you"),
-   plus what it does to your title odds this season. With the timeline switch
-   right there, since the answer flips between contending and rebuilding.
-   (2026-10-07: Chase + Burrow for Mahomes, Pickens and three 1sts read Fair and
-   still cost the league favorite 5 points of title odds.) */
-let seasonFor = new Map();
+/* ---------- The verdict: is this a good trade for you? ----------
+   One answer for Team A (always yours): Good trade, Bad trade or Toss-up, from
+   Vault.tradeImprovement (value, your roster fit and timeline, and for a team
+   playing to win now, what it does to this season's lineup), judged on your
+   timeline, which can be switched right there. One sentence says why. The price
+   grade (fair for both teams?) sits under it as supporting detail. (2026-10-07:
+   a trade at a fair price that made the league favorite worse read "Good".) */
+let seasonFor = new Map(), lastImprovement = null;
+// The score for one side of a computeTradeAnalysis result.
+function improvementOf(an, side = 'A') {
+  const bef = an.before[side], aft = an.after[side];
+  const pts = (aft.opt - bef.opt) + Vault.depthShift('contend', bef, aft, slots).perWeek;
+  return Vault.tradeImprovement({ valuePct: an.heads[side].pct, rosterFit: an.rosterFit[side], timelineFit: an.timelineFit[side], mode: an['res' + side].mode, ptsPerWeek: pts });
+}
+const VERDICT_STYLE = { good: { text: 'text-emerald-300', tone: 'good' }, tossup: { text: 'text-amber-300', tone: 'neutral' }, bad: { text: 'text-orange-300', tone: 'bad' } };
+// "You get 9% more value, but it costs you 3.9 points a week this season (title odds 32% → 27%)."
+function improvementReason(imp, s) {
+  const r = Math.round, pc = v => (v < 1 && v > 0 ? '<1' : r(v)) + '%', n = v => Math.abs(v).toFixed(1);
+  const v = imp.valuePct, fit = imp.rosterFit + imp.timelineFit;
+  const plan = { contend: 'win-now plans', rebuild: 'rebuild' }[imp.mode] || 'roster';
+  const clauses = [
+    { w: imp.wOwn * 0.7 * v, text: Math.abs(v) < 1 ? 'the price is even' : v > 0 ? `you get ${capPct(Math.abs(v)).toFixed(0)}% more value than you give` : `you give ${capPct(Math.abs(v)).toFixed(0)}% more value than you get` },
+    { w: imp.wPts * imp.ptsPerWeek, text: Math.abs(imp.ptsPerWeek) < 0.1 ? '' : `it ${imp.ptsPerWeek > 0 ? 'adds' : 'costs you'} ${n(imp.ptsPerWeek)} points a week this season${s && r(s.after.championshipPct) !== r(s.before.championshipPct) ? ` (title odds ${pc(s.before.championshipPct)} → ${pc(s.after.championshipPct)})` : ''}` },
+    { w: imp.wOwn * 3 * fit, text: Math.abs(fit) < 1 ? '' : fit > 0 ? `it fits your ${plan}` : `it works against your ${plan}` }
+  ].filter(c => c.text && Math.abs(c.w) >= 0.5).sort((x, y) => Math.abs(y.w) - Math.abs(x.w));
+  if (!clauses.length) return 'Little changes either way.';
+  // The biggest reason, then the tradeoff against it if there is one ("…, but
+  // you get 10% more value"), else the next biggest.
+  const a = clauses[0], b = clauses.find(c => c !== a && Math.sign(c.w) !== Math.sign(a.w)) || clauses[1];
+  const s1 = a.text[0].toUpperCase() + a.text.slice(1);
+  return b ? `${s1}, ${Math.sign(a.w) === Math.sign(b.w) ? 'and' : 'but'} ${b.text}.` : `${s1}.`;
+}
 function renderForYou(teamA, aAssets, bAssets, analysis) {
   const el = document.getElementById('forYou');
+  lastImprovement = null;
   if (!el) return;
-  const h = analysis.heads && analysis.heads.A;
-  if (!h || !aAssets.length || !bAssets.length) { el.innerHTML = ''; return; }
-  let tone = h.tone === 'neutral' && h.pct >= 5 ? 'good' : h.tone; // 5%+ your way with a neutral fit: worth it
-  const s = seasonFor.get(teamA.rosterId), r = Math.round;
-  const pc = v => (v < 1 && v > 0 ? '<1' : r(v)) + '%';
-  // A contender giving up 3+ points of title odds is never simply "worth it".
-  if (tone === 'good' && s && Vault.teamMode(teamA) === 'contend' && s.before.championshipPct - s.after.championshipPct >= 3) tone = 'neutral';
-  const [label, cls] = { good: ['Worth it', 'text-emerald-300'], neutral: ['Borderline', 'text-amber-300'], bad: ['Not worth it', 'text-orange-300'] }[tone] || ['Borderline', 'text-amber-300'];
-  const odds = !s ? '' : r(s.after.championshipPct) !== r(s.before.championshipPct) ? `title odds ${pc(s.before.championshipPct)} → ${pc(s.after.championshipPct)}`
-    : r(s.after.playoffPct) !== r(s.before.playoffPct) ? `playoff odds ${pc(s.before.playoffPct)} → ${pc(s.after.playoffPct)}` : 'no change to your odds this season';
+  if (!analysis.heads || !aAssets.length || !bAssets.length) { el.innerHTML = ''; return; }
+  const imp = improvementOf(analysis, 'A');
+  const s = seasonFor.get(teamA.rosterId);
+  lastImprovement = { ...imp, reason: improvementReason(imp, s) };
   const chosen = Vault.planOverride[teamA.rosterId] || '';
   const opt = (v, text) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${text}</option>`;
-  el.innerHTML = `<div class="flex items-baseline gap-x-2 gap-y-1 flex-wrap text-[13px]">
-      <label class="inline-flex items-baseline gap-1.5 text-zinc-400" title="Whether this trade is right for ${Vault.escapeHtml(teamA.teamName)}: trade value, roster fit and timeline from your side, and this season's odds. Switch the timeline to see the other answer.">For you, as
+  el.innerHTML = `<div class="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
+      <span class="num text-[34px] ${VERDICT_STYLE[imp.level].text}">${imp.label}</span>
+      <label class="inline-flex items-baseline gap-1.5 text-[12px] text-zinc-400" title="Judged on your timeline: contending weighs this season's lineup heavily, rebuilding weighs long-term value. Switch it to see the other answer.">for ${Vault.escapeHtml(teamA.teamName)}, as
         <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">
           ${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}
-        </select>:</label>
-      <span class="font-semibold ${cls}">${label}</span>
-      <span class="text-zinc-400 text-[12px]">· ${h.text.replace(' — good trade', '')}${odds ? `; ${odds}` : ''}.</span>
-    </div>`;
+        </select></label>
+    </div>
+    <div class="text-[14px] text-zinc-200 mt-1 max-w-[640px]">${lastImprovement.reason}</div>`;
 }
 
 function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
@@ -1704,8 +1723,6 @@ function updateTrade() {
   // alone, show both numbers so the gap is never hidden.
   const offPct = capPct(fairness.fitMovedIt ? overallPct : pctDiff);
   // Positive overallSigned = you send more (the adjusted "you give" is the bigger side).
-  // A team whose roster and timeline this trade hurts (fit at or below -GOOD_FIT_THRESHOLD).
-  const poorFit = [[teamA, analysis.resA.fit], [teamB, analysis.resB.fit]].filter(([, f]) => f <= -VAULT_CONFIG.GOOD_FIT_THRESHOLD).map(([t]) => t);
   const leans = offPct < 1 ? 'dead even' : `in ${Vault.possessive(Vault.escapeHtml((fairness.overallSigned > 0 ? teamB : teamA).teamName))} favor`;
   // Your team's edge (positive: it gets more than it sends) on trade value (the
   // grade), on KTC's own calculator, and, once the market has loaded, at market prices.
@@ -1713,12 +1730,9 @@ function updateTrade() {
   const ktcEdge = (ktcView.valueB - ktcView.valueA) / (((ktcView.valueA + ktcView.valueB) / 2) || 1) * 100;
   const mk = aAssets.length && bAssets.length && typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, aAssets, bAssets) : null;
   const accept = marketAcceptable(league, aAssets, bAssets); // acceptable: what managers pay for these players (not the grade)
-  diffLabelEl.innerHTML = `<div class="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
-      <span class="num text-[34px] ${bucketColor(bucket)}">${bucket}</span>
-      <span class="text-[12px] text-zinc-400">${offPct.toFixed(0)}% off, ${leans}${poorFit.length ? ` <span class="text-orange-300">· a poor fit for ${poorFit.map(t => Vault.escapeHtml(t.teamName)).join(' and ')}</span>` : ''}${fairness.fitMovedIt ? ` <span class="text-zinc-500">· roster fit and timeline included; trade value alone ${capPct(pctDiff).toFixed(0)}%</span>` : ''}</span>
-    </div>
+  diffLabelEl.innerHTML = `<div id="forYou"></div>
+    <div class="text-[12px] text-zinc-400 mt-3" title="Whether the price is fair for both teams: trade value, plus both teams' roster fit and timeline. Not the verdict above, which is about your team.">Price: <span class="font-medium ${bucketColor(bucket)}">${bucket}</span> · ${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">(trade value alone ${capPct(pctDiff).toFixed(0)}%)</span>` : ''}</div>
     ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}
-    <div id="forYou" class="mt-2.5"></div>
     ${aAssets.length && bAssets.length ? `<div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(teamA.teamName)} pays</div>
     <div class="flex flex-wrap gap-x-10 gap-y-3 mt-1">${priceStatHtml(tradeEdge, 'trade value', PRICE_TIP.trade)}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc)}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market) : ''}</div>
     ${consolidationAdviceHtml(aAssets, bAssets, teamA, teamB)}` : ''}`;
@@ -2112,7 +2126,14 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
   document.getElementById('analysisB').classList.remove('hidden');
 
   const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, bandPct, fairness, overallPct, verdict, bucket } = analysis;
-  const displayVerdict = offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
+  // The summary card says the same thing as the verdict up top: for your team,
+  // or, when it's offered to you, whether to take it.
+  const imp = lastImprovement;
+  const displayVerdict = imp && offeredBy !== 'A'
+    ? (offeredBy === 'B'
+      ? { tone: VERDICT_STYLE[imp.level].tone, label: { good: 'Worth Accepting', tossup: 'Worth a Counter', bad: 'Decline This' }[imp.level], text: `${Vault.escapeHtml(teamB.teamName)} is offering this to ${Vault.escapeHtml(teamA.teamName)}. ${imp.reason}` }
+      : { tone: VERDICT_STYLE[imp.level].tone, label: `${imp.label} for ${Vault.escapeHtml(teamA.teamName)}`, text: verdict.text })
+    : offeredBy ? acceptanceVerdict(offeredBy, heads, teamA, teamB) : verdict;
 
   document.getElementById('tradeTypeLabel').textContent = trade.label;
   document.getElementById('tradeArchetype').innerHTML = `<div class="text-[13px] text-zinc-300 leading-relaxed">${trade.desc}</div>`;
@@ -2184,7 +2205,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
     <div class="flex items-center gap-3 mb-2">
       <span class="size-3.5 rounded-full shrink-0 ${verdictDot(displayVerdict.tone, bucket)}"></span>
       <div class="text-[28px] font-semibold leading-tight ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.label}</div>
-      ${offeredBy ? Vault.gradePill(bucket) : ''}
+      ${offeredBy || lastImprovement ? Vault.gradePill(bucket) : ''}
     </div>
     <div class="text-[17px] font-medium leading-snug ${verdictColor(displayVerdict.tone, bucket)}">${displayVerdict.text}</div>
     <div class="text-[12px] text-zinc-400 mt-3">${[fairness.fitMovedIt ? `Trade value alone: ${capPct(pctDiff).toFixed(0)}% off` : '', confidenceText, needNote, `<a href="${Vault.linkTo('how_we_grade.html')}" class="text-amber-300/80 hover:text-amber-200">How is this graded?</a>`].filter(Boolean).join(' · ')}</div>`;
@@ -2195,6 +2216,6 @@ init();
 <script src="negotiation.js?v=5efdd772"></script>
 <script src="market-data.js?v=fb0369eb"></script>
 <script src="market.js?v=36b1f08b"></script>
-<script src="coach.js?v=5b9521ad"></script>
+<script src="coach.js?v=be7b864e"></script>
 </body>
 </html>
