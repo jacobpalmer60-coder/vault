@@ -5,6 +5,7 @@
 const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
+  VAULT_VALUES_URL: 'data/vault-values/values.json',
   PROJECTIONS_URL: 'data/projections.json',
   // How many future draft years to track as tradeable assets. The actual starting
   // year is computed at runtime by Vault.futurePickYears — NOT hardcoded here —
@@ -624,10 +625,37 @@ const Vault = {
     return { ...full, trades: (full.trades || []).filter(t => t.qbs === qbs) };
   },
 
-  async fetchKtcValues() {
+  /* Which values the pages use: KTC (the default) or Vault values, our own,
+     learned from real trades (data/vault-values/values.json, built nightly by
+     scripts/vault-values/, same shape as ktc-values.json). Side by side
+     (user, 2026-10-08): a hidden switch, ?values=vault to turn it on and
+     ?values=ktc to turn it off, remembered on this device. A pill in the corner
+     says when Vault values are showing. raw: always KTC (the market data prices
+     real trades at KTC values, so its premiums stay on one scale). */
+  valueSource() {
+    let v = null;
+    try { v = new URLSearchParams(location.search).get('values'); } catch {}
+    if (v === 'vault' || v === 'ktc') { try { localStorage.setItem('vault_value_source', v); } catch {} return v; }
+    try { return localStorage.getItem('vault_value_source') === 'vault' ? 'vault' : 'ktc'; } catch { return 'ktc'; }
+  },
+  async fetchKtcValues({ raw = false } = {}) {
+    if (!raw && Vault.valueSource() === 'vault') {
+      try { const r = await fetch(VAULT_CONFIG.VAULT_VALUES_URL); if (r.ok) return r.json(); } catch {}
+    }
     const res = await fetch(VAULT_CONFIG.KTC_URL);
     if (!res.ok) throw new Error('KTC values fetch failed: ' + res.status);
     return res.json();
+  },
+  showValueSourcePill() {
+    if (Vault.valueSource() !== 'vault' || !document.body || document.getElementById('valueSourcePill')) return;
+    const a = document.createElement('a');
+    a.id = 'valueSourcePill';
+    a.href = '?values=ktc';
+    a.title = 'Showing Vault values, learned from real trades, instead of KTC. Tap to switch back to KTC.';
+    a.textContent = 'Vault values (beta) · back to KTC';
+    a.setAttribute('style', 'position:fixed;left:12px;bottom:12px;z-index:60;padding:6px 10px;border-radius:999px;font-size:12px;background:#111827;color:#fcd34d;border:1px solid rgba(252,211,77,.4);text-decoration:none');
+    a.addEventListener('click', e => { e.preventDefault(); try { localStorage.setItem('vault_value_source', 'ktc'); } catch {} const u = new URL(location.href); u.searchParams.delete('values'); location.href = u.toString(); });
+    document.body.appendChild(a);
   },
 
   // KTC only prices Tight End Premium at two discrete bonus tiers — 0.5 ("TEP") and
@@ -4268,3 +4296,7 @@ const Vault = {
   document.addEventListener('DOMContentLoaded', run);
   Vault.enhanceSearchSelects = run;
 })();
+
+// Say so when the pages are showing Vault values instead of KTC (Vault.valueSource).
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => Vault.showValueSourcePill());
+else Vault.showValueSourcePill();

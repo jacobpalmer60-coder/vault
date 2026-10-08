@@ -1,0 +1,50 @@
+name: Vault values
+
+# Our own player and pick values, learned from the real dynasty trades the Sleeper
+# crawl collects (scripts/vault-values/; research and tests in the private
+# VaultValues project). Run side by side with KTC (user, 2026-10-08): every night
+# it scores last night's values and KTC's on the trades made since, refits, and
+# writes data/vault-values/ (values.json is what the site's hidden switch loads,
+# ?values=vault; track-report.md is the scorecard against the pass bar). KTC stays
+# the site's default.
+on:
+  schedule:
+    - cron: '30 8 * * *'   # after Update data (06:00/07:00 UTC) has refreshed KTC values and projections
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vault-values
+  cancel-in-progress: false
+
+jobs:
+  values:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get the collected trades
+        run: |
+          mkdir -p data/sleeper-trades
+          gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber
+
+      - run: node --max-old-space-size=6144 scripts/vault-values/nightly.js
+
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/vault-values/
+          git diff --cached --quiet && exit 0
+          git commit -m "Update Vault values"
+          # The hourly crawl and the daily data update also push, so catch up first.
+          git pull --rebase --autostash
+          git push
