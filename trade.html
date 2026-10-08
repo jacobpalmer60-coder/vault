@@ -229,7 +229,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=45b14087"></script>
+<script src="vault-core.js?v=2a3cda27"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1458,7 +1458,8 @@ function seasonOdds(deltas) {
   return seasonCache.get(key);
 }
 /* ---------- The verdict: is this a good trade for you? ----------
-   One answer for Team A (always yours): Good trade, Bad trade or Toss-up, from
+   One answer for Team A (always yours), a tier from Great trade to Terrible
+   trade (VAULT_CONFIG.VERDICT_TIERS), from
    Vault.tradeImprovement (value, your roster fit and timeline, and for a team
    playing to win now, what it does to this season's lineup), judged on your
    timeline, which can be switched right there. One sentence says why. The price
@@ -1508,13 +1509,14 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const chosen = Vault.planOverride[teamA.rosterId] || '';
   const opt = (v, text) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${text}</option>`;
   el.innerHTML = `<div class="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
-      <span class="num text-[34px] ${VERDICT_STYLE[imp.level].text}">${imp.label}</span>
+      <span class="num text-[34px] ${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span>
       <label class="inline-flex items-baseline gap-1.5 text-[12px] text-zinc-400" title="Judged on your timeline: contending weighs this season's lineup heavily, rebuilding weighs long-term value. Switch it to see the other answer.">for ${Vault.escapeHtml(teamA.teamName)}, as
         <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">
           ${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}
         </select></label>
     </div>
-    <div class="text-[14px] text-zinc-200 mt-1 max-w-[640px]">${lastImprovement.reason}</div>`;
+    <div class="text-[14px] text-zinc-200 mt-1 max-w-[640px]">${lastImprovement.reason}</div>
+    <div class="text-[12px] text-zinc-500 mt-1 max-w-[640px]">${Vault.verdictRecordText(imp)}</div>`;
 }
 
 function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
@@ -2224,6 +2226,6 @@ init();
 <script src="negotiation.js?v=5efdd772"></script>
 <script src="market-data.js?v=20b8ba0c"></script>
 <script src="market.js?v=36b1f08b"></script>
-<script src="coach.js?v=aa670036"></script>
+<script src="coach.js?v=5fc3d9e6"></script>
 </body>
 </html>

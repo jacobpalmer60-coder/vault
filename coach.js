@@ -94,7 +94,11 @@ function coachRankScore(o) {
   return coachScoreMemo.get(id);
 }
 const coachKey = o => (Math.abs(o.edge) < VAULT_CONFIG.FAIR_PCT ? 0 : 1000) - coachRankScore(o);
-const coachImproves = o => coachScore(o) > 0;
+// Slight edge or better (VAULT_CONFIG.VERDICT_TIERS): below that, real trades
+// scored the same way came out a coin flip.
+const coachImproves = o => Vault.verdictTier(coachScore(o)).level === 'good';
+// Options that are about the price: these keep Toss-ups too.
+const COACH_PRICE_PLAYS = new Set(['shop', 'sellhigh', 'buylow']);
 // The other team's verdict score for the same trade (memoized like coachScore).
 function coachTheirScore(o) {
   const id = `them:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
@@ -104,7 +108,7 @@ function coachTheirScore(o) {
 // Win-wins first (user, 2026-10-08): trades that aren't a Bad trade for the
 // other team lead; ones that are still show (real managers accept them about a
 // third of the time), just after. Each card says what it means for them.
-const coachBadForThem = o => coachTheirScore(o) <= -3;
+const coachBadForThem = o => Vault.verdictTier(coachTheirScore(o)).level === 'bad';
 // They have to come out fine too: the same verdict score from their side (their
 // value, roster fit, timeline, and this season's points if they're playing to
 // win now) can't be negative. The accept guess alone let through trades that
@@ -612,10 +616,11 @@ async function coachFind() {
   try {
     const res = await COACH_RUN[option](me, progress);
     if (res.list) {
-      // Shopping a player you've decided to move: Toss-ups count too (not a Bad
-      // trade for you); every other list needs a real improvement.
-      res.list = res.list.filter(o => (option === 'shop' ? coachScore(o) > -3 : coachImproves(o)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
-      if (!res.list.length) { delete res.list; res.empty = `No trade found makes ${Vault.escapeHtml(me.teamName)} better without making the other team worse right now. Try another trade type, or switch your timeline.`; }
+      // Price plays (shopping a player you've decided to move, selling high,
+      // buying low): Toss-ups count too, labeled as such, since the point is the
+      // price (user, 2026-10-08). Every other list needs Slight edge or better.
+      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.`; }
     }
     Coach.results[option] = { ...res, meId: me.rosterId, key: coachInputKey(), planNote };
   } catch (e) {
@@ -953,7 +958,7 @@ function renderCoach() {
 // price"). Then the pieces, one line of why, and the button.
 function coachCardHtml(o, i) {
   const lop = o.edge >= VAULT_CONFIG.FAIR_PCT, you = -o.edge;
-  const sc = coachScore(o), verdict = sc >= 3 ? { label: 'Good trade', cls: 'text-emerald-300' } : sc <= -3 ? { label: 'Bad trade', cls: 'text-orange-300' } : { label: 'Toss-up', cls: 'text-amber-300' };
+  const tier = Vault.verdictTier(coachScore(o)), verdict = { label: tier.label, cls: Vault.VERDICT_TIER_TEXT[tier.key] };
   const forYou = you >= VAULT_CONFIG.FAIR_PCT ? (you >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided') : null; // leans past Fair your way
   const mk = typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get) : null;
   const atMarket = mk && Math.abs(mk.delta) >= 1 ? you + mk.delta : null;
@@ -976,7 +981,7 @@ function coachCardHtml(o, i) {
       <div class="border-b border-white/[0.06]">${side('Give', o.give)}${side('Get', o.get)}</div>
       ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}
       ${typeof marketAcceptHtml === 'function' ? marketAcceptHtml(marketAcceptable(league, o.give, o.get), coachMe().teamName, o.partner.teamName, 'mt-2.5', true) : ''}
-      ${(() => { const t = improvementOf(negJudgeFor(coachMe(), o.give, o.partner, o.get, negContextFor(o.partner)).an, 'B'); return `<div class="text-[12px] text-zinc-400 mt-1">For ${Vault.escapeHtml(o.partner.teamName)}: <span class="font-medium ${t.level === 'good' ? 'text-emerald-300' : t.level === 'bad' ? 'text-orange-300' : 'text-amber-300'}">${t.label}</span></div>`; })()}
+      ${(() => { const t = improvementOf(negJudgeFor(coachMe(), o.give, o.partner, o.get, negContextFor(o.partner)).an, 'B'); return `<div class="text-[12px] text-zinc-400 mt-1">For ${Vault.escapeHtml(o.partner.teamName)}: <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.tier]}">${t.label}</span></div>`; })()}
       <div class="flex items-center justify-end gap-2 mt-auto pt-3">
         <button onclick="coachLoad(${i})" class="shrink-0 whitespace-nowrap text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder</button>
       </div>

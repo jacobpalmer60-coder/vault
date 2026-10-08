@@ -140,6 +140,30 @@ const VAULT_CONFIG = {
   // "Fair". Same threshold headline()/historyVerdict() already used for their own
   // good()/bad() reads, just centralized so Vault.fairnessBucket can share it.
   GOOD_FIT_THRESHOLD: 2,
+  // The verdict's tiers, best first: a score at or above min gets the tier
+  // (Vault.verdictTier). Set 2026-10-08 from what really happened on each side
+  // of 13,886 real trades in 1,319 completed 2025 Sleeper dynasty leagues, each
+  // judged as its league stood that day with that week's projections
+  // (VaultValues scorecard, held-out half checked): a score just past +3 turned
+  // out a coin flip, so a plain "Good trade" needs +15 and +10 to +15 is only a
+  // Slight edge; -3 to -6 did no worse than a Toss-up. Each tier in order in
+  // every format. record: that tier's real track record by timeline, for the line
+  // under the verdict: the share of sides still ahead on KTC value a year later,
+  // by timeline. Tested and left out: a penalty
+  // for contenders buying older players (they did better, not worse) and for a
+  // Superflex team selling its 3rd QB (the verdict already reads it). Only the
+  // value share is quoted: a tier's average points (contenders' Bad trade tier
+  // averaged +1 a week) read as a contradiction next to this trade's own points.
+  // level: the coarse read colors and the offered-to-you summary go by.
+  VERDICT_TIERS: [
+    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.76, rebuild: 0.87, flexible: 0.85 } },
+    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.71, rebuild: 0.61, flexible: 0.69 } },
+    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.60, rebuild: 0.60, flexible: 0.74 } },
+    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.46, rebuild: 0.56, flexible: 0.56 } },
+    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.36, rebuild: 0.55, flexible: 0.43 } },
+    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.21, rebuild: 0.47, flexible: 0.29 } },
+    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.17, rebuild: 0.22, flexible: 0.16 } }
+  ],
   // Depth (Vault.missedGameCost): weeks each starter is out a season, bye
   // included. Measured, not guessed: across 2018-2025 fantasy starters (top 24
   // QB / 36 RB / 48 WR / 18 TE by points per game) missed 2.4 games plus the bye,
@@ -2353,8 +2377,9 @@ const Vault = {
      (ownTradeRead), and, for a team playing to win now, what the trade does to
      this season's lineup (points per week, depth included). Contending: half the
      value/fit read plus 3 per point a week; rebuilding: the value/fit read alone;
-     a flexible timeline: in between. +3 or better is a Good trade, -3 or worse a
-     Bad trade, anything between a Toss-up. Set 2026-10-07 on real offers: Chase +
+     a flexible timeline: in between. The score maps to a tier
+     (VAULT_CONFIG.VERDICT_TIERS: Great / Good / Slight edge / Toss-up / Leans bad /
+     Bad / Terrible). Set 2026-10-07 on real offers: Chase +
      Burrow for Mahomes, Pickens and three 1sts reads Bad for a contender (-6:
      10% more value, but 3.9 points a week less) and Good for a rebuilder (+13). */
   tradeImprovement({ valuePct, rosterFit, timelineFit, mode, ptsPerWeek }) {
@@ -2364,8 +2389,22 @@ const Vault = {
     // while value still counts for the long run (value predicts who's ahead a year on).
     const [wOwn, wPts] = mode === 'contend' ? [0.5, 3] : mode === 'rebuild' ? [1, 0] : [0.75, 1];
     const score = wOwn * own + wPts * (ptsPerWeek || 0);
-    const level = score >= 3 ? 'good' : score <= -3 ? 'bad' : 'tossup';
-    return { score, own, level, label: { good: 'Good trade', bad: 'Bad trade', tossup: 'Toss-up' }[level], mode, valuePct, rosterFit, timelineFit, ptsPerWeek: ptsPerWeek || 0, wOwn, wPts };
+    const t = Vault.verdictTier(score);
+    return { score, own, level: t.level, tier: t.key, label: t.label, record: t.record, mode, valuePct, rosterFit, timelineFit, ptsPerWeek: ptsPerWeek || 0, wOwn, wPts };
+  },
+
+  verdictTier(score) {
+    return VAULT_CONFIG.VERDICT_TIERS.find(t => score >= t.min) || VAULT_CONFIG.VERDICT_TIERS[VAULT_CONFIG.VERDICT_TIERS.length - 1];
+  },
+  // Text color per tier: the surer the read, the stronger the color.
+  VERDICT_TIER_TEXT: { great: 'text-emerald-300', good: 'text-emerald-300', slight: 'text-emerald-200', tossup: 'text-amber-300', leansbad: 'text-orange-200', bad: 'text-orange-300', terrible: 'text-red-400' },
+  // The tier's track record for this team's timeline (VAULT_CONFIG.VERDICT_TIERS record):
+  // "In real trades scored like this, 71% of contenders were still ahead on value a year later."
+  verdictRecordText(imp) {
+    const r = imp && imp.record && (imp.record[imp.mode] ?? imp.record.flexible);
+    if (r == null) return '';
+    const who = { contend: 'contenders', rebuild: 'rebuilding teams' }[imp.mode] || 'teams';
+    return `In real trades scored like this, ${Math.round(r * 100)}% of ${who} were still ahead on value a year later.`;
   },
 
   blendedFairness(signedPctDiff, rosterA, rosterB, timeA, timeB) {
