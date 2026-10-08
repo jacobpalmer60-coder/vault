@@ -125,6 +125,12 @@ const ORD = n => n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n] || 'th');
 const posChip = q => (q === 'ALL' ? 'All' : q === 'Pick' ? 'Picks' : q);
 let pickHistory = null, pickHistoryLoading = null;
 const POS_MIN_MONTH = 15, MOVE_MIN = 5, MOVE_DAYS = 30, MOVE_SHOW = 8;
+// Moves only count days whose read is between half and double KTC (-50% to
+// +100%): a trade made while a player's KTC value was nearly nothing (before KTC
+// priced him) reads thousands of % over and isn't a price move (Darius Cooper
+// showed "3558% over to 5947% over", 2026-10-08).
+const MOVE_PREMIUM_RANGE = [-50, 100];
+const saneDays = pts => pts.filter(p => p[1] >= MOVE_PREMIUM_RANGE[0] && p[1] <= MOVE_PREMIUM_RANGE[1]);
 
 /* ---------- KTC value filter ----------
    One filter for All players, Highs & lows and Rising & cooling: a preset
@@ -236,7 +242,7 @@ function renderMoves() {
   Object.entries(daily.players).forEach(([norm, pts]) => {
     const who = byNorm.get(norm);
     if (!who || !POS_COLOR[who.pos] || !inValueBand(who.value)) return;
-    const recent = pts.filter(p => p[0] > latest - MOVE_DAYS), before = pts.filter(p => p[0] <= latest - MOVE_DAYS && p[0] > latest - 2 * MOVE_DAYS);
+    const ok = saneDays(pts), recent = ok.filter(p => p[0] > latest - MOVE_DAYS), before = ok.filter(p => p[0] <= latest - MOVE_DAYS && p[0] > latest - 2 * MOVE_DAYS);
     const n1 = recent.reduce((t, p) => t + p[2], 0), n0 = before.reduce((t, p) => t + p[2], 0);
     if (n1 < MOVE_MIN || n0 < MOVE_MIN) return;
     const now = wMedian(recent.map(p => [p[1], p[2]])), then = wMedian(before.map(p => [p[1], p[2]]));
@@ -532,7 +538,7 @@ function weekMovers(daily, pieces) {
   return pieces.map(a => {
     const key = a.type === 'pick' ? marketKeyOf(a) : Vault.normalizeName(a.name);
     const pts = daily.players[key] || [];
-    const recent = pts.filter(p => p[0] > latest - WEEK_DAYS), prior = pts.filter(p => p[0] <= latest - WEEK_DAYS && p[0] > latest - WEEK_DAYS - PRIOR_DAYS);
+    const ok = saneDays(pts), recent = ok.filter(p => p[0] > latest - WEEK_DAYS), prior = ok.filter(p => p[0] <= latest - WEEK_DAYS && p[0] > latest - WEEK_DAYS - PRIOR_DAYS);
     const n1 = recent.reduce((t, p) => t + p[2], 0), n0 = prior.reduce((t, p) => t + p[2], 0);
     if (n1 < WEEK_MIN || n0 < PRIOR_MIN) return null;
     const now = wMed(recent), then = wMed(prior);
