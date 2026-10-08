@@ -95,6 +95,16 @@ function coachRankScore(o) {
 }
 const coachKey = o => (Math.abs(o.edge) < VAULT_CONFIG.FAIR_PCT ? 0 : 1000) - coachRankScore(o);
 const coachImproves = o => coachScore(o) > 0;
+// The other team's verdict score for the same trade (memoized like coachScore).
+function coachTheirScore(o) {
+  const id = `them:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
+  if (!coachScoreMemo.has(id)) coachScoreMemo.set(id, improvementOf(negJudgeFor(coachMe(), o.give, o.partner, o.get, negContextFor(o.partner)).an, 'B').score);
+  return coachScoreMemo.get(id);
+}
+// Win-wins first (user, 2026-10-08): trades that aren't a Bad trade for the
+// other team lead; ones that are still show (real managers accept them about a
+// third of the time), just after. Each card says what it means for them.
+const coachBadForThem = o => coachTheirScore(o) <= -3;
 // They have to come out fine too: the same verdict score from their side (their
 // value, roster fit, timeline, and this season's points if they're playing to
 // win now) can't be negative. The accept guess alone let through trades that
@@ -604,7 +614,7 @@ async function coachFind() {
     if (res.list) {
       // Shopping a player you've decided to move: Toss-ups count too (not a Bad
       // trade for you); every other list needs a real improvement.
-      res.list = res.list.filter(o => (option === 'shop' ? coachScore(o) > -3 : coachImproves(o)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachRankScore(y) - coachRankScore(x));
+      res.list = res.list.filter(o => (option === 'shop' ? coachScore(o) > -3 : coachImproves(o)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
       if (!res.list.length) { delete res.list; res.empty = `No trade found makes ${Vault.escapeHtml(me.teamName)} better without making the other team worse right now. Try another trade type, or switch your timeline.`; }
     }
     Coach.results[option] = { ...res, meId: me.rosterId, key: coachInputKey(), planNote };
