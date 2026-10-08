@@ -501,6 +501,12 @@ function render() {
     t.posConcentration = Math.max(t.qb, t.rb, t.wr, t.te) / sum;
   });
   const data = [...teams].sort((a, b) => {
+    // Playoffs: by the rounded odds the column shows, then title odds, so three
+    // teams all at "100%" aren't ordered by a tenth of a percent of simulation noise.
+    if (sort.key === 'playoffPct') {
+      const po = t => (t.playoffPct == null ? -1 : Math.round(t.playoffPct)), ti = t => t.projected?.championshipPct ?? -1;
+      return sort.dir * ((po(a) - po(b)) || (ti(a) - ti(b)));
+    }
     let av = a[sort.key], bv = b[sort.key];
     if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
     return sort.dir * (av > bv ? 1 : av < bv ? -1 : 0);
