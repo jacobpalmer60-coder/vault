@@ -82,10 +82,22 @@ function marketLoad(league) {
   return Market.loading;
 }
 
+// Trade value of a completed trade's two sides, on KTC values, computed once per
+// side pair: every trade appears under each of its pieces (178,000 entries for
+// about 60,000 trades), and the "similar players" baseline reads them all, which
+// took 15 seconds on the first Trade Coach search before (2026-10-09).
+const marketSideCache = new WeakMap();
+function marketSides(pSide, oSide) {
+  let m = marketSideCache.get(pSide);
+  if (!m) marketSideCache.set(pSide, (m = new WeakMap()));
+  let v = m.get(oSide);
+  if (!v) m.set(oSide, (v = Vault.tradeSideValues(pSide, oSide, { market: false, neverLess: false })));
+  return v;
+}
 // % the side getting `pSide` paid over KTC: what they sent minus what they got,
 // consolidation-adjusted, as a % of the two sides' average.
 function marketPaid(pSide, oSide) {
-  const { valueA: vp, valueB: vo } = Vault.tradeSideValues(pSide, oSide, { market: false });
+  const { valueA: vp, valueB: vo } = marketSides(pSide, oSide);
   const avg = (vp + vo) / 2 || 1;
   return (vo - vp) / avg * 100;
 }
@@ -147,7 +159,7 @@ function marketPeerBaseline(even) {
   const events = [];
   d.byPlayer.forEach((trades, key) => marketComps(key).forEach(c => {
     if (!c.main || (even && c.dir !== 0)) return;
-    const { valueA: vp, valueB: vo } = Vault.tradeSideValues(c.ps, c.os, { market: false });
+    const { valueA: vp, valueB: vo } = marketSides(c.ps, c.os);
     if (vp) events.push([c.him.value, (vo / vp - 1) * 100, c.him.pos || 'Pick']);
   }));
   const med = list => { const l = [...list].sort((a, b) => a - b); return l[Math.floor((l.length - 1) / 2)]; };
@@ -189,7 +201,7 @@ function marketPool(league, name, { even = false, min = MARKET_MIN_COMPS } = {})
 }
 // Each comp's premium: what the getter sent / what his side was worth, both consolidation-adjusted, minus 1, in %.
 function marketPremium(c) {
-  const { valueA: vp, valueB: vo } = Vault.tradeSideValues(c.ps, c.os, { market: false });
+  const { valueA: vp, valueB: vo } = marketSides(c.ps, c.os);
   return vp ? (vo / vp - 1) * 100 : 0;
 }
 

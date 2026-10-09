@@ -2358,7 +2358,7 @@ const Vault = {
        side). It changes no ordinary trade; on held-out real trades it called
        75.0% Fair against 74.8% (VaultValues monotone-check.js, robust-eval.js).
        Sides of more than NEVER_LESS_MAX pieces use the rules as they are. */
-  tradeValueRatio(valsA, valsB) {
+  tradeValueRatio(valsA, valsB, { neverLess = true } = {}) {
     const W = VAULT_CONFIG.EXTRA_PIECE_WEIGHT, desc = l => [...l].sort((x, y) => y - x);
     const edge = (a, b) => { // % A over B, a and b sorted high to low
       if (a.length === 1 && b.length === 1) return (a[0] - b[0]) / (((a[0] + b[0]) / 2) || 1) * 100;
@@ -2369,7 +2369,7 @@ const Vault = {
     };
     const A = desc(valsA), B = desc(valsB);
     let e;
-    if (A.length > Vault.NEVER_LESS_MAX || B.length > Vault.NEVER_LESS_MAX) e = edge(A, B);
+    if (!neverLess || A.length > Vault.NEVER_LESS_MAX || B.length > Vault.NEVER_LESS_MAX) e = edge(A, B);
     else {
       const subsets = l => { const out = []; for (let m = 1; m < 1 << l.length; m++) out.push(l.filter((_, i) => m >> i & 1)); return out; };
       const SA = subsets(A), SB = subsets(B), f = SA.map(S => SB.map(T => edge(S, T)));
@@ -2438,14 +2438,17 @@ const Vault = {
 
   // { market: false }: KTC values (the market data measuring prices; marketEdge,
   // which applies its own). { market: Map }: that week's prices (past trades).
-  tradeSideValues(assetsA, assetsB, { market = true } = {}) {
+  // { neverLess: false }: skip the never-less check (tradeValueRatio), for
+  // measuring completed trades by the hundred thousand (market-data.js): it only
+  // changes trades built piece by piece, and costs up to ~10x per trade.
+  tradeSideValues(assetsA, assetsB, { market = true, neverLess = true } = {}) {
     const table = market === true ? Vault._gradeMarket : market || null;
     const val = a => (table ? Vault.gradeValue(a, table) : a.value);
     const valsA = assetsA.map(val), valsB = assetsB.map(val);
     const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
     const none = { rawA, rawB, valueA: rawA, valueB: rawB, bonusA: 0, bonusB: 0, display: false };
     if (!rawA || !rawB || (valsA.length <= 1 && valsB.length <= 1)) return none;
-    const ratio = Vault.tradeValueRatio(valsA, valsB); // A's worth / B's worth
+    const ratio = Vault.tradeValueRatio(valsA, valsB, { neverLess }); // A's worth / B's worth
     // Reported the way KTC reports its adjustment: the side that comes out
     // relatively lower keeps its raw total, the other gets the bonus.
     const aIsBase = ratio <= rawA / rawB;
