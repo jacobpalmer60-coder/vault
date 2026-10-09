@@ -91,7 +91,7 @@ function marketSides(pSide, oSide) {
   let m = marketSideCache.get(pSide);
   if (!m) marketSideCache.set(pSide, (m = new WeakMap()));
   let v = m.get(oSide);
-  if (!v) m.set(oSide, (v = Vault.tradeSideValues(pSide, oSide, { market: false, neverLess: false })));
+  if (!v) m.set(oSide, (v = Vault.tradeSideValues(pSide, oSide, { market: false })));
   return v;
 }
 // % the side getting `pSide` paid over KTC: what they sent minus what they got,

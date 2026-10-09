@@ -395,10 +395,12 @@ async function negOffer(btn) {
   const box = document.getElementById('negotiation');
   if (typeof renderCoach === 'function') openCoach('negotiate'); // negotiations live in the Trade Coach panel
   box.classList.remove('hidden');
-  // Wait (briefly) for trading styles so the same offer always reads the same way.
+  // Wait for trading styles so the same offer always reads the same way (it
+  // settles even when the download fails; no time limit, which made a slow
+  // connection read the offer differently).
   if (!Negotiation.styles) {
     box.insertAdjacentHTML('beforeend', '<div id="negThinking" class="text-[12px] text-zinc-400 py-2">Reading their roster and trade history…</div>');
-    await Promise.race([negPreloadStyles(), new Promise(r => setTimeout(r, 8000))]);
+    await negPreloadStyles();
     document.getElementById('negThinking')?.remove();
   }
   const ctx = negContext(R);

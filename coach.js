@@ -741,9 +741,12 @@ async function coachFind() {
   renderCoach();
   const status = document.getElementById('coachStatus');
   const progress = text => { if (status) status.textContent = text; };
-  if (!Negotiation.styles) { progress('Reading every manager\'s trade history…'); await Promise.race([negPreloadStyles(), new Promise(r => setTimeout(r, 8000))]); }
+  // Wait for both, however long they take (each settles even when its download
+  // fails): with a time limit, a slow connection got a different list for the
+  // same league (user, 2026-10-09: "why would numbers change based upon loading speed?").
+  if (!Negotiation.styles) { progress('Reading every manager\'s trade history…'); await negPreloadStyles(); }
   // What players go for in completed trades: Best trades and the acceptable read use it.
-  if (typeof marketLoad === 'function' && !Market.data) { progress('Reading what players go for in completed trades…'); await Promise.race([marketLoad(league), new Promise(r => setTimeout(r, 8000))]); }
+  if (typeof marketLoad === 'function' && !Market.data) { progress('Reading what players go for in completed trades…'); await marketLoad(league); }
   try {
     const res = await COACH_RUN[option](me, progress);
     if (res.list) {
