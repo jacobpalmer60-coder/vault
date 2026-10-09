@@ -183,21 +183,23 @@ const VAULT_CONFIG = {
   // under the verdict: the share of sides still ahead on value a year later, by
   // timeline, on trade value (KTC today on the trade value curve, like the
   // grade; raw KTC sums, used at first, favored whoever got more pieces).
-  // Recomputed 2026-10-08 at STAR_BONUS 1.5 from each trade's pieces: the
-  // pull's stored value % had about 23% of trades with one side at zero. Tested and left out: a penalty
+  // Recomputed 2026-10-08 at STAR_BONUS 1.5 and contenders' 2 per point, from
+  // each trade's pieces (the pull's stored value % had about 23% of trades with
+  // one side at zero), pooled over 2024 and 2025: the two seasons agree within a
+  // few points at every tier. Tested and left out: a penalty
   // for contenders buying older players (they did better, not worse) and for a
   // Superflex team selling its 3rd QB (the verdict already reads it). Only the
   // value share is quoted: a tier's average points (contenders' Bad trade tier
   // averaged +1 a week) read as a contradiction next to this trade's own points.
   // level: the coarse read colors and the offered-to-you summary go by.
   VERDICT_TIERS: [
-    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.84, rebuild: 0.68, flexible: 0.84 } },
-    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.75, rebuild: 0.64, flexible: 0.77 } },
-    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.64, rebuild: 0.62, flexible: 0.74 } },
-    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.48, rebuild: 0.51, flexible: 0.54 } },
-    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.35, rebuild: 0.34, flexible: 0.30 } },
-    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.23, rebuild: 0.33, flexible: 0.21 } },
-    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.14, rebuild: 0.30, flexible: 0.22 } }
+    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.88, rebuild: 0.68, flexible: 0.86 } },
+    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.78, rebuild: 0.65, flexible: 0.75 } },
+    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.66, rebuild: 0.66, flexible: 0.74 } },
+    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.49, rebuild: 0.49, flexible: 0.54 } },
+    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.33, rebuild: 0.35, flexible: 0.34 } },
+    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.19, rebuild: 0.29, flexible: 0.23 } },
+    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.09, rebuild: 0.29, flexible: 0.18 } }
   ],
   // Depth (Vault.missedGameCost): weeks each starter is out a season, bye
   // included. Measured, not guessed: across 2018-2025 fantasy starters (top 24
@@ -2414,7 +2416,7 @@ const Vault = {
      (trade value, % in its favor), its own roster fit and timeline
      (ownTradeRead), and, for a team playing to win now, what the trade does to
      this season's lineup (points per week, depth included). Contending: half the
-     value/fit read plus 3 per point a week; rebuilding: the value/fit read alone;
+     value/fit read plus 2 per point a week; rebuilding: the value/fit read alone;
      a flexible timeline: in between. The score maps to a tier
      (VAULT_CONFIG.VERDICT_TIERS: Great / Good / Slight edge / Toss-up / Leans bad /
      Bad / Terrible). Set 2026-10-07 on real offers: Chase +
@@ -2423,10 +2425,13 @@ const Vault = {
   tradeImprovement({ valuePct, rosterFit, timelineFit, mode, ptsPerWeek }) {
     // Rebuilding: value and roster fit only (VAULT_CONFIG.REBUILD_READ_WEIGHTS).
     const own = Vault.ownTradeRead(valuePct, rosterFit, timelineFit, mode === 'rebuild' ? VAULT_CONFIG.REBUILD_READ_WEIGHTS : undefined);
-    // Contending's 3 per point a week: tested 2026-10-08 on 27,327 real 2025
-    // trades, it tracked contenders' playoff and title results better than 2,
-    // while value still counts for the long run (value predicts who's ahead a year on).
-    const [wOwn, wPts] = mode === 'contend' ? [0.5, 3] : mode === 'rebuild' ? [1, 0] : [0.75, 1];
+    // Contending's 2 per point a week (2026-10-08): 3 was chosen on the first
+    // 2025 pull, whose stored value % had about a quarter of trades with one side
+    // at zero. Rechecked on clean value % over 2024 and 2025 (held-out half), 2
+    // tracks playoffs, titles and value a year on as well or slightly better, and
+    // matched the user's own calls on real trades better (they weigh long-term
+    // value more than one season's points).
+    const [wOwn, wPts] = mode === 'contend' ? [0.5, 2] : mode === 'rebuild' ? [1, 0] : [0.75, 1];
     const score = wOwn * own + wPts * (ptsPerWeek || 0);
     const t = Vault.verdictTier(score);
     return { score, own, level: t.level, tier: t.key, label: t.label, record: t.record, mode, valuePct, rosterFit, timelineFit, ptsPerWeek: ptsPerWeek || 0, wOwn, wPts };
