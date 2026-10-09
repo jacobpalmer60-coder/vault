@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=b88a32b3">
+<link rel="stylesheet" href="tailwind.css?v=c2c32a90">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,7 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-08', items: [
-    { kind: 'new', page: 'Rate Trades', text: 'New: Rate Trades. See a real trade managers just made, vote Team A won, Fair or Team B won, then see what KTC\'s calculator, The Vault and everyone else said. Everyone gets the same trades each day so the crowd\'s votes add up, and your record shows whether you side more with KTC or The Vault. No login; votes are anonymous. The home page shows one trade to rate when you arrive (skip it any time).' },
+    { kind: 'new', page: 'Rate Trades', text: 'New: Rate Trades. Who wins the trade? Each one is built from today\'s players (NFL team, age, points per game this season, KTC value) with each team\'s situation (contending, flexible or rebuilding). Vote Team A, Fair or Team B, then see what KTC\'s calculator, The Vault and everyone else said. Everyone gets the same trades each day so the crowd\'s votes add up, and your record shows whether you side more with KTC or The Vault. No login; votes are anonymous. The home page shows one trade to rate when you arrive (skip it any time).' },
     { kind: 'changed', page: 'Trade Coach', text: 'Trade Coach no longer suggests trades where you give up value to gain points this season (like Ja\'Marr Chase for Christian McCaffrey and Bucky Irving). Every list except Go all-in now needs you even or ahead on trade value; Go all-in is still the place to spend future value on this season.' },
     { kind: 'changed', page: 'Everywhere', text: 'The star bonus (how much more one great player is worth than two good ones that add up to the same) is half again as big. It was set so a typical accepted trade comes out even; now it\'s set by what wins: on 7,460 real 2025 trades, this size picked the teams that went on to score more and beat their playoff and title odds better (KTC\'s own adjustment did worse than a coin flip). Selling a star for two good players now costs a little more: Ja\'Marr Chase for CeeDee Lamb and Davante Adams reads about 8% under instead of 2%. The track-record lines under the verdict were recalculated to match.' },
     { kind: 'changed', page: 'Trade Calculator', text: 'The verdict now has tiers: Great trade, Good trade, Slight edge, Toss-up, Leans bad, Bad trade and Terrible trade. They were set by checking 13,886 real trades in 1,319 completed 2025 Sleeper dynasty leagues against what happened next: a trade just past even turned out to be a coin flip, so it takes a clear edge to read Good trade now (a trade that read Good before may now say Slight edge or Toss-up). Under the verdict, one line gives that tier\'s real track record for your timeline, for example "In real trades scored like this, 77% of contenders were still ahead on value a year later." (measured on trade value, so a star for two good players isn't scored as a win for the side that got two)' },
