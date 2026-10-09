@@ -1083,8 +1083,6 @@ function coachCardHtml(o, i) {
   const you = coachValuePct(o), lop = -you >= VAULT_CONFIG.FAIR_PCT;
   const tier = Vault.verdictTier(coachScore(o)), verdict = { label: tier.label, cls: Vault.VERDICT_TIER_TEXT[tier.key] };
   const forYou = you >= VAULT_CONFIG.FAIR_PCT ? (you >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided') : null; // leans past Fair your way
-  const mk = typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get) : null;
-  const atMarket = mk && Math.abs(mk.delta) >= 1 ? you + mk.delta : null;
   // KTC's own calculator next to trade value, as on the Trade Calculator, so a
   // suggestion can be checked on KTC.
   const ktcPct = coachKtcPct(o.give, o.get);
@@ -1100,10 +1098,9 @@ function coachCardHtml(o, i) {
         <span class="text-[12px] font-semibold text-right ${verdict.cls}" title="Price: ${forYou ? `${forYou}, in your favor` : lop ? 'Lopsided against you' : 'Fair'}">${verdict.label}</span>
       </div>
       <div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(coachMe().teamName)} pays</div>
-      <div class="grid grid-cols-3 gap-3 mt-1 mb-3">
+      <div class="grid grid-cols-2 gap-3 mt-1 mb-3">
         ${priceStatHtml(you, 'trade value', PRICE_TIP.trade, 'text-[22px]')}
         ${priceStatHtml(ktcPct, "KTC's calculator", PRICE_TIP.ktc, 'text-[22px]')}
-        ${atMarket == null ? '' : priceStatHtml(atMarket, 'market price', PRICE_TIP.market, 'text-[22px]')}
       </div>
       <div class="border-b border-white/[0.06]">${side('Give', o.give)}${side('Get', o.get)}</div>
       ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}

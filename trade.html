@@ -233,7 +233,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=5945bb12"></script>
+<script src="vault-core.js?v=b8b6f4a8"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1406,7 +1406,17 @@ const ktcCall = e => (Math.abs(e) < VAULT_CONFIG.FAIR_PCT ? 0 : (Math.abs(e) < V
 const ktcSameCall = (tradeEdge, ktcEdge) => ktcCall(tradeEdge) === ktcCall(ktcEdge);
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (!aAssets.length || !bAssets.length || ktcSameCall(tradeEdge, ktcEdge)) return '';
-  const ours = Vault.tradeSideValues(aAssets, bAssets);
+  // Two reasons the numbers differ: what these players actually trade for
+  // (market prices, Vault.gradeValue) and how pieces add up. Split them: the
+  // same math on KTC values isolates the second.
+  const ours = Vault.tradeSideValues(aAssets, bAssets, { market: false });
+  const mathEdge = (ours.valueB - ours.valueA) / (((ours.valueA + ours.valueB) / 2) || 1) * 100;
+  const marketPart = tradeEdge - mathEdge, mathPart = mathEdge - ktcEdge;
+  // The piece whose market price moves it most, said the usual way.
+  const mover = [...aAssets.map(a => [a, -1]), ...bAssets.map(a => [a, 1])].map(([a, sgn]) => ({ a, pct: Vault.gradeMarketPct(a), w: sgn * Vault.gradeMarketPct(a) * a.value }))
+    .filter(m => Math.abs(m.pct) >= 3).sort((x, y) => Math.abs(y.w) - Math.abs(x.w))[0];
+  const marketLine = mover && Math.abs(marketPart) >= 3 ? `${Vault.escapeHtml(mover.a.name)} trades about ${Math.round(Math.abs(mover.pct))}% ${mover.pct > 0 ? 'over' : 'under'} ${mover.a.type === 'pick' ? 'its' : 'his'} KTC value in completed trades, and trade value uses what players actually go for.` : '';
+  if (Math.abs(mathPart) < 5) return marketLine ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: ${marketLine} <a href="how_we_grade.html#fairness" class="underline decoration-dotted underline-offset-2 hover:text-zinc-200">How we grade</a></div>` : '';
   const n = v => Math.round(v).toLocaleString();
   const amt = v => (v >= 1 ? `<span class="num text-zinc-200">+${n(v)}</span>` : 'nothing');
   // The side whose extra credit differs most between the two, and its best piece.
@@ -1419,11 +1429,12 @@ function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   const r = Math.min(star.value, rival.value) / Math.max(star.value, rival.value);
   const E = aAssets.length === bAssets.length ? KTC_EVIDENCE_EVEN : KTC_EVIDENCE.find(e => r >= e.lo && r < e.hi);
   const why = `KTC's calculator gives the side with ${Vault.escapeHtml(star.name)} ${amt(kb)} extra for having the best piece${kb < ob && r >= 0.85 ? ' (KTC shrinks it to almost nothing when the pieces coming back are close in value)' : ''}; real trades pay about ${amt(ob)}, which is what trade value uses.`;
-  if (!E) return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why the numbers differ: ${why} ${link}</div>`;
-  return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: ${why} Of ${E.trades.toLocaleString()} real trades with ${E.like}, all accepted by both managers, KTC calls ${E.ktc}% Fair and trade value ${E.ours}%. On 1-for-1 trades the two always agree. ${link}</div>`;
+  const also = marketLine ? ` Also, ${marketLine}` : '';
+  if (!E) return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why the numbers differ: ${why}${also} ${link}</div>`;
+  return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: ${why} Of ${E.trades.toLocaleString()} real trades with ${E.like}, all accepted by both managers, KTC calls ${E.ktc}% Fair and trade value ${E.ours}%.${also} ${link}</div>`;
 }
 const PRICE_TIP = {
-  trade: 'Trade value: KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). What the grade uses.',
+  trade: 'Trade value: what each player and pick actually trades for (KTC values adjusted by completed trades of the last 45 days), with pieces combined the way 1.5 million real trades combine them. What the grade uses.',
   ktc: "KeepTradeCut's own calculator: KTC values with KTC's consolidation adjustment. Shown so you can check it on KTC.",
   market: 'What managers usually pay for these players and picks in completed trades'
 };
@@ -1782,7 +1793,6 @@ function updateTrade() {
   // grade), on KTC's own calculator, and, once the market has loaded, at market prices.
   const tradeEdge = (bValAdj - aValAdj) / (((aValAdj + bValAdj) / 2) || 1) * 100;
   const ktcEdge = (ktcView.valueB - ktcView.valueA) / (((ktcView.valueA + ktcView.valueB) / 2) || 1) * 100;
-  const mk = aAssets.length && bAssets.length && typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, aAssets, bAssets) : null;
   const accept = marketAcceptable(league, aAssets, bAssets); // acceptable: what managers pay for these players (not the grade)
   // The answer, top to bottom: the verdict for your team (renderForYou), then
   // what your team pays on the grade's trade value, on KTC's own calculator (so
@@ -1792,7 +1802,7 @@ function updateTrade() {
   diffLabelEl.innerHTML = `<div id="forYou"></div>
     ${aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 max-w-[640px]">
       <div class="text-[11px] uppercase tracking-wider text-zinc-500">Price · ${Vault.escapeHtml(teamA.teamName)} pays</div>
-      <div class="grid grid-cols-3 gap-x-4 sm:flex sm:flex-wrap sm:gap-x-10 gap-y-3 mt-1.5">${priceStatHtml(tradeEdge, 'trade value (the grade)', PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, ktcSameCall(tradeEdge, ktcEdge) ? "KTC's calculator · same call" : "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market, 'text-[24px]') : ''}</div>
+      <div class="flex flex-wrap gap-x-10 gap-y-3 mt-1.5">${priceStatHtml(tradeEdge, 'trade value (the grade)', PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, ktcSameCall(tradeEdge, ktcEdge) ? "KTC's calculator · same call" : "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}</div>
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
       ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName, 'mt-2.5')}
     </div>` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
@@ -2276,8 +2286,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js?v=5efdd772"></script>
-<script src="market-data.js?v=a45c3ad5"></script>
+<script src="market-data.js?v=08eb9e72"></script>
 <script src="market.js?v=36b1f08b"></script>
-<script src="coach.js?v=0080505c"></script>
+<script src="coach.js?v=eeffdb9f"></script>
 </body>
 </html>

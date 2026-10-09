@@ -10,10 +10,11 @@
    (Vault.normalizeName), the way the site matches KTC to Sleeper; each trade
    keeps its league's settings so pages can match leagues like theirs
    (Vault.tradeFormatTiers).
-   Sides are valued on trade value (Vault.tradeSideValues: pieces combined the
-   way real trades combine them), like every grade, so a market price shows how a
-   player is priced beyond the normal premium for consolidating, and the
-   calculator's market figure agrees with its grade.
+   Sides are valued on trade value with KTC values (Vault.tradeSideValues with
+   market: false: pieces combined the way real trades combine them, no market
+   prices, since those are what's measured here), so a market price shows how a
+   player is priced beyond the normal premium for consolidating. The grade then
+   uses these prices (data/grade-values.json, Vault.gradeValue).
    ============================================================ */
 const MARKET_MIN_COMPS = 5;     // fewer completed trades than this and we say nothing
 const MARKET_MIN_NARROW = 10;   // a closer league match needs at least this many, or the broader one is steadier
@@ -79,7 +80,7 @@ function marketLoad(league) {
 // % the side getting `pSide` paid over KTC: what they sent minus what they got,
 // consolidation-adjusted, as a % of the two sides' average.
 function marketPaid(pSide, oSide) {
-  const { valueA: vp, valueB: vo } = Vault.tradeSideValues(pSide, oSide);
+  const { valueA: vp, valueB: vo } = Vault.tradeSideValues(pSide, oSide, { market: false });
   const avg = (vp + vo) / 2 || 1;
   return (vo - vp) / avg * 100;
 }
@@ -141,7 +142,7 @@ function marketPeerBaseline(even) {
   const events = [];
   d.byPlayer.forEach((trades, key) => marketComps(key).forEach(c => {
     if (!c.main || (even && c.dir !== 0)) return;
-    const { valueA: vp, valueB: vo } = Vault.tradeSideValues(c.ps, c.os);
+    const { valueA: vp, valueB: vo } = Vault.tradeSideValues(c.ps, c.os, { market: false });
     if (vp) events.push([c.him.value, (vo / vp - 1) * 100, c.him.pos || 'Pick']);
   }));
   const med = list => { const l = [...list].sort((a, b) => a - b); return l[Math.floor((l.length - 1) / 2)]; };
@@ -183,7 +184,7 @@ function marketPool(league, name, { even = false, min = MARKET_MIN_COMPS } = {})
 }
 // Each comp's premium: what the getter sent / what his side was worth, both consolidation-adjusted, minus 1, in %.
 function marketPremium(c) {
-  const { valueA: vp, valueB: vo } = Vault.tradeSideValues(c.ps, c.os);
+  const { valueA: vp, valueB: vo } = Vault.tradeSideValues(c.ps, c.os, { market: false });
   return vp ? (vo / vp - 1) * 100 : 0;
 }
 
@@ -289,7 +290,7 @@ function marketEdge(league, give, get) {
   // then scaled by its own pieces' market prices. Re-running the adjustment on
   // market prices could flip which side holds the best piece and swing the
   // bonus from one side to the other, which is KTC's math, not the market.
-  const { valueA, valueB } = Vault.tradeSideValues(give, get);
+  const { valueA, valueB } = Vault.tradeSideValues(give, get, { market: false });
   const sum = list => list.reduce((t, a) => t + a.value, 0);
   const mkt = list => list.reduce((t, a) => t + a.value * (1 + MARKET_CARRYOVER * marketAdj(league, a) / 100), 0);
   const vG = valueA * (sum(give) ? mkt(give) / sum(give) : 1), vR = valueB * (sum(get) ? mkt(get) / sum(get) : 1);
@@ -365,7 +366,7 @@ function marketPriceRangeCalc(league, a, pSide, oSide) {
 // while the market hasn't loaded.
 function marketAcceptable(league, send, get) {
   if (!send.length || !get.length) return null;
-  const { valueA: S, valueB: G } = Vault.tradeSideValues(send, get);
+  const { valueA: S, valueB: G } = Vault.tradeSideValues(send, get, { market: false });
   const f = r => 200 * (r - 1) / (r + 1), s = f(S / G);
   if (!Market.data || Market.data.failed) {
     const a = Vault.acceptability(send, get, Math.abs(s));
@@ -415,7 +416,7 @@ function marketAcceptHtml(r, sendTeam, getTeam, cls = 'mt-1.5', short = false) {
 // points: on KTC (consolidation-adjusted, as the grade measures) and at market
 // prices (each side scaled by its pieces' market values, the adjustment held).
 function marketNet(league, give, get) {
-  const { valueA, valueB } = Vault.tradeSideValues(give, get);
+  const { valueA, valueB } = Vault.tradeSideValues(give, get, { market: false });
   const mult = list => { const s = list.reduce((t, a) => t + a.value, 0); return s ? list.reduce((t, a) => t + a.value * (1 + marketAdj(league, a) / 100), 0) / s : 1; };
   return { ktc: valueB - valueA, market: valueB * mult(get) - valueA * mult(give) };
 }

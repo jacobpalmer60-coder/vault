@@ -6,6 +6,9 @@ const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
   VAULT_VALUES_URL: 'data/vault-values/values.json',
+  // What each player and pick actually trades for, per league format, built
+  // daily (scripts/build-grade-values.js); the grade's values (Vault.gradeValue).
+  GRADE_VALUES_URL: 'data/grade-values.json',
   // How pieces add up (Vault.tradeValueP, Vault.tradeSideValues): Fair means
   // what managers accept (user, 2026-10-09). A side is worth (sum of
   // value^p)^(1/p); p is read from this table by the trade's best piece (rows,
@@ -1261,15 +1264,70 @@ const Vault = {
   },
 
   async fetchValueSheets() {
-    const [ktcData, projData] = await Promise.all([
+    const [ktcData, projData, gradeData] = await Promise.all([
       Vault.fetchKtcValues(),
-      Vault.fetchProjections()
+      Vault.fetchProjections(),
+      Vault.fetchGradeValues()
     ]);
-    return { ktcData, projData };
+    return { ktcData, projData, gradeData };
+  },
+  async fetchGradeValues() {
+    try { const r = await fetch(VAULT_CONFIG.GRADE_VALUES_URL); return r.ok ? r.json() : null; } catch { return null; }
   },
 
-  buildValueMaps({ ktcData, projData, isSF, scoringSettings, pickYears }) {
+  /* ---------- The grade's values: what each piece actually trades for ----------
+     Fair means what managers accept (user, 2026-10-09), and managers price
+     players differently from KTC: Ja'Marr Chase goes for about 8% under his KTC
+     value, tight ends in TE-premium leagues well under, aging veterans over. The
+     grade (Vault.tradeSideValues) values each piece at KTC x (1 + what it trades
+     for, %), from data/grade-values.json for the league's format (QB format and
+     TE premium), set when a league's values load (buildValueMaps). Tested on
+     275,273 trades from June to October 2026 with the prices rebuilt weekly:
+     77.2% called Fair against 75.0% on KTC values alone, 1-for-1s 57.0% against
+     53.9% (RosterAudit's idea, values from real trades, on our curve). Players'
+     numbers on the page stay KTC's, and KTC's own calculator stays beside every
+     grade. No file, no league loaded, or Vault values showing: KTC values. */
+  setGradeMarket(gradeData, isSF, bonusRecTe) {
+    const key = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
+    const table = gradeData?.formats?.[key];
+    Vault._gradeMarket = table && Vault.valueSource() !== 'vault' ? new Map(Object.entries(table)) : null;
+    Vault._gradeMarketUpdated = table ? gradeData.updated : null;
+  },
+  // The market prices in force at a past moment (ms), for grading a trade at
+  // its own date: the half-month snapshot of data/grade-values-history/ that
+  // covers it (Vault.loadGradeHistory), or null (KTC values) before the history
+  // starts or when it isn't loaded.
+  gradeMarketAt(ms) {
+    const h = Vault._gradeHistory;
+    if (!h || !Number.isFinite(ms)) return null;
+    const d = new Date(ms).toISOString().slice(0, 10);
+    let i = -1;
+    for (let k = 0; k < h.dates.length && h.dates[k] <= d; k++) i = k;
+    return i < 0 ? null : h.tables[i];
+  },
+  async loadGradeHistory(isSF, bonusRecTe) {
+    const key = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
+    try {
+      const r = await fetch(`data/grade-values-history/${key}.json`);
+      if (!r.ok || Vault.valueSource() === 'vault') return (Vault._gradeHistory = null);
+      const j = await r.json();
+      Vault._gradeHistory = { dates: j.dates, tables: j.tables.map(t => new Map(Object.entries(t))) };
+    } catch { Vault._gradeHistory = null; }
+    return Vault._gradeHistory;
+  },
+  // The market key of a piece: 'n:' + normalized name, or 'k:<season>-<round>' for a pick.
+  gradeKey(a) {
+    if (!a) return '';
+    if (a.type === 'pick') { const round = a.round ?? a.ktcRound; return a.season && round ? `k:${a.season}-${round}` : ''; }
+    return a.name ? 'n:' + Vault.normalizeName(a.name) : '';
+  },
+  // % a piece trades over (+) or under (-) its KTC value, 0 when unknown.
+  gradeMarketPct(a, table = Vault._gradeMarket) { return (table && table.get(Vault.gradeKey(a))) || 0; },
+  gradeValue(a, table = Vault._gradeMarket) { return a.value * (1 + Vault.gradeMarketPct(a, table) / 100); },
+
+  buildValueMaps({ ktcData, projData, gradeData, isSF, scoringSettings, pickYears }) {
     const bonusRecTe = scoringSettings?.bonus_rec_te;
+    Vault.setGradeMarket(gradeData, isSF, bonusRecTe);
     const valMap = Vault.buildKtcValueMap(ktcData, isSF, bonusRecTe);
     const ppgMap = Vault.buildProjectedPpgMapById(projData, scoringSettings);
     const pickMap = Vault.buildKtcPickMap(ktcData, isSF, pickYears, bonusRecTe);
@@ -1525,10 +1583,10 @@ const Vault = {
      Fixing that drift was the main reason to centralize this. */
   async buildLeagueTeams(leagueId) {
     const { league, users, rosters, players, traded, drafts } = await Vault.fetchSleeperCore(leagueId);
-    const { ktcData, projData } = await Vault.fetchValueSheets();
+    const { ktcData, projData, gradeData } = await Vault.fetchValueSheets();
     const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
     const pickYears = Vault.futurePickYears(league, drafts);
-    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, projData, isSF, scoringSettings: league.scoring_settings, pickYears });
+    const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, projData, gradeData, isSF, scoringSettings: league.scoring_settings, pickYears });
 
     const userMap = new Map(users.map(u => [u.user_id, u]));
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
@@ -2357,8 +2415,12 @@ const Vault = {
     return `Rarely accepted: fewer than 1 in ${a.share < 0.01 ? 100 : 20} accepted trades like it are this lopsided.`;
   },
 
-  tradeSideValues(assetsA, assetsB) {
-    const valsA = assetsA.map(a => a.value), valsB = assetsB.map(a => a.value);
+  // { market: false }: KTC values (the market data measuring prices; marketEdge,
+  // which applies its own). { market: Map }: that week's prices (past trades).
+  tradeSideValues(assetsA, assetsB, { market = true } = {}) {
+    const table = market === true ? Vault._gradeMarket : market || null;
+    const val = a => (table ? Vault.gradeValue(a, table) : a.value);
+    const valsA = assetsA.map(val), valsB = assetsB.map(val);
     const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
     const none = { rawA, rawB, valueA: rawA, valueB: rawB, bonusA: 0, bonusB: 0, display: false };
     if (!rawA || !rawB || (valsA.length <= 1 && valsB.length <= 1)) return none;
@@ -3565,6 +3627,9 @@ const Vault = {
     const valuedAt = atTrade ? 'trade' : 'today';
     const toA = atTrade ? atTrade.toA : toATodayPrices;
     const toB = atTrade ? atTrade.toB : toBTodayPrices;
+    // The grade at the trade's date uses that period's market prices
+    // (Vault.gradeMarketAt; KTC values where there's no history), "how it aged"
+    // today's (the default).
     const today = Vault.tradeSideValues(toBTodayPrices, toATodayPrices);
     const todayAvg = (today.valueA + today.valueB) / 2 || 1;
     const todaySignedPctDiff = (today.valueA - today.valueB) / todayAvg * 100;
@@ -3572,7 +3637,8 @@ const Vault = {
 
     // Fairness uses KTC's own consolidation adjustment (see Vault.tradeSideValues) —
     // toB is what A gave (B received it), toA is what B gave.
-    const { valueA: aGaveAdj, valueB: bGaveAdj } = Vault.tradeSideValues(toB, toA);
+    const gradeMarket = atTrade ? Vault.gradeMarketAt(tradeMs) : true;
+    const { valueA: aGaveAdj, valueB: bGaveAdj } = Vault.tradeSideValues(toB, toA, { market: gradeMarket });
     const avgAdj = (aGaveAdj + bGaveAdj) / 2 || 1;
     const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
     const dValueAdjA = bGaveAdj - aGaveAdj; // positive = A came out ahead on value
@@ -3655,7 +3721,7 @@ const Vault = {
 
     // toAToday/toBToday: the same pieces at today's prices (Trade Grades' This season
     // line works from today's rosters).
-    return { tx, teamA, teamB, toA, toB, toAToday: toATodayPrices, toBToday: toBTodayPrices, depthA, depthB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
+    return { tx, teamA, teamB, toA, toB, gradeMarket, toAToday: toATodayPrices, toBToday: toBTodayPrices, depthA, depthB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
   },
 
   // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
@@ -3694,6 +3760,8 @@ const Vault = {
      null for any unresolved roster_id, nothing extra to filter here. */
   async fetchAndGradeAllTrades(leagueId) {
     const { league, isSF, teams, slots, replacementLevels, remainingWeeks } = await Vault.buildLeagueTeams(leagueId);
+    // Past trades are graded at the market prices of their own date (Vault.gradeMarketAt).
+    await Vault.loadGradeHistory(isSF, league.scoring_settings?.bonus_rec_te);
     const seasonChain = await Vault.fetchSeasonChain(leagueId, league);
 
     const [playersDb, ktcData, projData, rosters, traded, playerHist, pickHist] = await Promise.all([
