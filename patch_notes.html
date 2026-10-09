@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=c2c32a90">
+<link rel="stylesheet" href="tailwind.css?v=99f3cec4">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-09', items: [
+    { kind: 'changed', page: 'Trade Calculator', text: 'The result is one answer instead of several: the verdict for your team, then a single price row (what your team pays on trade value, on KTC\'s own calculator, and at market prices, all from your side) and whether managers usually accept trades like it. When KTC\'s number differs from ours by 5% or more, one line says why: how much extra each gives the side with the biggest piece. Gaps under 5% no longer show in warning colors. Fairness for both teams, the market\'s recent trades and the consolidation note moved into Details.' },
     { kind: 'changed', page: 'Trade Coach', text: 'Trade Coach only suggests trades that work for both teams: at least a Toss-up for the other team (so they have a reason to say yes), not hurting either roster, and no filler pieces thrown in to balance the numbers. Best trades now also looks for swaps that fill both teams\' needs (your depth at one position for theirs at a position you need) and lists the biggest upgrades for you first. If your team is already strong, the list may be short: that\'s the honest answer, not a padded one.' }
   ] },
   { date: '2026-10-08', items: [

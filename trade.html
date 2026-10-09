@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=c2c32a90">
+<link rel="stylesheet" href="tailwind.css?v=99f3cec4">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -107,13 +107,11 @@
         <div id="giveB" class="space-y-1"></div>
       </section>
     </div>
-    <!-- The decision: the grade, how acceptable it is, and the market. -->
+    <!-- The answer: the verdict for your team, then one price row (trade value,
+         KTC's calculator, the market) and whether managers take trades like it. -->
     <div class="border-t border-white/5 px-4 sm:px-5 py-4">
       <div class="min-w-0">
         <div id="diffLabel" aria-live="polite"></div>
-        <div id="diffBar" class="mt-2.5 max-w-[560px]"></div>
-        <!-- What managers paid for the headline player (market.js). -->
-        <div id="marketRead" class="mt-3 max-w-[560px]"></div>
       </div>
     </div>
     <!-- This season: playoff and title odds before → after, and who moves into each lineup. -->
@@ -129,10 +127,16 @@
     <!-- Everything else, on demand: the numbers behind the grade and how to even it up. -->
     <details id="tradeDetails" class="group border-t border-white/5">
       <summary class="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">
-        <span>Details: KTC and adjusted values, and how to even it up</span>
+        <span>Details: fairness for both teams, the market's trades, values, and how to even it up</span>
         <span><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
       </summary>
       <div class="px-4 sm:px-5 pb-4 space-y-3">
+        <!-- Fairness for both teams: trade value plus each team's roster fit and timeline. -->
+        <div id="priceBucket" class="text-[12px] text-zinc-400"></div>
+        <div id="diffBar" class="max-w-[560px]"></div>
+        <!-- What managers paid for the headline player (market.js). -->
+        <div id="marketRead" class="max-w-[560px]"></div>
+        <div id="consolidation"></div>
         <div id="valueTable"></div>
         <div id="diffConfidence" class="text-[12px] text-zinc-400"></div>
         <div id="gapClose" class="hidden pt-3 border-t border-white/5"></div>
@@ -1374,9 +1378,30 @@ function consolidationAdviceHtml(aAssets, bAssets, teamA, teamB) {
   const tone = ahead >= 55 ? 'text-emerald-300' : ahead <= 35 ? 'text-orange-300' : 'text-zinc-200';
   return `<div class="text-[12px] text-zinc-400 mt-3 leading-relaxed max-w-[560px]" title="From ${P.trades.toLocaleString()} completed Sleeper dynasty trades with uneven piece counts, each judged on trade value a year later.">${Vault.escapeHtml(team.teamName)} is consolidating (${got.length} for ${gave.length}). Teams that got a ${band} piece by sending ${paid} its KTC value came out ahead a year later <span class="${tone}">${ahead}% of the time</span>.</div>`;
 }
+// Colored only from PRICE_TINT_PCT: a 1-3% gap is an even trade, not a warning.
+const PRICE_TINT_PCT = 5;
 function priceStatHtml(v, label, tip = '', size = 'text-[30px]') {
   const even = Math.abs(v) < 1;
-  return `<div><div class="num ${size} ${even ? 'text-zinc-100' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${even ? 'Even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`}</div><div class="text-[11px] text-zinc-500 mt-1.5"${tip ? ` title="${tip}"` : ''}>${even ? 'with ' : ''}${label}</div></div>`;
+  return `<div><div class="num ${size} ${Math.abs(v) < PRICE_TINT_PCT ? 'text-zinc-100' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${even ? 'Even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`}</div><div class="text-[11px] text-zinc-500 mt-1.5"${tip ? ` title="${tip}"` : ''}>${even ? 'with ' : ''}${label}</div></div>`;
+}
+/* Why KTC's calculator reads a trade differently from trade value, in one line,
+   when they're 5 or more points apart. Same player and pick values on both; the
+   only difference is the extra credit for the side with the biggest single
+   piece: KTC's consolidation adjustment against what real trades pay
+   (Vault.tradeSideValues). Shown so a manager checking the trade on KTC sees
+   where the gap comes from instead of a number that just disagrees. */
+const KTC_GAP_SHOW = 5;
+function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
+  if (Math.abs(tradeEdge - ktcEdge) < KTC_GAP_SHOW || !aAssets.length || !bAssets.length) return '';
+  const ours = Vault.tradeSideValues(aAssets, bAssets);
+  const n = v => Math.round(v).toLocaleString();
+  // The side KTC credits, and its biggest piece.
+  const sideA = ktc.bonusA - ours.bonusA >= ktc.bonusB - ours.bonusB;
+  const side = sideA ? aAssets : bAssets;
+  const star = side.reduce((m, a) => (a.value > m.value ? a : m), side[0]);
+  const kb = sideA ? ktc.bonusA : ktc.bonusB, ob = sideA ? ours.bonusA : ours.bonusB;
+  const more = kb > ob;
+  return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: KTC's calculator gives the side with ${Vault.escapeHtml(star.name)} ${kb >= 1 ? `<span class="num text-zinc-200">+${n(kb)}</span>` : 'no'} extra for having the biggest piece${more ? '' : ' (KTC drops it when the pieces coming back are close in value)'}; in real trades like this one that side gets about ${ob >= 1 ? `<span class="num text-zinc-200">+${n(ob)}</span>` : 'nothing extra'}, which is what trade value uses. <a href="how_we_grade.html#fairness" class="underline decoration-dotted underline-offset-2 hover:text-zinc-200">How we grade</a></div>`;
 }
 const PRICE_TIP = {
   trade: 'Trade value: KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). What the grade uses.',
@@ -1740,13 +1765,21 @@ function updateTrade() {
   const ktcEdge = (ktcView.valueB - ktcView.valueA) / (((ktcView.valueA + ktcView.valueB) / 2) || 1) * 100;
   const mk = aAssets.length && bAssets.length && typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, aAssets, bAssets) : null;
   const accept = marketAcceptable(league, aAssets, bAssets); // acceptable: what managers pay for these players (not the grade)
+  // The answer, top to bottom: the verdict for your team (renderForYou), then
+  // what your team pays on the grade's trade value, on KTC's own calculator (so
+  // anyone can check it on KTC) and at market prices, in one row, the same way
+  // round; why KTC reads it differently when it does; and whether managers take
+  // trades like it. Fairness for both teams and the market's trades are in Details.
   diffLabelEl.innerHTML = `<div id="forYou"></div>
-    <div class="text-[12px] text-zinc-400 mt-3" title="Whether the price is fair for both teams: trade value, plus both teams' roster fit and timeline. Not the verdict above, which is about your team.">Price: <span class="font-medium ${bucketColor(bucket)}">${bucket}</span> · ${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">(trade value alone ${capPct(pctDiff).toFixed(0)}%)</span>` : ''}</div>
-    ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}
-    ${aAssets.length && bAssets.length ? `<div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(teamA.teamName)} pays</div>
-    <div class="flex flex-wrap gap-x-10 gap-y-3 mt-1">${priceStatHtml(tradeEdge, 'trade value', PRICE_TIP.trade)}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc)}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market) : ''}</div>
-    ${consolidationAdviceHtml(aAssets, bAssets, teamA, teamB)}` : ''}`;
-  diffLabelEl.title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than trade value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side, and neither side a poor fit.`;
+    ${aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 max-w-[640px]">
+      <div class="text-[11px] uppercase tracking-wider text-zinc-500">Price · ${Vault.escapeHtml(teamA.teamName)} pays</div>
+      <div class="grid grid-cols-3 gap-x-4 sm:flex sm:flex-wrap sm:gap-x-10 gap-y-3 mt-1.5">${priceStatHtml(tradeEdge, 'trade value (the grade)', PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market, 'text-[24px]') : ''}</div>
+      ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
+      ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName, 'mt-2.5')}
+    </div>` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
+  document.getElementById('priceBucket').innerHTML = (aAssets.length || bAssets.length) ? `<span title="Whether the price is fair for both teams: trade value, plus both teams' roster fit and timeline. Not the verdict, which is about your team.">Fair for both teams? <span class="font-medium ${bucketColor(bucket)}">${bucket}</span> · ${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">(trade value alone ${capPct(pctDiff).toFixed(0)}%)</span>` : ''}</span>` : '';
+  document.getElementById('consolidation').innerHTML = aAssets.length && bAssets.length ? consolidationAdviceHtml(aAssets, bAssets, teamA, teamB) : '';
+  document.getElementById('priceBucket').title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than trade value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side, and neither side a poor fit.`;
   diffLabelEl.className = '';
   // The overall bar plus the three it's made of (trade value, roster fit, timeline),
   // right under the grade.
