@@ -3456,19 +3456,27 @@ const Vault = {
   tradeHighlight(teamAName, teamBName, dValueAdjA, avgSideAdj, themeA, themeB) {
     const pct = avgSideAdj ? Math.abs(dValueAdjA) / avgSideAdj * 100 : 0;
     const amt = Math.round(Math.abs(dValueAdjA)).toLocaleString();
-    const close = pct < VAULT_CONFIG.FAIR_PCT;
+    // Under 3% is even; under the Fair line one team came out a little ahead (a
+    // 10% edge read "close to even" before, 2026-10-09); past it, by how much.
+    const even = pct < 3, close = pct < VAULT_CONFIG.FAIR_PCT;
     const aGained = dValueAdjA >= 0;
-    const lead = close
-      ? `${teamAName} and ${teamBName} landed close to even in value`
-      : `${teamAName} ${aGained ? 'gained' : 'gave up'} about ${amt} in value`;
+    // Whether Team A is the sentence's subject, so its theme can hang off it
+    // ("..., and got younger") or needs its own name ("...; Team A got younger").
+    let lead, aLeads;
+    if (even) { lead = `${teamAName} and ${teamBName} landed about even in value`; aLeads = false; }
+    else if (close) { lead = `${aGained ? teamAName : teamBName} came out a little ahead in value (about ${Math.round(pct)}%, still a fair price)`; aLeads = aGained; }
+    else { lead = `${teamAName} ${aGained ? 'gained' : 'gave up'} about ${amt} in value`; aLeads = true; }
 
     const extras = [];
     if (themeA) {
-      const contrasts = !close && ((aGained && themeA.tone === 'bad') || (!aGained && themeA.tone === 'good'));
-      extras.push(`${contrasts ? 'but' : 'and'} ${themeA.phrase}`);
+      if (aLeads) {
+        const contrasts = (aGained && themeA.tone === 'bad') || (!aGained && themeA.tone === 'good');
+        extras.push(`${contrasts ? 'but' : 'and'} ${themeA.phrase}`);
+      } else extras.push(`${teamAName} ${themeA.phrase}`);
     }
     if (themeB) extras.push(`while ${teamBName} ${themeB.phrase}`);
-    return extras.length ? `${lead}, ${extras.join(', ')}.` : `${lead}.`;
+    if (!extras.length) return `${lead}.`;
+    return themeA && !aLeads ? `${lead}; ${extras.join(', ')}.` : `${lead}, ${extras.join(', ')}.`;
   },
 
   /* ---------- Flaws ----------
