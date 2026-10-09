@@ -9,7 +9,8 @@
   // goes to the home page to choose theirs, instead of seeing a default league.
   let saved = null;
   try { saved = localStorage.getItem('vault_league_id'); } catch {}
-  if (!new URLSearchParams(location.search).get('league_id') && !saved) { location.replace('index.html'); return; }
+  // Pages anyone can use without a league (Rate Trades) set window.VAULT_NO_LEAGUE_OK.
+  if (!window.VAULT_NO_LEAGUE_OK && !new URLSearchParams(location.search).get('league_id') && !saved) { location.replace('index.html'); return; }
 
   // Pages, grouped. The group name gives the context, so tabs use short names
   // (label is the full name, for the phone menu button and screen readers).
@@ -27,6 +28,7 @@
       { key: 'trade', short: 'Calculator', label: 'Trade Calculator', href: 'trade.html' },
       { key: 'grades', short: 'Grades', label: 'Trade Grades', href: 'trade_grades.html' },
       { key: 'database', short: 'Database', label: 'Trade Database', href: 'trade_database.html' },
+      { key: 'rate', short: 'Rate', label: 'Rate Trades', href: 'rate.html' },
       { key: 'managers', short: 'Managers', label: 'Managers', href: 'managers.html' }
     ] }
   ];
