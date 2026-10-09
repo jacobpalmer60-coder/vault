@@ -1395,13 +1395,15 @@ function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (Math.abs(tradeEdge - ktcEdge) < KTC_GAP_SHOW || !aAssets.length || !bAssets.length) return '';
   const ours = Vault.tradeSideValues(aAssets, bAssets);
   const n = v => Math.round(v).toLocaleString();
-  // The side KTC credits, and its biggest piece.
-  const sideA = ktc.bonusA - ours.bonusA >= ktc.bonusB - ours.bonusB;
+  // The side whose extra credit differs most between the two (KTC can give more,
+  // or nearly nothing when a piece coming back is close in value), and its
+  // biggest piece.
+  const sideA = Math.abs(ktc.bonusA - ours.bonusA) >= Math.abs(ktc.bonusB - ours.bonusB);
   const side = sideA ? aAssets : bAssets;
   const star = side.reduce((m, a) => (a.value > m.value ? a : m), side[0]);
   const kb = sideA ? ktc.bonusA : ktc.bonusB, ob = sideA ? ours.bonusA : ours.bonusB;
-  const more = kb > ob;
-  return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: KTC's calculator gives the side with ${Vault.escapeHtml(star.name)} ${kb >= 1 ? `<span class="num text-zinc-200">+${n(kb)}</span>` : 'no'} extra for having the biggest piece${more ? '' : ' (KTC drops it when the pieces coming back are close in value)'}; in real trades like this one that side gets about ${ob >= 1 ? `<span class="num text-zinc-200">+${n(ob)}</span>` : 'nothing extra'}, which is what trade value uses. <a href="how_we_grade.html#fairness" class="underline decoration-dotted underline-offset-2 hover:text-zinc-200">How we grade</a></div>`;
+  const amt = v => (v >= 1 ? `<span class="num text-zinc-200">+${n(v)}</span>` : 'nothing');
+  return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: for having the biggest piece, KTC's calculator gives the side with ${Vault.escapeHtml(star.name)} ${kb > ob ? amt(kb) : `only ${amt(kb)}`} extra${kb > ob ? '' : ' (KTC shrinks it when a piece coming back is close in value)'}; in real trades like this one that side gets about ${amt(ob)}, which is what trade value uses. <a href="how_we_grade.html#fairness" class="underline decoration-dotted underline-offset-2 hover:text-zinc-200">How we grade</a></div>`;
 }
 const PRICE_TIP = {
   trade: 'Trade value: KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). What the grade uses.',
