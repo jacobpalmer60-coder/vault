@@ -1,6 +1,6 @@
 # VaultValues track record
 
-Updated 2026-10-08 19:29 UTC. Each night's values are scored on trades made after them, which they never saw, next to KTC on the same trades. **Relative error**: each trade's imbalance against how spread out the values are (lower is better; a flatter value set can't game it). "Replay" nights were rebuilt afterwards by refitting day by day.
+Updated 2026-10-09 15:33 UTC. Each night's values are scored on trades made after them, which they never saw, next to KTC on the same trades. **Relative error**: each trade's imbalance against how spread out the values are (lower is better; a flatter value set can't game it). "Replay" nights were rebuilt afterwards by refitting day by day.
 
 ## The pass bar
 
@@ -8,12 +8,12 @@ Over 8 weeks: beat what the site grades with today (KTC values on its calibrated
 
 | Format | Weeks scored | Weeks beating the site's KTC trade value (the bar) | Weeks beating KTC + market price | Weeks beating KTC (its own adjustment) | Weeks beating KTC + curve | Rank agreement (latest) | Median daily move | Trades priced: ours / KTC | Status |
 |---|---|---|---|---|---|---|---|---|---|
-| sf_tep | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.966 | 1.0% | 99.9% / 96.9% | Building (5/8 weeks) |
-| sf | 5 | 1/5 | 1/5 | 5/5 | 5/5 | 0.964 | 1.0% | 99.9% / 96.9% | Building (5/8 weeks) |
-| sf_tepp | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.970 | 1.4% | 99.8% / 96.3% | Building (5/8 weeks) |
-| oneQB | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.953 | 1.2% | 99.9% / 97.0% | Building (5/8 weeks) |
-| oneQB_tep | 4 | 0/4 | 0/4 | 4/4 | 2/4 | 0.945 | 1.3% | 98.7% / 95.9% | Building (4/8 weeks) |
-| oneQB_tepp | 3 | 0/3 | 0/3 | 2/3 | 0/3 | 0.892 | 0.8% | 95.1% / 95.0% | Building (3/8 weeks) |
+| sf_tep | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.978 | 1.0% | 99.9% / 96.9% | Building (5/8 weeks) |
+| sf | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.982 | 1.0% | 99.9% / 96.9% | Building (5/8 weeks) |
+| sf_tepp | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.975 | 1.4% | 99.8% / 96.3% | Building (5/8 weeks) |
+| oneQB | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.964 | 1.2% | 99.9% / 97.0% | Building (5/8 weeks) |
+| oneQB_tep | 5 | 0/5 | 0/5 | 5/5 | 3/5 | 0.940 | 1.3% | 98.6% / 95.9% | Building (5/8 weeks) |
+| oneQB_tepp | 3 | 0/3 | 0/3 | 2/3 | 0/3 | 0.892 | 0.9% | 95.1% / 95.0% | Building (3/8 weeks) |
 
 ## Week by week
 
@@ -25,7 +25,7 @@ Over 8 weeks: beat what the site grades with today (KTC values on its calibrated
 | 09-14 to 09-20 (replay) | 5,237 | **0.130** | 0.098 | 0.261 | 0.084 | 0.088 | 0.228 | 0.427 |
 | 09-21 to 09-27 (replay) | 8,054 | **0.134** | 0.082 | 0.242 | 0.071 | 0.073 | 0.192 | 0.393 |
 | 09-28 to 10-04 (replay) | 16,087 | **0.128** | 0.116 | 0.283 | 0.106 | 0.108 | 0.264 | 0.452 |
-| 10-05 to 10-05 (replay) | 289 | **0.157** | 0.081 | 0.262 | 0.070 | 0.072 | 0.193 | 0.429 |
+| 10-05 to 10-09 | 1,989 | **0.127** | 0.077 | 0.232 | 0.060 | 0.065 | 0.176 | 0.372 |
 
 ### sf
 
@@ -35,7 +35,7 @@ Over 8 weeks: beat what the site grades with today (KTC values on its calibrated
 | 09-14 to 09-20 (replay) | 5,555 | **0.169** | 0.101 | 0.297 | 0.089 | 0.092 | 0.250 | 0.491 |
 | 09-21 to 09-27 (replay) | 8,699 | **0.156** | 0.101 | 0.284 | 0.092 | 0.094 | 0.245 | 0.475 |
 | 09-28 to 10-04 (replay) | 17,127 | **0.158** | 0.103 | 0.293 | 0.091 | 0.094 | 0.248 | 0.483 |
-| 10-05 to 10-05 (replay) | 364 | **0.173** | 0.215 | 0.430 | 0.206 | 0.208 | 0.483 | 0.650 |
+| 10-05 to 10-09 | 2,264 | **0.166** | 0.104 | 0.290 | 0.091 | 0.094 | 0.257 | 0.491 |
 
 ### sf_tepp
 
@@ -45,7 +45,7 @@ Over 8 weeks: beat what the site grades with today (KTC values on its calibrated
 | 09-14 to 09-20 (replay) | 2,421 | **0.150** | 0.125 | 0.296 | 0.111 | 0.114 | 0.280 | 0.442 |
 | 09-21 to 09-27 (replay) | 3,955 | **0.141** | 0.125 | 0.277 | 0.122 | 0.121 | 0.272 | 0.419 |
 | 09-28 to 10-04 (replay) | 8,295 | **0.123** | 0.117 | 0.280 | 0.106 | 0.109 | 0.262 | 0.429 |
-| 10-05 to 10-05 (replay) | 130 | **0.114** | 0.090 | 0.239 | 0.091 | 0.088 | 0.218 | 0.427 |
+| 10-05 to 10-09 | 986 | **0.105** | 0.078 | 0.213 | 0.065 | 0.068 | 0.175 | 0.334 |
 
 ### oneQB
 
@@ -55,7 +55,7 @@ Over 8 weeks: beat what the site grades with today (KTC values on its calibrated
 | 09-14 to 09-20 (replay) | 3,656 | **0.234** | 0.118 | 0.406 | 0.104 | 0.107 | 0.329 | 0.689 |
 | 09-21 to 09-27 (replay) | 5,531 | **0.228** | 0.114 | 0.386 | 0.104 | 0.106 | 0.323 | 0.676 |
 | 09-28 to 10-04 (replay) | 11,448 | **0.199** | 0.107 | 0.362 | 0.094 | 0.097 | 0.301 | 0.638 |
-| 10-05 to 10-05 (replay) | 250 | **0.181** | 0.136 | 0.370 | 0.114 | 0.120 | 0.376 | 0.530 |
+| 10-05 to 10-09 | 1,523 | **0.216** | 0.097 | 0.363 | 0.076 | 0.082 | 0.292 | 0.630 |
 
 ### oneQB_tep
 
@@ -65,6 +65,7 @@ Over 8 weeks: beat what the site grades with today (KTC values on its calibrated
 | 09-14 to 09-20 (replay) | 506 | **0.375** | 0.131 | 0.431 | 0.133 | 0.129 | 0.375 | 0.814 |
 | 09-21 to 09-27 (replay) | 732 | **0.306** | 0.136 | 0.406 | 0.139 | 0.134 | 0.373 | 0.715 |
 | 09-28 to 10-04 (replay) | 1,397 | **0.250** | 0.115 | 0.351 | 0.115 | 0.112 | 0.328 | 0.587 |
+| 10-05 to 10-09 | 178 | **0.235** | 0.089 | 0.262 | 0.071 | 0.075 | 0.264 | 0.520 |
 
 ### oneQB_tepp
 
