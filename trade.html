@@ -1392,11 +1392,11 @@ function priceStatHtml(v, label, tip = '', size = 'text-[30px]') {
    on each side is close in value (KTC_CLOSE): there KTC's consolidation
    adjustment shrinks to almost nothing and the side with more pieces looks far
    ahead. Of 6,616 such trades, all accepted by both managers, KTC called 11%
-   Fair and trade value 91%. So:
+   Fair and trade value 87%. So:
    - same call: "same call" under KTC's number (ktcSameCall), credit to KTC;
    - a different call in that situation: why, with that evidence;
    - a different call anywhere else: only the facts (each one's bonus), no claim. */
-const KTC_CLOSE = 0.85, KTC_CLOSE_EVIDENCE = { trades: 6616, ktc: 11, ours: 91 };
+const KTC_CLOSE = 0.85, KTC_CLOSE_EVIDENCE = { trades: 6616, ktc: 11, ours: 87 };
 const ktcCall = e => (Math.abs(e) < VAULT_CONFIG.FAIR_PCT ? 0 : (Math.abs(e) < VAULT_CONFIG.LOPSIDED_PCT ? 1 : 2) * Math.sign(e));
 const ktcSameCall = (tradeEdge, ktcEdge) => ktcCall(tradeEdge) === ktcCall(ktcEdge);
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
