@@ -4,6 +4,6 @@
    it add a vote and read vote counts (see supabase/rate-trades.sql). Leave both
    empty and the page still works, saving votes on each device only. */
 window.RATE_CONFIG = {
-  supabaseUrl: '',
-  anonKey: ''
+  supabaseUrl: 'https://tyojhrzwrmwftuxpxtwt.supabase.co',
+  anonKey: 'sb_publishable_fifpxLAMPGjxs0mXSxRtgQ_rTXiDcGO'
 };
