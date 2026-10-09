@@ -97,6 +97,57 @@ const coachKey = o => (Math.abs(o.edge) < VAULT_CONFIG.FAIR_PCT ? 0 : 1000) - co
 // Slight edge or better (VAULT_CONFIG.VERDICT_TIERS): below that, real trades
 // scored the same way came out a coin flip.
 const coachImproves = o => Vault.verdictTier(coachScore(o)).level === 'good';
+// A suggestion has to make sense for both teams (user, 2026-10-09):
+// - the other manager has a reason to take it: at least a Toss-up for them;
+// - it doesn't hurt either roster (roster fit not meaningfully negative, -1 or better, for either side);
+// - no throw-ins: every piece is worth at least COACH_MIN_PIECE of its side's best;
+// - you don't give up value (COACH_VALUE_FLOOR).
+// Best trades then lists Good trade or better for you (COACH_UPSIDE) when it
+// finds 3+, else Slight edge or better.
+const COACH_THEIR_MIN = -6, COACH_UPSIDE = 15, COACH_MIN_PIECE = 0.2;
+function coachSensible({ c, mine, theirs }) {
+  const noFiller = side => { const top = Math.max(...side.map(a => a.value)); return side.every(a => a.value >= top * COACH_MIN_PIECE); };
+  return theirs.score >= COACH_THEIR_MIN && mine.score >= 10 && mine.rosterFit >= -1 && theirs.rosterFit >= -1
+    && mine.valuePct >= -COACH_VALUE_FLOOR && noFiller(c.giveA) && noFiller(c.giveB);
+}
+// Swaps that fill both teams' needs (user, 2026-10-09): the value-matched search
+// (suggestionPool) rarely pairs your depth at one position with a partner's
+// depth at the one you need. For each team that has players at a position you
+// need, offer your players at positions you're deep at (and they aren't), alone
+// or with up to two more pieces or picks, priced so the other team gets a little
+// more trade value (NEED_SWAP_TARGET: you're the one getting a need filled, and
+// a swap that also wins you value is one they'd turn down). The usual checks for
+// both teams then decide what's listed.
+const COACH_NEED_SWAPS = 240, NEED_SWAP_TARGET = [1, 9]; // % more trade value to them
+function coachNeedSwaps(me) {
+  const mine = Vault.positionalProfile(me, teams), lc = a => (a.pos || '').toLowerCase(), raw = [];
+  if (!mine.needs.length) return [];
+  const myDepth = me.assets.filter(a => a.type === 'player' && a.value >= 1500 && mine.surpluses.includes(lc(a)));
+  const myPicks = me.assets.filter(a => a.type === 'pick' && a.value >= 1500);
+  teams.filter(t => t.rosterId !== me.rosterId && coachPartnerOK(t)).forEach(p => {
+    const theirs = Vault.positionalProfile(p, teams);
+    const give = myDepth.filter(a => !theirs.surpluses.includes(lc(a)));
+    // % more trade value the other team gets; keep packages in the target band.
+    const theirEdge = (A, B) => { const { valueA, valueB } = Vault.tradeSideValues(A, B); return (valueA - valueB) / (((valueA + valueB) / 2) || 1) * 100; };
+    const add = (A, g) => { const e = theirEdge(A, [g]); if (e >= NEED_SWAP_TARGET[0] && e <= NEED_SWAP_TARGET[1]) raw.push({ p, A, B: [g], gap: Math.abs(e - 4) }); };
+    const extras = [...give, ...myPicks];
+    p.assets.filter(g => g.type === 'player' && g.value >= 2000 && mine.needs.includes(lc(g))).forEach(g => {
+      give.forEach(a => {
+        if (a.value > g.value * 1.4) return;
+        add([a], g);
+        extras.forEach(b => {
+          if (b === a || b.value < g.value * 0.15) return;
+          add([a, b], g);
+          extras.forEach(c => { if (c !== a && c !== b && c.value >= g.value * 0.15 && c.value < b.value) add([a, b, c], g); });
+        });
+      });
+    });
+  });
+  return raw.sort((x, y) => x.gap - y.gap).slice(0, COACH_NEED_SWAPS).map(({ p, A, B }) => {
+    const { valueA, valueB } = Vault.tradeSideValues(A, B);
+    return { partner: p, giveA: A, giveB: B, result: computeTradeAnalysis(me, p, A, B, valueA, valueB) };
+  });
+}
 // Options that are about the price: these keep Toss-ups too.
 const COACH_PRICE_PLAYS = new Set(['shop', 'sellhigh', 'buylow']);
 // Don't give value away (user, 2026-10-08): a contender's verdict weighs this
@@ -467,7 +518,7 @@ async function coachBest(me, progress) {
   progress('Searching the league for fair trades…');
   await coachTick();
   const must = coachMust(me), off = coachOffLimits(me);
-  const pool = suggestionPool(me).filter(c =>
+  const pool = [...suggestionPool(me), ...coachNeedSwaps(me)].filter(c =>
     coachPartnerOK(c.partner) && must.every(m => c.giveA.includes(m)) && !c.giveA.some(a => off.has(a.key))
     && !c.giveB.some(coachTheirOff) && coachTheirMust(c.partner).every(m => c.giveB.includes(m)) && coachGroupsOK(c.giveA, c.giveB)
     && coachDepthOK(me, c.partner, c.giveA, c.giveB));
@@ -483,11 +534,18 @@ async function coachBest(me, progress) {
   const market = c => (typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, c.giveA, c.giveB) : null);
   const picksOnly = c => [...c.giveA, ...c.giveB].every(a => a.type === 'pick');
   const sameValue = c => picksOnly(c) && Math.round(sumValue(c.giveA)) === Math.round(sumValue(c.giveB));
-  pool.filter(c => !sameValue(c))
-    .map(c => ({ c, j: negJudgeFor(me, c.giveA, c.partner, c.giveB, negContextFor(c.partner)) }))
-    .filter(x => coachMarketOK(x.c.giveA, x.c.giveB) && Math.abs(x.j.edge) < VAULT_CONFIG.FAIR_PCT)
+  // Judged for both teams up front (user, 2026-10-09: "they'd never accept",
+  // "weird combos", "not enough upside"): only trades the other manager has a
+  // reason to take, that help both rosters, with real upside for you, best for
+  // you first. Checking this after picking the top 10 left a thin list padded
+  // with trades that were bad for the other team.
+  const scored = pool.filter(c => !sameValue(c))
+    .map(c => { const j = negJudgeFor(me, c.giveA, c.partner, c.giveB, negContextFor(c.partner)); return { c, j, mine: improvementOf(j.an, 'A'), theirs: improvementOf(j.an, 'B') }; })
+    .filter(x => coachMarketOK(x.c.giveA, x.c.giveB) && coachSensible(x));
+  const upside = scored.filter(x => x.mine.score >= COACH_UPSIDE);
+  (upside.length >= 3 ? upside : scored)
     .map(x => ({ ...x, mk: market(x.c) }))
-    .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || coachKey({ edge: x.j.edge, an: x.j.an }) - coachKey({ edge: y.j.edge, an: y.j.an }))
+    .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || y.mine.score - x.mine.score)
     .forEach(({ c, j, mk }) => {
       const n = perPartner.get(c.partner.rosterId) || 0;
       if (n >= 2 || list.length >= 10) return;
@@ -498,7 +556,7 @@ async function coachBest(me, progress) {
       const mkt = edgeBy ? `${marketMoverText(edgeBy)}.` : '';
       list.push({ partner: c.partner, give: c.giveA, get: c.giveB, edge: j.edge, score: coachScore(j), id: negKeys(c.giveA).join() + '>' + negKeys(c.giveB).join(), why: [fit, mkt].filter(Boolean).join(' ') });
     });
-  if (!list.length) return { empty: `No trade across the league is both Fair for ${Vault.escapeHtml(me.teamName)} and one the other manager would likely take right now. Try Get a player or Fix a position.` };
+  if (!list.length) return { empty: `No trade across the league clearly helps ${Vault.escapeHtml(me.teamName)} while also working for the other team right now. Try Get a player or Fix a position.` };
   return { title: 'Best trades for you', list };
 }
 
@@ -628,7 +686,7 @@ async function coachFind() {
       // Price plays (shopping a player you've decided to move, selling high,
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
-      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= COACH_THEIR_MIN && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
       if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} without giving up value right now. Try another trade type, or Go all-in to spend future value on this season.`; }
     }
     Coach.results[option] = { ...res, meId: me.rosterId, key: coachInputKey(), planNote };
