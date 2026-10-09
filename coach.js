@@ -101,14 +101,24 @@ const coachImproves = o => Vault.verdictTier(coachScore(o)).level === 'good';
 // - the other manager has a reason to take it: at least a Toss-up for them;
 // - it doesn't hurt either roster (roster fit not meaningfully negative, -1 or better, for either side);
 // - no throw-ins: every piece is worth at least COACH_MIN_PIECE of its side's best;
-// - you don't give up value (COACH_VALUE_FLOOR).
+// - you don't give up value (COACH_VALUE_FLOOR);
+// - it reads Fair on KTC's calculator too (coachKtcFair).
 // Best trades then lists Good trade or better for you (COACH_UPSIDE) when it
 // finds 3+, else Slight edge or better.
 const COACH_THEIR_MIN = -6, COACH_UPSIDE = 15, COACH_MIN_PIECE = 0.2;
+// Fair on KTC's own calculator too (user, 2026-10-09: "they'd never accept",
+// "doesn't match KTC"). Most managers check an offer on KTC, and KTC shrinks its
+// biggest-piece bonus to almost nothing when a piece coming back is close in
+// value, so a 2-for-1 that's even on trade value can read 35-45% off there: an
+// offer the other manager turns down, or one that looks like an overpay to you.
+// Neither side may be short by FAIR_PCT or more on KTC; Go all-in may still
+// overpay (that's its point), but not short the other team.
+const coachKtcPct = (give, get) => { const k = Vault.ktcSideValues(give, get); return (k.valueB - k.valueA) / (((k.valueA + k.valueB) / 2) || 1) * 100; };
+const coachKtcFair = (give, get, option) => { const p = coachKtcPct(give, get); return p < VAULT_CONFIG.FAIR_PCT && (option === 'contend' || p > -VAULT_CONFIG.FAIR_PCT); };
 function coachSensible({ c, mine, theirs }) {
   const noFiller = side => { const top = Math.max(...side.map(a => a.value)); return side.every(a => a.value >= top * COACH_MIN_PIECE); };
   return theirs.score >= COACH_THEIR_MIN && mine.score >= 10 && mine.rosterFit >= -1 && theirs.rosterFit >= -1
-    && mine.valuePct >= -COACH_VALUE_FLOOR && noFiller(c.giveA) && noFiller(c.giveB);
+    && mine.valuePct >= -COACH_VALUE_FLOOR && noFiller(c.giveA) && noFiller(c.giveB) && coachKtcFair(c.giveA, c.giveB);
 }
 // Swaps that fill both teams' needs (user, 2026-10-09): the value-matched search
 // (suggestionPool) rarely pairs your depth at one position with a partner's
@@ -147,6 +157,36 @@ function coachNeedSwaps(me) {
     const { valueA, valueB } = Vault.tradeSideValues(A, B);
     return { partner: p, giveA: A, giveB: B, result: computeTradeAnalysis(me, p, A, B, valueA, valueB) };
   });
+}
+// Trades where both teams come out ahead (2026-10-09). The league search
+// (suggestionPool) builds trades priced near even, and an even trade is a
+// Toss-up for you almost by definition: of about 300 it found for a rebuilding
+// team, 2 were a Slight edge. Real win-wins are priced a little your way and pay
+// the other team in what it needs instead: a rebuilder gets value, a contender
+// gets this season's points. So this builds every 1-for-1, 2-for-1 and 1-for-2
+// from both teams' top pieces priced WIN_WIN_BAND your way on trade value and
+// Fair on KTC's calculator, keeps the WIN_WIN_PER_PARTNER closest to +8% per
+// team, and lets the checks for both teams (coachSensible) decide. In The League
+// of Gold it found 3-26 trades per team that pass, against 0-2 before.
+const WIN_WIN_BAND = [-2, 18], WIN_WIN_PER_PARTNER = 120, WIN_WIN_TOP = 14;
+function coachWinWins(me) {
+  const pct = (A, B) => { const { valueA, valueB } = Vault.tradeSideValues(A, B); return (valueB - valueA) / (((valueA + valueB) / 2) || 1) * 100; };
+  const mine = tradeableAssets(me).slice(0, WIN_WIN_TOP), out = [];
+  teams.filter(t => t.rosterId !== me.rosterId && coachPartnerOK(t)).forEach(p => {
+    const theirs = tradeableAssets(p).slice(0, WIN_WIN_TOP), cands = [];
+    const add = (A, B) => {
+      const v = pct(A, B);
+      if (v >= WIN_WIN_BAND[0] && v <= WIN_WIN_BAND[1] && Math.abs(coachKtcPct(A, B)) < VAULT_CONFIG.FAIR_PCT) cands.push({ A, B, v });
+    };
+    mine.forEach(a => theirs.forEach(b => add([a], [b])));
+    mine.forEach((a, i) => mine.slice(i + 1).forEach(a2 => theirs.forEach(b => add([a, a2], [b]))));
+    theirs.forEach((b, i) => theirs.slice(i + 1).forEach(b2 => mine.forEach(a => add([a], [b, b2]))));
+    cands.sort((x, y) => Math.abs(x.v - 8) - Math.abs(y.v - 8)).slice(0, WIN_WIN_PER_PARTNER).forEach(({ A, B }) => {
+      const { valueA, valueB } = Vault.tradeSideValues(A, B);
+      out.push({ partner: p, giveA: A, giveB: B, result: computeTradeAnalysis(me, p, A, B, valueA, valueB) });
+    });
+  });
+  return out;
 }
 // Options that are about the price: these keep Toss-ups too.
 const COACH_PRICE_PLAYS = new Set(['shop', 'sellhigh', 'buylow']);
@@ -518,13 +558,13 @@ async function coachBest(me, progress) {
   progress('Searching the league for fair trades…');
   await coachTick();
   const must = coachMust(me), off = coachOffLimits(me);
-  const pool = [...suggestionPool(me), ...coachNeedSwaps(me)].filter(c =>
+  const pool = [...suggestionPool(me), ...coachNeedSwaps(me), ...coachWinWins(me)].filter(c =>
     coachPartnerOK(c.partner) && must.every(m => c.giveA.includes(m)) && !c.giveA.some(a => off.has(a.key))
     && !c.giveB.some(coachTheirOff) && coachTheirMust(c.partner).every(m => c.giveB.includes(m)) && coachGroupsOK(c.giveA, c.giveB)
     && coachDepthOK(me, c.partner, c.giveA, c.giveB));
   progress('Checking which of those their managers would take…');
   await coachTick();
-  const perPartner = new Map(), list = [];
+  const perPartner = new Map(), list = [], sides = new Set(), uses = new Map();
   // Pick-for-pick trades go last (they price almost even by construction), and a
   // swap of picks worth the same (same year, round and tier) is dropped: it
   // changes nothing. Otherwise best for you first: the grade's lean, plus how
@@ -545,10 +585,16 @@ async function coachBest(me, progress) {
   const upside = scored.filter(x => x.mine.score >= COACH_UPSIDE);
   (upside.length >= 3 ? upside : scored)
     .map(x => ({ ...x, mk: market(x.c) }))
-    .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || y.mine.score - x.mine.score)
+    .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || y.mine.score - x.mine.score || sumValue(x.c.giveA) - sumValue(y.c.giveA))
     .forEach(({ c, j, mk }) => {
       const n = perPartner.get(c.partner.rosterId) || 0;
       if (n >= 2 || list.length >= 10) return;
+      // The same deal with a different add-on (a 1st where a 2nd does the same
+      // job) is one suggestion: the better one for you comes first.
+      const give = c.partner.rosterId + '>' + negKeys(c.giveA).join(), get = c.partner.rosterId + '<' + negKeys(c.giveB).join();
+      if (sides.has(give) || sides.has(get) || c.giveA.some(a => (uses.get(a.key) || 0) >= 2)) return;
+      sides.add(give); sides.add(get);
+      c.giveA.forEach(a => uses.set(a.key, (uses.get(a.key) || 0) + 1));
       perPartner.set(c.partner.rosterId, n + 1);
       const fit = c.result.bucket === 'Great' ? 'A strong fit for both rosters.' : c.result.bucket === 'Good' ? 'A strong fit for one side.' : '';
       // The piece behind a market edge for you: one you get that goes for more, or send that goes for less.
@@ -686,7 +732,7 @@ async function coachFind() {
       // Price plays (shopping a player you've decided to move, selling high,
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
-      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= COACH_THEIR_MIN && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= COACH_THEIR_MIN && coachKtcFair(o.give, o.get, option) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
       if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} without giving up value right now. Try another trade type, or Go all-in to spend future value on this season.`; }
     }
     Coach.results[option] = { ...res, meId: me.rosterId, key: coachInputKey(), planNote };
@@ -1033,6 +1079,9 @@ function coachCardHtml(o, i) {
   const forYou = you >= VAULT_CONFIG.FAIR_PCT ? (you >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided') : null; // leans past Fair your way
   const mk = typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get) : null;
   const atMarket = mk && Math.abs(mk.delta) >= 1 ? you + mk.delta : null;
+  // KTC's own calculator next to trade value, as on the Trade Calculator, so a
+  // suggestion can be checked on KTC.
+  const ktcPct = coachKtcPct(o.give, o.get);
   const row = (label, a, first) => `<div class="grid grid-cols-[36px_minmax(0,1fr)_auto] items-baseline gap-2 py-1.5 ${first ? 'border-t border-white/[0.06]' : ''}">
       <span class="text-[11px] text-zinc-500">${label}</span>
       <span class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span>${Vault.injuryText(a) ? ` <span class="text-[11px] text-rose-300" title="From Sleeper's weekly projections; this season's lineups only count the weeks he's projected to play.">${Vault.injuryText(a)}</span>` : ''}</span>
@@ -1045,9 +1094,10 @@ function coachCardHtml(o, i) {
         <span class="text-[12px] font-semibold text-right ${verdict.cls}" title="Price: ${forYou ? `${forYou}, in your favor` : lop ? 'Lopsided against you' : 'Fair'}">${verdict.label}</span>
       </div>
       <div class="text-[11px] text-zinc-500 mt-3">${Vault.escapeHtml(coachMe().teamName)} pays</div>
-      <div class="grid grid-cols-2 gap-3 mt-1 mb-3">
-        ${priceStatHtml(you, 'trade value', PRICE_TIP.trade)}
-        ${atMarket == null ? '' : priceStatHtml(atMarket, 'market price', PRICE_TIP.market)}
+      <div class="grid grid-cols-3 gap-3 mt-1 mb-3">
+        ${priceStatHtml(you, 'trade value', PRICE_TIP.trade, 'text-[22px]')}
+        ${priceStatHtml(ktcPct, "KTC's calculator", PRICE_TIP.ktc, 'text-[22px]')}
+        ${atMarket == null ? '' : priceStatHtml(atMarket, 'market price', PRICE_TIP.market, 'text-[22px]')}
       </div>
       <div class="border-b border-white/[0.06]">${side('Give', o.give)}${side('Get', o.get)}</div>
       ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}
