@@ -159,19 +159,25 @@ function coachNeedSwaps(me) {
   });
 }
 // Trades where both teams come out ahead (2026-10-09). The league search
-// (suggestionPool) builds trades priced near even, and an even trade is a
-// Toss-up for you almost by definition: of about 300 it found for a rebuilding
-// team, 2 were a Slight edge. Real win-wins are priced a little your way and pay
-// the other team in what it needs instead: a rebuilder gets value, a contender
-// gets this season's points. So this builds every 1-for-1, 2-for-1 and 1-for-2
-// from both teams' top pieces priced WIN_WIN_BAND your way on trade value and
-// Fair on KTC's calculator, keeps the WIN_WIN_PER_PARTNER closest to +8% per
-// team, and lets the checks for both teams (coachSensible) decide. In The League
-// of Gold it found 3-26 trades per team that pass, against 0-2 before.
-const WIN_WIN_BAND = [-2, 18], WIN_WIN_PER_PARTNER = 120, WIN_WIN_TOP = 14;
+// (suggestionPool) keeps only the closest-to-even package per piece, which
+// rarely is the one that also fits both teams. This builds every 1-for-1,
+// 2-for-1 and 1-for-2 from both teams' top pieces priced WIN_WIN_BAND on trade
+// value (your way +) and Fair on KTC's calculator, keeps the
+// WIN_WIN_PER_PARTNER closest to WIN_WIN_TARGET per team, and lets the checks
+// for both teams (coachSensible) decide. The band is where real trades balance:
+// every kind of team trades at about the market price (contenders paid no
+// premium for points, rebuilders got none for selling vets), the middle half of
+// accepted trades within about 10% (VaultValues timeline-premium.js, 26,480
+// trades), so most of each side's win comes from fit, points and timeline. The
+// aim depends on your timeline (WIN_WIN_TARGET): a contender's win is this
+// season's points, so near even; a rebuilder's is mostly value, so toward the
+// top of the usual range (a quarter of accepted trades are 10%+ one way, so
+// up to 15% is still a realistic ask). (It was -2 to +18 aimed at +8 for
+// everyone: contenders' offers priced past what managers usually accept.)
+const WIN_WIN_BAND = [-2, 15], WIN_WIN_TARGET = { contend: 2, flexible: 5, rebuild: 9 }, WIN_WIN_PER_PARTNER = 120, WIN_WIN_TOP = 14;
 function coachWinWins(me) {
   const pct = (A, B) => { const { valueA, valueB } = Vault.tradeSideValues(A, B); return (valueB - valueA) / (((valueA + valueB) / 2) || 1) * 100; };
-  const mine = tradeableAssets(me).slice(0, WIN_WIN_TOP), out = [];
+  const mine = tradeableAssets(me).slice(0, WIN_WIN_TOP), out = [], aim = WIN_WIN_TARGET[Vault.teamMode(me)] ?? WIN_WIN_TARGET.flexible;
   teams.filter(t => t.rosterId !== me.rosterId && coachPartnerOK(t)).forEach(p => {
     const theirs = tradeableAssets(p).slice(0, WIN_WIN_TOP), cands = [];
     const add = (A, B) => {
@@ -181,7 +187,7 @@ function coachWinWins(me) {
     mine.forEach(a => theirs.forEach(b => add([a], [b])));
     mine.forEach((a, i) => mine.slice(i + 1).forEach(a2 => theirs.forEach(b => add([a, a2], [b]))));
     theirs.forEach((b, i) => theirs.slice(i + 1).forEach(b2 => mine.forEach(a => add([a], [b, b2]))));
-    cands.sort((x, y) => Math.abs(x.v - 8) - Math.abs(y.v - 8)).slice(0, WIN_WIN_PER_PARTNER).forEach(({ A, B }) => {
+    cands.sort((x, y) => Math.abs(x.v - aim) - Math.abs(y.v - aim)).slice(0, WIN_WIN_PER_PARTNER).forEach(({ A, B }) => {
       const { valueA, valueB } = Vault.tradeSideValues(A, B);
       out.push({ partner: p, giveA: A, giveB: B, result: computeTradeAnalysis(me, p, A, B, valueA, valueB) });
     });

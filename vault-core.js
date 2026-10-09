@@ -53,13 +53,17 @@ const VAULT_CONFIG = {
   // spread than KTC's prices: an early 1st 1.10x mid (KTC 1.17x), a late 1st
   // 0.97x (KTC 0.94x); late 2nds went for the same as mid (1.01x). Rounds
   // without enough trades keep KTC's own prices.
-  // A rebuilding team's verdict weighs value and roster fit only, no timeline
-  // fit (2026-10-08, held-out half of 13,886 real trades: the timeline fit's
-  // reward for adding picks and getting younger made rebuilders' verdicts track
-  // value a year later, points and playoffs worse, r 0.523 -> 0.565 without it;
-  // picks are overpaid at the draft and contenders' older buys did fine).
-  // Contending and flexible keep FAIRNESS_WEIGHTS (best or tied there).
-  REBUILD_READ_WEIGHTS: { value: 85, roster: 15, timeline: 0 },
+  // A rebuilding team's verdict: value 70, roster fit 15, timeline 15, the same
+  // blend as the others. On 2026-10-08 timeline was dropped (85/15/0) because
+  // getting younger seemed to lose value a year later; that test counted a pick
+  // whose draft had since happened as worth nothing, so every side that got
+  // picks looked like it lost. Valuing it as the rookie it became (2026-10-09,
+  // 15,221 rebuilding sides, 2024 and 2025): at an even price, rebuilders who got
+  // much younger were still ahead later 62% of the time against 43% for those
+  // who got older, and 70/15/15 ranks rebuilders' outcomes better in both halves
+  // of the leagues (AUC 0.733 vs 0.725) with tiers further apart (Great 88%
+  // ahead, Terrible 13%; were 86% and 17%).
+  REBUILD_READ_WEIGHTS: { value: 70, roster: 15, timeline: 15 },
   PICK_TIER_SPREAD: { 1: { early: 1.10, late: 0.97 }, 2: { early: 1.08, late: 1.00 } },
   ODDS_CALIBRATION: { playoffs: { a: 0.88, b: 0.12 }, title: { a: 0.76, b: -0.22 } },
   PROJECTIONS_URL: 'data/projections.json',
@@ -206,8 +210,17 @@ const VAULT_CONFIG = {
   // under the verdict: the share of sides still ahead on value a year later, by
   // timeline, on trade value (KTC today on the trade value curve, like the
   // grade; raw KTC sums, used at first, favored whoever got more pieces).
-  // Recomputed 2026-10-09 on the fair curve (VAULT_CONFIG.FAIR_CURVE) and
-  // contenders' 2 per point (VaultValues ladder-at-strength.js CURVE=site), from
+  // Recomputed 2026-10-09 on the fair curve (VAULT_CONFIG.FAIR_CURVE), contenders'
+  // 2 per point and rebuilding's value 70 / roster 15 / timeline 15, with a pick
+  // whose draft has since happened valued as what it became (the average rookie
+  // taken in that round; earlier records counted it as nothing, which made every
+  // side that got picks look like it lost). Rebuilding and flexible: share still
+  // ahead on value a year or more later (VaultValues ladder-at-strength.js
+  // CURVE=site REBUILD_W=70,15,15). Contending: made the playoffs this many
+  // points more (or less) often than its odds the day of the trade said
+  // (contender-value-weight.js CURVE=site); a contender's verdict is mostly this
+  // season's points, so value a year later was the wrong scorecard (it read 66%
+  // ahead for Great, 32% for Terrible, out of order). From
   // each trade's pieces (the pull's stored value % had about 23% of trades with
   // one side at zero), pooled over 2024 and 2025: the two seasons agree within a
   // few points at every tier. Tested and left out: a penalty
@@ -217,13 +230,13 @@ const VAULT_CONFIG = {
   // averaged +1 a week) read as a contradiction next to this trade's own points.
   // level: the coarse read colors and the offered-to-you summary go by.
   VERDICT_TIERS: [
-    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.90, rebuild: 0.74, flexible: 0.87 } },
-    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.78, rebuild: 0.67, flexible: 0.80 } },
-    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.75, rebuild: 0.62, flexible: 0.80 } },
-    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.52, rebuild: 0.48, flexible: 0.56 } },
-    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.27, rebuild: 0.36, flexible: 0.29 } },
-    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.17, rebuild: 0.32, flexible: 0.21 } },
-    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.08, rebuild: 0.25, flexible: 0.21 } }
+    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 7.9, rebuild: 0.88, flexible: 0.84 } },
+    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 6.5, rebuild: 0.80, flexible: 0.66 } },
+    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 6.3, rebuild: 0.74, flexible: 0.61 } },
+    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 1.4, rebuild: 0.53, flexible: 0.51 } },
+    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: -2.6, rebuild: 0.36, flexible: 0.40 } },
+    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: -4.6, rebuild: 0.26, flexible: 0.28 } },
+    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: -20.0, rebuild: 0.13, flexible: 0.22 } }
   ],
   // Depth (Vault.missedGameCost): weeks each starter is out a season, bye
   // included. Measured, not guessed: across 2018-2025 fantasy starters (top 24
@@ -2460,7 +2473,7 @@ const Vault = {
      Burrow for Mahomes, Pickens and three 1sts reads Bad for a contender (-6:
      10% more value, but 3.9 points a week less) and Good for a rebuilder (+13). */
   tradeImprovement({ valuePct, rosterFit, timelineFit, mode, ptsPerWeek }) {
-    // Rebuilding: value and roster fit only (VAULT_CONFIG.REBUILD_READ_WEIGHTS).
+    // Rebuilding: VAULT_CONFIG.REBUILD_READ_WEIGHTS (the same blend since 2026-10-09).
     const own = Vault.ownTradeRead(valuePct, rosterFit, timelineFit, mode === 'rebuild' ? VAULT_CONFIG.REBUILD_READ_WEIGHTS : undefined);
     // Contending's 2 per point a week (2026-10-08): 3 was chosen on the first
     // 2025 pull, whose stored value % had about a quarter of trades with one side
@@ -2484,8 +2497,12 @@ const Vault = {
   verdictRecordText(imp) {
     const r = imp && imp.record && (imp.record[imp.mode] ?? imp.record.flexible);
     if (r == null) return '';
-    const who = { contend: 'contenders', rebuild: 'rebuilding teams' }[imp.mode] || 'teams';
-    return `In real trades scored like this, ${Math.round(r * 100)}% of ${who} were still ahead on value a year later.`;
+    if (imp.mode === 'contend') {
+      const d = Math.round(r);
+      return `In real trades scored like this, contenders made the playoffs ${Math.abs(d) < 2 ? 'about as often as their odds said' : `${Math.abs(d)} points ${d > 0 ? 'more' : 'less'} often than their odds said`}.`;
+    }
+    const who = { rebuild: 'rebuilding teams' }[imp.mode] || 'teams';
+    return `In real trades scored like this, ${Math.round(r * 100)}% of ${who} were still ahead on value a year or more later.`;
   },
 
   blendedFairness(signedPctDiff, rosterA, rosterB, timeA, timeB) {
