@@ -233,7 +233,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=39556cd8"></script>
+<script src="vault-core.js?v=32117af6"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1362,7 +1362,7 @@ function capPct(pct) { return Math.sign(pct) * Math.floor(Math.min(100, Math.abs
 // sends: green), "8% over" (it overpays: orange), "Even" within 1%; label says against what.
 /* When one team gets fewer pieces (consolidating): how teams that consolidated
    into a piece this valuable, paying this much raw KTC value per value got,
-   came out a year later (VAULT_CONFIG.CONSOLIDATION_PAYOFF, 118,000 real trades
+   came out a year later (VAULT_CONFIG.CONSOLIDATION_PAYOFF, 489,557 real trades
    judged on trade value 12 months on). Information, not part of the grade. */
 function consolidationAdviceHtml(aAssets, bAssets, teamA, teamB) {
   if (!aAssets.length || !bAssets.length || aAssets.length === bAssets.length) return '';
@@ -1455,8 +1455,9 @@ function confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, pctDiff, bandPct
   if (!bandPct || bandPct < 1) return '';
   const lo = Math.max(0, pctDiff - bandPct), hi = pctDiff + bandPct;
   const bucketLo = fairnessBucket(lo, fitA, fitB), bucketHi = fairnessBucket(hi, fitA, fitB);
-  if (bucketLo === bucketHi) return `±${bandPct.toFixed(0)}pp based on recent price swings in the less-established pieces here`;
-  return `±${bandPct.toFixed(0)}pp — could read anywhere from ${bucketLo} to ${bucketHi} once the less-established pieces here (rookies, far-future picks) shake out`;
+  // From how much these pieces' prices have swung lately (any piece, not just rookies and picks).
+  if (bucketLo === bucketHi) return `±${bandPct.toFixed(0)}% from how much these pieces' prices have swung lately`;
+  return `±${bandPct.toFixed(0)}% from how much these pieces' prices have swung lately: the price could read anywhere from ${Vault.priceWord(bucketLo)} to ${Vault.priceWord(bucketHi)}`;
 }
 
 // KTC value (with KTC's own consolidation adjustment, so it matches their
@@ -1811,7 +1812,7 @@ function updateTrade() {
       ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName, 'mt-2.5')}
       ${(() => { const c = bAssets.map(a => ({ a, c: Vault.cornerstone(teamB, a) })).find(x => x.c); if (!c) return ''; const oneIn = Math.round(1 / c.c.share); return `<div class="text-[12px] text-zinc-400 mt-1.5"><span class="text-amber-300 font-medium">Their ${c.c.rank === 1 ? 'best player' : `#${c.c.rank} player`}</span> · ${Vault.escapeHtml(c.a.name)} is ${Vault.possessive(Vault.escapeHtml(teamB.teamName))} ${c.c.rank === 1 ? 'most valuable player' : `#${c.c.rank} player by value`}. ${c.c.mode === 'contend' ? 'Contending teams' : c.c.mode === 'rebuild' ? 'Rebuilding teams' : 'Teams like theirs'} send a player that high on their roster in only about 1 of ${oneIn} of their trades, at any price, so expect a no unless they're looking to move him.</div>`; })()}
     </div>` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
-  document.getElementById('priceBucket').innerHTML = (aAssets.length || bAssets.length) ? `<span title="Whether the price is fair for both teams: trade value, plus both teams' roster fit and timeline. Not the verdict, which is about your team.">Fair for both teams? <span class="font-medium ${bucketColor(bucket)}">${bucket}</span> · ${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">(trade value alone ${capPct(pctDiff).toFixed(0)}%)</span>` : ''}</span>` : '';
+  document.getElementById('priceBucket').innerHTML = (aAssets.length || bAssets.length) ? `<span title="Whether the price is fair for both teams: trade value, plus both teams' roster fit and timeline. Not the verdict, which is about your team.">Price with both teams' fit: <span class="font-medium ${bucketColor(Vault.priceWord(bucket))}">${Vault.priceWord(bucket)}</span> · ${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">(trade value alone ${capPct(pctDiff).toFixed(0)}%)</span>` : ''}</span>` : '';
   document.getElementById('consolidation').innerHTML = aAssets.length && bAssets.length ? consolidationAdviceHtml(aAssets, bAssets, teamA, teamB) : '';
   document.getElementById('priceBucket').title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than trade value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side, and neither side a poor fit.`;
   diffLabelEl.className = '';
@@ -1920,7 +1921,7 @@ function headline(dValue, avgSide, fit) {
   const goodFit = VAULT_CONFIG.GOOD_FIT_THRESHOLD;
   const out = (tone, text) => ({ tone, text, pct });
   if (pct <= -40) return out('bad', `${where}${fit >= goodFit ? ' — a good timeline fit, but not enough to cover a discount this big' : ''}`);
-  if (even && fit >= goodFit) return out('good', `${where}, strong fit — good trade`);
+  if (even && fit >= goodFit) return out('good', `${where}, strong fit`);
   if (even && fit <= -goodFit) return out('bad', `${where}, bad fit for your timeline`);
   if (even) return out('neutral', `${where}, neutral fit`);
   // Well ahead on value: only a clearly bad fit holds it back.
@@ -2078,8 +2079,8 @@ function classifyTrade(resA, resB, aAssets, bAssets, teamA, teamB) {
     label = 'Rebuild Shuffle';
     desc = `Both teams are rebuilding — this is about sorting picks and youth to each side's preference, not changing either team's outlook.`;
   } else {
-    label = 'Value Trade';
-    desc = `No clear timeline mismatch between the two sides — this reads as a roster-fit trade rather than a buy or a sell.`;
+    label = 'Roster-Fit Trade';
+    desc = `No clear timeline mismatch between the two sides: this reads as a roster-fit trade rather than a buy or a sell.`;
   }
 
   if (aAssets.length >= bAssets.length + 2) desc += ` ${a} is also consolidating — ${aAssets.length} pieces down to ${bAssets.length} bigger ones from ${b}.`;
@@ -2274,10 +2275,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
   const verdictEl = document.getElementById('tradeVerdict');
   verdictEl.className = `card rounded-2xl p-6 mb-4 border ${verdictBanner(displayVerdict.tone, bucket)}`;
   const confidenceText = confidenceBandHtml(aAssets, bAssets, aValAdj, bValAdj, overallPct, bandPct, resA.fit, resB.fit);
-  // Only worth a callout when it'd actually change how a manager reads the number —
-  // otherwise it's noise repeating the badge above in slightly different words.
-  const needNote = Math.abs(pctDiffNeed - pctDiff) >= 2
-    ? `<span title="Weighted by both teams' roster needs instead of plain trade value" class="cursor-help">reads as ${capPct(pctDiffNeed).toFixed(0)}% off by need</span>` : '';
+  // The need-weighted % ("reads as 15% off by need") is no longer shown
+  // (2026-10-09): a third number next to the grade, while the fairness bar
+  // already counts roster fit.
+  const needNote = '';
   verdictEl.innerHTML = `
     <div class="flex items-center gap-3 mb-2">
       <span class="size-3.5 rounded-full shrink-0 ${verdictDot(displayVerdict.tone, bucket)}"></span>
@@ -2290,9 +2291,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=003e1b15"></script>
+<script src="negotiation.js?v=94cf709b"></script>
 <script src="market-data.js?v=0f1d7c09"></script>
-<script src="market.js?v=36b1f08b"></script>
+<script src="market.js?v=94f80e89"></script>
 <script src="coach.js?v=352a0cb1"></script>
 </body>
 </html>

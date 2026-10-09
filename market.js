@@ -49,8 +49,13 @@ function marketRead(aAssets, bAssets) {
     const ourRaw = oSide.reduce((s, a) => s + a.value, 0) || 1;
     // The completed trades most like this one: closest return in size, the same
     // trade made more than once shown once with a count.
+    // Same piece counts first, then closest return in size; trades of 6+ pieces a
+    // side or 50%+ off KTC aren't shown as "like this one" (a 6-for-6 at 116% under
+    // came up as most like a 1-for-2; 2026-10-09).
     const seen = new Map();
-    [...pool].sort((x, y) => Math.abs(x.raw - ourRaw) - Math.abs(y.raw - ourRaw)).forEach(c => {
+    const shapeGap = c => Math.abs(c.ps.length - pSide.length) + Math.abs(c.os.length - oSide.length);
+    [...pool].filter(c => c.ps.length <= 5 && c.os.length <= 5 && Math.abs(c.paid) < 50)
+      .sort((x, y) => shapeGap(x) - shapeGap(y) || Math.abs(x.raw - ourRaw) - Math.abs(y.raw - ourRaw)).forEach(c => {
       const key = [c.t.k1.slice().sort().join(','), c.t.k2.slice().sort().join(',')].sort().join('|');
       if (seen.has(key)) seen.get(key).times++; else seen.set(key, { ...c, times: 1 });
     });
@@ -88,7 +93,7 @@ function renderMarketRead(aAssets, bAssets) {
   // Shown when that moves the trade at least 2 points from KTC; never the grade.
   const mk = marketEdge(league, aAssets, bAssets);
   // The market price is in the verdict above; this names who moves it away from KTC.
-  const check = mk.movers.length && Math.abs(mk.delta) >= 2 ? `<div class="mt-2 text-[12px] leading-relaxed text-zinc-400"><span class="text-zinc-500">Market vs KTC:</span> ${mk.movers.slice(0, 2).map(marketMoverText).join(', and ')}. The grade uses trade value.</div>` : '';
+  const check = mk.movers.length && Math.abs(mk.delta) >= 2 ? `<div class="mt-2 text-[12px] leading-relaxed text-zinc-400"><span class="text-zinc-500">Market vs KTC:</span> ${mk.movers.slice(0, 2).map(marketMoverText).join(', and ')}. Trade value, the grade, uses these prices.</div>` : '';
   const m = marketRead(aAssets, bAssets);
   if (!m) { box.innerHTML = check; return; }
   const name = Vault.escapeHtml(m.player.name);
@@ -127,7 +132,7 @@ function renderMarketRead(aAssets, bAssets) {
         ${strip}
         <div class="text-[11px] uppercase tracking-wider text-zinc-500 mt-3 mb-0.5">Most like this one</div>
         ${examples}
-        <div class="text-[11px] text-zinc-500 mt-2">${m.sleeper ? "From KTC's trade database (priced at today's KTC values, in each trade's own format) and, before that, Sleeper dynasty leagues (priced at KTC values from each trade's day)" : "From KTC's trade database, priced at today's KTC values in each trade's own format"}. The grade above doesn't use these.</div>
+        <div class="text-[11px] text-zinc-500 mt-2">${m.sleeper ? "From KTC's trade database (priced at today's KTC values, in each trade's own format) and, before that, Sleeper dynasty leagues (priced at KTC values from each trade's day)" : "From KTC's trade database, priced at today's KTC values in each trade's own format"}. Trade value, the grade, prices each player at what he goes for in trades like these.</div>
       </div>
     </details>${check}`;
 }

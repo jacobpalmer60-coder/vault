@@ -124,15 +124,17 @@ const VAULT_CONFIG = {
   // fair curve (VaultValues acceptable2.js, 2026-10-09).
   ACCEPTED_TRADES: {"since":"2025-10-06","pcts":[50,60,70,75,80,85,90,92.5,95,97.5,99],"bands":[0,3000,6000],"kinds":["one","uneven","even"],"n":[[75033,98148,6430],[40357,236317,106875],[7413,70875,27327]],"cuts":[[[13.9,18.6,24.4,27.8,31.6,36.7,45,50.8,60,81.1,109.9],[13.2,17.2,22.7,26.3,30.7,36.1,44.2,50.1,60.5,78.2,102.2],[13.7,17.8,22.8,25.4,29.1,35.3,46.2,53.7,72.3,107.3,125.9]],[[7.1,9.6,13.5,16.3,21.6,29.9,44.2,53.5,66.2,90.6,120.1],[7.5,9.9,13.3,15.9,19.1,23.5,30.5,36.4,46.6,67.2,100.7],[7.2,9.3,12,13.7,15.8,18.3,22,24.6,28.5,36.2,49.1]],[[6.3,8.6,11.1,13.3,15.6,18.8,23.2,26.6,30.9,38.5,51.7],[6.4,8.3,11,12.6,14.6,17.3,21.1,23.9,27.8,34.6,45.9],[5.5,7.1,9.2,10.6,12.3,14.6,18.1,20.6,24.5,31,39.9]]]},
   // How consolidating worked out a year later, for the calculator's advice line:
-  // share of teams that got fewer pieces and were ahead on trade value (the calibrated curve) 12 months
+  // share of teams that got fewer pieces and were ahead on trade value 12 months
   // on, by their best piece's KTC value (rows, from bands) and the raw KTC value
-  // they gave per value they got (columns, from ratios). 118,000 Sleeper dynasty
-  // trades with uneven piece counts (VaultValues payoff study, 2026-10-07).
+  // they gave per value they got (columns, from ratios). Recomputed 2026-10-09 on
+  // the site's trade value (fair curve, extra pieces, KTC values) with a pick
+  // whose rookie draft has since happened valued as the rookie it became (before,
+  // such trades were dropped: 118,267 trades on the earlier curve) (VaultValues payoff.js).
   CONSOLIDATION_PAYOFF: {
-    trades: 118267,
-    bands: [0, 3000, 5000, 7000],
-    ratios: [0, 1.15, 1.4, 1.7, 2.2],
-    ahead: [[70,57,46,30,14],[70,57,43,27,14],[71,57,43,29,14],[75,55,43,30,10]]
+    trades: 489557,
+    bands: [0,3000,5000,7000],
+    ratios: [0,1.15,1.4,1.7,2.2],
+    ahead: [[53,35,25,14,6],[62,42,28,17,8],[62,45,31,21,10],[69,54,49,44,34]]
   },
   // Sleeper injury statuses that mean "out for weeks, not days" (NFL injured
   // reserve, PUP, suspended, did not report). How long a player is out comes
@@ -1336,6 +1338,23 @@ const Vault = {
     if (rank <= 3 && mode === 'contend') return { rank, share: sh[1], mode };
     return null;
   },
+  /* Each team's verdict on a graded past trade (Vault.gradeTrade), the same
+     ladder and inputs as the Trade Calculator's (trade.html improvementOf):
+     value edge at the trade's date, roster fit (positional + lineup + depth),
+     timeline fit (age/picks + plan fit), and this season's points a week
+     (lineup + depth). One verdict system everywhere (user review, 2026-10-09). */
+  gradedImprovement(g, side) {
+    const fit = g['fit' + side], tl = g['timeline' + side], arch = g['arch' + side], dep = g['depth' + side] || {};
+    const rosterFit = (fit?.posFit || 0) + (g['optNote' + side]?.fit || 0) + (g['vorpNote' + side]?.fit || 0) + (dep.fit || 0);
+    const timelineFit = (tl?.fit || 0) + (arch?.archFit || 0);
+    const valuePct = side === 'A' ? -g.signedPctDiff : g.signedPctDiff; // signedPctDiff > 0: A gave more
+    const ptsPerWeek = (g['dOpt' + side] || 0) + (dep.perWeek || 0);
+    return Vault.tradeImprovement({ valuePct, rosterFit, timelineFit, mode: tl?.mode || 'flexible', ptsPerWeek });
+  },
+  // The price alone, in words: Fair / Lopsided / Unfair. (fairnessBucket's Good
+  // and Great add fit to a Fair price; on the page those words belong to the
+  // verdict, "Good trade", so a price never says them.)
+  priceWord(bucket) { return bucket === 'Great' || bucket === 'Good' ? 'Fair' : bucket; },
   // The market key of a piece: 'n:' + normalized name, or 'k:<season>-<round>' for a pick.
   gradeKey(a) {
     if (!a) return '';
@@ -2548,9 +2567,11 @@ const Vault = {
     const signed = Math.abs(blend) > Math.abs(v) ? blend : v;
     return { signed, pct: Math.abs(signed), bucket: Vault.fairnessBucket(Math.abs(signed), g.combinedFitA, g.combinedFitB) };
   },
+  // The price grade as a pill: Fair / Lopsided / Unfair (Vault.priceWord; Good and
+  // Great are the verdict's words).
   gradePill(bucket, extra = '') {
-    const s = Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair;
-    return `<span class="inline-flex items-center text-[12px] font-medium px-2 py-0.5 rounded-md border ${s.pill}">${bucket}${extra}</span>`;
+    const word = Vault.priceWord(bucket), s = Vault.BUCKET_STYLE[word] || Vault.BUCKET_STYLE.Fair;
+    return `<span class="inline-flex items-center text-[12px] font-medium px-2 py-0.5 rounded-md border ${s.pill}" title="The price">${word}${extra}</span>`;
   },
 
   // Great/Good only when neither team gets a poor fit: a trade that's a strong
@@ -3013,8 +3034,6 @@ const Vault = {
         const weightedAdj = assets.reduce((s, a) => s + Vault.needAdjustedValue(Vault.adjustedValue(a.value), POS, profile), 0);
         const delta = weightedAdj - adjSum; // >0 = need multiplier applied, <0 = surplus discount
         if (Math.abs(delta) < 1) return;
-        const rawDisplay = Math.round(rawSum).toLocaleString();
-        const weightedDisplay = Math.round(weightedRaw).toLocaleString();
         const article = POS === 'RB' ? 'an' : 'a'; // "an RB" (ar-bee) vs "a QB/WR/TE"
         // `phrase` + `absDelta` are a short, tone-neutral verb phrase and this
         // theme's dollar weight — used by Vault.sideTheme to pick the single
@@ -3031,10 +3050,10 @@ const Vault = {
           const swing = rebuildSurplus ? delta * VAULT_CONFIG.REBUILD_SURPLUS_DAMPEN : delta;
           dollarSwing += swing;
           notes.push(delta > 0
-            ? { tone: 'good', text: `Adds ${rawDisplay} at ${POS}, a genuine roster need — worth closer to ${weightedDisplay} to this team than its KTC value.`, pos: POS, absDelta: Math.abs(delta), phrase: `addressed ${article} ${POS} need`, ...noteExtra }
+            ? { tone: 'good', text: `Fills a real ${POS} need.`, pos: POS, absDelta: Math.abs(delta), phrase: `addressed ${article} ${POS} need`, ...noteExtra }
             : rebuildSurplus
-              ? { tone: 'neutral', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — a rebuild isn't fielding this year's roster, so banking more value here is fine even if it's closer to ${weightedDisplay} at this position.`, pos: POS, absDelta: Math.abs(swing), phrase: `added ${POS} depth`, ...noteExtra }
-              : { tone: 'bad', text: `Adds ${rawDisplay} more ${POS} value to a room that's already deep — really worth closer to ${weightedDisplay} here.`, pos: POS, absDelta: Math.abs(delta), phrase: `added ${POS} depth`, ...noteExtra });
+              ? { tone: 'neutral', text: `Adds more ${POS} to a room that's already deep: fine for a rebuild banking value, since it isn't fielding this year's roster.`, pos: POS, absDelta: Math.abs(swing), phrase: `added ${POS} depth`, ...noteExtra }
+              : { tone: 'bad', text: `Adds more ${POS} to a room that's already deep, so it does less for this team.`, pos: POS, absDelta: Math.abs(delta), phrase: `added ${POS} depth`, ...noteExtra });
         } else {
           // Two independent reasons the standard "leaves this team thin" penalty
           // can overstate a real loss — checked in order of specificity:
@@ -3057,12 +3076,12 @@ const Vault = {
           const swing = dampened ? delta * VAULT_CONFIG.SPECULATIVE_NEED_DAMPEN : delta;
           dollarSwing -= swing;
           notes.push(delta < 0
-            ? { tone: 'good', text: `Deals from ${POS} surplus — still worth closer to ${weightedDisplay} to this team than its ${rawDisplay} KTC value even after the trade.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth`, ...noteExtra }
+            ? { tone: 'good', text: `Deals from ${POS} depth it can spare.`, pos: POS, absDelta: Math.abs(delta), phrase: `trimmed ${POS} depth`, ...noteExtra }
             : isSpeculative
-              ? { tone: 'neutral', text: `Gives up ${rawDisplay} of ${POS} value, but it's priced mostly on upside rather than current production — a real loss of depth, not the same as losing a proven contributor.`, pos: POS, absDelta: Math.abs(swing), phrase: `gave up speculative ${POS} depth`, ...noteExtra }
+              ? { tone: 'neutral', text: `Gives up ${POS} value priced mostly on upside rather than current production: a loss of depth, but not like losing a proven contributor.`, pos: POS, absDelta: Math.abs(swing), phrase: `gave up speculative ${POS} depth`, ...noteExtra }
               : rebuildGiving
-                ? { tone: 'neutral', text: `Gives up ${rawDisplay} of needed ${POS} value — a real hole today, but a rebuild is playing for when it next contends, not patching this year's roster.`, pos: POS, absDelta: Math.abs(swing), phrase: `gave up needed ${POS} value`, ...noteExtra }
-                : { tone: 'bad', text: `Gives up ${POS} value and leaves this team thin there — costs more than its ${rawDisplay} KTC value suggests.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value`, ...noteExtra });
+                ? { tone: 'neutral', text: `Gives up needed ${POS} value: a hole today, but a rebuild is playing for when it next contends, not patching this year's roster.`, pos: POS, absDelta: Math.abs(swing), phrase: `gave up needed ${POS} value`, ...noteExtra }
+                : { tone: 'bad', text: `Gives up ${POS} value and leaves this team thin there.`, pos: POS, absDelta: Math.abs(delta), phrase: `gave up needed ${POS} value`, ...noteExtra });
         }
       });
     };
@@ -3209,12 +3228,14 @@ const Vault = {
     const plist = Vault.depthPool(team), games = Vault.depthMissedGames(team);
     const base = Vault.optimalLineupDetail(plist, slots);
     let perSeason = 0, hardest = null;
+    const drops = new Map(); // each starter's cost when out, for depthShift's note
     base.starters.filter(s => s.id).forEach(s => {
       const drop = base.total - Vault.optimalLineupDetail(plist.filter(p => p.id !== s.id), slots).total;
       perSeason += drop * games;
       if (!hardest || drop > hardest.drop) hardest = { name: s.name, pos: s.pos, drop };
+      drops.set(s.id, { name: s.name, pos: s.pos, drop });
     });
-    const out = { perSeason, hardest };
+    const out = { perSeason, hardest, drops };
     Vault._missedCache.set(team, { slots, out });
     return out;
   },
@@ -3235,7 +3256,11 @@ const Vault = {
     const veto = mode !== 'rebuild' && perWeek < -0.25 && dOpt + perWeek * VAULT_CONFIG.DEPTH_FIT_WEIGHT < 0;
     let note = null;
     if (Math.abs(perWeek) >= 0.5 || veto) {
-      const hard = a.hardest && perWeek < 0 ? ` ${Vault.escapeHtml(a.hardest.name)} would be the hardest starter to cover (${a.hardest.drop.toFixed(1)} points when out).` : '';
+      // The starter whose cover the trade made worse (not just the hardest to
+      // cover on the roster, which can have nothing to do with the trade).
+      let worse = null;
+      (a.drops || new Map()).forEach((d, id) => { const was = b.drops?.get(id)?.drop; if (was != null && d.drop - was > 0.3 && (!worse || d.drop - was > worse.d)) worse = { ...d, was, d: d.drop - was }; });
+      const hard = worse && perWeek < 0 ? ` ${Vault.escapeHtml(worse.name)} (${worse.pos}) gets harder to cover: ${worse.drop.toFixed(1)} points when he's out, was ${worse.was.toFixed(1)}.` : '';
       const capped = veto ? ' It costs more depth than it adds to the lineup, so it can\'t count as a strong fit.' : '';
       note = perWeek < 0
         ? { tone: mode === 'rebuild' ? 'neutral' : 'bad', text: `Thinner depth: bye and injury weeks would cost the lineup about ${Math.abs(perWeek).toFixed(1)} more points a week.${hard}${capped}` }
@@ -3344,8 +3369,6 @@ const Vault = {
         if (!verdict) return;
         const { fitsMode, cls } = verdict;
         const mult = fitsMode ? VAULT_CONFIG.ARCH_FIT_MULTIPLIER : VAULT_CONFIG.ARCH_MISFIT_MULTIPLIER;
-        const rawDisplay = Math.round(a.value).toLocaleString();
-        const weightedDisplay = Math.round(a.value * mult).toLocaleString();
         const delta = Vault.adjustedValue(a.value) * mult - Vault.adjustedValue(a.value);
         if (Math.abs(delta) < 1) return;
 
@@ -3354,25 +3377,30 @@ const Vault = {
         // this note and a positionalFitNotes note are about the exact same asset, so
         // the two competing "worth closer to X" figures can be reconciled into one
         // instead of showing both side by side.
-        const noteExtra = { assetId: a.id, isIncoming, mult, rawValue: a.value, assetName: a.name, kindOfLabel: kindOf(a, cls), planWord };
+        const noteExtra = { assetId: a.id, isIncoming, mult, rawValue: a.value, assetName: a.name, kindOfLabel: kindOf(a, cls), planWord, pos: a.pos, fitsMode };
         if (isIncoming) {
           dollarSwing += delta;
           notes.push(fitsMode
-            ? { tone: 'good', text: `${a.name} is ${kindOf(a, cls)} — exactly what a ${planWord} wants, worth closer to ${weightedDisplay} than its ${rawDisplay} KTC value.`, ...noteExtra }
-            : { tone: 'bad', text: `${a.name} is ${kindOf(a, cls)} — doesn't fit a ${planWord}, really worth closer to ${weightedDisplay} here.`, ...noteExtra });
+            ? { tone: 'good', text: `${a.name} is ${kindOf(a, cls)}, exactly what a ${planWord} wants.`, ...noteExtra }
+            : { tone: 'bad', text: `${a.name} is ${kindOf(a, cls)}, which doesn't fit a ${planWord}.`, ...noteExtra });
         } else {
           dollarSwing -= delta;
           notes.push(!fitsMode
-            ? { tone: 'good', text: `Deals away ${a.name} (${kindOf(a, cls)}) — didn't fit the ${planWord} anyway, worth closer to ${weightedDisplay} to give up.`, ...noteExtra }
-            : { tone: 'bad', text: `Gives up ${a.name}, ${kindOf(a, cls)} that fit the ${planWord} — costs more than its ${rawDisplay} KTC value suggests.`, ...noteExtra });
+            ? { tone: 'good', text: `Deals away ${a.name} (${kindOf(a, cls)}), who didn't fit the ${planWord} anyway.`, ...noteExtra }
+            : { tone: 'bad', text: `Gives up ${a.name}, ${kindOf(a, cls)} who fit the ${planWord}.`, ...noteExtra });
         }
       });
     };
     scan(incoming, true);
     scan(outgoing, false);
 
+    // A like-for-like swap (gets and gives the same kind of player at the same
+    // position, both fitting the plan or both not) says nothing: "gets a proven
+    // veteran" next to "gives up a proven veteran" just cancels, so neither shows.
+    // The fit score keeps both (they offset there too).
+    const shown = notes.filter((n, i) => !notes.some((m, j) => j !== i && m.isIncoming !== n.isIncoming && m.pos && m.pos === n.pos && m.kindOfLabel === n.kindOfLabel && m.fitsMode === n.fitsMode));
     const archFit = team.total ? Math.max(-3, Math.min(3, dollarSwing / team.total * 120)) : 0;
-    return { archFit, notes };
+    return { archFit, notes: shown };
   },
 
   /* archetypeFitNotes and positionalFitNotes each independently decide whether a
@@ -3397,8 +3425,6 @@ const Vault = {
       usedArch.add(ai); usedPos.add(pi);
 
       const combinedMult = pn.needMult * an.mult;
-      const combinedDisplay = Math.round(an.rawValue * combinedMult).toLocaleString();
-      const rawDisplay = Math.round(an.rawValue).toLocaleString();
       const connector = pn.tone === an.tone ? 'and' : 'but';
 
       const needClause = pn.isIncoming
@@ -3409,8 +3435,8 @@ const Vault = {
         : (an.tone === 'bad' ? `fit the ${an.planWord}` : `didn't fit the ${an.planWord} anyway`);
 
       const text = pn.isIncoming
-        ? `${an.assetName} ${needClause} ${connector} ${archClause} — netting closer to ${combinedDisplay} for this team than its ${rawDisplay} KTC value.`
-        : `Giving up ${an.assetName} (${an.kindOfLabel}) ${needClause} ${connector} ${archClause} — netting closer to ${combinedDisplay} to give up than its ${rawDisplay} KTC value.`;
+        ? `${an.assetName} ${needClause} ${connector} ${archClause}.`
+        : `Giving up ${an.assetName} (${an.kindOfLabel}) ${needClause} ${connector} ${archClause}.`;
 
       // Incoming: a combined value ABOVE sticker is good (you got more than the price
       // tag says). Outgoing: a combined value above sticker is bad (it cost you more

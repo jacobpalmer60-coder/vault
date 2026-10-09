@@ -30,9 +30,11 @@ const NEG = {
   ACCEPT_EDGE: -12,         // a typical manager accepts up to ~12% behind (market median)...
   TOLERANCE_MIN: 4,         // ...a manager who's never come out behind still accepts ~4%...
   TOLERANCE_MAX: 30,        // ...and history never loosens it past 30%
-  CONSOLIDATION_BONUS: 5,   // getting the trade's best single piece for more pieces. Was 20 while grades used KTC's
-                            // adjustment, which under-credits consolidating (real consolidators sat ~27% behind
-                            // on it); trade value (Vault.tradeSideValues) leaves ~5% (2026-10-07, 1.5M trades).
+  CONSOLIDATION_BONUS: 1,   // getting the trade's best single piece for more pieces: what real consolidators
+                            // accept being behind on trade value. 20 on KTC's adjustment (~27% behind on it), 5 on
+                            // the 2026-10-07 curve (~5%); on today's (fair curve, extra pieces) about 1%: median
+                            // -0.6%, 1-for-2 -1.1%, 1-for-3 -1.9% on 121,971 trades since June 2026
+                            // (VaultValues consolidator-premium.js, 2026-10-09).
   SITE_NO_PENALTY: 5,       // the grade reading bad for them counts against it (no longer an automatic no)
   STAR_1FOR1: [[8000, 10], [6000, 6]], // asking for a star straight up: in KTC's trade database only ~1% of
                             // trades with an 8,000+ piece (and ~5% at 6,000-8,000) were 1-for-1, vs ~50% under 4,000

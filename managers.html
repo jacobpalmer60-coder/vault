@@ -38,7 +38,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=39556cd8"></script>
+<script src="vault-core.js?v=32117af6"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script src="market-data.js?v=0f1d7c09"></script>
 <script>
@@ -53,7 +53,7 @@ function bestWorstLine(rec, label, tone) {
     <span class="text-zinc-400 min-w-0">${label} · vs ${Vault.escapeHtml(rec.opp)} · ${fmtDate(rec.created)}</span>
     <span class="shrink-0 text-right"><span class="mono font-medium ${TONE[tone]}">${fmtSigned(rec.dValToday)}</span> <span class="text-zinc-500">today · ${fmtSigned(rec.dVal)} then</span></span>
   </div>
-  <div class="flex items-center justify-end gap-1.5 -mt-0.5 mb-1 text-[11px] text-zinc-500">graded ${Vault.gradePill(rec.gradeThen)}${rec.gradeNow !== rec.gradeThen ? ` → ${Vault.gradePill(rec.gradeNow)} now` : ' then and now'}</div>`;
+  <div class="flex items-center justify-end gap-1.5 -mt-0.5 mb-1 text-[11px] text-zinc-500">graded ${Vault.gradePill(rec.gradeThen)}${Vault.priceWord(rec.gradeNow) !== Vault.priceWord(rec.gradeThen) ? ` → ${Vault.gradePill(rec.gradeNow)} now` : ' then and now'}</div>`;
 }
 
 // Net value can land either side of zero — a diverging bar centered on a zero

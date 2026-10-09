@@ -75,7 +75,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=39556cd8"></script>
+<script src="vault-core.js?v=32117af6"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 const TIER_LABEL = {
@@ -363,7 +363,6 @@ function renderMarket(rows, fmt, exactShare, league, src) {
           ${mkSplitBar(r)}
           <div class="text-[11px] mt-1.5">${mkSplitText(r)}</div>
         </div>`).join('')}</div>
-      <div class="text-[11px] text-zinc-500 mt-3">Great and Good are Fair trades that also fit one or both teams' rosters well. That takes both rosters at the time of the trade, which only your league's history has, so market trades stop at Fair. Compare the two on Fair or better.</div>
     </div>` : '';
 
   body.innerHTML = `${tiles}${hist}<div class="grid lg:grid-cols-2 gap-3">${byShape}${byStar}</div>${byPos}${vs}
@@ -582,7 +581,7 @@ async function init() {
     renderHistory(valueField);
     document.getElementById('marketLink').href = Vault.linkTo('market.html');
     Vault.fetchAndGradeAllTrades(leagueId).then(({ allGraded }) => {
-      leagueRows = (allGraded || []).filter(g => Number.isFinite(g.pctDiff)).map(g => ({ pct: g.pctDiff, bucket: g.bucket || Vault.fairnessBucket(g.pctDiff, 0, 0), label: `${g.teamA.teamName} and ${g.teamB.teamName}` }));
+      leagueRows = (allGraded || []).filter(g => Number.isFinite(g.pctDiff)).map(g => ({ pct: g.pctDiff, bucket: Vault.priceWord(g.bucket || Vault.fairnessBucket(g.pctDiff, 0, 0)), label: `${g.teamA.teamName} and ${g.teamB.teamName}` }));
       redraw();
     }).catch(e => { console.warn('League trades unavailable', e); leagueRows = []; redraw(); });
     status.textContent = `${tradesData.count.toLocaleString()} trades in database • updated ${new Date(tradesData.updated).toLocaleDateString()}`;
