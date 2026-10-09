@@ -1384,26 +1384,39 @@ function priceStatHtml(v, label, tip = '', size = 'text-[30px]') {
   const even = Math.abs(v) < 1;
   return `<div><div class="num ${size} ${Math.abs(v) < PRICE_TINT_PCT ? 'text-zinc-100' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${even ? 'Even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`}</div><div class="text-[11px] text-zinc-500 mt-1.5"${tip ? ` title="${tip}"` : ''}>${even ? 'with ' : ''}${label}</div></div>`;
 }
-/* Why KTC's calculator reads a trade differently from trade value, in one line,
-   when they're 5 or more points apart. Same player and pick values on both; the
-   only difference is the extra credit for the side with the biggest single
-   piece: KTC's consolidation adjustment against what real trades pay
-   (Vault.tradeSideValues). Shown so a manager checking the trade on KTC sees
-   where the gap comes from instead of a number that just disagrees. */
-const KTC_GAP_SHOW = 5;
+/* KTC's calculator next to trade value, said narrowly (user, 2026-10-09: show
+   exactly where KTC isn't fair, without making every KTC trade look unfair).
+   Measured on 26,341 real 2024-2025 trades (VaultValues ktc-vs-ours-calls.js):
+   the two give the same call (Fair / Lopsided / Unfair, and who it favors) on
+   every 1-for-1. They split on uneven trades, and above all when the best piece
+   on each side is close in value (KTC_CLOSE): there KTC's consolidation
+   adjustment shrinks to almost nothing and the side with more pieces looks far
+   ahead. Of 6,616 such trades, all accepted by both managers, KTC called 11%
+   Fair and trade value 91%. So:
+   - same call: "same call" under KTC's number (ktcSameCall), credit to KTC;
+   - a different call in that situation: why, with that evidence;
+   - a different call anywhere else: only the facts (each one's bonus), no claim. */
+const KTC_CLOSE = 0.85, KTC_CLOSE_EVIDENCE = { trades: 6616, ktc: 11, ours: 91 };
+const ktcCall = e => (Math.abs(e) < VAULT_CONFIG.FAIR_PCT ? 0 : (Math.abs(e) < VAULT_CONFIG.LOPSIDED_PCT ? 1 : 2) * Math.sign(e));
+const ktcSameCall = (tradeEdge, ktcEdge) => ktcCall(tradeEdge) === ktcCall(ktcEdge);
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
-  if (Math.abs(tradeEdge - ktcEdge) < KTC_GAP_SHOW || !aAssets.length || !bAssets.length) return '';
+  if (!aAssets.length || !bAssets.length || ktcSameCall(tradeEdge, ktcEdge)) return '';
   const ours = Vault.tradeSideValues(aAssets, bAssets);
   const n = v => Math.round(v).toLocaleString();
-  // The side whose extra credit differs most between the two (KTC can give more,
-  // or nearly nothing when a piece coming back is close in value), and its
-  // biggest piece.
-  const sideA = Math.abs(ktc.bonusA - ours.bonusA) >= Math.abs(ktc.bonusB - ours.bonusB);
-  const side = sideA ? aAssets : bAssets;
-  const star = side.reduce((m, a) => (a.value > m.value ? a : m), side[0]);
-  const kb = sideA ? ktc.bonusA : ktc.bonusB, ob = sideA ? ours.bonusA : ours.bonusB;
   const amt = v => (v >= 1 ? `<span class="num text-zinc-200">+${n(v)}</span>` : 'nothing');
-  return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: for having the biggest piece, KTC's calculator gives the side with ${Vault.escapeHtml(star.name)} ${kb > ob ? amt(kb) : `only ${amt(kb)}`} extra${kb > ob ? '' : ' (KTC shrinks it when a piece coming back is close in value)'}; in real trades like this one that side gets about ${amt(ob)}, which is what trade value uses. <a href="how_we_grade.html#fairness" class="underline decoration-dotted underline-offset-2 hover:text-zinc-200">How we grade</a></div>`;
+  // The side whose extra credit differs most between the two, and its best piece.
+  const sideA = Math.abs(ktc.bonusA - ours.bonusA) >= Math.abs(ktc.bonusB - ours.bonusB);
+  const side = sideA ? aAssets : bAssets, other = sideA ? bAssets : aAssets;
+  const top = l => l.reduce((m, a) => (a.value > m.value ? a : m), l[0]);
+  const star = top(side), rival = top(other);
+  const kb = sideA ? ktc.bonusA : ktc.bonusB, ob = sideA ? ours.bonusA : ours.bonusB;
+  const link = '<a href="how_we_grade.html#fairness" class="underline decoration-dotted underline-offset-2 hover:text-zinc-200">How we grade</a>';
+  const close = aAssets.length !== bAssets.length && Math.min(star.value, rival.value) / Math.max(star.value, rival.value) >= KTC_CLOSE;
+  if (close && kb < ob) {
+    const E = KTC_CLOSE_EVIDENCE;
+    return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: ${Vault.escapeHtml(star.name)} and ${Vault.escapeHtml(rival.name)} are close in value, and then KTC's calculator adds almost nothing for getting the best piece (${amt(kb)}; real trades pay about ${amt(ob)}). Of ${E.trades.toLocaleString()} real trades like this, all accepted by both managers, KTC calls ${E.ktc}% Fair and trade value ${E.ours}%. On 1-for-1 trades the two always agree. ${link}</div>`;
+  }
+  return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">The numbers differ because KTC's calculator adds ${amt(kb)} to the side with ${Vault.escapeHtml(star.name)} for having the best piece, and trade value adds ${amt(ob)}. ${link}</div>`;
 }
 const PRICE_TIP = {
   trade: 'Trade value: KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). What the grade uses.',
@@ -1775,7 +1788,7 @@ function updateTrade() {
   diffLabelEl.innerHTML = `<div id="forYou"></div>
     ${aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 max-w-[640px]">
       <div class="text-[11px] uppercase tracking-wider text-zinc-500">Price · ${Vault.escapeHtml(teamA.teamName)} pays</div>
-      <div class="grid grid-cols-3 gap-x-4 sm:flex sm:flex-wrap sm:gap-x-10 gap-y-3 mt-1.5">${priceStatHtml(tradeEdge, 'trade value (the grade)', PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market, 'text-[24px]') : ''}</div>
+      <div class="grid grid-cols-3 gap-x-4 sm:flex sm:flex-wrap sm:gap-x-10 gap-y-3 mt-1.5">${priceStatHtml(tradeEdge, 'trade value (the grade)', PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, ktcSameCall(tradeEdge, ktcEdge) ? "KTC's calculator · same call" : "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}${mk && Math.abs(mk.delta) >= 1 ? priceStatHtml(mk.market, 'market price', PRICE_TIP.market, 'text-[24px]') : ''}</div>
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
       ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName, 'mt-2.5')}
     </div>` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
