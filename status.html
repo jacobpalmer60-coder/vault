@@ -9,7 +9,7 @@
 <title>Data Status — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=99f3cec4">
+<link rel="stylesheet" href="tailwind.css?v=1f3bf48a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -113,16 +113,21 @@ async function jobs() {
 }
 
 async function values() {
-  const [ktc, proj, hist, picks, sleeper] = await Promise.all([
+  const [ktc, proj, hist, picks, sleeper, grade, gradeHist] = await Promise.all([
     getJson('data/ktc-values.json'), getJson('data/projections.json'), getJson('data/history/players-sf.json'),
-    getJson('data/pick-value-history.json'), getJson('data/sleeper-players.json')
+    getJson('data/pick-value-history.json'), getJson('data/sleeper-players.json'),
+    getJson('data/grade-values.json'), getJson('data/grade-values-history/sf.json')
   ]);
+  // The grade's prices: what each piece actually trades for, per format (scripts/build-grade-values.js).
+  const gradeCounts = grade ? Object.entries(grade.formats || {}).map(([f, t]) => [f, Object.keys(t).length]) : [];
+  const gradeDates = gradeHist?.dates || [];
   const histDates = hist?.dates || [], pickSnaps = picks?.snapshots || [];
   document.getElementById('values').innerHTML = [
     tile('KTC values', n(ktc?.players?.length), `players, plus ${n(ktc?.picks?.length)} picks · updated ${ago(ktc?.updated)}`, fresh(ktc?.updated, 30)),
     tile('Projections', n(proj?.count ?? Object.keys(proj?.players || {}).length), `players · ${esc(proj?.season || '')} season · updated ${ago(proj?.updated)}`, fresh(proj?.updated, 30)),
     tile('Value history', n(Object.keys(hist?.players || {}).length), `players, ${n(histDates.length)} days (${esc(histDates[0] || '—')} to ${esc(histDates[histDates.length - 1] || '—')}); picks ${n(pickSnaps.length)} days from ${esc(pickSnaps[0]?.date || '—')}`, fresh(histDates[histDates.length - 1] && histDates[histDates.length - 1] + 'T12:00:00Z', 36)),
-    tile('Sleeper players', n(sleeper ? Object.keys(sleeper).length : NaN), 'every NFL player Sleeper lists (names, positions, ages)')
+    tile('Sleeper players', n(sleeper ? Object.keys(sleeper).length : NaN), 'every NFL player Sleeper lists (names, positions, ages)'),
+    tile('Grade prices', n(gradeCounts.find(([f]) => f === 'sf')?.[1]), `players and picks priced off KTC in Superflex (1QB ${n(gradeCounts.find(([f]) => f === 'oneQB')?.[1])}), what they actually trade for · updated ${ago(grade?.updated)}; history for past trades ${esc(gradeDates[0] || '—')} to ${esc(gradeDates[gradeDates.length - 1] || '—')}`, fresh(grade?.updated, 30))
   ].join('');
 }
 

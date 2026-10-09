@@ -24,7 +24,12 @@ function marketLoad(league) {
   if (Market.loading) return Market.loading;
   const qbs = Vault.tradeFormatSig(league).qbs; // same QB read as the trade matching (2QB leagues count as Superflex)
   const recentFile = `data/market-history/recent-${qbs === 2 ? 'sf' : 'oneQB'}.json`;
-  Market.loading = Promise.all([Vault.fetchKtcTrades(qbs), Vault.fetchKtcValues({ raw: true }), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null)]).then(([db, ktc, recent]) => {
+  // The grade's prices for this league's format too, on pages that don't load a
+  // league's values (Player Rankings, Compare, Player Market), so a player's
+  // price against KTC reads the same everywhere (marketPlayer).
+  const grade = Vault._gradeMarket ? Promise.resolve(null) : Vault.fetchGradeValues();
+  Market.loading = Promise.all([Vault.fetchKtcTrades(qbs), Vault.fetchKtcValues({ raw: true }), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null), grade]).then(([db, ktc, recent, gradeData]) => {
+    if (gradeData && !Vault._gradeMarket) Vault.setGradeMarket(gradeData, qbs === 2, league?.scoring_settings?.bonus_rec_te);
     // Each KTC trade is priced in its own league's format: its QB setting and TE
     // premium (KTC's tep code 0-3 -> no premium, TE+, TE++), like the Sleeper
     // trades, so a tight end isn't priced at TE-premium values in a league without it.
@@ -217,7 +222,8 @@ function marketValue(league, name, { even = false, min = MARKET_MIN_COMPS } = {}
    with fewer than MARKET_MIN_COMPS such trades gets no read (0). Clamped to ±MARKET_ADJ_CAP so one noisy read can't swing a
    trade. Cached per name, since Trade Coach judges thousands of trades. Used
    by the player card, the Player Market page, "At market prices" and Trade
-   Coach; the grade never uses it. */
+   Coach. The grade uses the same read, built daily per format
+   (scripts/build-grade-values.js -> Vault.gradeValue). */
 const MARKET_ADJ_CAP = 25;
 const marketAdjCache = new Map();
 // { adj, read } for a player (read = the marketValue read it came from), or { adj: 0, read: null }.
@@ -227,7 +233,12 @@ function marketPlayer(league, name, pos) {
   const key = marketKeyOf(name);
   if (marketAdjCache.has(key)) return marketAdjCache.get(key);
   const read = marketValue(league, name);
-  const out = read.like ? { adj: Math.max(-MARKET_ADJ_CAP, Math.min(MARKET_ADJ_CAP, read.premium)), read } : none;
+  // The headline price is the one the grade uses (data/grade-values.json for the
+  // league's format, Vault._gradeMarket) wherever it's loaded, so a player's "8%
+  // under KTC" reads the same on every page; the read keeps its range and trades.
+  const g = Vault._gradeMarket && Vault._gradeMarket.has(key) ? Vault._gradeMarket.get(key) : null;
+  const clamp = x => Math.max(-MARKET_ADJ_CAP, Math.min(MARKET_ADJ_CAP, x));
+  const out = read.like ? { adj: clamp(g ?? read.premium), read: g == null ? read : { ...read, premium: g } } : g != null ? { adj: clamp(g), read: null } : none;
   marketAdjCache.set(key, out);
   return out;
 }

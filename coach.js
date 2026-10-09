@@ -112,7 +112,9 @@ const COACH_THEIR_MIN = -6, COACH_UPSIDE = 15, COACH_MIN_PIECE = 0.2;
 // value, so a 2-for-1 that's even on trade value can read 35-45% off there: an
 // offer the other manager turns down, or one that looks like an overpay to you.
 // Neither side may be short by FAIR_PCT or more on KTC; Go all-in may still
-// overpay (that's its point), but not short the other team.
+// overpay (that's its point), but not short the other team. Sell high, Buy low and
+// Shop a player are exempt: their point is the gap between KTC and what players
+// actually trade for (cheap players often go 20% over KTC), priced at market.
 const coachKtcPct = (give, get) => { const k = Vault.ktcSideValues(give, get); return (k.valueB - k.valueA) / (((k.valueA + k.valueB) / 2) || 1) * 100; };
 const coachKtcFair = (give, get, option) => { const p = coachKtcPct(give, get); return p < VAULT_CONFIG.FAIR_PCT && (option === 'contend' || p > -VAULT_CONFIG.FAIR_PCT); };
 function coachSensible({ c, mine, theirs }) {
@@ -478,6 +480,10 @@ async function coachMarket(me, progress, kind) {
   const adj = a => marketPeerAdj(league, a);
   const pctOf = a => Math.abs(Math.round(adj(a)));
   const gainOf = o => marketEdge(league, o.give, o.get).ktc; // % ahead for you on KTC value
+  // The grade prices each piece at what it actually trades for (Vault.gradeValue),
+  // so a sale counts only at the market price or better, and a buy only at it or
+  // cheaper: the edge is the gap to KTC, without giving value back at market prices.
+  const atMarket = o => coachValuePct(o) >= -COACH_VALUE_FLOOR;
   // Every reason a deal fits: each market high you sell, each market low you buy.
   // (The card itself already says they'd likely accept and how far ahead you come out.)
   const why = o => {
@@ -497,13 +503,13 @@ async function coachMarket(me, progress, kind) {
     for (const v of highs) {
       progress(`Selling ${v.name} high…`);
       await coachTick();
-      coachSaleOffers(me, v, () => true).map(o => ({ ...o, gain: gainOf(o), pay: payUp(o.partner, v) })).filter(o => o.gain >= MARKET_MIN_GAIN)
+      coachSaleOffers(me, v, () => true).map(o => ({ ...o, gain: gainOf(o), pay: payUp(o.partner, v) })).filter(o => o.gain >= MARKET_MIN_GAIN && atMarket(o))
         .map(o => ({ ...o, rank: o.gain + (o.pay ? Math.min(PAYS_UP_MAX, o.pay.avg) : 0) }))
         .sort((x, y) => y.rank - x.rank).slice(0, 3)
         .forEach(o => list.push({ ...o, id: 'sell:' + v.key + '>' + o.partner.rosterId + ':' + negKeys(o.get).join(),
           why: why(o) + (o.pay ? ` ${Vault.escapeHtml(o.partner.teamName)} has paid about ${Math.round(o.pay.avg)}% over market for ${v.type === 'pick' ? 'picks' : v.pos + 's'} in your league (${o.pay.n} trades).` : '') }));
     }
-    if (!list.length) return { empty: `No team would pay more than KTC value for ${highs.map(x => Vault.escapeHtml(x.name)).join(', ')} in a deal they'd likely take right now.` };
+    if (!list.length) return { empty: `No team would pay more than KTC value, and at least what they go for in completed trades, for ${highs.map(x => Vault.escapeHtml(x.name)).join(', ')} in a deal they'd likely take right now.` };
   } else {
     const lows = teams.filter(t => t !== me && coachPartnerOK(t)).flatMap(t => t.assets.filter(x => !coachTheirOff(x) && x.value >= MARKET_MIN_VALUE && adj(x) <= -MARKET_BUY_AT).map(x => ({ t, a: x })))
       .sort((x, y) => adj(x.a) * x.a.value - adj(y.a) * y.a.value).slice(0, 15);
@@ -511,7 +517,7 @@ async function coachMarket(me, progress, kind) {
     for (const { t, a: target } of lows) {
       progress(`Buying ${target.name} low…`);
       await coachTick();
-      coachOffers(me, t, [target], { limit: 2, perLead: 1 }).map(o => ({ ...o, gain: gainOf(o) })).filter(o => o.gain >= MARKET_MIN_GAIN)
+      coachOffers(me, t, [target], { limit: 2, perLead: 1 }).map(o => ({ ...o, gain: gainOf(o) })).filter(o => o.gain >= MARKET_MIN_GAIN && atMarket(o))
         .slice(0, 2)
         .forEach(o => list.push({ ...o, id: 'buy:' + target.key + '<' + negKeys(o.give).join(), why: why(o) }));
     }
@@ -738,7 +744,7 @@ async function coachFind() {
       // Price plays (shopping a player you've decided to move, selling high,
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
-      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= COACH_THEIR_MIN && coachKtcFair(o.give, o.get, option) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= COACH_THEIR_MIN && (COACH_PRICE_PLAYS.has(option) || coachKtcFair(o.give, o.get, option)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
       if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} without giving up value right now. Try another trade type, or Go all-in to spend future value on this season.`; }
     }
     Coach.results[option] = { ...res, meId: me.rosterId, key: coachInputKey(), planNote };

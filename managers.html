@@ -9,7 +9,7 @@
 <title>Managers — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=99f3cec4">
+<link rel="stylesheet" href="tailwind.css?v=1f3bf48a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -24,11 +24,11 @@
   <p class="text-[13px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
     How every manager trades, built from their completed trades on Trade Grades.
     Ranked by <span class="text-zinc-200">Net Now</span>: what all their trades are
-    worth at today's KTC prices. A deal that looked bad on the day but has aged
+    worth today, each piece at what it trades for now (KTC values adjusted by
+    completed trades, like every grade). A deal that looked bad on the day but has aged
     well counts as a win, because buying before the market moves is the skill.
-    <span class="text-zinc-200">Net Then</span> shows what each deal looked like when it was made.
-    The <span class="text-zinc-200">Market</span> columns price the same trades at what managers actually pay for each player in
-    completed trades (Player Market), and <span class="text-zinc-200">Fit</span> is how well what they got suited their roster and timeline.
+    <span class="text-zinc-200">Net Then</span> shows what each deal looked like when it was made, at the prices of that time,
+    and <span class="text-zinc-200">Fit</span> is how well what they got suited their roster and timeline.
   </p>
 
   <div id="summary" class="hidden mb-8"></div>
@@ -40,7 +40,7 @@
 
 <script src="vault-core.js?v=b8b6f4a8"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
-<script src="market-data.js?v=08eb9e72"></script>
+<script src="market-data.js?v=f2b3bb7e"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc-400' };
@@ -166,7 +166,7 @@ function renderSummaryTable(rows, teams) {
     const noA = key !== 'trades' && !a.trades, noB = key !== 'trades' && !b.trades;
     if (noA !== noB) return noA ? 1 : -1;
     // W-L columns sort by trades won minus trades lost.
-    const val = s => key === 'wlThen' ? s.won - s.lost : key === 'wlNow' ? s.wonNow - s.lostNow : key === 'wlMarket' ? (s.wonMarket || 0) - (s.lostMarket || 0) : (s[key] || 0);
+    const val = s => key === 'wlThen' ? s.won - s.lost : key === 'wlNow' ? s.wonNow - s.lostNow : (s[key] || 0);
     return dir * (val(a) - val(b));
   });
   const th = (label, k, align, title = '', pad = 'px-3') => `<th class="${align} ${pad} py-2.5 sortable ${key === k ? 'active' : ''}" onclick="sortGlance('${k}')" ${title ? `title="${title}"` : ''} aria-sort="${key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${key === k ? (dir > 0 ? ' ↑' : ' ↓') : ''}</th>`;
@@ -175,22 +175,19 @@ function renderSummaryTable(rows, teams) {
   box.classList.remove('hidden');
   box.innerHTML = `
     <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">League at a glance</div>
-    ${marketLine(rows)}
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full text-[13px] min-w-[1240px]">
+        <table class="w-full text-[13px] min-w-[1040px]">
           <thead class="bg-black/40 border-b border-white/5">
             <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
               ${th('Manager', 'teamName', 'text-left', '', 'px-4')}
               <th class="text-left px-3 py-2.5">Trading style</th>
               <th class="text-left px-3 py-2.5">Description</th>
               ${th('Trades', 'trades', 'text-right')}
-              ${th('W-L Then', 'wlThen', 'text-right', "Trades ahead vs. behind on value at KTC prices on each trade's date")}
-              ${th('W-L Now', 'wlNow', 'text-right', "Trades ahead vs. behind on value at today's KTC prices")}
-              ${th('Net Then', 'netValue', 'text-right', "Net value across every trade at KTC prices on each trade's date")}
-              ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's KTC prices")}
-              ${th('W-L Market', 'wlMarket', 'text-right', "Trades ahead vs. behind at what players actually go for: today's KTC values times each piece's market value from completed trades")}
-              ${th('Net Market', 'netMarket', 'text-right', "Net value across every trade at what players actually go for (today's KTC values times each piece's market value from completed trades)")}
+              ${th('W-L Then', 'wlThen', 'text-right', "Trades ahead vs. behind on trade value at the prices on each trade's date")}
+              ${th('W-L Now', 'wlNow', 'text-right', "Trades ahead vs. behind on trade value at today's prices")}
+              ${th('Net Then', 'netValue', 'text-right', "Net trade value across every trade at the prices on each trade's date (each piece at what it was trading for then)")}
+              ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's prices (each piece at what it trades for now)")}
               ${th('Fit', 'avgFit', 'text-right', 'Timeline and positional-need fit, averaged per trade: how well the pieces they got suited their roster. 1.5 or more reads as usually fitting.', 'px-4')}
             </tr>
           </thead>
@@ -210,8 +207,6 @@ function renderSummaryTable(rows, teams) {
                 <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.wonNow}-${s.lostNow}` : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValue) : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValueToday) : '—'}</td>
-                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades && s.netMarket != null ? `${s.wonMarket}-${s.lostMarket}` : '—'}</td>
-                <td class="px-3 py-3 text-right">${s.trades && s.netMarket != null ? signedCell(s.netMarket) : '—'}</td>
                 <td class="px-4 py-3 text-right mono ${s.avgFit > 0.5 ? 'text-emerald-400' : s.avgFit < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.trades ? (s.avgFit >= 0 ? '+' : '−') + Math.abs(s.avgFit).toFixed(1) : '—'}</td>
               </tr>`;
             }).join('')}
@@ -219,39 +214,6 @@ function renderSummaryTable(rows, teams) {
         </table>
       </div>
     </div>`;
-}
-
-/* ---------- Who trades well at market prices ----------
-   Every trade again at what players actually go for: today's KTC values
-   times each piece's market value from completed trades (market-data.js
-   marketNet, KTC's consolidation adjustment held). A manager who keeps
-   getting pieces the market pays up for, and sending ones it doesn't, comes
-   out ahead here even when KTC calls his trades even. Pieces without enough
-   completed trades stay at KTC. Today's market read applied to every trade,
-   not the market on each trade's day. */
-const MARKET_WIN = 100; // net KTC points a trade has to clear to count as won or lost at market
-function addMarketStats(stats, allGraded, league) {
-  const by = new Map(stats.map(s => [s.rosterId, Object.assign(s, { netMarket: 0, wonMarket: 0, lostMarket: 0 })]));
-  allGraded.forEach(g => {
-    if (!g.toAToday?.length || !g.toBToday?.length) return;
-    const a = marketNet(league, g.toBToday, g.toAToday); // team A sent toB, got toA
-    [[g.teamA.rosterId, a.market], [g.teamB.rosterId, -a.market]].forEach(([id, net]) => {
-      const s = by.get(id);
-      if (!s) return;
-      s.netMarket += net;
-      if (net > MARKET_WIN) s.wonMarket++; else if (net < -MARKET_WIN) s.lostMarket++;
-    });
-  });
-}
-// One line over the table: who comes out furthest ahead and behind at market prices.
-function marketLine(rows) {
-  const traded = rows.filter(s => s.trades && s.netMarket != null);
-  if (traded.length < 2) return '';
-  const top = traded.reduce((m, s) => (s.netMarket > m.netMarket ? s : m)), low = traded.reduce((m, s) => (s.netMarket < m.netMarket ? s : m));
-  const pts = v => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v)).toLocaleString()}`;
-  const ktcTop = traded.reduce((m, s) => (s.netValueToday > m.netValueToday ? s : m));
-  const name = s => `<span class="text-zinc-100">${Vault.escapeHtml(s.teamName)}</span>`;
-  return `<div class="text-[12px] text-zinc-400 mb-2">Ranked by Net now: each manager's trades at today's KTC values, where ${name(ktcTop)} is furthest ahead (${pts(ktcTop.netValueToday)}). At market prices (what managers actually pay in completed trades), ${name(top)} is furthest ahead (${pts(top.netMarket)} across ${top.trades} trade${top.trades === 1 ? '' : 's'}) and ${name(low)} furthest behind (${pts(low.netMarket)}).</div>`;
 }
 
 /* ---------- Who pays up ----------
@@ -293,10 +255,9 @@ async function init() {
     status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
     render(stats, teams);
-    // Then again at market prices, once completed-trade prices load.
+    // Who pays up (and the table again), once completed-trade prices load.
     marketLoad(league).then(() => {
       if (!Market.data || Market.data.failed) return;
-      addMarketStats(stats, allGraded, league);
       renderSummaryTable(glanceData.rows, glanceData.teams);
       renderPaysUp(stats, allGraded, league);
     });

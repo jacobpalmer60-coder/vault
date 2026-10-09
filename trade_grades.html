@@ -9,7 +9,7 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=99f3cec4">
+<link rel="stylesheet" href="tailwind.css?v=1f3bf48a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -22,7 +22,7 @@
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
   </div>
   <p class="text-[13px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
-    Every completed trade in your league, graded on trade value from the day it happened (KTC values, combined the way real trades combine them), then read again at today's values and at what managers actually pay.
+    Every completed trade in your league, graded on trade value from the day it happened (each piece at what it was trading for then, combined the way real trades combine them), then read again at today's values.
     <a id="methodLink" href="how_we_grade.html#grades" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How grading works</a>
   </p>
 
@@ -41,7 +41,7 @@
 
 <script src="vault-core.js?v=b8b6f4a8"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
-<script src="market-data.js?v=08eb9e72"></script>
+<script src="market-data.js?v=f2b3bb7e"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc-400' };
