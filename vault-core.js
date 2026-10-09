@@ -22,6 +22,15 @@ const VAULT_CONFIG = {
   // nearly in full; when one is close to it, extras count for little.
   // Replaces STAR_BONUS 1.5 (2026-10-08), which was set by results that turned
   // out too weak to choose a strength once split by how close the pieces are.
+  // Pieces a side sends beyond one more than it gets back count at this share
+  // of their value (Vault.tradeSideValues): every extra small piece costs the
+  // other team a roster spot. On the fair curve alone, accepted one-for-many
+  // trades read the pile as worth too much (1-for-3 by 8%, 1-for-4 by 16%,
+  // 1-for-5+ by 25%, Fair 55% / 34% / 15%); fitted on trades before June 2026
+  // (25% for every extra piece fits as well as separate shares), the trades
+  // since read 84% / 82% / 74% Fair, 2-for-4 and 2-for-5+ improve, and every
+  // other shape is unchanged (VaultValues many-pieces-fit.js RULE=excess).
+  EXTRA_PIECE_WEIGHT: 0.25,
   FAIR_CURVE: {
     values: [1500,2500,3500,4500,5500,6500,7500,8500,9500],
     closeness: [0.4,0.55,0.65,0.75,0.85,0.95],
@@ -2256,6 +2265,42 @@ const Vault = {
   // With Vault values showing (Vault.valueSource), the curve at the strength those
   // values were fitted with (VAULT_CONFIG.VAULT_VALUES_CURVE), so the site adds
   // pieces up the way the values assume; KTC's numbers use it at full strength.
+  /* How much side A is worth against side B (a ratio), from piece values:
+     - the fair curve: (sum of value^p)^(1/p), p by the trade's best piece and
+       how close the other side's best piece is (tradeValueP);
+     - pieces beyond one more than the other side sends count at
+       EXTRA_PIECE_WEIGHT;
+     - never less: a piece can always count as nothing, never less. Those two
+       rules react to the whole trade (adding a piece close to the best one
+       shifts p; a throw-in on the other side frees a roster spot), so on their
+       own, adding a piece made a side worth less in 2% of random trades. So
+       each side is valued at its best set of pieces against the other side's
+       least favorable set, both orders averaged (exact mirror for the other
+       side). It changes no ordinary trade; on held-out real trades it called
+       75.0% Fair against 74.8% (VaultValues monotone-check.js, robust-eval.js).
+       Sides of more than NEVER_LESS_MAX pieces use the rules as they are. */
+  tradeValueRatio(valsA, valsB) {
+    const W = VAULT_CONFIG.EXTRA_PIECE_WEIGHT, desc = l => [...l].sort((x, y) => y - x);
+    const edge = (a, b) => { // % A over B, a and b sorted high to low
+      if (a.length === 1 && b.length === 1) return (a[0] - b[0]) / (((a[0] + b[0]) / 2) || 1) * 100;
+      const top = Math.max(a[0], b[0]), p = Vault.tradeValueP(top, Math.min(a[0], b[0]) / (top || 1));
+      const side = (l, n) => Math.pow(l.reduce((s, v, i) => s + Math.pow(Math.max(v, 0) * (i < n + 1 ? 1 : W), p), 0), 1 / p);
+      const va = side(a, b.length), vb = side(b, a.length);
+      return (va - vb) / (((va + vb) / 2) || 1) * 100;
+    };
+    const A = desc(valsA), B = desc(valsB);
+    let e;
+    if (A.length > Vault.NEVER_LESS_MAX || B.length > Vault.NEVER_LESS_MAX) e = edge(A, B);
+    else {
+      const subsets = l => { const out = []; for (let m = 1; m < 1 << l.length; m++) out.push(l.filter((_, i) => m >> i & 1)); return out; };
+      const SA = subsets(A), SB = subsets(B), f = SA.map(S => SB.map(T => edge(S, T)));
+      const maxmin = Math.max(...f.map(row => Math.min(...row)));
+      const minmax = Math.min(...SB.map((_, j) => Math.max(...f.map(row => row[j]))));
+      e = (maxmin + minmax) / 2;
+    }
+    return (200 + e) / (200 - e);
+  },
+  NEVER_LESS_MAX: 6,
   // KTC values: the fair curve (VAULT_CONFIG.FAIR_CURVE) at the trade's best
   // piece `top` and closeness `r` (the other side's best piece / top).
   tradeValueP(top, r) {
@@ -2317,13 +2362,11 @@ const Vault = {
     const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
     const none = { rawA, rawB, valueA: rawA, valueB: rawB, bonusA: 0, bonusB: 0, display: false };
     if (!rawA || !rawB || (valsA.length <= 1 && valsB.length <= 1)) return none;
-    const topA = Math.max(...valsA), topB = Math.max(...valsB), top = Math.max(topA, topB);
-    const p = Vault.tradeValueP(top, Math.min(topA, topB) / (top || 1));
-    const curve = vals => Math.pow(vals.reduce((s, v) => s + Math.pow(Math.max(v, 0), p), 0), 1 / p);
-    const cA = curve(valsA), cB = curve(valsB);
-    // The side with the lower curve-to-raw ratio (more, smaller pieces) is the base.
-    const aIsBase = cA / rawA <= cB / rawB;
-    const valueA = aIsBase ? rawA : cA * rawB / cB, valueB = aIsBase ? cB * rawA / cA : rawB;
+    const ratio = Vault.tradeValueRatio(valsA, valsB); // A's worth / B's worth
+    // Reported the way KTC reports its adjustment: the side that comes out
+    // relatively lower keeps its raw total, the other gets the bonus.
+    const aIsBase = ratio <= rawA / rawB;
+    const valueA = aIsBase ? rawA : ratio * rawB, valueB = aIsBase ? rawA / ratio : rawB;
     const bonusA = valueA - rawA, bonusB = valueB - rawB;
     const display = Math.max(bonusA, bonusB) >= 0.033 * (rawA + rawB);
     return { rawA, rawB, valueA, valueB, bonusA, bonusB, display };
