@@ -1315,6 +1315,27 @@ const Vault = {
     } catch { Vault._gradeHistory = null; }
     return Vault._gradeHistory;
   },
+  /* A team's cornerstone: its most valuable player, or for a contending team one
+     of its top 3 (user, 2026-10-09: "the other manager [won't accept] due to not
+     wanting to give up star"). On 34,421 real 2024-2025 trade sides with each
+     roster as it stood that day (VaultValues star-sellers.js), the best player a
+     team sent was its #1 in 8% of its trades (contending 5%, rebuilding 10%,
+     flexible 12%) and in its top 3 in 23% (contending 16%). When one did move it
+     went for no premium (about 10% under our math, mostly because stars trade
+     under KTC), so what a reluctant owner would take can't be read from trades
+     that happened: asking for one is a long shot at any fair price.
+     { rank, share } (share: how often a team like this sends a player of that
+     rank, 0-1) when `asset` is one, else null. */
+  CORNERSTONE_SHARE: { contend: [0.05, 0.16], rebuild: [0.10, 0.29], flexible: [0.12, 0.33] },
+  cornerstone(team, asset) {
+    if (!team || !asset || asset.type === 'pick') return null;
+    const vals = team.assets.filter(a => a.type === 'player').map(a => a.value).sort((x, y) => y - x);
+    const rank = 1 + vals.filter(v => v > asset.value + 0.5).length;
+    const mode = Vault.teamMode(team), sh = Vault.CORNERSTONE_SHARE[mode] || Vault.CORNERSTONE_SHARE.flexible;
+    if (rank === 1) return { rank, share: sh[0], mode };
+    if (rank <= 3 && mode === 'contend') return { rank, share: sh[1], mode };
+    return null;
+  },
   // The market key of a piece: 'n:' + normalized name, or 'k:<season>-<round>' for a pick.
   gradeKey(a) {
     if (!a) return '';

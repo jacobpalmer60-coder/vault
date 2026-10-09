@@ -117,10 +117,16 @@ const COACH_THEIR_MIN = -6, COACH_UPSIDE = 15, COACH_MIN_PIECE = 0.2;
 // actually trade for (cheap players often go 20% over KTC), priced at market.
 const coachKtcPct = (give, get) => { const k = Vault.ktcSideValues(give, get); return (k.valueB - k.valueA) / (((k.valueA + k.valueB) / 2) || 1) * 100; };
 const coachKtcFair = (give, get, option) => { const p = coachKtcPct(give, get); return p < VAULT_CONFIG.FAIR_PCT && (option === 'contend' || p > -VAULT_CONFIG.FAIR_PCT); };
+// Not asking for the other team's cornerstone (Vault.cornerstone: its best
+// player, or a contender's top 3): managers rarely trade them at any fair price.
+// Get a player (you name the target) and the price plays you start from your
+// own player skip this.
+const coachAsksCornerstone = (partner, get) => get.some(a => Vault.cornerstone(partner, a));
+const COACH_CORNERSTONE_OK = new Set(['target', 'shop', 'sellhigh']);
 function coachSensible({ c, mine, theirs }) {
   const noFiller = side => { const top = Math.max(...side.map(a => a.value)); return side.every(a => a.value >= top * COACH_MIN_PIECE); };
   return theirs.score >= COACH_THEIR_MIN && mine.score >= 10 && mine.rosterFit >= -1 && theirs.rosterFit >= -1
-    && mine.valuePct >= -COACH_VALUE_FLOOR && noFiller(c.giveA) && noFiller(c.giveB) && coachKtcFair(c.giveA, c.giveB);
+    && mine.valuePct >= -COACH_VALUE_FLOOR && noFiller(c.giveA) && noFiller(c.giveB) && coachKtcFair(c.giveA, c.giveB) && !coachAsksCornerstone(c.partner, c.giveB);
 }
 // Swaps that fill both teams' needs (user, 2026-10-09): the value-matched search
 // (suggestionPool) rarely pairs your depth at one position with a partner's
@@ -744,7 +750,7 @@ async function coachFind() {
       // Price plays (shopping a player you've decided to move, selling high,
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
-      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= COACH_THEIR_MIN && (COACH_PRICE_PLAYS.has(option) || coachKtcFair(o.give, o.get, option)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= COACH_THEIR_MIN && (COACH_PRICE_PLAYS.has(option) || coachKtcFair(o.give, o.get, option)) && (COACH_CORNERSTONE_OK.has(option) || !coachAsksCornerstone(o.partner, o.get)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
       if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} without giving up value right now. Try another trade type, or Go all-in to spend future value on this season.`; }
     }
     Coach.results[option] = { ...res, meId: me.rosterId, key: coachInputKey(), planNote };

@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=b8b6f4a8"></script>
+<script src="vault-core.js?v=52a2efba"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-09', items: [
+    { kind: 'changed', page: 'Trade Coach', text: "Trade Coach no longer suggests asking for another team's best player, or one of a contending team's top 3. In about 34,000 real trades, teams sent their most valuable player in only 8% of their trades (contending teams 5%), and when one did move it went for no premium, so a fair price doesn't make those offers likely. You can still go after anyone with Get a player, and the Trade Calculator now says when a trade asks for the other team's best player, and how rarely teams like theirs move one." },
     { kind: 'changed', page: 'Trade Calculator', text: "Grades now match what managers actually accept. Trade value was refitted on 1.5 million completed Sleeper dynasty trades: how much a star counts over the pieces coming back now depends on how close those pieces are to him (when they're well below him, extra pieces count nearly in full), each piece a side sends beyond one more than it gets back counts at 25% (it costs the other team a roster spot), and adding a piece can never make a side worth less. On 275,000 trades from June to October it never saw, 77% grade Fair, against 64% before and 30% on KTC's own calculator, and it picks real winners (points afterward, playoffs against the odds) as well or better. Ja'Marr Chase for CeeDee Lamb and Davante Adams now reads about even (KTC's calculator: 14% over)." },
     { kind: 'changed', page: 'Everywhere', text: "Every grade prices each player and pick at what it actually trades for: its KTC value adjusted by what managers paid for it in completed trades over the last 45 days, in your league's QB format and TE premium (at most 25% either way). Ja'Marr Chase, for example, goes for about 8% under his KTC value, and tight ends in TE-premium leagues well under. Values shown on the page stay KTC's, and KTC's own calculator stays next to every grade. Past trades on Trade Grades and Managers are graded at the prices of their own time, back to October 2023. A player's price against KTC now reads the same on every page." },
     { kind: 'changed', page: 'Trade Calculator', text: "The result is one answer instead of several: the verdict for your team, then one price row (what your team pays on trade value and on KTC's own calculator) and whether managers usually accept trades like it. KTC's number says \"same call\" when it agrees with ours (every 1-for-1 on KTC's values does). When it doesn't, one line says why, with the numbers for real trades like yours (for example, of 4,849 accepted trades with the best piece coming back 70-85% as valuable, KTC's calculator called 24% Fair and trade value 71%), and names any player whose market price moves the trade. Fairness for both teams, the market's recent trades and the consolidation note moved into Details." },
