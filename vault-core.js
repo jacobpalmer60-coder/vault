@@ -6,16 +6,37 @@ const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
   VAULT_VALUES_URL: 'data/vault-values/values.json',
-  // How much the best piece counts over extra pieces: the trade value curve
-  // (TRADE_VALUE_CURVE, fitted so a typical accepted trade comes out even) at
-  // 1.5x strength. Set 2026-10-08 by what wins trades rather than what managers
-  // accept or what KTC says: on 7,460 real uneven 2025 trades, edges at 1.5x
-  // picked the teams that gained points and beat their playoff and title odds
-  // better than 1x (and far better than KTC's own adjustment, which did worse
-  // than a coin flip); bigger still mostly double-counted this season's lineup
-  // (which the verdict already weighs) and did worse on next season. The
-  // Fair/Lopsided cutoffs and acceptable table were checked and barely move.
-  STAR_BONUS: 1.5,
+  // How pieces add up (Vault.tradeValueP, Vault.tradeSideValues): Fair means
+  // what managers accept (user, 2026-10-09). A side is worth (sum of
+  // value^p)^(1/p); p is read from this table by the trade's best piece (rows,
+  // values) and how close the best piece on the other side is to it (columns,
+  // closeness: 0.4 = 40% as valuable), straight lines between the points (best
+  // piece in ln(value)). Higher p: extra pieces count for less. Fitted on
+  // 725,008 completed Sleeper dynasty trades before June 2026 so the median
+  // accepted trade in each cell reads even (VaultValues fair-curve2.js); on the
+  // 275,293 trades since, it calls 70% Fair against 64% for the curve it replaces
+  // (best piece only, at 1.5x) and 30% for KTC's calculator, and a star sold for
+  // clearly smaller pieces (60-80% as valuable) 76% Fair against 43%. Results
+  // (points afterward, playoffs against the odds) were as good or better. When
+  // the pieces coming back are far below the best piece, extra pieces count
+  // nearly in full; when one is close to it, extras count for little.
+  // Replaces STAR_BONUS 1.5 (2026-10-08), which was set by results that turned
+  // out too weak to choose a strength once split by how close the pieces are.
+  FAIR_CURVE: {
+    values: [1500,2500,3500,4500,5500,6500,7500,8500,9500],
+    closeness: [0.4,0.55,0.65,0.75,0.85,0.95],
+    p: [
+      [1.2,1.2,1.5,1.95,2.95,6],
+      [1,1.15,1.45,1.95,2.5,5.5],
+      [1,1.1,1.45,1.75,2.3,4.25],
+      [1,1.15,1.45,1.75,2.1,3.9],
+      [1,1.2,1.45,1.7,2.05,3.25],
+      [1,1.25,1.55,1.9,2.3,2.9],
+      [1,1.4,1.7,2,2.15,2.5],
+      [1.2,1.6,1.8,1.9,1.95,2.15],
+      [1.4,1.65,1.75,1.75,1.85,2.15]
+    ]
+  },
   // The trade value curve's strength Vault values are fitted with (SET.curve in
   // scripts/vault-values/nightly.js; keep the two the same).
   VAULT_VALUES_CURVE: 0.6,
@@ -71,7 +92,8 @@ const VAULT_CONFIG = {
   // same 0-9999 scale, so the same constant applies without needing to look it up
   // fresh from our own dataset every time.
   CONSOLIDATION_GLOBAL_MAX: 10099,
-  // How a trade side's pieces add up for every grade (Vault.tradeSideValues):
+  // The curve before the fair curve (FAIR_CURVE), still used for Vault values
+  // (Vault.legacyTradeValueP, at VAULT_VALUES_CURVE strength):
   // (sum of value^p)^(1/p), p set by the trade's best piece: [KTC value, p]
   // points, straight lines between them in ln(value). Calibrated on 1.5 million
   // completed Sleeper dynasty trades so the median accepted trade of each value
@@ -82,8 +104,9 @@ const VAULT_CONFIG = {
   // How lopsided accepted trades get, for the "acceptable" read
   // (Vault.acceptability): % off on trade value at each percentile (pcts), by
   // kind (1-for-1, uneven piece counts, even with 2+ each) and the best piece's
-  // KTC value (bands). Accepted trades from Sleeper dynasty leagues since 2025-10-07.
-  ACCEPTED_TRADES: {"since":"2025-10-07","pcts":[50,60,70,75,80,85,90,92.5,95,97.5,99],"bands":[0,3000,6000],"kinds":["one","uneven","even"],"n":[[74868,97898,6408],[40285,235770,106610],[7404,70729,27259]],"cuts":[[[13.9,18.6,24.4,27.8,31.6,36.7,45,50.8,60,81,109.9],[13.2,17.2,22.7,26.3,30.7,36.1,44.2,50.1,60.5,78.2,102.2],[13.6,17.7,22.8,25.4,29.1,35.3,46.1,53.7,72.3,107.1,125.9]],[[11.9,14.7,17.8,20.3,23.4,27,32.9,37,43.6,58,82.5],[10.8,13.6,17.1,19.3,22.1,25.3,30.2,33.9,39.4,51.6,72.2],[7.3,9.4,11.9,13.6,15.5,18.1,21.6,24.1,27.9,35.1,46.1]],[[7.4,9.7,12.8,14.8,17.3,20,24,27.1,30.7,37.8,46.6],[7.6,9.9,12.8,14.6,16.7,19.4,23.1,25.8,29.7,37,47.8],[6,7.7,10,11.4,13.3,15.6,19.2,21.8,25.5,31.8,40.7]]]},
+  // KTC value (bands). Accepted trades from Sleeper dynasty leagues since 2025-10-06, on the
+  // fair curve (VaultValues acceptable2.js, 2026-10-09).
+  ACCEPTED_TRADES: {"since":"2025-10-06","pcts":[50,60,70,75,80,85,90,92.5,95,97.5,99],"bands":[0,3000,6000],"kinds":["one","uneven","even"],"n":[[75033,98148,6430],[40357,236317,106875],[7413,70875,27327]],"cuts":[[[13.9,18.6,24.4,27.8,31.6,36.7,45,50.8,60,81.1,109.9],[13.2,17.2,22.7,26.3,30.7,36.1,44.2,50.1,60.5,78.2,102.2],[13.7,17.8,22.8,25.4,29.1,35.3,46.2,53.7,72.3,107.3,125.9]],[[7.1,9.6,13.5,16.3,21.6,29.9,44.2,53.5,66.2,90.6,120.1],[7.5,9.9,13.3,15.9,19.1,23.5,30.5,36.4,46.6,67.2,100.7],[7.2,9.3,12,13.7,15.8,18.3,22,24.6,28.5,36.2,49.1]],[[6.3,8.6,11.1,13.3,15.6,18.8,23.2,26.6,30.9,38.5,51.7],[6.4,8.3,11,12.6,14.6,17.3,21.1,23.9,27.8,34.6,45.9],[5.5,7.1,9.2,10.6,12.3,14.6,18.1,20.6,24.5,31,39.9]]]},
   // How consolidating worked out a year later, for the calculator's advice line:
   // share of teams that got fewer pieces and were ahead on trade value (the calibrated curve) 12 months
   // on, by their best piece's KTC value (rows, from bands) and the raw KTC value
@@ -183,7 +206,8 @@ const VAULT_CONFIG = {
   // under the verdict: the share of sides still ahead on value a year later, by
   // timeline, on trade value (KTC today on the trade value curve, like the
   // grade; raw KTC sums, used at first, favored whoever got more pieces).
-  // Recomputed 2026-10-08 at STAR_BONUS 1.5 and contenders' 2 per point, from
+  // Recomputed 2026-10-09 on the fair curve (VAULT_CONFIG.FAIR_CURVE) and
+  // contenders' 2 per point (VaultValues ladder-at-strength.js CURVE=site), from
   // each trade's pieces (the pull's stored value % had about 23% of trades with
   // one side at zero), pooled over 2024 and 2025: the two seasons agree within a
   // few points at every tier. Tested and left out: a penalty
@@ -193,13 +217,13 @@ const VAULT_CONFIG = {
   // averaged +1 a week) read as a contradiction next to this trade's own points.
   // level: the coarse read colors and the offered-to-you summary go by.
   VERDICT_TIERS: [
-    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.88, rebuild: 0.68, flexible: 0.86 } },
-    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.78, rebuild: 0.65, flexible: 0.75 } },
-    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.66, rebuild: 0.66, flexible: 0.74 } },
-    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.49, rebuild: 0.49, flexible: 0.54 } },
-    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.33, rebuild: 0.35, flexible: 0.34 } },
-    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.19, rebuild: 0.29, flexible: 0.23 } },
-    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.09, rebuild: 0.29, flexible: 0.18 } }
+    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.90, rebuild: 0.74, flexible: 0.87 } },
+    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.78, rebuild: 0.67, flexible: 0.80 } },
+    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.75, rebuild: 0.62, flexible: 0.80 } },
+    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.52, rebuild: 0.48, flexible: 0.56 } },
+    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.27, rebuild: 0.36, flexible: 0.29 } },
+    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.17, rebuild: 0.32, flexible: 0.21 } },
+    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.08, rebuild: 0.25, flexible: 0.21 } }
   ],
   // Depth (Vault.missedGameCost): weeks each starter is out a season, bye
   // included. Measured, not guessed: across 2018-2025 fantasy starters (top 24
@@ -2201,12 +2225,12 @@ const Vault = {
      changed is how a side's pieces add up. Tested on 1.5 million completed
      Sleeper dynasty trades (2021-2026, each priced at KTC on its own day): the
      best piece counts in full and each extra piece for less, smoothly, as
-     (sum of value^p)^(1/p), with p set by the trade's best piece
-     (Vault.tradeValueP): stronger in cheaper trades. On trades it wasn't fitted
-     on, that calls 66% of real trades Fair against 30% for KTC's own
-     adjustment, and leans about 1% against the side getting fewer pieces
-     instead of 27% (KTC's bonus fades whenever the best piece coming back is
-     close to the star, and jumps around with small changes).
+     (sum of value^p)^(1/p), with p set by the trade's best piece and how close
+     the best piece on the other side is to it (Vault.tradeValueP,
+     VAULT_CONFIG.FAIR_CURVE). On trades it wasn't fitted on, that calls 70% of
+     real trades Fair against 30% for KTC's own adjustment (KTC's bonus fades
+     whenever the best piece coming back is close to the star, and jumps around
+     with small changes).
 
      Reported the way KTC reports its adjustment, so the numbers read the same:
      the side whose pieces are more spread out keeps its raw total, and the
@@ -2219,9 +2243,21 @@ const Vault = {
   // With Vault values showing (Vault.valueSource), the curve at the strength those
   // values were fitted with (VAULT_CONFIG.VAULT_VALUES_CURVE), so the site adds
   // pieces up the way the values assume; KTC's numbers use it at full strength.
-  tradeValueP(top) {
+  // KTC values: the fair curve (VAULT_CONFIG.FAIR_CURVE) at the trade's best
+  // piece `top` and closeness `r` (the other side's best piece / top).
+  tradeValueP(top, r) {
+    if (Vault.valueSource() === 'vault') return Vault.legacyTradeValueP(top);
+    const C = VAULT_CONFIG.FAIR_CURVE, lt = C.values.map(Math.log);
+    const seg = (xs, x) => { if (x <= xs[0]) return [0, 0, 0]; if (x >= xs[xs.length - 1]) return [xs.length - 1, xs.length - 1, 0]; let i = 0; while (x > xs[i + 1]) i++; return [i, i + 1, (x - xs[i]) / (xs[i + 1] - xs[i])]; };
+    const [i0, i1, u] = seg(lt, Math.log(Math.max(top || 0, 1))), [j0, j1, v] = seg(C.closeness, Number.isFinite(r) ? r : 1);
+    const a = C.p[i0][j0] * (1 - v) + C.p[i0][j1] * v, b = C.p[i1][j0] * (1 - v) + C.p[i1][j1] * v;
+    return a * (1 - u) + b * u;
+  },
+  // The curve before 2026-10-09 (best piece only), kept for Vault values, which
+  // were fitted with it at VAULT_CONFIG.VAULT_VALUES_CURVE strength.
+  legacyTradeValueP(top) {
     const k = VAULT_CONFIG.TRADE_VALUE_CURVE, x = Math.log(Math.max(top || 0, 500));
-    const s = Vault.valueSource() === 'vault' ? VAULT_CONFIG.VAULT_VALUES_CURVE : VAULT_CONFIG.STAR_BONUS, at = p => 1 + s * (p - 1);
+    const s = VAULT_CONFIG.VAULT_VALUES_CURVE, at = p => 1 + s * (p - 1);
     if (x <= Math.log(k[0][0])) return at(k[0][1]);
     for (let i = 1; i < k.length; i++) {
       const x1 = Math.log(k[i][0]);
@@ -2268,7 +2304,8 @@ const Vault = {
     const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
     const none = { rawA, rawB, valueA: rawA, valueB: rawB, bonusA: 0, bonusB: 0, display: false };
     if (!rawA || !rawB || (valsA.length <= 1 && valsB.length <= 1)) return none;
-    const p = Vault.tradeValueP(Math.max(...valsA, ...valsB));
+    const topA = Math.max(...valsA), topB = Math.max(...valsB), top = Math.max(topA, topB);
+    const p = Vault.tradeValueP(top, Math.min(topA, topB) / (top || 1));
     const curve = vals => Math.pow(vals.reduce((s, v) => s + Math.pow(Math.max(v, 0), p), 0), 1 / p);
     const cA = curve(valsA), cB = curve(valsB);
     // The side with the lower curve-to-raw ratio (more, smaller pieces) is the base.

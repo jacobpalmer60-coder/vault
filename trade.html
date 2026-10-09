@@ -233,7 +233,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=de0dcd21"></script>
+<script src="vault-core.js?v=963c0dd4"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1384,19 +1384,24 @@ function priceStatHtml(v, label, tip = '', size = 'text-[30px]') {
   const even = Math.abs(v) < 1;
   return `<div><div class="num ${size} ${Math.abs(v) < PRICE_TINT_PCT ? 'text-zinc-100' : v > 0 ? 'text-emerald-300' : 'text-orange-300'}">${even ? 'Even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`}</div><div class="text-[11px] text-zinc-500 mt-1.5"${tip ? ` title="${tip}"` : ''}>${even ? 'with ' : ''}${label}</div></div>`;
 }
-/* KTC's calculator next to trade value, said narrowly (user, 2026-10-09: show
-   exactly where KTC isn't fair, without making every KTC trade look unfair).
-   Measured on 26,341 real 2024-2025 trades (VaultValues ktc-vs-ours-calls.js):
-   the two give the same call (Fair / Lopsided / Unfair, and who it favors) on
-   every 1-for-1. They split on uneven trades, and above all when the best piece
-   on each side is close in value (KTC_CLOSE): there KTC's consolidation
-   adjustment shrinks to almost nothing and the side with more pieces looks far
-   ahead. Of 6,616 such trades, all accepted by both managers, KTC called 11%
-   Fair and trade value 87%. So:
+/* KTC's calculator next to trade value (user, 2026-10-09: show exactly why
+   KTC isn't fair, without making every KTC trade look unfair). Measured on
+   26,341 real 2024-2025 trades, every one accepted by both managers
+   (VaultValues ktc-vs-ours-calls.js CURVE=site, on the fair curve): the two
+   give the same call (Fair / Lopsided / Unfair, and who it favors) on every
+   1-for-1, about a quarter of all trades. They split on the rest, where KTC's
+   consolidation adjustment calls few accepted trades Fair. So:
    - same call: "same call" under KTC's number (ktcSameCall), credit to KTC;
-   - a different call in that situation: why, with that evidence;
-   - a different call anywhere else: only the facts (each one's bonus), no claim. */
-const KTC_CLOSE = 0.85, KTC_CLOSE_EVIDENCE = { trades: 6616, ktc: 11, ours: 87 };
+   - a different call: why (each one's extra credit for the best piece), with
+     the evidence for trades like this one (KTC_EVIDENCE, by how close the best
+     piece coming back is to the best piece, or same piece counts);
+   - a different call where the evidence is thin (best piece coming back under
+     half as valuable: 388 trades, trade value 23% Fair): only the facts. */
+const KTC_EVIDENCE = [
+  { lo: 0.5, hi: 0.7, trades: 3198, ktc: 17, ours: 60, like: 'the best piece coming back 50-70% as valuable as the best piece' },
+  { lo: 0.7, hi: 0.85, trades: 4849, ktc: 24, ours: 71, like: 'the best piece coming back 70-85% as valuable as the best piece' },
+  { lo: 0.85, hi: 1.01, trades: 6616, ktc: 11, ours: 83, like: 'the two best pieces close in value' }
+], KTC_EVIDENCE_EVEN = { trades: 4286, ktc: 23, ours: 72, like: 'the same number of pieces each way' };
 const ktcCall = e => (Math.abs(e) < VAULT_CONFIG.FAIR_PCT ? 0 : (Math.abs(e) < VAULT_CONFIG.LOPSIDED_PCT ? 1 : 2) * Math.sign(e));
 const ktcSameCall = (tradeEdge, ktcEdge) => ktcCall(tradeEdge) === ktcCall(ktcEdge);
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
@@ -1411,12 +1416,11 @@ function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   const star = top(side), rival = top(other);
   const kb = sideA ? ktc.bonusA : ktc.bonusB, ob = sideA ? ours.bonusA : ours.bonusB;
   const link = '<a href="how_we_grade.html#fairness" class="underline decoration-dotted underline-offset-2 hover:text-zinc-200">How we grade</a>';
-  const close = aAssets.length !== bAssets.length && Math.min(star.value, rival.value) / Math.max(star.value, rival.value) >= KTC_CLOSE;
-  if (close && kb < ob) {
-    const E = KTC_CLOSE_EVIDENCE;
-    return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: ${Vault.escapeHtml(star.name)} and ${Vault.escapeHtml(rival.name)} are close in value, and then KTC's calculator adds almost nothing for getting the best piece (${amt(kb)}; real trades pay about ${amt(ob)}). Of ${E.trades.toLocaleString()} real trades like this, all accepted by both managers, KTC calls ${E.ktc}% Fair and trade value ${E.ours}%. On 1-for-1 trades the two always agree. ${link}</div>`;
-  }
-  return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">The numbers differ because KTC's calculator adds ${amt(kb)} to the side with ${Vault.escapeHtml(star.name)} for having the best piece, and trade value adds ${amt(ob)}. ${link}</div>`;
+  const r = Math.min(star.value, rival.value) / Math.max(star.value, rival.value);
+  const E = aAssets.length === bAssets.length ? KTC_EVIDENCE_EVEN : KTC_EVIDENCE.find(e => r >= e.lo && r < e.hi);
+  const why = `KTC's calculator gives the side with ${Vault.escapeHtml(star.name)} ${amt(kb)} extra for having the best piece${kb < ob && r >= 0.85 ? ' (KTC shrinks it to almost nothing when the pieces coming back are close in value)' : ''}; real trades pay about ${amt(ob)}, which is what trade value uses.`;
+  if (!E) return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why the numbers differ: ${why} ${link}</div>`;
+  return `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: ${why} Of ${E.trades.toLocaleString()} real trades with ${E.like}, all accepted by both managers, KTC calls ${E.ktc}% Fair and trade value ${E.ours}%. On 1-for-1 trades the two always agree. ${link}</div>`;
 }
 const PRICE_TIP = {
   trade: 'Trade value: KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). What the grade uses.',
