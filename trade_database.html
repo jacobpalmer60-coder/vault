@@ -217,6 +217,17 @@ function marketRows(trades, playerMap, pickMap) {
   return rows;
 }
 // Sleeper trades from before `before` (the day KTC's feed starts), already priced.
+// Every completed Sleeper trade of the window, already graded by the hourly
+// crawl job (data/market-history/glance-<sf|oneQB>.json, scripts/summarize-
+// sleeper-trades.js writeGlance), instead of the 30,000-trade sample the other
+// pages pool (user, 2026-10-09: "why can't we use all the trades?").
+function glanceRows(g, qbs) {
+  return (g.rows || []).map(([p10, shape, one, top, pos, paid10, alone, fi]) => {
+    const pct = p10 / 10, f = g.fmts[fi] || [];
+    return { pct, bucket: Vault.fairnessBucket(pct, 0, 0), shape: g.shapes[shape] || '', oneForOne: !!one, top, pos: g.pos[pos] || 'Pick', paid: paid10 == null ? null : paid10 / 10, topAlone: !!alone,
+      fmt: { teams: f[0], qbs, ppr: f[1], tep: f[2] }, src: 'sleeper' };
+  });
+}
 function sleeperRows(recent, before, qbs) {
   const side = s => s.map(([id, value]) => ({ value, pos: id[0] === 'p' ? null : (recent.names[id] || [])[1] || null }));
   const fmt = f => (f ? { teams: f[2], qbs, ppr: Vault.ktcPprCode(f[0]), tep: Vault.ktcTepCode(f[1]) } : { qbs });
@@ -548,15 +559,25 @@ async function init() {
       const all = [...mRows, ...sRows];
       const i = Math.max(0, tiers.findIndex(t => all.filter(r => t.match(r.fmt)).length >= MK_MIN_POOL));
       const rows = all.filter(r => tiers[i].match(r.fmt)), sl = rows.filter(r => r.src === 'sleeper').length;
-      renderMarket(rows, tiers[i].label, exactShare, leagueRows, { ktc: rows.length - sl, ktcDays, sleeper: sl, sleeperDays, looser: i > 0 ? tiers[0].label : '' });
+      const exact = all.filter(r => tiers[0].match(r.fmt)), eShare = b => Math.round(exact.filter(r => r.bucket === b).length / (exact.length || 1) * 100);
+      const exactAll = exact.length ? `${eShare('Fair')}% Fair, ${eShare('Lopsided')}% Lopsided, ${eShare('Unfair')}% Unfair (${exact.length.toLocaleString()} trades)` : exactShare;
+      renderMarket(rows, tiers[i].label, exactAll, leagueRows, { ktc: rows.length - sl, ktcDays, sleeper: sl, sleeperDays, looser: i > 0 ? tiers[0].label : '' });
     };
     redraw();
-    fetch(`data/market-history/recent-${isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).then(recent => {
-      if (!recent) return;
-      sRows = sleeperRows(recent, ktcFrom, sig.qbs);
-      if (!sRows.length) return;
-      sleeperDays = Math.round((new Date(ktcFrom) - new Date(sRows.map(r => r.date).sort()[0])) / 864e5);
-      redraw();
+    const qbFile = isSF ? 'sf' : 'oneQB';
+    fetch(`data/market-history/glance-${qbFile}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null).then(g => {
+      if (g && g.rows && g.rows.length) {
+        sRows = glanceRows(g, sig.qbs);
+        sleeperDays = Math.round((new Date(g.to) - new Date(g.from)) / 864e5) + 1;
+        return redraw();
+      }
+      return fetch(`data/market-history/recent-${qbFile}.json`).then(r => (r.ok ? r.json() : null)).then(recent => {
+        if (!recent) return;
+        sRows = sleeperRows(recent, ktcFrom, sig.qbs);
+        if (!sRows.length) return;
+        sleeperDays = Math.round((new Date(ktcFrom) - new Date(sRows.map(r => r.date).sort()[0])) / 864e5);
+        redraw();
+      });
     }).catch(() => {});
     renderHistory(valueField);
     document.getElementById('marketLink').href = Vault.linkTo('market.html');

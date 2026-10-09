@@ -38,6 +38,15 @@
        trades: [[date, [[id, value], ...], [[id, value], ...], [rec, bonusRecTe, teams]]] }
    (picks: 'p<season>-<round>'; the last part is the league's PPR, TE premium
    and team count, so pages can match trades to their own league's settings)
+   and data/market-history/glance-<sf|oneQB>.json: EVERY priced trade of those
+   days (not a sample; user, 2026-10-09: "why can't we use all the trades?"),
+   reduced to what the Trade Database's "market at a glance" needs, graded the
+   way the pages grade (Vault.tradeSideValues at the grade's market prices for
+   the trade's format, data/grade-values.json), about 25 bytes a trade:
+     { updated, from, to, shapes, pos, fmts: [[teams, ppr code, tep code]],
+       rows: [[% off x10, shape, 1-for-1 (0/1), best piece's KTC value, its
+               position, what the side getting fewer pieces paid over KTC x10 or
+               null, best piece came alone for more (0/1), fmt]] }
    and data/market-history/daily-<sf|oneQB>.json, each player's (and pick's,
    keyed 'k:<season>-<round>') market points for the player card and the
    Player Market page, for the last DAILY_KEEP_DAYS days (older ones by month
@@ -196,7 +205,7 @@ function main() {
       if (date >= recentFrom) recent[format.startsWith('sf') ? 'sf' : 'oneQB'].push(t);
       // Each side's main piece (its best player): what that side cost over what it was worth.
       Vault._globalMaxValue = prices.maxAt(date) || undefined;
-      const { valueA: v1, valueB: v2 } = Vault.tradeSideValues(s1, s2);
+      const { valueA: v1, valueB: v2 } = (t._tv = Vault.tradeSideValues(s1, s2)); // reused by summarize (lib-market.js)
       [[s1, v1, v2], [s2, v2, v1]].forEach(([side, got, gave]) => {
         const top = side.reduce((m, a) => (a.value > m.value ? a : m));
         if (!got) return;
@@ -302,7 +311,42 @@ function main() {
     fs.writeFileSync(path.join(OUT, `recent-${qb}.json`), JSON.stringify({ updated: new Date().toISOString(), names, trades: keep.map(t => [t.date, side(t.s1), side(t.s2), t.f]) }));
     const days = new Set(keep.map(t => t.date));
     console.log(`recent-${qb}: ${keep.length} of ${list.length} trades over ${days.size} days since ${recentFrom}`);
+    writeGlance(Vault, qb, list, sleeper);
   });
+}
+
+// Every recent trade, as the Trade Database's "market at a glance" reads it
+// (trade_database.html marketRow, same math), for the days before KTC's feed.
+const GLANCE_SHAPES = ['1-for-1', '1-for-2', '1-for-3', '1-for-4+', '2-for-2', '2-for-3', '2-for-4+', '3-for-3', '3-for-4+'];
+const GLANCE_POS = ['QB', 'RB', 'WR', 'TE', 'Pick'];
+function writeGlance(Vault, qb, list, sleeper) {
+  let grade = null;
+  try { grade = readJson(path.join(DATA, 'grade-values.json')); } catch {}
+  const tables = new Map(Object.entries(grade?.formats || {}).map(([k, t]) => [k, new Map(Object.entries(t))]));
+  const named = side => side.map(a => (a.type === 'pick' ? { ...a, season: +a.id.slice(1).split('-')[0], round: +a.id.split('-')[1] } : { ...a, name: `${sleeper[a.id]?.first_name || ''} ${sleeper[a.id]?.last_name || ''}`.trim() }));
+  const ktcFrom = ktcFeedFrom(qb), fmts = [], fmtIdx = new Map(), rows = [];
+  let from = '9999', to = '';
+  list.forEach(t => {
+    if (ktcFrom && t.date >= ktcFrom) return;
+    const s1 = named(t.s1), s2 = named(t.s2);
+    const [rec, bonus, teams] = t.f || [];
+    const table = tables.get((qb === 'sf' ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonus)) || false;
+    const g = Vault.tradeSideValues(s1, s2, { market: table }), pct = Math.abs(g.valueA - g.valueB) / (((g.valueA + g.valueB) / 2) || 1) * 100;
+    const { valueA: v1, valueB: v2 } = Vault.ktcSideValues(s1, s2), avg = (v1 + v2) / 2 || 1;
+    const best1 = Math.max(...s1.map(a => a.value)), best2 = Math.max(...s2.map(a => a.value));
+    const topIn1 = best1 >= best2, top = (topIn1 ? s1 : s2).find(a => a.value === (topIn1 ? best1 : best2));
+    const few = Math.min(s1.length, s2.length), many = Math.max(s1.length, s2.length);
+    const consolidator = s1.length < s2.length ? 1 : s2.length < s1.length ? 2 : 0;
+    const paid = consolidator === 1 ? (v2 - v1) / avg * 100 : consolidator === 2 ? (v1 - v2) / avg * 100 : null;
+    const shape = `${Math.min(few, 3)}-for-${many >= 4 ? '4+' : many}`;
+    const fk = [teams || 0, Vault.ktcPprCode(rec ?? 0), Vault.ktcTepCode(bonus ?? 0)], key = fk.join('|');
+    if (!fmtIdx.has(key)) { fmtIdx.set(key, fmts.length); fmts.push(fk); }
+    rows.push([Math.round(pct * 10), GLANCE_SHAPES.indexOf(shape), few === 1 && many === 1 ? 1 : 0, Math.round(top.value), GLANCE_POS.indexOf(top.pos && GLANCE_POS.includes(top.pos) ? top.pos : 'Pick'),
+      paid == null ? null : Math.round(paid * 10), (topIn1 ? s1 : s2).length === 1 && consolidator !== 0 ? 1 : 0, fmtIdx.get(key)]);
+    if (t.date < from) from = t.date; if (t.date > to) to = t.date;
+  });
+  fs.writeFileSync(path.join(OUT, `glance-${qb}.json`), JSON.stringify({ updated: new Date().toISOString(), from, to, shapes: GLANCE_SHAPES, pos: GLANCE_POS, fmts, rows }));
+  console.log(`glance-${qb}: ${rows.length} trades ${from} to ${to}`);
 }
 
 // First day of KTC's own trade feed for this QB format (data/ktc-trades-<sf|oneQB>.json,

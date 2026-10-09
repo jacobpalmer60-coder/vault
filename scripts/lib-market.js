@@ -43,11 +43,16 @@ const median = list => { if (!list.length) return null; const s = [...list].sort
 function summarize(Vault, trades, { players: withPlayers = true } = {}) {
   const out = { n: 0, pct: Array(TOP / BIN + 1).fill(0), buckets: [0, 0, 0], shapes: {}, stars: {}, pos: {} };
   const shapes = {}, pos = {}, players = {};
-  trades.forEach(({ s1, s2 }) => {
+  trades.forEach(t => {
+    const { s1, s2 } = t;
     // Graded on trade value (the site's grade, Vault.tradeSideValues); what a side
     // "paid" stays against KTC's own adjustment (Vault.ktcSideValues), the market's
-    // yardstick, so the premiums keep meaning "over or under KTC".
-    const g = Vault.tradeSideValues(s1, s2), gAvg = (g.valueA + g.valueB) / 2 || 1, pct = Math.abs(g.valueA - g.valueB) / gAvg * 100;
+    // yardstick, so the premiums keep meaning "over or under KTC". Trade value is
+    // computed once per trade (t._tv): the same trade is summarized in its week,
+    // month and year, and the hourly crawl job ran out of time valuing 1.5 million
+    // trades four times each (2026-10-09). KTC's view depends on the pass's
+    // Vault._globalMaxValue, so it isn't cached.
+    const g = t._tv || (t._tv = Vault.tradeSideValues(s1, s2)), gAvg = (g.valueA + g.valueB) / 2 || 1, pct = Math.abs(g.valueA - g.valueB) / gAvg * 100;
     const { valueA: v1, valueB: v2 } = (Vault.ktcSideValues || Vault.tradeSideValues)(s1, s2); // what team 1 / team 2 received, KTC's view
     const avg = (v1 + v2) / 2 || 1;
     out.n++;
