@@ -6,6 +6,16 @@ const VAULT_CONFIG = {
   DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
   VAULT_VALUES_URL: 'data/vault-values/values.json',
+  // How much the best piece counts over extra pieces: the trade value curve
+  // (TRADE_VALUE_CURVE, fitted so a typical accepted trade comes out even) at
+  // 1.5x strength. Set 2026-10-08 by what wins trades rather than what managers
+  // accept or what KTC says: on 7,460 real uneven 2025 trades, edges at 1.5x
+  // picked the teams that gained points and beat their playoff and title odds
+  // better than 1x (and far better than KTC's own adjustment, which did worse
+  // than a coin flip); bigger still mostly double-counted this season's lineup
+  // (which the verdict already weighs) and did worse on next season. The
+  // Fair/Lopsided cutoffs and acceptable table were checked and barely move.
+  STAR_BONUS: 1.5,
   // The trade value curve's strength Vault values are fitted with (SET.curve in
   // scripts/vault-values/nightly.js; keep the two the same).
   VAULT_VALUES_CURVE: 0.6,
@@ -172,20 +182,22 @@ const VAULT_CONFIG = {
   // every format. record: that tier's real track record by timeline, for the line
   // under the verdict: the share of sides still ahead on value a year later, by
   // timeline, on trade value (KTC today on the trade value curve, like the
-  // grade; raw KTC sums, used at first, favored whoever got more pieces). Tested and left out: a penalty
+  // grade; raw KTC sums, used at first, favored whoever got more pieces).
+  // Recomputed 2026-10-08 at STAR_BONUS 1.5 from each trade's pieces: the
+  // pull's stored value % had about 23% of trades with one side at zero. Tested and left out: a penalty
   // for contenders buying older players (they did better, not worse) and for a
   // Superflex team selling its 3rd QB (the verdict already reads it). Only the
   // value share is quoted: a tier's average points (contenders' Bad trade tier
   // averaged +1 a week) read as a contradiction next to this trade's own points.
   // level: the coarse read colors and the offered-to-you summary go by.
   VERDICT_TIERS: [
-    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.81, rebuild: 0.87, flexible: 0.86 } },
-    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.77, rebuild: 0.70, flexible: 0.75 } },
-    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.67, rebuild: 0.64, flexible: 0.73 } },
-    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.49, rebuild: 0.55, flexible: 0.53 } },
-    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.32, rebuild: 0.40, flexible: 0.35 } },
-    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.21, rebuild: 0.35, flexible: 0.21 } },
-    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.14, rebuild: 0.20, flexible: 0.14 } }
+    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 0.84, rebuild: 0.68, flexible: 0.84 } },
+    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 0.75, rebuild: 0.64, flexible: 0.77 } },
+    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 0.64, rebuild: 0.62, flexible: 0.74 } },
+    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.48, rebuild: 0.51, flexible: 0.54 } },
+    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: 0.35, rebuild: 0.34, flexible: 0.30 } },
+    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: 0.23, rebuild: 0.33, flexible: 0.21 } },
+    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: 0.14, rebuild: 0.30, flexible: 0.22 } }
   ],
   // Depth (Vault.missedGameCost): weeks each starter is out a season, bye
   // included. Measured, not guessed: across 2018-2025 fantasy starters (top 24
@@ -2207,7 +2219,7 @@ const Vault = {
   // pieces up the way the values assume; KTC's numbers use it at full strength.
   tradeValueP(top) {
     const k = VAULT_CONFIG.TRADE_VALUE_CURVE, x = Math.log(Math.max(top || 0, 500));
-    const s = Vault.valueSource() === 'vault' ? VAULT_CONFIG.VAULT_VALUES_CURVE : 1, at = p => 1 + s * (p - 1);
+    const s = Vault.valueSource() === 'vault' ? VAULT_CONFIG.VAULT_VALUES_CURVE : VAULT_CONFIG.STAR_BONUS, at = p => 1 + s * (p - 1);
     if (x <= Math.log(k[0][0])) return at(k[0][1]);
     for (let i = 1; i < k.length; i++) {
       const x1 = Math.log(k[i][0]);

@@ -99,6 +99,15 @@ const coachKey = o => (Math.abs(o.edge) < VAULT_CONFIG.FAIR_PCT ? 0 : 1000) - co
 const coachImproves = o => Vault.verdictTier(coachScore(o)).level === 'good';
 // Options that are about the price: these keep Toss-ups too.
 const COACH_PRICE_PLAYS = new Set(['shop', 'sellhigh', 'buylow']);
+// Don't give value away (user, 2026-10-08): a contender's verdict weighs this
+// season's points heavily, so Coach kept finding trades that buy points with
+// value (Ja'Marr Chase for McCaffrey + Irving at 13% over, for Lamb + Adams at
+// 2% over). Every list but Go all-in (whose point is spending future value to
+// win now) needs you even or ahead on trade value: at most COACH_VALUE_FLOOR %
+// behind, about the noise in a trade's price.
+const COACH_VALUE_FLOOR = 2;
+const coachValuePct = o => { const tv = Vault.tradeSideValues(o.give, o.get); return (tv.valueB - tv.valueA) / (((tv.valueA + tv.valueB) / 2) || 1) * 100; };
+const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) >= -COACH_VALUE_FLOOR;
 // The other team's verdict score for the same trade (memoized like coachScore).
 function coachTheirScore(o) {
   const id = `them:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
@@ -619,8 +628,8 @@ async function coachFind() {
       // Price plays (shopping a player you've decided to move, selling high,
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
-      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
-      if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.`; }
+      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} without giving up value right now. Try another trade type, or Go all-in to spend future value on this season.`; }
     }
     Coach.results[option] = { ...res, meId: me.rosterId, key: coachInputKey(), planNote };
   } catch (e) {
@@ -961,8 +970,7 @@ function coachCardHtml(o, i) {
   // what you give and get). o.edge is the overall price grade, which also blends
   // both teams' roster fit and timeline: it showed Chase for Lamb + Adams as
   // "6% under trade value" when trade value had you paying 2% over (2026-10-08).
-  const tv = Vault.tradeSideValues(o.give, o.get);
-  const you = (tv.valueB - tv.valueA) / (((tv.valueA + tv.valueB) / 2) || 1) * 100, lop = -you >= VAULT_CONFIG.FAIR_PCT;
+  const you = coachValuePct(o), lop = -you >= VAULT_CONFIG.FAIR_PCT;
   const tier = Vault.verdictTier(coachScore(o)), verdict = { label: tier.label, cls: Vault.VERDICT_TIER_TEXT[tier.key] };
   const forYou = you >= VAULT_CONFIG.FAIR_PCT ? (you >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided') : null; // leans past Fair your way
   const mk = typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get) : null;
