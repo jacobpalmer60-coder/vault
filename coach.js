@@ -957,7 +957,12 @@ function renderCoach() {
 // the pieces have market reads, the same against what managers actually pay ("31% under market
 // price"). Then the pieces, one line of why, and the button.
 function coachCardHtml(o, i) {
-  const lop = o.edge >= VAULT_CONFIG.FAIR_PCT, you = -o.edge;
+  // The price line is trade value alone, as labeled (Vault.tradeSideValues on
+  // what you give and get). o.edge is the overall price grade, which also blends
+  // both teams' roster fit and timeline: it showed Chase for Lamb + Adams as
+  // "6% under trade value" when trade value had you paying 2% over (2026-10-08).
+  const tv = Vault.tradeSideValues(o.give, o.get);
+  const you = (tv.valueB - tv.valueA) / (((tv.valueA + tv.valueB) / 2) || 1) * 100, lop = -you >= VAULT_CONFIG.FAIR_PCT;
   const tier = Vault.verdictTier(coachScore(o)), verdict = { label: tier.label, cls: Vault.VERDICT_TIER_TEXT[tier.key] };
   const forYou = you >= VAULT_CONFIG.FAIR_PCT ? (you >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided') : null; // leans past Fair your way
   const mk = typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get) : null;
