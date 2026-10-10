@@ -114,7 +114,7 @@ const marketQuantile = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.ma
 // KTC's feed stores every pick as mid). A key passed in is used as is.
 function marketKeyOf(a) {
   if (typeof a === 'string') return /^[nk]:/.test(a) ? a : 'n:' + Vault.normalizeName(a);
-  const round = a.round ?? a.ktcRound; // graded trades' picks carry ktcRound
+  const round = a.round ?? a.ktcRound; // league round (graded trades' picks carry it too)
   return a.type === 'pick' ? (a.season && round ? `k:${a.season}-${round}` : '') : 'n:' + Vault.normalizeName(a.name);
 }
 function marketComps(name) {
@@ -577,6 +577,21 @@ function marketOverpay(league, allGraded) {
    shape, { from, players: { key: [[daysSinceFrom, pct, trades]] } }, each
    month placed on its 15th. Loaded once per page. */
 const marketDailyCache = new Map();
+// How a piece's market price (the grade's: % over or under KTC) moved: today's
+// against the one in force about `days` ago (data/grade-values-history/, the
+// prices past trades are graded with). { now, then, change, since } or null.
+// Rising & cooling and Your market (2026-10-10; they had used raw trade
+// medians, so their "now" didn't match the market price shown everywhere).
+function marketMove(key, days = 30) {
+  const now = Vault._gradeMarket && Vault._gradeMarket.get(key), h = Vault._gradeHistory;
+  if (!Number.isFinite(now) || !h) return null;
+  const target = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+  let i = -1;
+  for (let k = 0; k < h.dates.length && h.dates[k] <= target; k++) i = k;
+  const then = i < 0 ? null : h.tables[i].get(key);
+  return Number.isFinite(then) ? { now, then, change: now - then, since: h.dates[i] } : null;
+}
+const marketSinceText = d => new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
 // The grade's prices for a league's format, today's and past (marketTrend).
 let marketGradeLoading = null;
 function marketGradeLoad(league) {

@@ -100,9 +100,9 @@
 
 <div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
 
-<script src="vault-core.js?v=e7c4a2e8"></script>
+<script src="vault-core.js?v=a2b38b0f"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
-<script src="market-data.js?v=77b2e527"></script>
+<script src="market-data.js?v=b2da2059"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -124,13 +124,7 @@ const POS_COLOR = { QB: '#e48ae0', RB: '#4ade9c', WR: '#5cb8e4', TE: '#f0a857', 
 const ORD = n => n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n] || 'th');
 const posChip = q => (q === 'ALL' ? 'All' : q === 'Pick' ? 'Picks' : q);
 let pickHistory = null, pickHistoryLoading = null;
-const POS_MIN_MONTH = 15, MOVE_MIN = 5, MOVE_DAYS = 30, MOVE_SHOW = 8;
-// Moves only count days whose read is between half and double KTC (-50% to
-// +100%): a trade made while a player's KTC value was nearly nothing (before KTC
-// priced him) reads thousands of % over and isn't a price move (Darius Cooper
-// showed "3558% over to 5947% over", 2026-10-08).
-const MOVE_PREMIUM_RANGE = [-50, 100];
-const saneDays = pts => pts.filter(p => p[1] >= MOVE_PREMIUM_RANGE[0] && p[1] <= MOVE_PREMIUM_RANGE[1]);
+const POS_MIN_MONTH = 15, MOVE_DAYS = 30, MOVE_SHOW = 8;
 
 /* ---------- KTC value filter ----------
    One filter for All players, Highs & lows and Rising & cooling: a preset
@@ -236,23 +230,22 @@ const minOf = a => a.reduce((m, x) => (x < m ? x : m), Infinity);
 /* ---------- Rising and cooling ---------- */
 function renderMoves() {
   const box = document.getElementById('moveBody');
-  if (!daily) { box.innerHTML = collecting(); return; }
-  const latest = maxOf(Object.values(daily.players).flatMap(pts => pts.map(p => p[0])));
+  // The market price trade value uses, today against about a month ago
+  // (market-data.js marketMove), so "now" is the price shown everywhere.
   const rows = [];
-  Object.entries(daily.players).forEach(([norm, pts]) => {
-    const who = byNorm.get(norm);
+  let since = null;
+  byNorm.forEach((who, norm) => {
     if (!who || !POS_COLOR[who.pos] || !inValueBand(who.value)) return;
-    const ok = saneDays(pts), recent = ok.filter(p => p[0] > latest - MOVE_DAYS), before = ok.filter(p => p[0] <= latest - MOVE_DAYS && p[0] > latest - 2 * MOVE_DAYS);
-    const n1 = recent.reduce((t, p) => t + p[2], 0), n0 = before.reduce((t, p) => t + p[2], 0);
-    if (n1 < MOVE_MIN || n0 < MOVE_MIN) return;
-    const now = wMedian(recent.map(p => [p[1], p[2]])), then = wMedian(before.map(p => [p[1], p[2]]));
-    rows.push({ ...who, norm, now, then, change: now - then, n: n0 + n1 });
+    const m = marketMove('n:' + norm, MOVE_DAYS);
+    if (!m) return;
+    since = m.since;
+    rows.push({ ...who, norm, now: m.now, then: m.then, change: m.change });
   });
-  if (rows.length < 2) { box.innerHTML = (valueMin || Number.isFinite(valueMax) ? `<div class="mb-3">${valueFilterHtml()}</div><div class="text-[12px] text-zinc-500 py-3">No players in this value range have ${MOVE_MIN}+ completed trades in each of the last two 30-day stretches. Try a wider range.</div>` : collecting(`Players appear here once they have ${MOVE_MIN}+ completed trades in each of the last two 30-day stretches.`)); return; }
+  if (rows.length < 2) { box.innerHTML = (valueMin || Number.isFinite(valueMax) ? `<div class="mb-3">${valueFilterHtml()}</div><div class="text-[12px] text-zinc-500 py-3">No players in this value range had a market price both now and a month ago. Try a wider range.</div>` : collecting(`Players appear here once they have a market price both now and a month ago.`)); return; }
   const item = r => `<button onclick="openLookup('${encodeURIComponent(r.norm)}')" class="w-full text-left grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0 hover:bg-white/[0.02]">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
       <span class="min-w-0"><span class="block text-[13px] text-zinc-100 truncate">${esc(r.name)}</span>
-        <span class="block text-[11px] text-zinc-400">From <span class="mono">${signed(r.then)}</span> to <span class="mono text-zinc-300">${signed(r.now)}</span> vs KTC <span class="text-zinc-500">· ${r.n} trades</span></span></span>
+        <span class="block text-[11px] text-zinc-400">From <span class="mono">${signed(r.then)}</span> to <span class="mono text-zinc-300">${signed(r.now)}</span> vs KTC</span></span>
       <span class="text-[13px] mono font-semibold ${r.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${r.change > 0 ? '+' : '−'}${Math.abs(Math.round(r.change))} pts</span>
     </button>`;
   // Ranked by how big the move is for players at that value: cheap players'
@@ -270,8 +263,8 @@ function renderMoves() {
   const list = (title, sub, items) => `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
       <div class="text-[13px] font-medium text-zinc-200">${title}</div><div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${sub}</div>
       ${items.length ? items.map(item).join('') : '<div class="text-[12px] text-zinc-500 py-3">None yet.</div>'}</div>`;
-  box.innerHTML = `<div class="mb-3">${valueFilterHtml()}</div><div class="grid lg:grid-cols-2 gap-3">${list('Rising', 'Managers are paying more for these than a month ago, against KTC.', up)}${list('Cooling', 'Managers are paying less for these than a month ago, against KTC.', down)}</div>
-    <div class="text-[11px] text-zinc-500 mt-3">Points: the change in each player's median paid over KTC (completed trades he headlined, any shape). Ranked by how big that is for players at his value, since cheap players' prices swing more. Click a player to see his chart.</div>`;
+  box.innerHTML = `<div class="mb-3">${valueFilterHtml()}</div><div class="grid lg:grid-cols-2 gap-3">${list('Rising', `Managers are paying more for these than on ${marketSinceText(since)}, against KTC.`, up)}${list('Cooling', `Managers are paying less for these than on ${marketSinceText(since)}, against KTC.`, down)}</div>
+    <div class="text-[11px] text-zinc-500 mt-3">Points: the change in each player's market price against KTC, the price trade value uses, since ${marketSinceText(since)}. Ranked by how big that is for players at his value, since cheap players' prices swing more. Click a player to see his chart.</div>`;
 }
 
 function collecting(extra = '') {
@@ -524,29 +517,16 @@ function drawAll() {
    charting in the lookup above, plus buttons straight to Trade Coach's Sell
    high and Buy low. Moved here from League Overview, which stays trade-free. */
 const NUDGE_AT = 8, NUDGE_HIGHS = 3, NUDGE_LOWS = 2;
-/* This week: which of your pieces moved most in what managers pay against KTC,
-   from the day-by-day market points (`daily`, fetchMarketDaily):
-   the median of the last WEEK_DAYS days next to the PRIOR_DAYS before, weighted
-   by trades, needing WEEK_MIN and PRIOR_MIN trades; changes of WEEK_SHOW_AT
-   points or more, biggest first. */
-const WEEK_DAYS = 7, PRIOR_DAYS = 30, WEEK_MIN = 3, PRIOR_MIN = 5, WEEK_SHOW_AT = 3, WEEK_SHOW = 3; // fewer trades than that is noise, not a trend
+/* Moved: which of your pieces' market price (the one trade value uses) moved
+   most against KTC since the prices of about PRIOR_DAYS ago (market-data.js
+   marketMove); changes of WEEK_SHOW_AT points or more, biggest first. */
+const PRIOR_DAYS = 30, WEEK_SHOW_AT = 3, WEEK_SHOW = 3;
 // "20% under", "45% over", "even" for a paid-vs-KTC %.
 const overUnder = v => (Math.abs(v) < 0.5 ? 'even with' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'over' : 'under'}`);
 function weekMovers(daily, pieces) {
-  if (!daily || !daily.from) return [];
-  const all = Object.values(daily.players).flat();
-  if (!all.length) return [];
-  const latest = maxOf(all.map(p => p[0]));
-  const wMed = pts => { const s = [...pts].sort((a, b) => a[1] - b[1]), total = s.reduce((t, p) => t + p[2], 0); let seen = 0; for (const p of s) { seen += p[2]; if (seen >= total / 2) return p[1]; } return null; };
-  return pieces.map(a => {
-    const key = a.type === 'pick' ? marketKeyOf(a) : Vault.normalizeName(a.name);
-    const pts = daily.players[key] || [];
-    const ok = saneDays(pts), recent = ok.filter(p => p[0] > latest - WEEK_DAYS), prior = ok.filter(p => p[0] <= latest - WEEK_DAYS && p[0] > latest - WEEK_DAYS - PRIOR_DAYS);
-    const n1 = recent.reduce((t, p) => t + p[2], 0), n0 = prior.reduce((t, p) => t + p[2], 0);
-    if (n1 < WEEK_MIN || n0 < PRIOR_MIN) return null;
-    const now = wMed(recent), then = wMed(prior);
-    return { ...a, now, then, change: now - then, n: n1 };
-  }).filter(m => m && Math.abs(m.change) >= WEEK_SHOW_AT).sort((x, y) => Math.abs(y.change) - Math.abs(x.change)).slice(0, WEEK_SHOW);
+  // The market price trade value uses, today against about a month ago.
+  return pieces.map(a => { const m = marketMove(Vault.gradeKey(a), PRIOR_DAYS); return m ? { ...a, ...m } : null; })
+    .filter(m => m && Math.abs(m.change) >= WEEK_SHOW_AT).sort((x, y) => Math.abs(y.change) - Math.abs(x.change)).slice(0, WEEK_SHOW);
 }
 async function renderMarketNudge() {
   const box = document.getElementById('marketNudge');
@@ -573,7 +553,7 @@ async function renderMarketNudge() {
       </div>
       ${highs.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-emerald-300/90">Sells high</span>${highs.map(a => chip(a, true)).join('')}</div>` : ''}
       ${lows.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-orange-300/90">Sells low</span>${lows.map(a => chip(a, false)).join('')}</div>` : ''}
-      ${week.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-zinc-400">This week</span>${week.map(m => `<a href="${link(m)}" title="Paid vs KTC: ${m.then >= 0 ? '+' : '−'}${Math.abs(Math.round(m.then))}% before, ${m.now >= 0 ? '+' : '−'}${Math.abs(Math.round(m.now))}% this week (${m.n} trade${m.n === 1 ? '' : 's'})" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors"><span class="text-zinc-100">${Vault.escapeHtml(m.name)}</span><span class="text-[12px] ${m.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${m.change > 0 ? '▲' : '▼'} from ${overUnder(m.then)} to ${overUnder(m.now)} KTC</span></a>`).join('')}</div>` : ''}
+      ${week.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-zinc-400">Since ${marketSinceText(week[0].since)}</span>${week.map(m => `<a href="${link(m)}" title="Market price against KTC: ${signed(m.then)} on ${marketSinceText(m.since)}, ${signed(m.now)} now" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors"><span class="text-zinc-100">${Vault.escapeHtml(m.name)}</span><span class="text-[12px] ${m.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${m.change > 0 ? '▲' : '▼'} from ${overUnder(m.then)} to ${overUnder(m.now)} KTC</span></a>`).join('')}</div>` : ''}
       <div class="ml-auto flex flex-wrap gap-2 shrink-0">
         <a href="${Vault.linkTo('trade.html')}&coach=sellhigh" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Sell high →</a>
         <a href="${Vault.linkTo('trade.html')}&coach=buylow" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Buy low →</a>

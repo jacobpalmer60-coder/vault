@@ -233,7 +233,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=e7c4a2e8"></script>
+<script src="vault-core.js?v=a2b38b0f"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -316,7 +316,7 @@ function assetsFor(team) {
   const players = team.plist.filter(p => p.value > 0).map(p => ({ type: 'player', key: 'p_' + p.id, ...p, trend: playerTrend.get(Vault.normalizeName(p.name)) ?? null, volatilityPct: playerVolatility.get(Vault.normalizeName(p.name)) ?? null }));
   // Picks already carry volatilityPct from Vault.buildLeagueTeams (the round's own
   // early/late spread this year — see Vault.pickVolatilityPct) via the ...p spread.
-  const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, name: `${p.season} R${p.round}`, pos: 'PICK', ...p, trend: pickTrendFor(p.season, p.round, p.tier) }));
+  const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, name: `${p.season} R${p.round}`, pos: 'PICK', ...p, trend: pickTrendFor(p.season, p.ktcRound ?? p.round, p.ktcTier ?? p.tier) }));
   return [...players, ...picks].sort((a, b) => b.value - a.value);
 }
 
@@ -2292,7 +2292,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js?v=94cf709b"></script>
-<script src="market-data.js?v=77b2e527"></script>
+<script src="market-data.js?v=b2da2059"></script>
 <script src="market.js?v=692419ef"></script>
 <script src="coach.js?v=352a0cb1"></script>
 </body>

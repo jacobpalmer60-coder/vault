@@ -1238,6 +1238,14 @@ const Vault = {
     const sorted = [...teams].sort((a, b) => (byRecord ? b.projWins - a.projWins : 0) || b.opt - a.opt);
     return new Map(sorted.map((t, k) => [t.rosterId, teams.length - k]));
   },
+  // A pick's place in its own round, for labels: the first third of a round is
+  // early, the last third late (10 teams: 1-3, 4-7, 8-10). Its price comes from
+  // its overall pick number instead (Vault.ktcPickSlot: a 10-team 2.01 is the
+  // 11th pick, priced as KTC's late 1st), kept as ktcRound / ktcTier.
+  leagueTier(rank, n) {
+    const third = Math.round(n / 3);
+    return rank <= third ? 'early' : rank > n - third ? 'late' : 'mid';
+  },
   // Prices every team's picks at its expected slot (Vault.draftRanks).
   priceTeamPicks(teams, pickMap) {
     const n = teams.length, ranks = new Map();
@@ -1245,9 +1253,9 @@ const Vault = {
     teams.forEach(t => {
       let sum = 0;
       t.picks.forEach(p => {
-        const overall = (p.round - 1) * n + rankOf(+p.season, p.original);
+        const rank = rankOf(+p.season, p.original), overall = (p.round - 1) * n + rank;
         const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
-        p.tier = tier;
+        p.tier = Vault.leagueTier(rank, n); p.ktcRound = ktcRound; p.ktcTier = tier;
         p.value = pickMap.get(`${p.season}-${ktcRound}-${tier}`) || 0;
         p.volatilityPct = Vault.pickVolatilityPct(pickMap, p.season, ktcRound);
         sum += p.value;
@@ -1408,6 +1416,7 @@ const Vault = {
   // The market key of a piece: 'n:' + normalized name, or 'k:<season>-<round>' for a pick.
   gradeKey(a) {
     if (!a) return '';
+    if (a.todayKey) return a.todayKey; // a used pick, today: the player taken with it
     if (a.type === 'pick') { const round = a.round ?? a.ktcRound; return a.season && round ? `k:${a.season}-${round}` : ''; }
     return a.name ? 'n:' + Vault.normalizeName(a.name) : '';
   },
@@ -3662,7 +3671,7 @@ const Vault = {
     (tx.draft_picks || []).forEach(pk => {
       if (pk.owner_id !== sideRosterId) return;
       const info = pickValueByKey.get(`${pk.season}-${pk.round}-${pk.roster_id}`);
-      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}`, pos: 'PICK', age: 0, season: +pk.season, ktcRound: info?.ktcRound, tier: info?.tier, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
+      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}${info?.became ? ` (${info.became})` : ''}`, pos: 'PICK', age: 0, season: +pk.season, round: +pk.round, ktcRound: info?.ktcRound, ktcTier: info?.ktcTier, tier: info?.became ? '' : info?.tier, became: info?.became, todayKey: info?.todayKey, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
     });
     return assets;
   },
@@ -3675,9 +3684,9 @@ const Vault = {
     if (!pricer || !Number.isFinite(ms)) return null;
     const reprice = a => {
       const v = a.type === 'pick'
-        ? (a.ktcRound != null ? pricer.pick(a.season, a.ktcRound, a.tier, ms) : null)
+        ? (a.ktcRound != null ? pricer.pick(a.season, a.ktcRound, a.ktcTier ?? a.tier, ms) : null)
         : pricer.player(a.name, ms);
-      return v == null ? null : { ...a, value: v, valueToday: a.value };
+      return v == null ? null : { ...a, value: v, valueToday: a.value, todayKey: undefined };
     };
     const hA = toA.map(reprice), hB = toB.map(reprice);
     if ([...hA, ...hB].some(a => a == null)) return null;
@@ -3836,6 +3845,31 @@ const Vault = {
   // transactions, not just that season's final records. Same "0" (a first
   // season's previous_league_id, truthy as a string) guard and 25-season runaway
   // cap as fetchLeagueHistory.
+  /* Who each used pick became: for every season in `years` whose rookie draft is
+     done (the league's latest complete PICK_ROUNDS-round draft that season), the
+     player taken with each pick, keyed `season-round-originalRosterId` in today's
+     roster numbering (the original team from the draft's slot_to_roster_id,
+     translated by owner like the trades are). A traded 2026 2nd is worth, today,
+     the rookie it turned into, not a 2027 2nd (2026-10-10). */
+  async draftedPickPlayers(seasonChain, years, currentRosterIdForOwner, playersDb) {
+    const out = new Map(), json = u => fetch(u).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    await Promise.all(seasonChain.filter(s => years.includes(+s.season)).map(async s => {
+      const [drafts, rosters] = await Promise.all([json(`https://api.sleeper.app/v1/league/${s.leagueId}/drafts`), json(`https://api.sleeper.app/v1/league/${s.leagueId}/rosters`)]);
+      const done = (drafts || []).filter(d => String(d.season) === String(s.season) && d.status === 'complete' && d.settings?.rounds === VAULT_CONFIG.PICK_ROUNDS.length);
+      const draft = done.sort((a, b) => (b.start_time || 0) - (a.start_time || 0))[0];
+      if (!draft) return;
+      const [full, picks] = await Promise.all([json(`https://api.sleeper.app/v1/draft/${draft.draft_id}`), json(`https://api.sleeper.app/v1/draft/${draft.draft_id}/picks`)]);
+      const slotRoster = full?.slot_to_roster_id || {}, owner = new Map((rosters || []).map(r => [r.roster_id, r.owner_id]));
+      (picks || []).forEach(pk => {
+        const orig = currentRosterIdForOwner.get(owner.get(slotRoster[pk.draft_slot]));
+        const p = pk.player_id && playersDb[pk.player_id];
+        if (!orig || !p) return;
+        out.set(`${s.season}-${pk.round}-${orig}`, { pid: String(pk.player_id), name: `${p.first_name || ''} ${p.last_name || ''}`.trim() });
+      });
+    }));
+    return out;
+  },
+
   async fetchSeasonChain(leagueId, league) {
     const seasons = [{ leagueId, season: league.season }];
     let prevId = league.previous_league_id;
@@ -3937,6 +3971,7 @@ const Vault = {
     const pickValueByKey = new Map();
     if (referencedYears.length) {
       const pickMap = Vault.buildKtcPickMap(ktcData, isSF, referencedYears, league.scoring_settings?.bonus_rec_te);
+      const drafted = await Vault.draftedPickPlayers(seasonChain, referencedYears, currentRosterIdForOwner, playersDb);
       const ROUNDS = VAULT_CONFIG.PICK_ROUNDS;
       const pickOwner = new Map();
       referencedYears.forEach(y => ROUNDS.forEach(r => rosters.forEach(ro => pickOwner.set(`${y}-${r}-${ro.roster_id}`, ro.roster_id))));
@@ -3954,7 +3989,11 @@ const Vault = {
         const rank = ranks.get(season).get(originalRosterId) || 1;
         const overall = (round - 1) * n + rank;
         const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
-        pickValueByKey.set(key, { value: pickMap.get(`${season}-${ktcRound}-${tier}`) || 0, ktcRound, tier, volatilityPct: Vault.pickVolatilityPct(pickMap, season, ktcRound) });
+        const info = { value: pickMap.get(`${season}-${ktcRound}-${tier}`) || 0, ktcRound, ktcTier: tier, tier: Vault.leagueTier(rank, n), volatilityPct: Vault.pickVolatilityPct(pickMap, season, ktcRound) };
+        // A used pick is worth, today, the player taken with it (at his market price too: todayKey).
+        const became = drafted.get(key);
+        if (became) { const norm = Vault.normalizeName(became.name); Object.assign(info, { value: valMap.get(norm) || 0, became: became.name, todayKey: 'n:' + norm }); }
+        pickValueByKey.set(key, info);
       });
     }
 

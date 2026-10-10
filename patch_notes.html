@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=e7c4a2e8"></script>
+<script src="vault-core.js?v=a2b38b0f"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-10', items: [
+    { kind: 'fixed', page: 'Trade Grades', text: "A pick that has already been used is worth, today, the player taken with it: \"2026 R2 (Denzel Boston) 2,999 → 4,619\", not the price of a 2027 2nd. Each trade's \"now\" value and Managers' Net Now count it that way, at the player's market price." },
+    { kind: 'fixed', page: 'Everywhere', text: "Pick labels say where a pick falls in its own round: in a 10-team league your 2nd that comes 11th overall is an early 2nd, not a \"late\" one worth more than other teams' early 2nds. Its price is unchanged (the 11th pick still goes for about a late 1st). The calculator's price trend for a pick now follows that pick, and past trades' picks use the same market price as the calculator's." },
+    { kind: 'changed', page: 'Player Market', text: "Rising & cooling and Your market's moves compare each player's market price (the one trade value uses) now against the prices of about a month ago, so the \"now\" side is the market price shown everywhere else. Your market's moves are labeled with that date (\"Since Sep 1\") instead of \"This week\"." },
     { kind: 'changed', page: 'Everywhere', text: "No more 25% cap on market prices: every page shows the real number, however far from KTC (Case Keenum goes for about 440% over his 829 KTC value in completed trades), and the grade and past grades use it too. Tested on 275,273 trades: 77.1% graded Fair without the cap, 77.2% with it, so nothing was gained by hiding it. A player the cap had cut short no longer reads oddly against similar players." },
     { kind: 'changed', page: 'Everywhere', text: "Picks are priced at where they should land in next year's draft by each team's projected final record (its real record plus the rest of the season), not lineup strength alone. Allen's Creamy Surprise is 8-0, so its 2027 1st is now a late 1st, not a mid. Later drafts still go by lineup strength. One rule on every page: League Overview, the Trade Calculator, Trade Coach, Team Analyzer and past trade grades." },
     { kind: 'fixed', page: 'League Overview', text: "The value chart's last day now matches the standings table. It had priced early and late 1sts and 2nds at KTC's raw prices, not the adjusted prices every other page uses, and guessed the draft order a different way, so a team could be #1 in the table and #2 on the chart. Past trade grades now price early and late picks the same way the calculator does." },
