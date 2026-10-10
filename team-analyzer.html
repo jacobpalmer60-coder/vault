@@ -31,7 +31,7 @@
   <section id="singleCard" class="mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=32117af6"></script>
+<script src="vault-core.js?v=e7c4a2e8"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -114,8 +114,8 @@ function renderSingle(t) {
   const statTiles = [
     statTile('Overall', t.overall, Math.round(t.overall).toLocaleString(), all, 'overall', t.rosterId, true),
     statTile('Players', t.total, Math.round(t.total).toLocaleString(), all, 'total', t.rosterId, true),
-    statTile('Opt PPG', t.opt, t.opt.toFixed(1), all, 'opt', t.rosterId, true),
-    statTile('VORP', t.vorpTotal, Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—', all, 'vorpTotal', t.rosterId, true, "Optimal lineup's total Value Over Replacement Player — real, scarcity-adjusted edge over readily-available replacements, not just raw scoring rate. Comparable across positions, unlike Opt PPG."),
+    statTile('Lineup PPG', t.opt, t.opt.toFixed(1), all, 'opt', t.rosterId, true),
+    statTile('VORP', t.vorpTotal, Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—', all, 'vorpTotal', t.rosterId, true, "Optimal lineup's total Value Over Replacement Player — real, scarcity-adjusted edge over readily-available replacements, not just raw scoring rate. Comparable across positions, unlike Opt PPG."),
     statTile('Age', t.age, t.age.toFixed(1), all, 'age', t.rosterId, null),
     statTile('Picks Value', t.picksValue, Math.round(t.picksValue).toLocaleString(), all, 'picksValue', t.rosterId, true),
   ].join('');

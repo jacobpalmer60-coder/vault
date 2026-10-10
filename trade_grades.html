@@ -39,9 +39,9 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=32117af6"></script>
+<script src="vault-core.js?v=e7c4a2e8"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
-<script src="market-data.js?v=0f1d7c09"></script>
+<script src="market-data.js?v=2cb1beaa"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc-400' };
@@ -182,24 +182,10 @@ const gradeAccept = g => g.toA.length && g.toB.length && !g.anyMissingValue && c
 const acceptLine = g => marketAcceptHtml(gradeAccept(g), g.teamA.teamName, g.teamB.teamName, 'mt-2.5');
 
 function sideValueLine(list) {
-  if (!list.length || list.some(a => a.valueToday == null)) return '';
+  // One piece: its own row above already reads "then → now".
+  if (list.length < 2 || list.some(a => a.valueToday == null)) return '';
   const then = list.reduce((s, a) => s + a.value, 0), now = list.reduce((s, a) => s + a.valueToday, 0);
   return `<div class="text-[12px] text-zinc-400 mt-1.5 mono">Worth ${Math.round(then).toLocaleString()} then → ${Math.round(now).toLocaleString()} now (${deltaHtml(now - then)})</div>`;
-}
-
-// Not shown in the header any more (2026-10-09): This season below gives each
-// team's points a week, and two different points numbers on one card read as a
-// contradiction. Kept for the full breakdown's notes.
-function optDeltaHtml(dOpt) {
-  if (Math.abs(dOpt) <= 0.05) return '';
-  const color = dOpt > 0 ? 'text-emerald-400/80' : 'text-rose-400/80';
-  return ` · Opt PPG <span class="${color}">${Vault.signed(dOpt, x => x.toFixed(1))}</span>`;
-}
-
-function vorpDeltaHtml(dVorp) {
-  if (!Number.isFinite(dVorp) || Math.abs(dVorp) <= 0.05) return '';
-  const color = dVorp > 0 ? 'text-emerald-400/80' : 'text-rose-400/80';
-  return ` · VORP <span class="${color}" title="Real, scarcity-adjusted edge over replacement — see the VORP column on Player Rankings">${Vault.signed(dVorp, x => x.toFixed(1))}</span>`;
 }
 
 /* This season: what the trade is doing for each team's playoff and title odds

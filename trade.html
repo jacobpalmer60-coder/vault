@@ -233,7 +233,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=32117af6"></script>
+<script src="vault-core.js?v=e7c4a2e8"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1937,12 +1937,12 @@ function headline(dValue, avgSide, fit) {
 // Compares pre- and post-trade contention windows so a trade that opens, widens,
 // narrows, or closes a team's window gets credit/blame beyond the raw value swing.
 function windowShiftNote(befWin, aftWin) {
-  if (!befWin.hasWindow && aftWin.hasWindow) return { fit: 2, note: { tone: 'good', text: `Opens a contention window (${aftWin.windowStart}-${aftWin.windowEnd}) that didn't exist before.` } };
-  if (befWin.hasWindow && !aftWin.hasWindow) return { fit: -2, note: { tone: 'bad', text: `Closes what was a ${befWin.windowStart}-${befWin.windowEnd} contention window.` } };
+  if (!befWin.hasWindow && aftWin.hasWindow) return { fit: 2, note: { tone: 'good', text: `Opens a contention window (${Vault.windowYearsText(aftWin)}) that didn't exist before.` } };
+  if (befWin.hasWindow && !aftWin.hasWindow) return { fit: -2, note: { tone: 'bad', text: `Closes what was a ${Vault.windowYearsText(befWin)} contention window.` } };
   if (befWin.hasWindow && aftWin.hasWindow) {
     const widened = (aftWin.windowEnd - aftWin.windowStart) - (befWin.windowEnd - befWin.windowStart);
-    if (widened > 0) return { fit: 1, note: { tone: 'good', text: `Widens the contention window (${befWin.windowStart}-${befWin.windowEnd} → ${aftWin.windowStart}-${aftWin.windowEnd}).` } };
-    if (widened < 0) return { fit: -1, note: { tone: 'bad', text: `Narrows the contention window (${befWin.windowStart}-${befWin.windowEnd} → ${aftWin.windowStart}-${aftWin.windowEnd}).` } };
+    if (widened > 0) return { fit: 1, note: { tone: 'good', text: `Widens the contention window (${Vault.windowYearsText(befWin)} → ${Vault.windowYearsText(aftWin)}).` } };
+    if (widened < 0) return { fit: -1, note: { tone: 'bad', text: `Narrows the contention window (${Vault.windowYearsText(befWin)} → ${Vault.windowYearsText(aftWin)}).` } };
   }
   return { fit: 0, note: null };
 }
@@ -2265,9 +2265,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
         </details>` : ''}
         <div class="grid grid-cols-4 gap-2 text-center pt-3 border-t border-white/5">
           <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">Age</div></div>
-          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dOpt) > 0.05 ? (res.dOpt > 0 ? '+' : '') + res.dOpt.toFixed(1) : ''}</div><div class="text-[12px] text-zinc-400">Opt PPG</div></div>
-          <div title="Optimal lineup's total VORP — real, scarcity-adjusted edge over readily-available replacements, not just raw points"><div class="text-[14px] font-mono">${aft.vorpTotal.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? (res.dVorp > 0 ? '+' : '') + res.dVorp.toFixed(1) : ''}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
-          <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? win.windowStart + '–' + win.windowEnd : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">Window</div></div>
+          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dOpt) > 0.05 ? Vault.signed(res.dOpt, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">Lineup PPG</div></div>
+          <div title="Optimal lineup's total VORP — real, scarcity-adjusted edge over readily-available replacements, not just raw points"><div class="text-[14px] font-mono">${Vault.num1(aft.vorpTotal)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? Vault.signed(res.dVorp, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
+          <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? Vault.windowYearsText(win) : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">Window</div></div>
         </div>
       </div>`;
   });
@@ -2292,8 +2292,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js?v=94cf709b"></script>
-<script src="market-data.js?v=0f1d7c09"></script>
-<script src="market.js?v=94f80e89"></script>
+<script src="market-data.js?v=2cb1beaa"></script>
+<script src="market.js?v=692419ef"></script>
 <script src="coach.js?v=352a0cb1"></script>
 </body>
 </html>

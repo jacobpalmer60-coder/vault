@@ -31,13 +31,21 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=32117af6"></script>
+<script src="vault-core.js?v=e7c4a2e8"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-10', items: [
+    { kind: 'changed', page: 'Everywhere', text: "Picks are priced at where they should land in next year's draft by each team's projected final record (its real record plus the rest of the season), not lineup strength alone. Allen's Creamy Surprise is 8-0, so its 2027 1st is now a late 1st, not a mid. Later drafts still go by lineup strength. One rule on every page: League Overview, the Trade Calculator, Trade Coach, Team Analyzer and past trade grades." },
+    { kind: 'fixed', page: 'League Overview', text: "The value chart's last day now matches the standings table. It had priced early and late 1sts and 2nds at KTC's raw prices, not the adjusted prices every other page uses, and guessed the draft order a different way, so a team could be #1 in the table and #2 on the chart. Past trade grades now price early and late picks the same way the calculator does." },
+    { kind: 'fixed', page: 'Everywhere', text: "One market price per player on every page. Player Rankings' Market column now shows his price against his KTC value, the same number as the Trade Calculator, Compare and Player Market (Ja'Marr Chase reads 8% under everywhere, not 1% over on Rankings). Against players like him it always says \"similar players\". Player Market's highs and lows use the same price. The market line on every chart is now the price trade value used on each date, so it ends right on the market price shown beside it." },
+    { kind: 'fixed', page: 'Managers', text: "Who pays up judges each trade at the market prices of its own day, as Trade Grades does, instead of today's prices (a player who has risen since made the buyer look like he got a bargain). Trade Coach's Sell high uses the same numbers." },
+    { kind: 'changed', page: 'Everywhere', text: "A team's best-lineup points are \"Lineup PPG\" everywhere (it was Opt PPG on some pages and optimal lineup PPG in notes), matching the calculator's This season block. A one-year contention window reads \"2026\", not \"2026–2026\". Negative VORP and points changes use a real minus sign. The market box under a grade explains that its over/under KTC counts pieces the way trade value does, which is why it differs from KTC's calculator. Player Market and the player card describe how the market price is built as it is now." },
+    { kind: 'fixed', page: 'Trade Grades', text: "A side with one piece no longer repeats its \"then → now\" value on a second line." },
+  ] },
   { date: '2026-10-09', items: [
     { kind: 'changed', page: 'Trade Grades', text: "One way of judging trades everywhere: each completed trade now leads with each team's verdict, the same ladder the Trade Calculator uses (Good trade, Toss-up, Bad trade and so on, from value at the time, roster fit, timeline and this season's points), instead of a separate label mixing price and fit (\"Solid for one team, Fine for the other\"). The price reads only Fair, Lopsided or Unfair, and the filters match; Good and Great are the verdict's words now, everywhere. The \"at market prices\" column is gone (every grade already uses what players were trading for at the time), and so is the second points number in each team's header (This season has it)." },
     { kind: 'changed', page: 'Everywhere', text: "The notes behind a grade say what they mean without extra price tags: \"Fills a real RB need\" or \"Lamb is a proven veteran, exactly what a win-now push wants\", without \"worth closer to 8,463 than its 7,359 KTC value\", a third set of numbers next to trade value and KTC. A swap of like for like (a veteran QB for a veteran QB) no longer shows two notes that cancel out, and the depth note names the starter the trade actually makes harder to cover (\"Joe Burrow gets harder to cover: 2.6 points when he's out, was 1.5\") instead of whoever is hardest to cover on the roster." },

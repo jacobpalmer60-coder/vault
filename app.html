@@ -50,8 +50,8 @@
             <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="picksValue">Picks</th>
             <th class="hidden min-[1100px]:table-cell text-left px-2.5 py-3.5 font-semibold sortable" data-sort="posConcentration" title="Player value by position. Sorts by how concentrated a roster's value is in its single biggest position">Position split</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="age">Age</th>
-            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="opt">Opt PPG</th>
-            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Opt PPG)">VORP</th>
+            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="opt">Lineup PPG</th>
+            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Lineup PPG)">VORP</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="longevity">Window</th>
             <th class="hidden min-[1100px]:table-cell text-left px-2.5 py-3.5 font-semibold sortable" data-sort="archSort">Archetype</th>
           </tr>
@@ -86,12 +86,12 @@
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Position Split</span><span class="text-zinc-400"> — Share of player value by QB/RB/WR/TE</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Players</span><span class="text-zinc-400"> — Sum of rostered player values</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
-      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Opt PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored with your league's own scoring settings — not necessarily who you'd actually start today</span></div>
-      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Opt PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Lineup PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored with your league's own scoring settings — not necessarily who you'd actually start today</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Lineup PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Longevity</span><span class="text-zinc-400"> — How many of the next 5 years this roster is projected to stay good enough for the playoffs, as players age and picks arrive. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from how you stand now vs. how long that lasts (see guide below)</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Career</span><span class="text-zinc-400"> — All-time W-L-T for this manager, across every past season of this league on Sleeper</span></div>
-      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Proj. Record / Playoff % / Title %</span><span class="text-zinc-400"> — The rest of your schedule played out thousands of times, with each team scoring around its Opt PPG each week (give or take 22%). A rough estimate, not a guarantee</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Proj. Record / Playoff % / Title %</span><span class="text-zinc-400"> — The rest of your schedule played out thousands of times, with each team scoring around its Lineup PPG each week (give or take 22%). A rough estimate, not a guarantee</span></div>
     </div>
     <h3 class="display text-[20px] mt-6 mb-1">Archetypes</h3>
     <p class="text-[12px] text-zinc-400 mb-4">Every archetype comes from two independent standings — Contending (current player value + production: how strong you are right now) and Longevity (the 5-year projection: how many years that lasts) — each ranked Top 2 / Top Half / Bottom Half / Bottom 2 of the league. Draft capital (Picks) is tracked separately — shown as its own qualifier next to each pill — since a team's picks and its projected window don't always point the same direction.</p>
@@ -107,7 +107,7 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=32117af6"></script>
+<script src="vault-core.js?v=e7c4a2e8"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 }, expanded = new Set();
@@ -168,7 +168,7 @@ function posSplitBar(t) {
 const CHART_COLORS = ['#f5c542', '#5ec7f5', '#f56e6e', '#7ee787', '#c792ea', '#ff9d5c', '#67e8f9', '#f0abfc', '#a3e635', '#fb7185'];
 const VALUE_METRICS = {
   total: { label: 'Value', field: 'total', decimals: 0, desc: "Each team's total dynasty value, snapshotted daily." },
-  optPpg: { label: 'Opt PPG', field: 'optPpg', decimals: 1, desc: "Each team's best-lineup projected PPG (league scoring), snapshotted daily." },
+  optPpg: { label: 'Lineup PPG', field: 'optPpg', decimals: 1, desc: "Each team's best-lineup projected PPG (league scoring), snapshotted daily." },
   playerValue: { label: 'Player Value', field: 'playerValue', decimals: 0, desc: "Each team's rostered-player value only (excludes picks), rebuilt back to the startup draft by replaying every completed trade, waiver and draft pick since." }
 };
 let valueHistoryMetric = 'total';
@@ -408,9 +408,9 @@ async function load() {
     const allYears = teams.flatMap(t => t.picks.map(p => p.season));
     if (allYears.length) {
       const lo = Math.min(...allYears), hi = Math.max(...allYears);
-      document.getElementById('picksLegend').textContent = ` — Total KTC value of every future draft pick this team owns, ${lo}-${String(hi).slice(-2)} R1-4, live from Sleeper`;
+      document.getElementById('picksLegend').textContent = ` — Total KTC value of every future draft pick this team owns, ${lo}-${String(hi).slice(-2)} R1-4, live from Sleeper. Each pick is priced at the slot it should land in: next year's by projected final record, later years' by lineup strength. Every page prices picks this way.`;
     }
-    Vault.buildTeamValueHistory(Vault.getLeagueId()).then(h => renderValueHistory(h, teams)).catch(e => { console.error(e); renderValueHistory({ snapshots: [] }, teams); });
+    Vault.buildTeamValueHistory(Vault.getLeagueId(), { teams }).then(h => renderValueHistory(h, teams)).catch(e => { console.error(e); renderValueHistory({ snapshots: [] }, teams); });
 
     // Career record walks the league's season-history chain — a handful of extra
     // fetches, so it runs after the initial paint and re-renders when it lands.
@@ -447,7 +447,7 @@ function youTag(t) {
 
 // The table's sorts, for phones (the table and its headers are hidden there).
 // Each pick sorts best-first; the same pick again flips the order.
-const MOBILE_SORTS = [['overall', 'Overall value'], ['playoffPct', 'Playoff odds'], ['recordWinPct', 'Record'], ['total', 'Player value'], ['picksValue', 'Pick value'], ['opt', 'Opt PPG'], ['vorpTotal', 'VORP'], ['longevity', 'Longevity'], ['age', 'Age'], ['teamName', 'Team name']];
+const MOBILE_SORTS = [['overall', 'Overall value'], ['playoffPct', 'Playoff odds'], ['recordWinPct', 'Record'], ['total', 'Player value'], ['picksValue', 'Pick value'], ['opt', 'Lineup PPG'], ['vorpTotal', 'VORP'], ['longevity', 'Longevity'], ['age', 'Age'], ['teamName', 'Team name']];
 function renderMobileSort() {
   const sel = document.getElementById('mobileSort');
   if (!sel) return;
@@ -486,8 +486,8 @@ function renderMobileCards(data, minOverall, maxOverall) {
 
       <div class="grid grid-cols-4 gap-2 text-center py-3 mt-3.5 border-y border-white/5">
         <div><div class="font-mono text-[13px] text-zinc-200">${t.age.toFixed(1)}</div><div class="text-[12px] text-zinc-400">Age</div></div>
-        <div><div class="font-mono text-[13px] text-zinc-200">${t.opt.toFixed(1)}</div><div class="text-[12px] text-zinc-400">Opt PPG</div></div>
-        <div><div class="font-mono text-[13px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-200">${t.opt.toFixed(1)}</div><div class="text-[12px] text-zinc-400">Lineup PPG</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—'}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
         <div><div class="font-mono text-[13px] text-zinc-200">${t.windowYears}yr</div><div class="text-[12px] text-zinc-400">Longevity</div></div>
       </div>
 
@@ -582,7 +582,7 @@ function render() {
         ${microBar(t.opt, minOpt, maxOpt)}
       </td>
       <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? t.vorpTotal.toFixed(1) : '—'}</div>
+        <div class="font-mono font-semibold text-[14px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—'}</div>
         ${microBar(t.vorpTotal || 0, minVorp, maxVorp)}
       </td>
       <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right">

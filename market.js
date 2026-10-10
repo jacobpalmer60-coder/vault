@@ -132,7 +132,7 @@ function renderMarketRead(aAssets, bAssets) {
         ${strip}
         <div class="text-[11px] uppercase tracking-wider text-zinc-500 mt-3 mb-0.5">Most like this one</div>
         ${examples}
-        <div class="text-[11px] text-zinc-500 mt-2">${m.sleeper ? "From KTC's trade database (priced at today's KTC values, in each trade's own format) and, before that, Sleeper dynasty leagues (priced at KTC values from each trade's day)" : "From KTC's trade database, priced at today's KTC values in each trade's own format"}. Trade value, the grade, prices each player at what he goes for in trades like these.</div>
+        <div class="text-[11px] text-zinc-500 mt-2">${m.sleeper ? "From KTC's trade database (priced at today's KTC values, in each trade's own format) and, before that, Sleeper dynasty leagues (priced at KTC values from each trade's day)" : "From KTC's trade database, priced at today's KTC values in each trade's own format"}. Over and under KTC here count extra pieces and the best piece the way trade value does, on KTC's numbers, so they differ from KTC's calculator. Trade value, the grade, then prices each player at what he goes for in trades like these.</div>
       </div>
     </details>${check}`;
 }

@@ -341,6 +341,12 @@ const Vault = {
     if (!/[1-9]/.test(s)) return s;
     return (n > 0 ? '+' : '−') + s;
   },
+  // An unsigned number that can still go negative (a team's VORP): "57.2",
+  // "−9.2", with the same real minus sign.
+  num1(n) {
+    const s = Math.abs(n).toFixed(1);
+    return (n < 0 && /[1-9]/.test(s) ? '−' : '') + s;
+  },
 
   getLeagueId() {
     const fromUrl = new URLSearchParams(location.search).get('league_id');
@@ -990,7 +996,11 @@ const Vault = {
      browser for an arbitrary league it has never validated against — so it never
      throws on a replay mismatch; it logs a warning and degrades gracefully instead
      of breaking the page. */
-  async buildTeamValueHistory(leagueId) {
+  // teams: the page's own teams (League Overview passes its table's), so picks
+  // land in the same draft slots everywhere (Vault.draftRanks) and the chart's
+  // last day matches the table. Without them, ranks by a simpler full-roster
+  // lineup.
+  async buildTeamValueHistory(leagueId, { teams: pageTeams } = {}) {
     const { league, users, rosters, players, traded, drafts } = await Vault.fetchSleeperCore(leagueId);
     const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
     const bonusRecTe = league.scoring_settings?.bonus_rec_te;
@@ -1075,13 +1085,20 @@ const Vault = {
       }).filter(Boolean);
       return Vault.optimalLineup(plist, slots);
     }
-    const draftOrder = [...rosters].sort((a, b) => currentOptPpg(b) - currentOptPpg(a)); // best team first
-    const nTeams = draftOrder.length;
-    const draftRank = new Map(draftOrder.map((r, i) => [r.roster_id, nTeams - i]));
+    const nTeams = rosters.length;
+    const usePage = pageTeams && pageTeams.length === nTeams;
+    const fallbackOrder = [...rosters].sort((a, b) => currentOptPpg(b) - currentOptPpg(a)); // best team first
+    const fallbackRank = new Map(fallbackOrder.map((r, i) => [r.roster_id, nTeams - i]));
+    const rankBySeason = new Map();
+    const draftRankOf = (season, id) => {
+      if (!usePage) return fallbackRank.get(id);
+      if (!rankBySeason.has(season)) rankBySeason.set(season, Vault.draftRanks(pageTeams, season));
+      return rankBySeason.get(season).get(id) || fallbackRank.get(id);
+    };
 
     const pickAssets = [];
     histYears.forEach(season => PICK_ROUNDS.forEach(round => rosters.forEach(r => {
-      const rank = draftRank.get(r.roster_id);
+      const rank = draftRankOf(season, r.roster_id);
       const overall = (round - 1) * nTeams + rank;
       const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
       pickAssets.push({ season, round, originalRoster: r.roster_id, label: `${season}-${ktcRound}-${tier}` });
@@ -1205,6 +1222,39 @@ const Vault = {
       });
     });
     return map;
+  },
+
+  /* Where each team is expected to pick in a season's draft: 1 = picks first
+     (worst team), n = picks last. The next draft goes by projected final record
+     (Vault.simulateSeason: the real record so far plus the rest of the schedule),
+     since by midseason the standings say more than lineup strength (an 8-0 team
+     with a middling lineup still picks late). Later drafts, and the next one when
+     odds aren't available, go by lineup strength (t.opt). One rule for every
+     page: League Overview's table and value chart, the Trade Calculator, Coach,
+     Team Analyzer and past trade grades all slot picks here. */
+  draftRanks(teams, season) {
+    const next = Math.min(...teams.flatMap(t => (t.picks || []).map(p => +p.season)));
+    const byRecord = +season === next && teams.every(t => Number.isFinite(t.projWins));
+    const sorted = [...teams].sort((a, b) => (byRecord ? b.projWins - a.projWins : 0) || b.opt - a.opt);
+    return new Map(sorted.map((t, k) => [t.rosterId, teams.length - k]));
+  },
+  // Prices every team's picks at its expected slot (Vault.draftRanks).
+  priceTeamPicks(teams, pickMap) {
+    const n = teams.length, ranks = new Map();
+    const rankOf = (season, id) => { if (!ranks.has(season)) ranks.set(season, Vault.draftRanks(teams, season)); return ranks.get(season).get(id) || 1; };
+    teams.forEach(t => {
+      let sum = 0;
+      t.picks.forEach(p => {
+        const overall = (p.round - 1) * n + rankOf(+p.season, p.original);
+        const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
+        p.tier = tier;
+        p.value = pickMap.get(`${p.season}-${ktcRound}-${tier}`) || 0;
+        p.volatilityPct = Vault.pickVolatilityPct(pickMap, p.season, ktcRound);
+        sum += p.value;
+      });
+      t.picksValue = sum;
+      t.overall = t.total + t.picksValue;
+    });
   },
 
   /* KTC prices picks per-round assuming a 12-team, linear (non-snake) draft order:
@@ -1759,25 +1809,9 @@ const Vault = {
       });
     });
 
-    // Draft order rank (1 = worst team, picks first; n = best team, picks last),
-    // used to convert each pick into its overall pick number for ktcPickSlot.
-    const sorted = [...built].sort((a, b) => b.opt - a.opt); // best team first
-    const n = sorted.length;
-    const draftRank = new Map(sorted.map((t, k) => [t.rosterId, n - k]));
-    built.forEach(t => {
-      let sum = 0;
-      t.picks.forEach(p => {
-        const rank = draftRank.get(p.original) || 1;
-        const overall = (p.round - 1) * n + rank;
-        const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
-        p.tier = tier;
-        p.value = pickMap.get(`${p.season}-${ktcRound}-${tier}`) || 0;
-        p.volatilityPct = Vault.pickVolatilityPct(pickMap, p.season, ktcRound);
-        sum += p.value;
-      });
-      t.picksValue = sum;
-      t.overall = t.total + t.picksValue;
-    });
+    // Picks at their expected draft slot (Vault.draftRanks). Lineup strength
+    // until the season odds below exist, then re-priced by projected record.
+    Vault.priceTeamPicks(built, pickMap);
 
     /* ---------- Percentiles + z-scores (used by archetype) ----------
        valP/ppgP are continuous 0-100 percentile ranks, kept for the Archetype
@@ -1855,6 +1889,7 @@ const Vault = {
         t.playoffPct = p ? p.playoffPct : undefined;
         t.championshipPct = p ? p.championshipPct : undefined;
       });
+      Vault.priceTeamPicks(built, pickMap); // next draft by projected record
     } catch (e) { console.warn('Season simulation unavailable', e); }
     Vault.refreshWindows(built);
 
@@ -2146,6 +2181,10 @@ const Vault = {
 
   // Re-derives each team's window/longevity once season odds (t.playoffPct) have
   // landed — same math buildLeagueTeams ran before the simulation finished.
+  // A contention window's years: "2026", or "2026–2029".
+  windowYearsText(win) {
+    return win.windowStart === win.windowEnd ? String(win.windowStart) : `${win.windowStart}–${win.windowEnd}`;
+  },
   refreshWindows(teams) {
     teams.forEach(t => {
       const win = Vault.contentionWindow(t, teams);
@@ -2813,6 +2852,15 @@ const Vault = {
   },
   pickValueFromRow(row, season, round, tier, isSF, bonusRecTe, first) {
     if (!row) return null;
+    // Early and late 1sts and 2nds: that day's mid price times the spread
+    // managers really pay, as today's prices do (Vault.buildKtcPickMap). Raw
+    // KTC early/late here had League Overview's value chart disagree with its
+    // own table, and past grades price picks differently from the calculator.
+    const spread = VAULT_CONFIG.PICK_TIER_SPREAD[round];
+    if (spread && tier !== 'mid') {
+      const mid = Vault.pickValueFromRow(row, season, round, 'mid', isSF, bonusRecTe, first);
+      if (mid != null) return Math.round(mid * spread[tier]);
+    }
     const key = `${season}-${round}-${tier}`;
     const exact = Vault.resolveHistoricalValue(row[key], isSF, bonusRecTe);
     if (exact != null) return exact;
@@ -3162,12 +3210,12 @@ const Vault = {
       return null;
     }
     if (mode === 'contend') {
-      if (dOpt > 3) return { tone: 'good', text: `Raises optimal lineup PPG by ${dOpt.toFixed(1)} — a real scoring upgrade right now.`, fit: 2 };
+      if (dOpt > 3) return { tone: 'good', text: `Adds ${dOpt.toFixed(1)} lineup points a week — a real scoring upgrade right now.`, fit: 2 };
       if (dOpt < -3) return { tone: 'bad', text: `Drops optimal PPG by ${Math.abs(dOpt).toFixed(1)} — hurts scoring while you're trying to win.`, fit: -2 };
       return null;
     }
-    if (dOpt > 3) return { tone: 'good', text: `Raises optimal lineup PPG by ${dOpt.toFixed(1)}.`, fit: 1 };
-    if (dOpt < -3) return { tone: 'bad', text: `Drops optimal lineup PPG by ${Math.abs(dOpt).toFixed(1)}.`, fit: -1 };
+    if (dOpt > 3) return { tone: 'good', text: `Adds ${dOpt.toFixed(1)} lineup points a week.`, fit: 1 };
+    if (dOpt < -3) return { tone: 'bad', text: `Costs ${Math.abs(dOpt).toFixed(1)} lineup points a week.`, fit: -1 };
     return null;
   },
 
@@ -3897,15 +3945,13 @@ const Vault = {
         if (to && to !== p.roster_id) pickOwner.set(`${p.season}-${p.round}-${p.roster_id}`, to);
       });
 
-      // Draft slot (and so tier/value) depends on standings-based draft order — this
-      // app doesn't reconstruct the real order as of each historical draft, it uses
-      // current Opt PPG rank as one consistent proxy for pricing any pick anywhere,
-      // same as the live window does.
-      const n = teams.length;
-      const draftRank = new Map([...teams].sort((a, b) => b.opt - a.opt).map((t, k) => [t.rosterId, n - k]));
+      // Draft slot (and so tier/value): the same expected order every page uses
+      // (Vault.draftRanks), not a reconstruction of the real order at each draft.
+      const n = teams.length, ranks = new Map();
       pickOwner.forEach((ownerRosterId, key) => {
         const [season, round, originalRosterId] = key.split('-').map(Number);
-        const rank = draftRank.get(originalRosterId) || 1;
+        if (!ranks.has(season)) ranks.set(season, Vault.draftRanks(teams, season));
+        const rank = ranks.get(season).get(originalRosterId) || 1;
         const overall = (round - 1) * n + rank;
         const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
         pickValueByKey.set(key, { value: pickMap.get(`${season}-${ktcRound}-${tier}`) || 0, ktcRound, tier, volatilityPct: Vault.pickVolatilityPct(pickMap, season, ktcRound) });
@@ -4120,7 +4166,7 @@ const Vault = {
         : `Leans older through trades on average (+${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
       // Does this manager only make moves that actually help their starting lineup?
       if (s.optUpCount >= Math.ceil(s.trades * 0.75)) notes.push({ tone: 'good', text: `Almost exclusively makes trades that raise the starting lineup's PPG (${s.optUpCount} of ${s.trades}).` });
-      else if (s.optDownCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'bad', text: `Often trades away from lineup strength — ${s.optDownCount} of ${s.trades} deals lowered Opt PPG.` });
+      else if (s.optDownCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'bad', text: `Often trades away from lineup strength — ${s.optDownCount} of ${s.trades} deals lowered their lineup's points.` });
     }
     if (s.trades >= 2) {
       // Which single position this manager's trades lean toward or away from —
@@ -4488,7 +4534,7 @@ const Vault = {
     const lineupTip = W
       ? `Points per week averaged over weeks ${weeks[0]}–${weeks[W - 1]} (playoffs included), from who Sleeper projects to play each week, so byes and injuries count. Each player's number is per game he plays.`
       : "Projected points per game for the best lineup.";
-    const lineupHead = `<div title="${lineupTip}" class="cursor-help">${head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${t.vorpTotal.toFixed(1)} VORP` : ''}`)}${W ? `<div class="text-[11px] text-zinc-500 -mt-1.5 mb-2">Avg per week, wks ${weeks[0]}–${weeks[W - 1]}</div>` : ''}</div>`;
+    const lineupHead = `<div title="${lineupTip}" class="cursor-help">${head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${Vault.num1(t.vorpTotal)} VORP` : ''}`)}${W ? `<div class="text-[11px] text-zinc-500 -mt-1.5 mb-2">Avg per week, wks ${weeks[0]}–${weeks[W - 1]}</div>` : ''}</div>`;
     const positions = ['QB', 'RB', 'WR', 'TE'].map(pos => {
       // Every player at the position, so real depth shows (not just the top few).
       const ps = (t.plist || []).filter(p => p.pos === pos).sort((a, b) => b.value - a.value);

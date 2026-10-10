@@ -220,8 +220,9 @@ function marketValue(league, name, { even = false, min = MARKET_MIN_COMPS } = {}
 /* ---------- A player's market value (everywhere on the site) ----------
    What managers paid for him against KTC: the median, over every completed
    trade he headlined (any shape), of what the team getting him sent over
-   what his side was worth, both with KTC's consolidation adjustment (the
-   same math as the grade). Market value = KTC value x (1 + that %).
+   what his side was worth, both on trade value with KTC values (marketPaid,
+   the grade's math). Market value = KTC value x (1 + that %). Pages show the
+   grade's own price (data/grade-values.json, marketPlayer) wherever loaded.
 
    Every shape, not just like-for-like (2026-10-01): across all trades each
    KTC value level comes out about even with KTC (2k +2%, 5k 0%, 7k +2%, 9k+
@@ -248,9 +249,12 @@ function marketPlayer(league, name, pos) {
   // The headline price is the one the grade uses (data/grade-values.json for the
   // league's format, Vault._gradeMarket) wherever it's loaded, so a player's "8%
   // under KTC" reads the same on every page; the read keeps its range and trades.
+  // "Vs similar players" moves with it (his price against what players like him
+  // go for), so it never contradicts the price beside it.
   const g = Vault._gradeMarket && Vault._gradeMarket.has(key) ? Vault._gradeMarket.get(key) : null;
   const clamp = x => Math.max(-MARKET_ADJ_CAP, Math.min(MARKET_ADJ_CAP, x));
-  const out = read.like ? { adj: clamp(g ?? read.premium), read: g == null ? read : { ...read, premium: g } } : g != null ? { adj: clamp(g), read: null } : none;
+  const atGrade = g == null ? read : { ...read, premium: g, vsPeers: read.vsPeers != null ? read.vsPeers + g - read.premium : null };
+  const out = read.like ? { adj: clamp(g ?? read.premium), read: atGrade } : g != null ? { adj: clamp(g), read: null } : none;
   marketAdjCache.set(key, out);
   return out;
 }
@@ -496,13 +500,28 @@ function marketLiquidityText(l, pos) {
 }
 
 /* ---------- Market trend line (player card, Player Market, Compare) ----------
-   A smooth read through the day-by-day market points (data/market-history/
-   daily-<sf|oneQB>.json, [daysSinceFrom, pct, trades]): for each date, the
-   median paid over KTC in the TREND_DAYS days ending that day, weighted by
-   trades, when there are at least TREND_MIN of them. Returns Map(date -> pct);
-   multiply a day's KTC value by (1 + pct / 100) for the line. */
+   The market price the grade used on each date: the half-month snapshot then in
+   force (data/grade-values-history/, Vault.gradeMarketAt, as past trade grades
+   use) and today's prices (data/grade-values.json) from the day they were
+   built, so the line ends on the market price shown beside it on every page
+   (2026-10-10; it was a 30-day median of a different set of trades, and ended a
+   few % away). Without the grade's prices loaded: for each date, the median
+   paid over KTC in the TREND_DAYS days ending that day (data/market-history/
+   daily-<sf|oneQB>.json, [daysSinceFrom, pct, trades]), weighted by trades,
+   with at least TREND_MIN of them. Returns Map(date -> pct); multiply a day's
+   KTC value by (1 + pct / 100) for the line. */
 const TREND_DAYS = 30, TREND_MIN = 5;
 function marketTrend(daily, key, dates) {
+  if (Vault._gradeMarket || Vault._gradeHistory) {
+    const gk = /^[nk]:/.test(key) ? key : 'n:' + key, out = new Map();
+    const nowFrom = (Vault._gradeMarketUpdated || '').slice(0, 10);
+    dates.forEach(date => {
+      const t = Vault._gradeMarket && nowFrom && date >= nowFrom ? Vault._gradeMarket : Vault.gradeMarketAt(Date.parse(date + 'T12:00:00Z'));
+      const v = t && t.get(gk);
+      if (Number.isFinite(v)) out.set(date, v);
+    });
+    return out;
+  }
   const pts = daily?.players?.[key];
   const out = new Map();
   if (!pts || !pts.length || !daily.from) return out;
@@ -529,14 +548,18 @@ function marketTrend(daily, key, dates) {
    held; + = paid more than it's worth), filed under the position of the best
    piece they got ('Pick' for picks). Map(rosterId -> { pos: { n, avg } }).
    Today's market read applied to every trade, not the market on its day. */
+// Each trade at the market prices of its own day: its grade (signedPctDiff,
+// trade value with the prices then, + = team A paid more), the same number
+// Trade Grades shows as "paid X% over / under" then. (Was today's prices on
+// every trade, 2026-10-10: a player who has since risen read as a bargain.)
 function marketOverpay(league, allGraded) {
   const out = new Map();
   const top = list => list.reduce((m, a) => (a.value > m.value ? a : m));
   const posOf = a => (a.type === 'pick' ? 'Pick' : a.pos);
   (allGraded || []).forEach(g => {
-    if (!g.toAToday?.length || !g.toBToday?.length) return;
-    const aEdge = marketEdge(league, g.toBToday, g.toAToday).market; // + = team A came out ahead at market
-    [[g.teamA.rosterId, g.toAToday, -aEdge], [g.teamB.rosterId, g.toBToday, aEdge]].forEach(([id, got, paid]) => {
+    if (!g.toA?.length || !g.toB?.length || g.anyMissingValue || !Number.isFinite(g.signedPctDiff)) return;
+    const aPaid = g.signedPctDiff;
+    [[g.teamA.rosterId, g.toA, aPaid], [g.teamB.rosterId, g.toB, -aPaid]].forEach(([id, got, paid]) => {
       const pos = posOf(top(got)), row = out.get(id) || out.set(id, {}).get(id), cell = (row[pos] ||= { n: 0, sum: 0 });
       cell.n++; cell.sum += paid; cell.avg = cell.sum / cell.n;
     });
@@ -551,7 +574,20 @@ function marketOverpay(league, allGraded) {
    shape, { from, players: { key: [[daysSinceFrom, pct, trades]] } }, each
    month placed on its 15th. Loaded once per page. */
 const marketDailyCache = new Map();
-function fetchMarketDaily(qbs, { history = true } = {}) {
+// The grade's prices for a league's format, today's and past (marketTrend).
+let marketGradeLoading = null;
+function marketGradeLoad(league) {
+  if (!marketGradeLoading) {
+    const isSF = Vault.tradeFormatSig(league).qbs === 2, tep = league?.scoring_settings?.bonus_rec_te;
+    marketGradeLoading = Promise.all([
+      Vault._gradeMarket ? null : Vault.fetchGradeValues().then(g => { if (g && !Vault._gradeMarket) Vault.setGradeMarket(g, isSF, tep); }),
+      Vault._gradeHistory ? null : Vault.loadGradeHistory(isSF, tep)
+    ]).catch(() => {});
+  }
+  return marketGradeLoading;
+}
+function fetchMarketDaily(qbs, { history = true, league = null } = {}) {
+  if (league) return Promise.all([fetchMarketDaily(qbs, { history }), marketGradeLoad(league)]).then(([d]) => d);
   const qb = qbs === 2 ? 'sf' : 'oneQB', cacheKey = qb + (history ? '+' : '');
   if (!marketDailyCache.has(cacheKey)) marketDailyCache.set(cacheKey, (async () => {
     const load = f => fetch(`data/market-history/${f}-${qb}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null);

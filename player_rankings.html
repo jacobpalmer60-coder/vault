@@ -71,7 +71,7 @@
             <th class="px-4 py-3 font-medium sortable" data-key="team">Team <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="age">Age <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="value">Value <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="marketRaw" title="What managers pay for him in completed trades, against similar players (same position and KTC value; Player Market). Sort to find who sells over or under players like him. 25%+ means the read goes further than that.">Market <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="marketRaw" title="What managers pay for him in completed trades, against his KTC value: the price trade value (the grade) uses, the same on every page (Player Market). Hover a cell for how that compares with similar players. 25%+ means the read goes further than that.">Market <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="trendDelta" title="Value change over the selected trend window (see the 3mo/6mo/1yr/All toggle above the table) — tracked for players rostered in your league only">Trend <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg">PPG <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="vorp" title="Value Over Replacement Player — PPG above the best player at this position who wouldn't start anywhere in your league. Comparable ACROSS positions, unlike raw PPG — this is why a Superflex QB is worth so much more than a similar-PPG RB: replacement-level QB is far worse relative to a starter.">VORP <span class="sort-ind"></span></th>
@@ -118,9 +118,9 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=32117af6"></script>
+<script src="vault-core.js?v=e7c4a2e8"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
-<script src="market-data.js?v=0f1d7c09"></script>
+<script src="market-data.js?v=2cb1beaa"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -353,7 +353,7 @@
     // A transparent rect over the whole plot area catches mousemove anywhere
     // in the chart, not just exactly on a 2.5px-radius circle.
     const hoverRect = `<rect x="${ML}" y="${MT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>`;
-    const legend = market ? `<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded ${up ? 'bg-emerald-400' : 'bg-rose-400'}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400"></span>What managers paid for him that day</span>${trend && trend.size ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market trend (30-day median)</span>' : ''}</div>` : '';
+    const legend = market ? `<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded ${up ? 'bg-emerald-400' : 'bg-rose-400'}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400"></span>What managers paid for him that day</span>${trend && trend.size ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market price (what trade value used)</span>' : ''}</div>` : '';
     return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" data-chart-id="${chartId}">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${marketLines}${hoverRect}${dateTicks}</svg>${legend}`;
   }
 
@@ -488,7 +488,7 @@
   function loadDailyMarket() {
     if (!dailyMarketLoading) {
       const qbs = Vault.tradeFormatSig(leagueObj).qbs;
-      dailyMarketLoading = fetchMarketDaily(qbs); // last ~400 days by day, older by month (market-data.js)
+      dailyMarketLoading = fetchMarketDaily(qbs, { league: leagueObj }); // last ~400 days by day, older by month, and the grade's prices (market-data.js)
     }
     return dailyMarketLoading;
   }
@@ -531,7 +531,7 @@
           <span class="num text-[30px] text-zinc-100">${at(mp.adj)}${(Math.abs(m.premium) > MARKET_ADJ_CAP ? '+' : '')}</span>
           <span class="text-[13px] ${tone} cursor-help" title="${MARKET_PEER_TIP}">${marketPeerPhrase(mp)}</span><span class="text-[13px] text-zinc-500">KTC value ${fmtInt(r.value)}</span>
         </div>
-        <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">Teams getting him paid ${read}, usually ${at(m.low)} to ${at(m.high)}. Median of ${m.n} completed trades he headlined, from leagues like yours (${m.like}), over ${m.days} day${m.days === 1 ? '' : 's'}. KTC's consolidation adjustment is included, so sending more pieces to get him is already part of KTC's number.</div>${liqLine}`);
+        <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">Teams getting him paid ${read}, usually ${at(m.low)} to ${at(m.high)}. The price trade value uses: the median of every completed trade he headlined in your format over the last 45 days, counted the way trade value counts extra pieces; the range is from ${m.n} of those, in leagues like yours (${m.like}).</div>${liqLine}`);
     });
   }
 
@@ -684,7 +684,7 @@
       applyFiltersAndRender();
       if (leagueObj) marketLoad(leagueObj).then(() => {
         if (!Market.data || Market.data.failed) return;
-        allRows.forEach(r => { const m = marketPlayer(leagueObj, r.player, r.pos); r.marketAdj = m.read ? m.adj : null; r.marketRaw = m.read ? marketPeerPct(m) : null; r.marketPeer = m.read ? marketPeerPct(m) : null; r.marketText = m.read ? marketPeerText(m) : null; });
+        allRows.forEach(r => { const m = marketPlayer(leagueObj, r.player, r.pos); r.marketAdj = m.read ? m.adj : null; r.marketRaw = m.read ? m.read.premium : null; r.marketPeer = m.read ? marketPeerPct(m) : null; r.marketText = m.read ? marketAdjText(m) : null; r.marketPeerText = m.read ? marketPeerPhrase(m) : null; });
         applyFiltersAndRender();
       }).catch(() => {});
     } catch (e) {
@@ -753,7 +753,7 @@
         <td class="px-4 py-3 text-zinc-400 mono text-xs">${Vault.escapeHtml(r.team) || '—'}</td>
         <td class="px-4 py-3 text-right mono text-xs text-zinc-400">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
         <td class="px-4 py-3 text-right mono font-medium text-zinc-100">${fmtInt(r.value)}</td>
-        <td class="px-4 py-3 text-right mono text-xs whitespace-nowrap ${r.marketPeer == null || Math.abs(r.marketPeer) < 3 ? 'text-zinc-400' : r.marketPeer > 0 ? 'text-emerald-400' : 'text-orange-400'}" title="${r.marketAdj == null ? 'Not enough completed trades yet' : 'Market price ' + fmtInt(r.value * (1 + r.marketAdj / 100)) + '. Against similar players (same position and KTC value): ' + r.marketText + (Math.abs(r.marketPeer) > 25 ? ' (full read ' + Math.abs(Math.round(r.marketPeer)) + '%)' : '') + '.'}">${r.marketText || '—'}</td>
+        <td class="px-4 py-3 text-right mono text-xs whitespace-nowrap ${r.marketAdj == null || Math.abs(r.marketAdj) < 3 ? 'text-zinc-400' : r.marketAdj > 0 ? 'text-emerald-400' : 'text-orange-400'}" title="${r.marketAdj == null ? 'Not enough completed trades yet' : 'Market price ' + fmtInt(r.value * (1 + r.marketAdj / 100)) + ', ' + (r.marketText === 'even' ? 'right at' : r.marketText) + ' his KTC value' + (r.marketPeerText ? '; ' + r.marketPeerText : '') + '.'}">${r.marketText || '—'}</td>
         <td class="px-4 py-3 text-right">
           ${r.trendDelta != null
             ? `<div class="flex items-center justify-end gap-2">${sparkline(r.trendValues)}<span class="mono text-xs ${r.trendDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.trendDelta > 0 ? '+' : r.trendDelta < 0 ? '−' : ''}${fmtInt(Math.abs(r.trendDelta))}</span></div>`
