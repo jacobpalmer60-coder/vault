@@ -9,7 +9,7 @@
    completed trades the piece headlined (the best piece on its side), of what the
    team getting it sent over what its side was worth, on trade value with KTC
    values (no market prices: those are what's being measured). At least
-   MARKET_MIN_COMPS trades, clamped to +/-MARKET_ADJ_CAP. Per league format: QB
+   MARKET_MIN_COMPS trades, no cap (MARKET_ADJ_CAP is Infinity). Per league format: QB
    format (one file each) and TE premium (trades from leagues with the same TE
    premium when there are MARKET_MIN_NARROW of them, else every trade in the QB
    format). Players keyed 'n:' + normalized name, picks 'k:<season>-<round>'.

@@ -232,12 +232,15 @@ function marketValue(league, name, { even = false, min = MARKET_MIN_COMPS } = {}
    a star for more pieces costs only ~6% beyond KTC's own consolidation bonus.
 
    Picks count by year and round ('k:2027-1', every tier together). Anything
-   with fewer than MARKET_MIN_COMPS such trades gets no read (0). Clamped to ±MARKET_ADJ_CAP so one noisy read can't swing a
-   trade. Cached per name, since Trade Coach judges thousands of trades. Used
+   with fewer than MARKET_MIN_COMPS such trades gets no read (0). No cap
+   (2026-10-10, user: "just give the number even if outrageous"): the real
+   median, shown and used as is. It was clamped to ±25%; uncapped grades
+   called 77.1% of 275,273 held-out trades Fair against 77.2% capped
+   (VaultValues market-blend-test.js CAP=). Cached per name, since Trade Coach judges thousands of trades. Used
    by the player card, the Player Market page, "At market prices" and Trade
    Coach. The grade uses the same read, built daily per format
    (scripts/build-grade-values.js -> Vault.gradeValue). */
-const MARKET_ADJ_CAP = 25;
+const MARKET_ADJ_CAP = Infinity; // no cap: every clamp and "25%+" below is a no-op
 const marketAdjCache = new Map();
 // { adj, read } for a player (read = the marketValue read it came from), or { adj: 0, read: null }.
 function marketPlayer(league, name, pos) {
