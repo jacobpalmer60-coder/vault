@@ -551,10 +551,10 @@ function marketTrend(daily, key, dates) {
    held; + = paid more than it's worth), filed under the position of the best
    piece they got ('Pick' for picks). Map(rosterId -> { pos: { n, avg } }).
    Today's market read applied to every trade, not the market on its day. */
-// Each trade at the market prices of its own day: its grade (signedPctDiff,
-// trade value with the prices then, + = team A paid more), the same number
-// Trade Grades shows as "paid X% over / under" then. (Was today's prices on
-// every trade, 2026-10-10: a player who has since risen read as a bargain.)
+// Each trade on its own day: its grade (signedPctDiff, trade value on KTC values
+// then, + = team A paid more), the same number Trade Grades shows as "paid X%
+// over / under" then. (Was today's market prices on every trade before
+// 2026-10-10: a player who has since risen read as a bargain.)
 function marketOverpay(league, allGraded) {
   const out = new Map();
   const top = list => list.reduce((m, a) => (a.value > m.value ? a : m));

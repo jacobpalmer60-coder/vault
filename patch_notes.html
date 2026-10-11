@@ -31,13 +31,17 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=a2b38b0f"></script>
+<script src="vault-core.js?v=06b4f918"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-11', items: [
+    { kind: 'changed', page: 'Trade Grades', text: "Completed trades are won and lost on KTC values only, then and now: each piece at its KTC value on the trade's day and today, combined the way real trades combine them (trade value). Market prices no longer touch them; they stay in the Trade Calculator, for trades you're weighing now. A few stale market reads had flipped who won: Cyrus Allen read 140% over KTC in July, before KTC caught up, so Skat Happens' Cyrus Allen for Tory Horton deal (871 less on KTC) counted as a 1,270 win. The \"Acceptable\" market line is gone from the cards too." },
+    { kind: 'changed', page: 'Managers', text: "W-L, Net Then and Net Now, best and worst moves, and Who pays up all go by KTC values (trade value), the same as Trade Grades. Who pays up now reads as paid over or under KTC value." },
+  ] },
   { date: '2026-10-10', items: [
     { kind: 'fixed', page: 'Trade Grades', text: "A pick that has already been used is worth, today, the player taken with it: \"2026 R2 (Denzel Boston) 2,999 → 4,619\", not the price of a 2027 2nd. Each trade's \"now\" value and Managers' Net Now count it that way, at the player's market price." },
     { kind: 'fixed', page: 'Everywhere', text: "Pick labels say where a pick falls in its own round: in a 10-team league your 2nd that comes 11th overall is an early 2nd, not a \"late\" one worth more than other teams' early 2nds. Its price is unchanged (the 11th pick still goes for about a late 1st). The calculator's price trend for a pick now follows that pick, and past trades' picks use the same market price as the calculator's." },

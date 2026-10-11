@@ -1416,7 +1416,6 @@ const Vault = {
   // The market key of a piece: 'n:' + normalized name, or 'k:<season>-<round>' for a pick.
   gradeKey(a) {
     if (!a) return '';
-    if (a.todayKey) return a.todayKey; // a used pick, today: the player taken with it
     if (a.type === 'pick') { const round = a.round ?? a.ktcRound; return a.season && round ? `k:${a.season}-${round}` : ''; }
     return a.name ? 'n:' + Vault.normalizeName(a.name) : '';
   },
@@ -3671,7 +3670,7 @@ const Vault = {
     (tx.draft_picks || []).forEach(pk => {
       if (pk.owner_id !== sideRosterId) return;
       const info = pickValueByKey.get(`${pk.season}-${pk.round}-${pk.roster_id}`);
-      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}${info?.became ? ` (${info.became})` : ''}`, pos: 'PICK', age: 0, season: +pk.season, round: +pk.round, ktcRound: info?.ktcRound, ktcTier: info?.ktcTier, tier: info?.became ? '' : info?.tier, became: info?.became, todayKey: info?.todayKey, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
+      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}${info?.became ? ` (${info.became})` : ''}`, pos: 'PICK', age: 0, season: +pk.season, round: +pk.round, ktcRound: info?.ktcRound, ktcTier: info?.ktcTier, tier: info?.became ? '' : info?.tier, became: info?.became, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
     });
     return assets;
   },
@@ -3686,7 +3685,7 @@ const Vault = {
       const v = a.type === 'pick'
         ? (a.ktcRound != null ? pricer.pick(a.season, a.ktcRound, a.ktcTier ?? a.tier, ms) : null)
         : pricer.player(a.name, ms);
-      return v == null ? null : { ...a, value: v, valueToday: a.value, todayKey: undefined };
+      return v == null ? null : { ...a, value: v, valueToday: a.value };
     };
     const hA = toA.map(reprice), hB = toB.map(reprice);
     if ([...hA, ...hB].some(a => a == null)) return null;
@@ -3742,17 +3741,20 @@ const Vault = {
     const valuedAt = atTrade ? 'trade' : 'today';
     const toA = atTrade ? atTrade.toA : toATodayPrices;
     const toB = atTrade ? atTrade.toB : toBTodayPrices;
-    // The grade at the trade's date uses that period's market prices
-    // (Vault.gradeMarketAt; KTC values where there's no history), "how it aged"
-    // today's (the default).
-    const today = Vault.tradeSideValues(toBTodayPrices, toATodayPrices);
+    // Completed trades are won and lost on KTC values (user, 2026-10-11: "market
+    // shouldn't matter for trade grades, just wins and losses through KTC value"),
+    // counted with trade value's math (extra pieces, the best piece), then and now.
+    // Market prices stay in the Trade Calculator, for trades not yet made. (From
+    // 10/9 they used the market of the trade's day, whose stale reads, a rookie
+    // read at +140% before KTC caught up, flipped who won.)
+    const today = Vault.tradeSideValues(toBTodayPrices, toATodayPrices, { market: false });
     const todayAvg = (today.valueA + today.valueB) / 2 || 1;
     const todaySignedPctDiff = (today.valueA - today.valueB) / todayAvg * 100;
     const dValueAdjAToday = today.valueB - today.valueA; // same basis as dValueAdjA, at today's prices
 
     // Fairness uses KTC's own consolidation adjustment (see Vault.tradeSideValues) —
     // toB is what A gave (B received it), toA is what B gave.
-    const gradeMarket = atTrade ? Vault.gradeMarketAt(tradeMs) : true;
+    const gradeMarket = false;
     const { valueA: aGaveAdj, valueB: bGaveAdj } = Vault.tradeSideValues(toB, toA, { market: gradeMarket });
     const avgAdj = (aGaveAdj + bGaveAdj) / 2 || 1;
     const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
@@ -3900,8 +3902,6 @@ const Vault = {
      null for any unresolved roster_id, nothing extra to filter here. */
   async fetchAndGradeAllTrades(leagueId) {
     const { league, isSF, teams, slots, replacementLevels, remainingWeeks } = await Vault.buildLeagueTeams(leagueId);
-    // Past trades are graded at the market prices of their own date (Vault.gradeMarketAt).
-    await Vault.loadGradeHistory(isSF, league.scoring_settings?.bonus_rec_te);
     const seasonChain = await Vault.fetchSeasonChain(leagueId, league);
 
     const [playersDb, ktcData, projData, rosters, traded, playerHist, pickHist] = await Promise.all([
@@ -3990,9 +3990,9 @@ const Vault = {
         const overall = (round - 1) * n + rank;
         const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
         const info = { value: pickMap.get(`${season}-${ktcRound}-${tier}`) || 0, ktcRound, ktcTier: tier, tier: Vault.leagueTier(rank, n), volatilityPct: Vault.pickVolatilityPct(pickMap, season, ktcRound) };
-        // A used pick is worth, today, the player taken with it (at his market price too: todayKey).
+        // A used pick is worth, today, the player taken with it.
         const became = drafted.get(key);
-        if (became) { const norm = Vault.normalizeName(became.name); Object.assign(info, { value: valMap.get(norm) || 0, became: became.name, todayKey: 'n:' + norm }); }
+        if (became) Object.assign(info, { value: valMap.get(Vault.normalizeName(became.name)) || 0, became: became.name });
         pickValueByKey.set(key, info);
       });
     }
