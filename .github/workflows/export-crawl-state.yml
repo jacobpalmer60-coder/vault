@@ -1,0 +1,44 @@
+name: Export crawl list (encrypted)
+
+# One-time hand-off of the crawl's to-do list (Sleeper league and user ids, kept
+# in the Actions cache, never published) to the research machine, which pulls
+# those leagues whole for the trade-verdict study (VaultValues, local only).
+# The list is encrypted before it leaves the runner: a fresh AES-256 key for the
+# file, itself encrypted to the public key in scripts/keys/crawl-export.pub.pem,
+# whose private key exists only on that machine. Only ciphertext is uploaded (to
+# the "crawl-export" release), and it's deleted once downloaded.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/export-crawl-state.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crawl-sleeper   # waits for a crawl in progress, so the list is its latest
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: .crawl
+          key: sleeper-crawl-export-none
+          restore-keys: sleeper-crawl-
+      - name: Encrypt and upload
+        run: |
+          test -s .crawl/sleeper-state.json
+          openssl rand -out "$RUNNER_TEMP/k.bin" 32
+          gzip -c .crawl/sleeper-state.json > "$RUNNER_TEMP/state.json.gz"
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in "$RUNNER_TEMP/state.json.gz" -out "$RUNNER_TEMP/crawl-state.enc" -pass "file:$RUNNER_TEMP/k.bin"
+          openssl pkeyutl -encrypt -pubin -inkey scripts/keys/crawl-export.pub.pem -pkeyopt rsa_padding_mode:oaep -in "$RUNNER_TEMP/k.bin" -out "$RUNNER_TEMP/crawl-key.enc"
+          rm "$RUNNER_TEMP/k.bin" "$RUNNER_TEMP/state.json.gz"
+          gh release view crawl-export >/dev/null 2>&1 || gh release create crawl-export --title "Crawl list hand-off (encrypted)" --notes "Encrypted; removed after download." --prerelease --latest=false
+          gh release upload crawl-export "$RUNNER_TEMP/crawl-state.enc" "$RUNNER_TEMP/crawl-key.enc" --clobber

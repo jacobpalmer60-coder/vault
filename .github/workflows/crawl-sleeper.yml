@@ -33,6 +33,9 @@ concurrency:
 
 jobs:
   crawl:
+    # PAUSED 2026-10-13 while VaultValues backfills whole leagues from this crawl's list
+    # at the full 450 calls a minute (the user's total). Remove this line to resume.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 58
     env:
