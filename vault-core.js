@@ -247,14 +247,21 @@ const VAULT_CONFIG = {
   // value share is quoted: a tier's average points (contenders' Bad trade tier
   // averaged +1 a week) read as a contradiction next to this trade's own points.
   // level: the coarse read colors and the offered-to-you summary go by.
+  // Re-measured 2026-10-17 on the full backfill: 1,028,227 trades, 2,056,454
+  // team-sides from every crawled 2024 and 2025 league (VaultValues
+  // new-data-studies.js), verdicts re-scored with today's math. 2024 and 2025 agree,
+  // and Superflex and 1QB agree, at every tier. Contending is now quoted against
+  // the average contender that traded, not against its odds alone: teams that
+  // trade at all beat their odds by 2.3 points on average (active managers), which
+  // made a Toss-up read "3 points more often than their odds".
   VERDICT_TIERS: [
-    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 7.9, rebuild: 0.88, flexible: 0.84 } },
-    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 6.5, rebuild: 0.80, flexible: 0.66 } },
-    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 6.3, rebuild: 0.74, flexible: 0.61 } },
-    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 1.4, rebuild: 0.53, flexible: 0.51 } },
-    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: -2.6, rebuild: 0.36, flexible: 0.40 } },
-    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: -4.6, rebuild: 0.26, flexible: 0.28 } },
-    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: -20.0, rebuild: 0.13, flexible: 0.22 } }
+    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 7.5, rebuild: 0.87, flexible: 0.86 } },
+    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 4.0, rebuild: 0.79, flexible: 0.75 } },
+    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 2.7, rebuild: 0.73, flexible: 0.65 } },
+    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.6, rebuild: 0.53, flexible: 0.51 } },
+    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: -3.6, rebuild: 0.30, flexible: 0.37 } },
+    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: -6.2, rebuild: 0.22, flexible: 0.25 } },
+    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: -16.3, rebuild: 0.13, flexible: 0.15 } }
   ],
   // Depth (Vault.missedGameCost): weeks each starter is out a season, bye
   // included. Measured, not guessed: across 2018-2025 fantasy starters (top 24
@@ -2701,7 +2708,7 @@ const Vault = {
     if (r == null) return '';
     if (imp.mode === 'contend') {
       const d = Math.round(r);
-      return `In real trades scored like this, contenders made the playoffs ${Math.abs(d) < 2 ? 'about as often as their odds said' : `${Math.abs(d)} points ${d > 0 ? 'more' : 'less'} often than their odds said`}.`;
+      return `In real trades scored like this, contenders did ${Math.abs(d) < 2 ? 'about as well against their playoff odds as the average contender who traded' : `${Math.abs(d)} points ${d > 0 ? 'better' : 'worse'} against their playoff odds than the average contender who traded`}.`;
     }
     const who = { rebuild: 'rebuilding teams' }[imp.mode] || 'teams';
     return `In real trades scored like this, ${Math.round(r * 100)}% of ${who} were still ahead on value a year or more later.`;
