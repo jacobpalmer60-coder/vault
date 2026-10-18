@@ -9,7 +9,7 @@
 <title>Start/Sit — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=11a779a9">
+<link rel="stylesheet" href="tailwind.css?v=8122fe77">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -30,7 +30,7 @@
 </main>
 
 <script src="vault-core.js?v=4ebb449b"></script>
-<script src="vault-nav.js?v=242e0ad3"></script>
+<script src="vault-nav.js?v=c2462132"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => Vault.escapeHtml(s == null ? '' : String(s));
@@ -176,7 +176,41 @@ function render(t) {
     <div class="card rounded-vault-sm p-4 overflow-x-auto">
       <table class="w-full text-[14px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="text-left font-normal pb-2">Slot</th><th class="text-left font-normal pb-2">Your starter</th><th class="text-right font-normal pb-2">Pts</th><th class="text-left font-normal pb-2 pl-4 hidden sm:table-cell">Best</th><th class="text-right font-normal pb-2 hidden sm:table-cell">Pts</th></tr></thead>
       <tbody>${slots.map(row).join('')}</tbody></table>
+    </div>
+    <div class="card rounded-vault-sm p-4 mt-6">
+      <div class="flex flex-wrap items-baseline justify-between gap-2"><div class="text-[14px] font-medium text-zinc-100">Who should I start?</div><a href="${Vault.linkTo('compare.html')}" class="text-[12px] text-amber-200 hover:text-amber-100">Compare Players tool →</a></div>
+      <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">Tap 2 to 4 players to rank them for this week: yours below, or add anyone by name.</div>
+      <div class="mb-2"><input id="wsisSearch" list="wsisList" placeholder="Add any player…" class="bg-black/60 border border-white/10 rounded-lg px-3 py-1.5 text-[13px] w-full sm:w-72" autocomplete="off"><datalist id="wsisList"></datalist></div>
+      <div id="wsisPick" class="flex flex-wrap gap-1.5"></div>
+      <div id="wsisOut" class="mt-3"></div>
     </div>`;
+  renderWsis([...pw.values()].filter(x => all.includes(x.id) && !x.locked && x.projPts > 0).sort((a, b) => ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'].indexOf(a.pos) - ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'].indexOf(b.pos) || b.projPts - a.projPts));
+}
+
+// Who should I start: up to 4 of your players who haven't played, ranked by this
+// week's projection, each with how often he outscores the next one at that gap.
+let wsisSel = [], wsisExtra = [];
+function renderWsis(roster) {
+  // Your players, plus anyone added by name (a free agent, a trade target).
+  const extra = wsisExtra.filter(id => !roster.some(c => c.id === id)).map(id => playerWeek(id, null)).filter(c => !c.locked);
+  const cands = [...roster, ...extra];
+  wsisSel = wsisSel.filter(id => cands.some(c => c.id === id));
+  const pick = $('#wsisPick'), out = $('#wsisOut');
+  if (!pick) return;
+  const search = $('#wsisSearch'), dl = $('#wsisList');
+  if (dl && !dl.childElementCount) {
+    const opts = [...ctx.projById.keys()].map(id => ({ id, p: ctx.players[id] })).filter(x => x.p && x.p.team && !ctx.played.has(x.p.team) && ctx.projById.get(x.id).pts > 0)
+      .map(x => ({ id: x.id, label: `${x.p.first_name || ''} ${x.p.last_name || ''}`.trim() + ` (${x.p.position}, ${x.p.team})` })).sort((a, b) => a.label.localeCompare(b.label));
+    dl.innerHTML = opts.map(o => `<option value="${esc(o.label)}"></option>`).join('');
+    search._opts = new Map(opts.map(o => [o.label, o.id]));
+  }
+  if (search) search.onchange = () => { const id = search._opts && search._opts.get(search.value); if (!id) return; if (!wsisExtra.includes(id)) wsisExtra.push(id); if (!wsisSel.includes(id)) wsisSel = [...wsisSel, id].slice(-4); search.value = ''; renderWsis(roster); };
+  pick.innerHTML = cands.map(c => `<button data-id="${c.id}" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${wsisSel.includes(c.id) ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white'}">${esc(c.name)} <span class="text-zinc-500">${esc(c.pos)}</span></button>`).join('');
+  pick.querySelectorAll('button').forEach(b => { b.onclick = () => { const id = b.dataset.id; wsisSel = wsisSel.includes(id) ? wsisSel.filter(x => x !== id) : [...wsisSel, id].slice(-4); renderWsis(roster); }; });
+  const chosen = wsisSel.map(id => cands.find(c => c.id === id)).filter(Boolean).sort((a, b) => b.projPts - a.projPts);
+  if (chosen.length < 2) { out.innerHTML = ''; return; }
+  out.innerHTML = chosen.map((c, k) => { const next = chosen[k + 1]; const sure = next ? Math.round(sureOf(c.projPts - next.projPts)) : null; return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 py-2 border-t border-white/5 first:border-t-0 items-baseline"><span class="mono text-[13px] text-zinc-500">${k + 1}</span><span class="text-[14px] ${k === 0 ? 'text-emerald-300 font-medium' : 'text-zinc-200'}">${esc(c.name)} <span class="text-[12px] text-zinc-500">${esc(c.pos)}${c.opp ? ' vs ' + esc(c.opp) : ''}</span>${next ? `<span class="block text-[12px] text-zinc-500">outscores ${esc(next.name)} about ${sure}% of the time${sure < 58 ? ' (close to a coin flip)' : ''}</span>` : ''}</span><span class="mono text-[14px]">${f1(c.projPts)}</span></div>`; }).join('')
+    + `<a href="${Vault.linkTo('compare.html')}&p=${encodeURIComponent(chosen.map(c => Vault.normalizeName(c.name)).join(','))}" class="inline-block mt-3 text-[12px] text-amber-200 hover:text-amber-100">Open these players in Compare Players →</a>`;
 }
 load();
 </script>

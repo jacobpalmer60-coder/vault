@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>Waivers — The Vault</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="tailwind.css?v=8122fe77">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<main class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" data-league-required>
+  <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+    <div>
+      <h1 class="display text-[28px] font-semibold gold-text">Waivers</h1>
+      <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
+      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">The best free agents in your league for this team: what each adds to the best lineup this week and for the rest of the season (points a week, the number that predicted this season best on 900,000+ real trades), and the free agents with the most dynasty value to stash.</p>
+    </div>
+    <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
+  </div>
+  <div id="posFilter" class="flex flex-wrap gap-1.5 mb-4"></div>
+  <section id="body"></section>
+  <p class="text-[12px] text-zinc-500 mt-8 max-w-[720px] leading-relaxed">This week: Sleeper's weekly projections in your league's scoring (the same ones Start/Sit uses), the best lineup with the player added against without. Rest of season: the site's weekly lineups over the weeks left (who plays which week, byes, injuries, matchups), as on League Overview. Dynasty value: KeepTradeCut. Drop: the player on your roster with the least dynasty value who isn't in your best lineup.</p>
+</main>
+
+<script src="vault-core.js?v=4ebb449b"></script>
+<script src="vault-nav.js?v=c2462132"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => Vault.escapeHtml(s == null ? '' : String(s));
+const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+const n0 = v => Math.round(v).toLocaleString();
+const POS = ['ALL', 'QB', 'RB', 'WR', 'TE'];
+let ctx = null, pos = 'ALL';
+
+async function load() {
+  const id = Vault.getLeagueId();
+  try {
+    const built = await Vault.buildLeagueTeams(id);
+    const { league, teams, slots } = built;
+    const [{ players, rosters }, { ktcData, projData, gradeData }, state] = await Promise.all([
+      Vault.fetchSleeperCore(id), Vault.fetchValueSheets(), fetch('https://api.sleeper.app/v1/state/nfl').then(r => r.json()).catch(() => ({}))
+    ]);
+    const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+    const { valMap, ppgMap } = Vault.buildValueMaps({ ktcData, projData, gradeData, isSF, scoringSettings: league.scoring_settings, pickYears: [] });
+    const owned = new Set(rosters.flatMap(r => [...(r.players || []), ...(r.taxi || []), ...(r.reserve || [])]).map(String));
+    // This week's projections (only in the regular season).
+    const inSeason = state.season_type === 'regular' && String(state.season) === String(league.season);
+    const week = inSeason ? +(state.display_week || state.week) : null;
+    let weekProj = new Map(), played = new Set();
+    if (inSeason) {
+      const q = ['QB', 'RB', 'WR', 'TE'].map(p => `position[]=${p}`).join('&');
+      const [proj, stats] = await Promise.all([
+        fetch(`https://api.sleeper.app/projections/nfl/${league.season}/${week}?season_type=regular&${q}`).then(r => r.json()).catch(() => []),
+        fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${league.season}/${week}`).then(r => r.json()).catch(() => ({}))
+      ]);
+      weekProj = new Map((proj || []).filter(r => r && r.player_id).map(r => [String(r.player_id), Vault.scoreStats(r.stats || {}, league.scoring_settings || {})]));
+      played = new Set(Object.keys(stats || {}).map(pid => players[pid]?.team).filter(Boolean));
+    }
+    // Free agents: on an NFL team (or a dynasty prospect with value), not on any roster.
+    const fas = [];
+    const seen = new Set();
+    const add = (pid, p) => {
+      if (seen.has(pid) || owned.has(pid)) return;
+      const s = players[pid]; if (!s) return;
+      const position = Vault.fantasyPos(s.position, `${s.first_name || ''} ${s.last_name || ''}`);
+      if (!['QB', 'RB', 'WR', 'TE'].includes(position)) return;
+      const name = `${s.first_name || ''} ${s.last_name || ''}`.trim();
+      const value = valMap.get(Vault.normalizeName(name)) || 0, ppg = ppgMap.get(pid) || 0;
+      if (!value && !ppg) return;
+      seen.add(pid);
+      const pr = projData.players?.[pid] || {};
+      fas.push({ id: pid, name, pos: position, team: s.team || 'FA', age: s.age, injury: s.injury_status || '', value, ppg, avail: pr.wk, wp: pr.wp, week: weekProj.get(pid) || 0, locked: !!s.team && played.has(s.team) });
+    };
+    Object.keys(projData.players || {}).forEach(pid => add(pid, projData.players[pid]));
+    Object.keys(players).forEach(pid => { const s = players[pid]; if (s && s.active && s.team) add(pid); });
+    ctx = { league, teams, slots, fas, week, weekProj, played };
+    const sel = $('#teamSelect');
+    sel.innerHTML = teams.map(t => `<option value="${t.rosterId}">${esc(t.teamName)}</option>`).join(''); sel.classList.remove('hidden');
+    const asked = new URLSearchParams(location.search).get('team');
+    const start = teams.find(t => String(t.rosterId) === asked) || Vault.myTeam(teams) || teams[0];
+    sel.value = String(start.rosterId);
+    sel.onchange = () => { render(teams.find(t => String(t.rosterId) === sel.value)); const u = new URL(location.href); u.searchParams.set('team', sel.value); history.replaceState(null, '', u); };
+    $('#posFilter').innerHTML = POS.map(p => `<button data-pos="${p}" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors"></button>`).join('');
+    $('#posFilter').querySelectorAll('button').forEach(b => { b.onclick = () => { pos = b.dataset.pos; render(teams.find(t => String(t.rosterId) === sel.value)); }; });
+    $('#status').textContent = `${fas.length.toLocaleString()} free agents${week ? ` • Week ${week}` : ''} • ${league.name}`;
+    render(start);
+  } catch (e) {
+    console.error(e);
+    $('#status').textContent = 'Could not load: ' + e.message;
+  }
+}
+
+function render(t) {
+  const { slots, fas, week, weekProj } = ctx;
+  $('#posFilter').querySelectorAll('button').forEach(b => { const on = b.dataset.pos === pos; b.textContent = b.dataset.pos === 'ALL' ? 'All' : b.dataset.pos; b.className = `text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white'}`; });
+  const plist = t.plist || [];
+  // Rest of season: the site's weekly lineups with the player added.
+  const base = Vault.seasonLineupDetail(plist, slots).total;
+  // This week: Sleeper's weekly projection, players whose game has started stay as they are.
+  const weekPool = plist.map(p => ({ id: p.id, pos: p.pos, ppg: weekProj.get(p.id) || 0 }));
+  const weekBase = week ? Vault.optimalLineupDetail(weekPool, slots).total : 0;
+  const cands = fas.filter(f => pos === 'ALL' || f.pos === pos);
+  const rows = cands.map(f => {
+    const ros = f.ppg > 0 ? Vault.seasonLineupDetail([...plist, { id: f.id, pos: f.pos, ppg: f.ppg, avail: f.avail, wp: f.wp }], slots).total - base : 0;
+    const wk = week && f.week > 0 && !f.locked ? Vault.optimalLineupDetail([...weekPool, { id: f.id, pos: f.pos, ppg: f.week }], slots).total - weekBase : 0;
+    return { ...f, ros: Math.max(0, ros), wkGain: Math.max(0, wk) };
+  });
+  // Your drop: least dynasty value among players not in the best lineup.
+  const starters = new Set(Vault.seasonLineupDetail(plist, slots).starters.map(s => s.id));
+  const drop = plist.filter(p => !starters.has(p.id)).sort((a, b) => (a.value || 0) - (b.value || 0))[0];
+  const list = (title, sub, items, key, fmt) => `
+    <div class="card rounded-vault-sm p-4 min-w-0">
+      <div class="text-[14px] font-medium text-zinc-100">${title}</div>
+      <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${sub}</div>
+      ${items.length ? items.map(f => `
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-2 border-t border-white/5 first:border-t-0">
+          <div class="min-w-0"><div class="text-[14px] text-zinc-100 truncate">${esc(f.name)} <span class="text-[12px] text-zinc-500">${esc(f.pos)} · ${esc(f.team)}${f.age ? ' · ' + Math.floor(f.age) : ''}</span>${f.injury ? ` <span class="text-[12px] ${['Out', 'IR', 'PUP', 'Sus'].includes(f.injury) ? 'text-orange-300' : 'text-amber-300'}">${esc(f.injury)}</span>` : ''}</div>
+            <div class="text-[12px] text-zinc-500">${week ? `This week +${f1(f.wkGain)}${f.locked ? ' (game started)' : ''} · ` : ''}Rest of season +${f1(f.ros)} pts/wk · Value ${n0(f.value)}</div></div>
+          <div class="text-right mono text-[15px] ${key === 'value' ? 'text-zinc-100' : 'text-emerald-300'}">${fmt(f)}</div>
+        </div>`).join('') : '<div class="text-[12px] text-zinc-500 py-2">Nobody adds to your lineup here.</div>'}
+    </div>`;
+  const byWeek = rows.filter(f => f.wkGain >= 0.1).sort((a, b) => b.wkGain - a.wkGain).slice(0, 8);
+  const byRos = rows.filter(f => f.ros >= 0.1).sort((a, b) => b.ros - a.ros).slice(0, 8);
+  const byValue = rows.filter(f => f.value > 0).sort((a, b) => b.value - a.value).slice(0, 8);
+  $('#body').innerHTML = `
+    ${drop ? `<div class="text-[13px] text-zinc-400 mb-4">If you need a roster spot: <span class="text-zinc-200">${esc(drop.name)}</span> <span class="text-zinc-500">(${esc(drop.pos)}, value ${n0(drop.value || 0)})</span> is the least valuable player outside your best lineup.</div>` : ''}
+    <div class="grid lg:grid-cols-3 gap-3">
+      ${week ? list('Help this week', `Added to your best lineup for week ${week}`, byWeek, 'week', f => '+' + f1(f.wkGain)) : ''}
+      ${list('Rest of season', 'Points a week added to your best lineup, weeks left', byRos, 'ros', f => '+' + f1(f.ros))}
+      ${list('Stash for later', 'Most dynasty value (KeepTradeCut) still available', byValue, 'value', f => n0(f.value))}
+    </div>`;
+}
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>Playoff Schedule — The Vault</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="tailwind.css?v=8122fe77">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<main class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" data-league-required>
+  <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+    <div>
+      <h1 class="display text-[28px] font-semibold gold-text">Playoff Schedule</h1>
+      <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
+      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">How every team's best lineup projects in your playoff weeks, against its level the rest of the season, next to its playoff and title odds. Below, one team's lineup for each playoff week, with every starter's matchup.</p>
+    </div>
+    <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
+  </div>
+  <section id="league" class="mb-8"></section>
+  <section id="team"></section>
+  <p class="text-[12px] text-zinc-500 mt-8 max-w-[720px] leading-relaxed">Playoff weeks come from your league's settings. A team's playoff lineup is its best lineup each of those weeks from who Sleeper projects to play (byes, injuries and that week's matchups), the same weekly lineups the title odds are simulated on. The weekly tables use Sleeper's projections for each week in your league's scoring.</p>
+</main>
+
+<script src="vault-core.js?v=4ebb449b"></script>
+<script src="vault-nav.js?v=c2462132"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => Vault.escapeHtml(s == null ? '' : String(s));
+const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+const SLOT_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T', SUPER_FLEX: 'SFLX', K: 'K', DEF: 'DEF' };
+let ctx = null;
+
+async function load() {
+  const id = Vault.getLeagueId();
+  try {
+    const built = await Vault.buildLeagueTeams(id);
+    const { league, teams, slots } = built;
+    const { players } = await Vault.fetchSleeperCore(id);
+    const start = league.settings?.playoff_week_start || 15;
+    const weeks = [start, start + 1, start + 2].filter(w => w <= 17);
+    const q = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'].map(p => `position[]=${p}`).join('&');
+    const weekly = await Promise.all(weeks.map(w => fetch(`https://api.sleeper.app/projections/nfl/${league.season}/${w}?season_type=regular&${q}`).then(r => r.json()).catch(() => [])));
+    const projByWeek = new Map(weeks.map((w, i) => [w, new Map((weekly[i] || []).filter(r => r && r.player_id).map(r => [String(r.player_id), { pts: Vault.scoreStats(r.stats || {}, league.scoring_settings || {}), opp: r.opponent }]))]));
+    ctx = { league, teams, slots, players, weeks, projByWeek };
+    renderLeague();
+    const sel = $('#teamSelect');
+    sel.innerHTML = teams.map(t => `<option value="${t.rosterId}">${esc(t.teamName)}</option>`).join(''); sel.classList.remove('hidden');
+    const asked = new URLSearchParams(location.search).get('team');
+    const first = teams.find(t => String(t.rosterId) === asked) || Vault.myTeam(teams) || teams[0];
+    sel.value = String(first.rosterId);
+    sel.onchange = () => { renderTeam(teams.find(t => String(t.rosterId) === sel.value)); const u = new URL(location.href); u.searchParams.set('team', sel.value); history.replaceState(null, '', u); };
+    $('#status').textContent = `Playoffs weeks ${weeks[0]}-${weeks[weeks.length - 1]} • ${league.settings?.playoff_teams || 6} teams make it • ${league.name}`;
+    renderTeam(first);
+  } catch (e) {
+    console.error(e);
+    $('#status').textContent = 'Could not load: ' + e.message;
+  }
+}
+
+const playoffAvg = t => { const ws = ctx.weeks.filter(w => t.optByWeek?.has(w)); return ws.length ? ws.reduce((s, w) => s + t.optByWeek.get(w), 0) / ws.length : t.opt; };
+
+function renderLeague() {
+  const rows = [...ctx.teams].map(t => ({ t, po: playoffAvg(t), diff: playoffAvg(t) - t.opt })).sort((a, b) => (b.t.championshipPct || 0) - (a.t.championshipPct || 0));
+  const maxPo = Math.max(...rows.map(r => r.po));
+  $('#league').innerHTML = `<div class="card rounded-vault-sm p-4 overflow-x-auto">
+    <table class="w-full text-[14px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500">
+      <th class="text-left font-normal pb-2">Team</th><th class="text-right font-normal pb-2">Playoffs</th><th class="text-right font-normal pb-2">Title</th>
+      <th class="text-right font-normal pb-2">Playoff lineup</th><th class="text-right font-normal pb-2 hidden sm:table-cell">vs season</th></tr></thead>
+    <tbody>${rows.map(({ t, po, diff }) => `<tr class="border-t border-white/5">
+      <td class="py-2.5 pr-3 text-zinc-100">${esc(t.teamName)}</td>
+      <td class="py-2.5 pr-3 text-right mono">${Math.round(t.playoffPct || 0)}%</td>
+      <td class="py-2.5 pr-3 text-right mono">${f1(t.championshipPct || 0)}%</td>
+      <td class="py-2.5 pr-3 text-right"><span class="mono ${po === maxPo ? 'text-emerald-300' : 'text-zinc-100'}">${f1(po)}</span> <span class="text-[11px] text-zinc-500">pts/wk</span></td>
+      <td class="py-2.5 text-right mono hidden sm:table-cell ${Math.abs(diff) < 1 ? 'text-zinc-400' : diff > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Vault.signed(diff, x => x.toFixed(1))}</td>
+    </tr>`).join('')}</tbody></table>
+    <div class="text-[12px] text-zinc-500 mt-2">Playoff lineup: the best lineup's average in the playoff weeks. vs season: against its average over the regular-season weeks left (byes and injured players who'll be back make the difference).</div>
+  </div>`;
+}
+
+function renderTeam(t) {
+  const { slots, players, weeks, projByWeek } = ctx;
+  const ids = (t.plist || []).map(p => p.id);
+  const OUT = new Set(['IR', 'PUP', 'Sus']);
+  const cols = weeks.map(w => {
+    const proj = projByWeek.get(w);
+    const pool = ids.map(id => { const p = players[id] || {}, pr = proj.get(id); const pos = Vault.fantasyPos(p.position, `${p.first_name || ''} ${p.last_name || ''}`); return { id, name: `${p.first_name || ''} ${p.last_name || ''}`.trim(), pos, ppg: pr && !OUT.has(p.injury_status) ? pr.pts : 0, opp: pr?.opp || '', bye: !pr && !!p.team }; });
+    const best = Vault.optimalLineupDetail(pool.filter(x => x.ppg > 0), slots);
+    const byes = pool.filter(x => x.bye && (t.plist || []).find(p => p.id === x.id && p.value >= 3000)).map(x => x.name);
+    return { w, best, byes, poolById: new Map(pool.map(x => [x.id, x])) };
+  });
+  $('#team').innerHTML = `<div class="grid md:grid-cols-${Math.min(3, cols.length)} gap-3">${cols.map(c => `
+    <div class="card rounded-vault-sm p-4 min-w-0">
+      <div class="flex items-baseline justify-between"><div class="text-[14px] font-medium text-zinc-100">Week ${c.w}</div><div class="num text-[22px] text-zinc-100">${f1(c.best.total)}</div></div>
+      ${c.byes.length ? `<div class="text-[12px] text-amber-300 mt-1">On bye: ${c.byes.map(esc).join(', ')}</div>` : ''}
+      <div class="mt-2">${c.best.starters.map(s => `<div class="flex items-baseline justify-between gap-2 py-1 border-t border-white/5 first:border-t-0 text-[13px]">
+        <span class="min-w-0 truncate"><span class="mono text-[11px] text-zinc-500 inline-block w-9">${SLOT_LABEL[s.slot] || s.slot}</span>${s.id ? `${esc(s.name)} <span class="text-[11px] text-zinc-500">${c.poolById.get(s.id)?.opp ? 'vs ' + esc(c.poolById.get(s.id).opp) : ''}</span>` : '<span class="text-orange-300">Empty</span>'}</span>
+        <span class="mono text-zinc-300">${f1(s.ppg)}</span></div>`).join('')}</div>
+    </div>`).join('')}</div>`;
+}
+load();
+</script>
+</body>
+</html>

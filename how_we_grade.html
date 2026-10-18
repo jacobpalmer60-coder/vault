@@ -9,7 +9,7 @@
 <title>How We Grade — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=11a779a9">
+<link rel="stylesheet" href="tailwind.css?v=8122fe77">
 <style>
   .hwg h2 { font-size: 16px; font-weight: 600; color: #f4f4f5; margin-bottom: 8px; }
   .hwg p, .hwg li { font-size: 13px; line-height: 1.7; color: #d4d4d8; }
@@ -39,6 +39,7 @@
     <a class="hover:text-amber-300" href="#vorp">VORP</a>
     <a class="hover:text-amber-300" href="#odds">Playoff odds and windows</a>
     <a class="hover:text-amber-300" href="#startsit">Start/Sit</a>
+    <a class="hover:text-amber-300" href="#tools">Waivers, Playoffs, Rookie Draft</a>
     <a class="hover:text-amber-300" href="#market">The market</a>
     <a class="hover:text-amber-300" href="#managers">Manager styles</a>
     <a class="hover:text-amber-300" href="#playerstats">Player stats on Compare Players</a>
@@ -120,6 +121,14 @@
       <p><strong>Start/Sit</strong> (under Tools) compares the lineup you have set in Sleeper this week with the best one your roster can field, on <strong>Sleeper's own weekly projections</strong> scored with your league's settings. A starter who is out, on IR or on a bye counts as zero, and a player whose game has started is locked where he is. When the player coming in can't play the slot he frees, one of your starters who can slides over.</p>
       <p><strong>Why Sleeper's projections.</strong> We tested them against every week of 2024 and 2025 (QB, RB, WR and TE): blending in a player's season or recent scoring, or correcting for how he has beaten his projections, all called close start/sit decisions a little worse. Sleeper's projection was right on <span class="num">61%</span> of close calls (two players at the same position projected within 5 points).</p>
       <p><strong>How sure a swap is</strong> comes from <span class="num">259,000</span> real pairs of players at the same position in the same week: how often the higher-projected one actually scored more, by the gap between them. A 1-point gap is a coin flip (<span class="num">52%</span>), 4-5 points is right about <span class="num">70%</span> of the time, 10-15 points about <span class="num">90%</span>.</p>
+      <p><strong>Who should I start?</strong> uses the same table for any two or more players you pick, from your roster or anyone Sleeper projects that week: the gap between each one's projection and the top one's gives how often he'd outscore him.</p>
+    </section>
+
+    <section id="tools" class="card rounded-vault-sm p-5">
+      <h2>Waivers, Playoff Schedule, Rookie Draft</h2>
+      <p><strong>Waivers</strong> lists players on no roster in your league (taxi and IR included). This week: your best lineup on Sleeper's weekly projections with the player added, minus without; a player whose game has started can't be added. Rest of season: the same week-by-week lineups as the playoff odds (byes, injuries, matchups), with and without him, in points a week. Points a week is the number that best predicted how a team did the rest of the season in <span class="num">900,000+</span> real trades. Stash for later is KTC value. The drop suggestion is the least valuable player (KTC) outside your best lineup.</p>
+      <p><strong>Playoff Schedule</strong> averages each team's best lineup over your playoff weeks (from your league's settings), the same weekly lineups the title odds are simulated on, and compares it with the regular-season weeks left. Each team's weekly view uses Sleeper's projection for that week.</p>
+      <p><strong>Rookie Draft</strong> comes from every Sleeper dynasty rookie draft we've collected in your QB format: <span class="num">47,781</span> for the 2021-2025 classes. Each class is ordered by its players' median pick, counted only among the positions your league starts (an offense-only league's 2.01 is the 13th offensive player taken), and split into 12-team rounds: early is picks 1-4, mid 5-8, late 9-12. Each slot then shows what its players are worth on KTC today, in your format: a starter is <span class="num">4,000+</span>, a star <span class="num">7,000+</span>, a bust under <span class="num">1,000</span>. That's about 20 players per slot, so treat single percentages loosely. A class counts once it has a season played. Your picks are matched by their overall pick number, the same way they're priced: in a 10-team league a 2.01 is the 11th pick, a late 1st.</p>
     </section>
 
     <section id="odds" class="card rounded-vault-sm p-5">
@@ -211,7 +220,7 @@
 </div>
 
 <script src="vault-core.js?v=4ebb449b"></script>
-<script src="vault-nav.js?v=242e0ad3"></script>
+<script src="vault-nav.js?v=c2462132"></script>
 <script>
 // Fill every figure from the live settings so this page can't drift from the
 // math it describes.

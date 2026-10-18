@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=11a779a9">
+<link rel="stylesheet" href="tailwind.css?v=8122fe77">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -32,13 +32,17 @@
 </div>
 
 <script src="vault-core.js?v=4ebb449b"></script>
-<script src="vault-nav.js?v=242e0ad3"></script>
+<script src="vault-nav.js?v=c2462132"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-17', items: [
+    { kind: 'new', page: 'Waivers', text: "New in Tools: the best free agents in your league for your team. Three lists: who adds the most to your best lineup this week (Sleeper's weekly projections), who adds the most points a week for the rest of the season (byes, injuries and matchups counted), and the free agents with the most dynasty value to stash. Filter by position, and it names the least valuable player outside your best lineup if you need a roster spot." },
+    { kind: 'new', page: 'Playoff Schedule', text: "New in Tools: every team's best lineup in your playoff weeks against its level the rest of the season, next to playoff and title odds, so you can see who peaks at the right time. Pick a team to see its lineup for each playoff week, with every starter's opponent and who's on bye." },
+    { kind: 'new', page: 'Rookie Draft', text: "New in Tools: what each rookie pick has really turned into. From 47,781 real Sleeper rookie drafts in your QB format (2021-2025 classes), the players taken at each slot and what they're worth on KTC today: a mid 1st became a median 4,300, with 65% starters; an early 2nd, about 2,200. Your own picks are matched to that record, and the latest class's draft order sits below, counted among the positions your league starts (no linebackers in an offense-only league)." },
+    { kind: 'improved', page: 'Start/Sit', text: "Who should I start?: pick two or more players, from your roster or anyone Sleeper projects this week, and see who to start and how often each outscores the others. One click opens them side by side in Compare Players." },
     { kind: 'new', page: 'Start/Sit', text: "New Tools section with Start/Sit: this week's lineup against the best one your roster can field, on Sleeper's weekly projections in your league's scoring. It flags starters who are out, on IR or on a bye, locks players whose game has started, and says how sure each swap is: a 1-point projection gap is a coin flip (52%), 4-5 points is right about 70% of the time, 10+ about 90% (from 259,000 real pairs of players). Tested first: nothing we tried beat Sleeper's own projections on close calls." },
     { kind: 'improved', page: 'League Overview', text: "Live scores in the projections: once the week's first game kicks off, the week in progress starts from the points already on the board. Starters whose NFL team has played keep their real points (a zero included), and only the starters still to play are simulated. Before, the whole week was simulated from scratch until it was final. Projected records and playoff and title odds on League Overview, the Trade Calculator's This season, and Trade Grades." },
     { kind: 'improved', page: 'How We Grade', text: "The playoff and title odds section says how accurate they've been: on 949,362 real team-sides from 2024 and 2025 trades, teams given 30% to make the playoffs made it about 30% of the time (average miss under 1 point; about 1 point for title odds). It also now says the season is simulated 4,000 times, as League Overview does, not 2,000." },

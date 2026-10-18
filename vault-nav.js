@@ -30,7 +30,10 @@
       { key: 'managers', short: 'Managers', label: 'Managers', href: 'managers.html' }
     ] },
     { label: 'Tools', tabs: [
-      { key: 'startsit', short: 'Start/Sit', label: 'Start/Sit', href: 'startsit.html' }
+      { key: 'startsit', short: 'Start/Sit', label: 'Start/Sit', href: 'startsit.html' },
+      { key: 'waivers', short: 'Waivers', label: 'Waivers', href: 'waivers.html' },
+      { key: 'playoffs', short: 'Playoffs', label: 'Playoff Schedule', href: 'playoffs.html' },
+      { key: 'rookies', short: 'Rookie Draft', label: 'Rookie Draft', href: 'rookies.html' }
     ] }
   ];
   const TABS = GROUPS.flatMap(g => g.tabs);
