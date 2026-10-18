@@ -39,7 +39,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=4ebb449b"></script>
+<script src="vault-core.js?v=f9b44aea"></script>
 <script src="vault-nav.js?v=c2462132"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
@@ -196,6 +196,10 @@ function seasonEffect(g) {
       strengthDelta: new Map([[A.rosterId, weekly('A')], [B.rosterId, weekly('B')]]) });
     const row = (team, d) => ({ team, now: seasonBase.get(team.rosterId), without: without.get(team.rosterId), ppw: -d });
     out = [row(A, dA), row(B, dB)];
+  } else if (A && B && (pA.length || pB.length)) {
+    // Someone in it has since moved on: no clean "without this trade" to run.
+    const gone = [...pA.filter(p => !A.plist.some(x => x.id === p.id)), ...pB.filter(p => !B.plist.some(x => x.id === p.id))].map(p => p.name);
+    out = { gone };
   }
   seasonMemo.set(g.tx.transaction_id, out);
   return out;
@@ -203,6 +207,10 @@ function seasonEffect(g) {
 function seasonHtml(g) {
   const rows = seasonEffect(g);
   if (!rows) return '';
+  if (rows.gone) {
+    const names = rows.gone.map(n => Vault.escapeHtml(n));
+    return `<div class="mt-3 pt-3 border-t border-white/5 text-[12px] text-zinc-400"><span class="text-[11px] uppercase tracking-wider text-zinc-400 mr-2">This season</span>Not shown: ${names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have' : names[0] + ' has'} since left the team that got ${names.length > 1 ? 'them' : 'him'}, so there's no clean "without this trade" to compare.</div>`;
+  }
   if (rows.every(r => Math.abs(r.ppw) < 0.05)) {
     return `<div class="mt-3 pt-3 border-t border-white/5 text-[12px] text-zinc-400"><span class="text-[11px] uppercase tracking-wider text-zinc-400 mr-2">This season</span>Neither starting lineup changed, so no effect on either team's odds this season.</div>`;
   }

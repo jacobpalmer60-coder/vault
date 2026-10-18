@@ -56,7 +56,7 @@
   </section>
 </div>
 
-<script src="vault-core.js?v=4ebb449b"></script>
+<script src="vault-core.js?v=f9b44aea"></script>
 <script src="vault-nav.js?v=c2462132"></script>
 <script>
 /* ============================================================
@@ -100,8 +100,8 @@ async function jobs() {
     const real = runs.filter(r => r.conclusion !== 'cancelled');
     const last = real[0] || runs[0], done = real.find(r => r.status === 'completed');
     const ok = done ? done.conclusion === 'success' && fresh(done.updated_at, hours) : false;
-    const state = last.status === 'completed' ? (last.conclusion === 'success' ? 'Succeeded' : `Ended: ${last.conclusion}`) : last.status === 'in_progress' ? 'Running now' : 'Queued';
-    const strip = runs.slice().reverse().map(r => `<span title="${esc(new Date(r.created_at).toLocaleString())}: ${esc(r.status === 'completed' ? r.conclusion : r.status)}" class="inline-block w-3 h-3 rounded-sm ${r.status !== 'completed' ? 'bg-sky-400/70' : r.conclusion === 'success' ? 'bg-emerald-400/70' : r.conclusion === 'cancelled' ? 'bg-zinc-600' : 'bg-rose-400/70'}"></span>`).join('');
+    const state = last.status === 'completed' ? (last.conclusion === 'success' ? 'Succeeded' : last.conclusion === 'skipped' ? 'Paused' : `Ended: ${last.conclusion}`) : last.status === 'in_progress' ? 'Running now' : 'Queued';
+    const strip = runs.slice().reverse().map(r => `<span title="${esc(new Date(r.created_at).toLocaleString())}: ${esc(r.status === 'completed' ? r.conclusion : r.status)}" class="inline-block w-3 h-3 rounded-sm ${r.status !== 'completed' ? 'bg-sky-400/70' : r.conclusion === 'success' ? 'bg-emerald-400/70' : r.conclusion === 'cancelled' || r.conclusion === 'skipped' ? 'bg-zinc-600' : 'bg-rose-400/70'}"></span>`).join('');
     return `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
         <div class="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-zinc-400">${dot(ok)}${name} <span class="normal-case tracking-normal text-zinc-500">· ${every}</span></div>
         <div class="text-[16px] font-semibold text-zinc-100 mt-1">${state}</div>

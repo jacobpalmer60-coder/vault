@@ -3150,7 +3150,9 @@ const Vault = {
     scan(outgoing, false);
 
     const posFit = beforeTeam.total ? Math.max(-3, Math.min(3, dollarSwing / beforeTeam.total * 120)) : 0;
-    return { posFit, notes };
+    // Positions the team both sends and gets, for the one-line summary (sideTheme).
+    const swapPos = ['QB', 'RB', 'WR', 'TE'].filter(P => incoming.some(a => a.pos === P) && outgoing.some(a => a.pos === P));
+    return { posFit, notes, swapPos };
   },
 
   /* A team's timeline — contending (score now), rebuilding (stockpile for later), or
@@ -3521,7 +3523,10 @@ const Vault = {
      name (small moves, or a flexible-timeline team with no signal either way). */
   sideTheme(posResult, dAge, dPicks, mode) {
     if (posResult && posResult.notes.length) {
-      const top = [...posResult.notes].sort((a, b) => (b.absDelta || 0) - (a.absDelta || 0))[0];
+      // A position the team both sends and gets (a WR for a WR) didn't get deeper or
+      // thinner in any way worth a headline: "trimmed WR depth" read wrong there.
+      const both = new Set(posResult.swapPos || []);
+      const top = posResult.notes.filter(n => !both.has(n.pos)).sort((a, b) => (b.absDelta || 0) - (a.absDelta || 0))[0];
       if (top && top.phrase) return { phrase: top.phrase, tone: top.tone };
     }
     if (dAge <= -0.4) return { phrase: 'got younger', tone: 'good' };
@@ -4203,8 +4208,8 @@ const Vault = {
       // average can be dragged by one big swing, so otherwise say "leans".
       const mostly = n => n >= Math.ceil(s.trades * 0.6);
       if (s.avgAgeDelta <= -0.5) notes.push({ tone: 'neutral', text: mostly(s.youngerCount)
-        ? `Consistently gets younger through trades — ${s.youngerCount} of ${s.trades} deals (avg ${s.avgAgeDelta.toFixed(1)} yrs/trade).`
-        : `Leans younger through trades on average (${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
+        ? `Consistently gets younger through trades — ${s.youngerCount} of ${s.trades} deals (avg −${Math.abs(s.avgAgeDelta).toFixed(1)} yrs/trade).`
+        : `Leans younger through trades on average (−${Math.abs(s.avgAgeDelta).toFixed(1)} yrs/trade).` });
       else if (s.avgAgeDelta >= 0.5) notes.push({ tone: 'neutral', text: mostly(s.olderCount)
         ? `Consistently gets older through trades — ${s.olderCount} of ${s.trades} deals (avg +${s.avgAgeDelta.toFixed(1)} yrs/trade).`
         : `Leans older through trades on average (+${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
@@ -4220,7 +4225,7 @@ const Vault = {
         const [pos, net] = posEntries.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0];
         notes.push({ tone: 'neutral', text: net > 0
           ? `Net accumulates ${pos} value across trades (+${Math.round(net).toLocaleString()}).`
-          : `Net trades away ${pos} value across trades (${Math.round(net).toLocaleString()}).` });
+          : `Net trades away ${pos} value across trades (−${Math.round(Math.abs(net)).toLocaleString()}).` });
       }
       // Youth-vs-veteran tilt, using the same position-aware age bands the
       // archetype fit check relies on rather than a flat average age.
