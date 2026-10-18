@@ -257,8 +257,11 @@ const VAULT_CONFIG = {
   VERDICT_TIERS: [
     { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 7.5, rebuild: 0.87, flexible: 0.86 } },
     { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 4.0, rebuild: 0.79, flexible: 0.75 } },
-    { key: 'slight', min: 10, label: 'Slight edge', level: 'good', record: { contend: 2.7, rebuild: 0.73, flexible: 0.65 } },
-    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.6, rebuild: 0.53, flexible: 0.51 } },
+    // Slight edge from +6 (was +10, 2026-10-18): on the full backfill, scores of -6 to
+    // +6 came out a coin flip (40-58% ahead on value later) but +6 to +10 came out
+    // ahead 61%, with Slight edge rather than Toss-up. About 1 verdict in 10 moved.
+    { key: 'slight', min: 6, label: 'Slight edge', level: 'good', record: { contend: 2.3, rebuild: 0.70, flexible: 0.63 } },
+    { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.3, rebuild: 0.49, flexible: 0.49 } },
     { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: -3.6, rebuild: 0.30, flexible: 0.37 } },
     { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: -6.2, rebuild: 0.22, flexible: 0.25 } },
     { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: -16.3, rebuild: 0.13, flexible: 0.15 } }

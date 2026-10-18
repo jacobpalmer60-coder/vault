@@ -31,13 +31,16 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=1a734a85"></script>
+<script src="vault-core.js?v=629b9d35"></script>
 <script src="vault-nav.js?v=c2462132"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-18', items: [
+    { kind: 'changed', page: 'Everywhere', text: "Slight edge now starts at a score of +6 instead of +10, and Toss-up covers −6 to +6. On 1,028,227 real trades, scores between −6 and +6 really were a coin flip (49% came out ahead), but +6 to +10 came out ahead 61% of the time, like the rest of Slight edge. About 1 verdict in 10 moves from Toss-up to Slight edge; in The League of Gold that's 3 sides of 25 trades, including Skat Happens' 2027 1st for Jameson Williams. Trade Coach's \"Slight edge or better\" moves with it." },
+  ] },
   { date: '2026-10-17', items: [
     { kind: 'improved', page: 'Trade Calculator', text: "The track record under each verdict is re-measured on 1,028,227 real trades from 43,634 leagues (it was about 30,000 trades). The tiers held up in 2024 and 2025 and in Superflex and 1QB alike. For contenders, the line now compares with the average contender who traded: teams that trade at all beat their playoff odds by about 2 points, so a Toss-up used to read as if it helped. A Great trade: contenders did 7.5 points better than that; a Terrible trade, 16 worse. For rebuilders, 87% of Great trades were still ahead on value a year or more later, against 13% of Terrible ones. Verdicts themselves didn't change." },
     { kind: 'fixed', page: 'Trade Grades', text: "A trade that swaps one player for another at the same position (a WR for a WR) no longer gets summed up as \"trimmed WR depth\". And when a trade's This season effect can't be shown because a player in it has since been traded again, the card now says so instead of leaving the section out." },
