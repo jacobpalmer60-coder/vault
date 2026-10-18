@@ -1,6 +1,6 @@
 # VaultValues track record
 
-Updated 2026-10-17 12:22 UTC. Each night's values are scored on trades made after them, which they never saw, next to KTC on the same trades. **Relative error**: each trade's imbalance against how spread out the values are (lower is better; a flatter value set can't game it). "Replay" nights were rebuilt afterwards by refitting day by day.
+Updated 2026-10-18 12:48 UTC. Each night's values are scored on trades made after them, which they never saw, next to KTC on the same trades. **Relative error**: each trade's imbalance against how spread out the values are (lower is better; a flatter value set can't game it). "Replay" nights were rebuilt afterwards by refitting day by day.
 
 ## The pass bar
 
@@ -11,7 +11,7 @@ Over 8 weeks: beat what the site grades with today (KTC values on its calibrated
 | sf_tep | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.977 | 0.8% | 99.9% / 96.9% | Building (5/8 weeks) |
 | sf | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.981 | 0.9% | 99.9% / 96.9% | Building (5/8 weeks) |
 | sf_tepp | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.971 | 1.0% | 99.8% / 96.3% | Building (5/8 weeks) |
-| oneQB | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.955 | 0.9% | 99.9% / 97.0% | Building (5/8 weeks) |
+| oneQB | 5 | 0/5 | 0/5 | 5/5 | 5/5 | 0.956 | 0.9% | 99.9% / 97.0% | Building (5/8 weeks) |
 | oneQB_tep | 5 | 0/5 | 0/5 | 5/5 | 3/5 | 0.943 | 0.9% | 98.6% / 95.9% | Building (5/8 weeks) |
 | oneQB_tepp | 3 | 0/3 | 0/3 | 2/3 | 0/3 | 0.893 | 0.8% | 95.1% / 95.0% | Building (3/8 weeks) |
 
