@@ -34,6 +34,19 @@ const VAULT_CONFIG = {
   // since read 84% / 82% / 74% Fair, 2-for-4 and 2-for-5+ improve, and every
   // other shape is unchanged (VaultValues many-pieces-fit.js RULE=excess).
   EXTRA_PIECE_WEIGHT: 0.25,
+  // The verdict's value read, beyond the price (2026-10-18, VaultValues
+  // drift-model.js / drift-tune.js on 2.2M team-sides from 2024 and 2025): at the
+  // same trade value, picks gained on players (the side that got only picks for
+  // players: ahead a year later 59% of the time, 77% two years on; KTC's scale is
+  // relative, and every new rookie class pushes existing players down), and
+  // consolidating into a best piece under 3,000 lost (39% ahead). Neither is in
+  // timeline fit already (it adds nothing to either once they're counted). Sizes
+  // chosen by how well the verdict then tracked value later, each season checked
+  // on its own; contenders' playoff read barely moves. The price (Fair / Lopsided /
+  // Unfair) stays on KTC: these move only "is it good for you".
+  PICK_DRIFT_PCT: 5,
+  CHEAP_CONSOLIDATION_PCT: -10,
+  CHEAP_CONSOLIDATION_BELOW: 3000,
   FAIR_CURVE: {
     values: [1500,2500,3500,4500,5500,6500,7500,8500,9500],
     closeness: [0.4,0.55,0.65,0.75,0.85,0.95],
@@ -1421,7 +1434,8 @@ const Vault = {
     const timelineFit = (tl?.fit || 0) + (arch?.archFit || 0);
     const valuePct = side === 'A' ? -g.signedPctDiff : g.signedPctDiff; // signedPctDiff > 0: A gave more
     const ptsPerWeek = (g['dOpt' + side] || 0) + (dep.perWeek || 0);
-    return Vault.tradeImprovement({ valuePct, rosterFit, timelineFit, mode: tl?.mode || 'flexible', ptsPerWeek });
+    const tilt = side === 'A' ? Vault.verdictValueTilt(g.toA, g.toB) : Vault.verdictValueTilt(g.toB, g.toA);
+    return Vault.tradeImprovement({ valuePct, rosterFit, timelineFit, mode: tl?.mode || 'flexible', ptsPerWeek, valueTilt: tilt.pct });
   },
   // The price alone, in words: Fair / Lopsided / Unfair. (fairnessBucket's Good
   // and Great add fit to a Fair price; on the page those words belong to the
@@ -2684,9 +2698,10 @@ const Vault = {
      Bad / Terrible). Set 2026-10-07 on real offers: Chase +
      Burrow for Mahomes, Pickens and three 1sts reads Bad for a contender (-6:
      10% more value, but 3.9 points a week less) and Good for a rebuilder (+13). */
-  tradeImprovement({ valuePct, rosterFit, timelineFit, mode, ptsPerWeek }) {
+  tradeImprovement({ valuePct, rosterFit, timelineFit, mode, ptsPerWeek, valueTilt = 0 }) {
     // Rebuilding: VAULT_CONFIG.REBUILD_READ_WEIGHTS (the same blend since 2026-10-09).
-    const own = Vault.ownTradeRead(valuePct, rosterFit, timelineFit, mode === 'rebuild' ? VAULT_CONFIG.REBUILD_READ_WEIGHTS : undefined);
+    // valueTilt (Vault.verdictValueTilt): picks' drift and cheap consolidation, on top of the price.
+    const own = Vault.ownTradeRead(valuePct + (valueTilt || 0), rosterFit, timelineFit, mode === 'rebuild' ? VAULT_CONFIG.REBUILD_READ_WEIGHTS : undefined);
     // Contending's 2 per point a week (2026-10-08): 3 was chosen on the first
     // 2025 pull, whose stored value % had about a quarter of trades with one side
     // at zero. Rechecked on clean value % over 2024 and 2025 (held-out half), 2
@@ -2696,7 +2711,24 @@ const Vault = {
     const [wOwn, wPts] = mode === 'contend' ? [0.5, 2] : mode === 'rebuild' ? [1, 0] : [0.75, 1];
     const score = wOwn * own + wPts * (ptsPerWeek || 0);
     const t = Vault.verdictTier(score);
-    return { score, own, level: t.level, tier: t.key, label: t.label, record: t.record, mode, valuePct, rosterFit, timelineFit, ptsPerWeek: ptsPerWeek || 0, wOwn, wPts };
+    return { score, own, level: t.level, tier: t.key, label: t.label, record: t.record, mode, valuePct, rosterFit, timelineFit, ptsPerWeek: ptsPerWeek || 0, wOwn, wPts, valueTilt: valueTilt || 0 };
+  },
+  /* What the verdict adds to the price for one side, in value % (VAULT_CONFIG.
+     PICK_DRIFT_PCT, CHEAP_CONSOLIDATION_PCT): the share of pieces got that are picks
+     minus the share given (−1..1) times the pick drift, and the cheap-consolidation
+     cost when this side gets fewer pieces and a bigger best piece worth under
+     CHEAP_CONSOLIDATION_BELOW (its partner gets the mirror). why: the bigger of the two. */
+  verdictValueTilt(got, gave) {
+    const C = VAULT_CONFIG;
+    if (!got || !gave || !got.length || !gave.length) return { pct: 0, why: null };
+    const share = l => l.filter(a => a.type === 'pick').length / l.length;
+    const best = l => Math.max(0, ...l.map(a => a.value || 0));
+    const pick = C.PICK_DRIFT_PCT * (share(got) - share(gave));
+    const bg = best(got), bv = best(gave);
+    const cons = got.length < gave.length && bg > bv && bg < C.CHEAP_CONSOLIDATION_BELOW ? C.CHEAP_CONSOLIDATION_PCT
+      : gave.length < got.length && bv > bg && bv < C.CHEAP_CONSOLIDATION_BELOW ? -C.CHEAP_CONSOLIDATION_PCT : 0;
+    const pct = pick + cons;
+    return { pct, why: !pct ? null : Math.abs(cons) >= Math.abs(pick) ? 'cheap' : 'picks', pick, cons };
   },
 
   verdictTier(score) {
