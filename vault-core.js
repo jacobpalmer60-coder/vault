@@ -77,6 +77,10 @@ const VAULT_CONFIG = {
   // ahead, Terrible 13%; were 86% and 17%).
   REBUILD_READ_WEIGHTS: { value: 70, roster: 15, timeline: 15 },
   PICK_TIER_SPREAD: { 1: { early: 1.10, late: 0.97 }, 2: { early: 1.08, late: 1.00 } },
+  // Checked 2026-10-17 on 949,362 in-season team-sides (judged 2024-2025 backfill,
+  // VaultValues odds-check.js): average miss 0.7 pts (playoffs), 1.0 (titles). Teams
+  // that trade win titles a bit more often than their odds in every band (selection:
+  // active managers), so a refit on those sides (odds-refit.js) was not applied.
   ODDS_CALIBRATION: { playoffs: { a: 0.88, b: 0.12 }, title: { a: 0.76, b: -0.22 } },
   PROJECTIONS_URL: 'data/projections.json',
   // How many future draft years to track as tradeable assets. The actual starting

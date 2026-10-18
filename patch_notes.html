@@ -31,13 +31,16 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=06b4f918"></script>
+<script src="vault-core.js?v=2e186461"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-17', items: [
+    { kind: 'improved', page: 'How We Grade', text: "The playoff and title odds section says how accurate they've been: on 949,362 real team-sides from 2024 and 2025 trades, teams given 30% to make the playoffs made it about 30% of the time (average miss under 1 point; about 1 point for title odds). It also now says the season is simulated 4,000 times, as League Overview does, not 2,000." },
+  ] },
   { date: '2026-10-11', items: [
     { kind: 'changed', page: 'Trade Grades', text: "Completed trades are won and lost on KTC values only, then and now: each piece at its KTC value on the trade's day and today, combined the way real trades combine them (trade value). Market prices no longer touch them; they stay in the Trade Calculator, for trades you're weighing now. A few stale market reads had flipped who won: Cyrus Allen read 140% over KTC in July, before KTC caught up, so Skat Happens' Cyrus Allen for Tory Horton deal (871 less on KTC) counted as a 1,270 win. The \"Acceptable\" market line is gone from the cards too." },
     { kind: 'changed', page: 'Managers', text: "W-L, Net Then and Net Now, best and worst moves, and Who pays up all go by KTC values (trade value), the same as Trade Grades. Who pays up now reads as paid over or under KTC value." },
