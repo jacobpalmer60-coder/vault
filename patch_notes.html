@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=1f3bf48a">
+<link rel="stylesheet" href="tailwind.css?v=11a779a9">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -32,13 +32,14 @@
 </div>
 
 <script src="vault-core.js?v=4ebb449b"></script>
-<script src="vault-nav.js?v=7ea8e4f2"></script>
+<script src="vault-nav.js?v=242e0ad3"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-17', items: [
+    { kind: 'new', page: 'Start/Sit', text: "New Tools section with Start/Sit: this week's lineup against the best one your roster can field, on Sleeper's weekly projections in your league's scoring. It flags starters who are out, on IR or on a bye, locks players whose game has started, and says how sure each swap is: a 1-point projection gap is a coin flip (52%), 4-5 points is right about 70% of the time, 10+ about 90% (from 259,000 real pairs of players). Tested first: nothing we tried beat Sleeper's own projections on close calls." },
     { kind: 'improved', page: 'League Overview', text: "Live scores in the projections: once the week's first game kicks off, the week in progress starts from the points already on the board. Starters whose NFL team has played keep their real points (a zero included), and only the starters still to play are simulated. Before, the whole week was simulated from scratch until it was final. Projected records and playoff and title odds on League Overview, the Trade Calculator's This season, and Trade Grades." },
     { kind: 'improved', page: 'How We Grade', text: "The playoff and title odds section says how accurate they've been: on 949,362 real team-sides from 2024 and 2025 trades, teams given 30% to make the playoffs made it about 30% of the time (average miss under 1 point; about 1 point for title odds). It also now says the season is simulated 4,000 times, as League Overview does, not 2,000." },
   ] },

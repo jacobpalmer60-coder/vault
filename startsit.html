@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>Start/Sit — The Vault</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="tailwind.css?v=11a779a9">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<main class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" data-league-required>
+  <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+    <div>
+      <h1 class="display text-[28px] font-semibold gold-text">Start/Sit</h1>
+      <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
+      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">This week's lineup against the best one your roster can field, on Sleeper's projections in your league's scoring. Each swap says how often the higher-projected player really outscores the other at that gap.</p>
+    </div>
+    <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
+  </div>
+  <section id="body"></section>
+  <p class="text-[12px] text-zinc-500 mt-8 max-w-[720px] leading-relaxed">Why Sleeper's projections: on every week of 2024 and 2025, nothing we tried beat them on close calls (blending in a player's season or recent scoring, or correcting for how he's beaten his projections, all did a little worse). How sure a swap is comes from 259,000 real pairs of players at the same position: a 1-point gap is a coin flip (52%), 4-5 points is right about 70% of the time, 10+ points about 90%. Players whose game has started are locked.</p>
+</main>
+
+<script src="vault-core.js?v=4ebb449b"></script>
+<script src="vault-nav.js?v=242e0ad3"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => Vault.escapeHtml(s == null ? '' : String(s));
+const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+// How often the higher-projected player scored more, by the gap between them
+// (VaultValues startsit-test.js: same position and week, 2024-2025).
+const SURE = [[0, 50], [0.5, 52.3], [1.5, 57.9], [2.5, 61.6], [3.5, 66.4], [4.5, 70.5], [6, 75.3], [8.5, 82.4], [12.5, 89.7], [17, 94.6]];
+function sureOf(gap) {
+  if (gap >= SURE[SURE.length - 1][0]) return SURE[SURE.length - 1][1];
+  for (let i = 1; i < SURE.length; i++) if (gap <= SURE[i][0]) { const [x0, y0] = SURE[i - 1], [x1, y1] = SURE[i]; return y0 + (y1 - y0) * (gap - x0) / (x1 - x0); }
+  return 50;
+}
+const OUT = new Set(['Out', 'IR', 'PUP', 'Sus', 'NA', 'DNR']);
+const SLOT_LABEL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', FLEX: 'FLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T', SUPER_FLEX: 'SFLX', K: 'K', DEF: 'DEF' };
+let ctx = null;
+
+async function load() {
+  const id = Vault.getLeagueId();
+  try {
+    const { league, users, rosters, players } = await Vault.fetchSleeperCore(id);
+    const state = await fetch('https://api.sleeper.app/v1/state/nfl').then(r => r.json());
+    const week = +(state.display_week || state.week);
+    if (state.season_type !== 'regular' || String(state.season) !== String(league.season)) {
+      $('#status').textContent = league.name;
+      $('#body').innerHTML = `<div class="card rounded-vault-sm p-5 text-[14px] text-zinc-300">No regular-season games this week. Start/Sit opens again when the season is on.</div>`;
+      return;
+    }
+    const q = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'].map(p => `position[]=${p}`).join('&');
+    const [matchups, proj, stats] = await Promise.all([
+      fetch(`https://api.sleeper.app/v1/league/${id}/matchups/${week}`).then(r => r.json()).catch(() => []),
+      fetch(`https://api.sleeper.app/projections/nfl/${league.season}/${week}?season_type=regular&${q}`).then(r => r.json()).catch(() => []),
+      fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${league.season}/${week}`).then(r => r.json()).catch(() => ({}))
+    ]);
+    const projById = new Map((proj || []).filter(r => r && r.player_id).map(r => [String(r.player_id), { pts: Vault.scoreStats(r.stats || {}, league.scoring_settings || {}), opp: r.opponent, team: r.team }]));
+    const teamsThisWeek = new Set((proj || []).map(r => r.team).filter(Boolean));
+    const played = new Set(Object.keys(stats || {}).map(pid => players[pid]?.team).filter(Boolean));
+    const userMap = new Map(users.map(u => [u.user_id, u]));
+    const teams = rosters.map(r => { const u = userMap.get(r.owner_id) || {}; return { rosterId: r.roster_id, name: u.metadata?.team_name || u.display_name || `Team ${r.roster_id}`, roster: r }; });
+    ctx = { league, players, week, matchups, projById, teamsThisWeek, played, teams };
+    const sel = $('#teamSelect');
+    sel.innerHTML = teams.map(t => `<option value="${t.rosterId}">${esc(t.name)}</option>`).join(''); sel.classList.remove('hidden');
+    const asked = new URLSearchParams(location.search).get('team');
+    const mine = Vault.getMyTeamId ? Vault.getMyTeamId(id) : null;
+    const start = teams.find(t => String(t.rosterId) === asked) || teams.find(t => String(t.rosterId) === String(mine)) || teams[0];
+    sel.value = String(start.rosterId);
+    sel.onchange = () => { render(teams.find(t => String(t.rosterId) === sel.value)); const u = new URL(location.href); u.searchParams.set('team', sel.value); history.replaceState(null, '', u); };
+    $('#status').textContent = `Week ${week} • ${league.name}${played.size ? ` • ${played.size} NFL teams have played` : ''}`;
+    render(start);
+  } catch (e) {
+    console.error(e);
+    $('#status').textContent = 'Could not load this week: ' + e.message;
+  }
+}
+
+// One player this week: projection in league scoring (0 when out or on bye),
+// whether his game has started (locked, with points so far), and why not.
+function playerWeek(pid, entry) {
+  const { players, projById, teamsThisWeek, played } = ctx;
+  const p = players[pid] || {}, name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.full_name || pid;
+  const pos = p.position === 'DEF' ? 'DEF' : (p.fantasy_positions || [p.position])[0] || p.position;
+  const team = p.team, pr = projById.get(String(pid));
+  const locked = !!team && played.has(team);
+  const live = entry && entry.players_points ? +entry.players_points[pid] || 0 : 0;
+  const injury = p.injury_status || '';
+  const bye = !!team && !teamsThisWeek.has(team) && !pr;
+  const out = OUT.has(injury) || bye || !team;
+  const projPts = out ? 0 : (pr ? pr.pts : 0);
+  return { id: String(pid), name, pos, team, opp: pr?.opp || '', locked, live, injury, bye, out, proj: locked ? live : projPts, projPts };
+}
+
+function render(t) {
+  const { league, matchups } = ctx;
+  const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
+  const entry = (matchups || []).find(m => m.roster_id === t.rosterId);
+  const set = (entry?.starters || t.roster.starters || []).map(String);
+  const taxi = new Set((t.roster.taxi || []).map(String)), reserve = new Set((t.roster.reserve || []).map(String));
+  const all = (t.roster.players || []).map(String).filter(pid => !taxi.has(pid) && !reserve.has(pid));
+  const pw = new Map(all.concat(set).filter(x => x && x !== '0').map(pid => [pid, playerWeek(pid, entry)]));
+  // Locked starters keep their slot; the rest is filled from players who haven't played.
+  const lockedSlots = new Set(), lockedIds = new Set();
+  slots.forEach((s, i) => { const pid = set[i]; if (pid && pid !== '0' && pw.get(pid)?.locked) { lockedSlots.add(i); lockedIds.add(pid); } });
+  const openSlots = slots.map((s, i) => [s, i]).filter(([, i]) => !lockedSlots.has(i));
+  const pool = [...pw.values()].filter(x => !x.locked && all.includes(x.id)).map(x => ({ id: x.id, name: x.name, pos: x.pos, ppg: x.projPts }));
+  const best = Vault.optimalLineupDetail(pool, openSlots.map(([s]) => s));
+  const bestBySlot = new Map(openSlots.map(([, i], k) => [i, best.starters[k]]));
+  const setTotal = slots.reduce((s, _, i) => s + (pw.get(set[i])?.proj || 0), 0);
+  const bestTotal = slots.reduce((s, _, i) => s + (lockedSlots.has(i) ? (pw.get(set[i])?.proj || 0) : (bestBySlot.get(i)?.ppg || 0)), 0);
+  // Swaps: players the best lineup starts that yours doesn't, against yours it benches.
+  const setOpen = new Set(slots.map((_, i) => set[i]).filter((pid, i) => pid && pid !== '0' && !lockedSlots.has(i)));
+  const bestIds = new Set(best.starters.map(s => s.id).filter(Boolean));
+  const ins = [...bestIds].filter(id => !setOpen.has(id)).map(id => pw.get(id)).sort((a, b) => b.projPts - a.projPts);
+  const outs = [...setOpen].filter(id => !bestIds.has(id)).map(id => pw.get(id)).filter(Boolean).sort((a, b) => a.proj - b.proj);
+  const emptySet = slots.map((_, i) => i).filter(i => !lockedSlots.has(i) && (!set[i] || set[i] === '0'));
+  const swaps = ins.map((a, k) => ({ a, b: outs[k] || null }));
+  // The Best column: your lineup with each swap made where it legally fits. When the
+  // player coming in can't play the slot he frees (a WR where a QB was benched),
+  // one of your starters who can slides over and the new player takes his slot.
+  const ELIG = { FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'] };
+  const fits = (slot, pos) => (ELIG[slot] || [slot]).includes(pos);
+  const lineup = slots.map((_, i) => (set[i] && set[i] !== '0' ? set[i] : null));
+  const moved = new Map(); // player id -> slot he moves to
+  swaps.forEach(sw => {
+    const { a, b } = sw;
+    let i = b ? lineup.indexOf(b.id) : lineup.findIndex((x, k) => !x && !lockedSlots.has(k) && fits(slots[k], a.pos));
+    if (i < 0) i = lineup.findIndex((x, k) => !x && !lockedSlots.has(k));
+    if (i < 0) return;
+    if (fits(slots[i], a.pos)) { lineup[i] = a.id; return; }
+    const j = lineup.findIndex((c, k) => k !== i && c && !lockedSlots.has(k) && fits(slots[i], pw.get(c)?.pos) && fits(slots[k], a.pos));
+    if (j < 0) { lineup[i] = a.id; return; }
+    const c = lineup[j]; lineup[i] = c; lineup[j] = a.id; moved.set(c, slots[i]); sw.moves = { c: pw.get(c), slot: slots[i] };
+  });
+  const flag = x => x.bye ? 'on bye' : x.injury ? x.injury : (!x.team ? 'no team' : '');
+  const card = s => {
+    const { a, b } = s, gap = a.projPts - (b ? b.proj : 0);
+    const certain = !b || b.out;
+    const sure = certain ? null : Math.round(sureOf(gap));
+    const tone = certain ? 'border-emerald-400/40' : sure >= 70 ? 'border-emerald-400/25' : 'border-white/10';
+    return `<div class="card rounded-vault-sm p-4 border ${tone}">
+      <div class="text-[15px] text-zinc-100"><span class="text-emerald-300 font-semibold">Start ${esc(a.name)}</span> <span class="text-zinc-400 text-[13px]">${esc(a.pos)} ${a.opp ? 'vs ' + esc(a.opp) : ''}</span>${b ? ` <span class="text-zinc-400">over</span> <span class="text-zinc-300">${esc(b.name)}</span>` : emptySet.length ? ' <span class="text-zinc-400">in your empty spot</span>' : ''}</div>
+      ${s.moves ? `<div class="text-[12px] text-zinc-400 mt-0.5">${esc(s.moves.c.name)} moves to ${SLOT_LABEL[s.moves.slot] || s.moves.slot}.</div>` : ''}
+      <div class="text-[13px] mt-1 ${certain ? 'text-emerald-300' : 'text-zinc-400'}">${b && b.out ? `${esc(b.name)} is ${esc(flag(b))}: ${f1(a.projPts)} projected against 0.` : !b ? `${f1(a.projPts)} projected against an empty spot.` : `+${f1(gap)} projected (${f1(a.projPts)} vs ${f1(b.proj)}) · right about ${sure}% of the time${sure < 58 ? ', close to a coin flip' : ''}`}</div>
+    </div>`;
+  };
+  const row = (s, i) => {
+    const mine = set[i] && set[i] !== '0' ? pw.get(set[i]) : null;
+    const now = lineup[i], altP = lockedSlots.has(i) || now === (mine ? mine.id : null) ? null : (now ? pw.get(now) : null), same = !altP;
+    const who = x => x ? `<span class="text-zinc-100">${esc(x.name)}</span> <span class="text-[12px] text-zinc-500">${esc(x.pos)}${x.opp ? ' vs ' + esc(x.opp) : ''}</span>${flag(x) ? ` <span class="text-[12px] ${x.out ? 'text-orange-300' : 'text-amber-300'}">${esc(flag(x))}</span>` : ''}` : '<span class="text-orange-300">Empty</span>';
+    const pts = x => x ? (x.locked ? `<span class="mono text-zinc-300">${f1(x.live)}</span> <span class="text-[11px] text-zinc-500">locked</span>` : `<span class="mono">${f1(x.proj)}</span>`) : '<span class="mono text-zinc-500">0.0</span>';
+    return `<tr class="border-t border-white/5">
+      <td class="py-2.5 pr-3 text-[12px] text-zinc-400 mono">${SLOT_LABEL[s] || s}</td>
+      <td class="py-2.5 pr-3">${who(mine)}</td><td class="py-2.5 pr-3 text-right">${pts(mine)}</td>
+      <td class="py-2.5 pl-4 hidden sm:table-cell">${same ? '<span class="text-[12px] text-zinc-500">same</span>' : `${who(altP)}`}</td><td class="py-2.5 text-right hidden sm:table-cell">${same ? '' : `<span class="mono text-emerald-300">${f1(altP ? altP.projPts : 0)}</span>`}</td>
+    </tr>`;
+  };
+  const gain = bestTotal - setTotal;
+  $('#body').innerHTML = `
+    <div class="flex flex-wrap items-end gap-x-8 gap-y-3 mb-5">
+      <div><div class="text-[11px] uppercase tracking-wider text-zinc-400">Your lineup</div><div class="num text-[30px] text-zinc-100">${f1(setTotal)}</div></div>
+      <div><div class="text-[11px] uppercase tracking-wider text-zinc-400">Best lineup</div><div class="num text-[30px] ${gain > 0.05 ? 'text-emerald-300' : 'text-zinc-100'}">${f1(bestTotal)}</div></div>
+      <div class="text-[13px] text-zinc-400 pb-1.5">${gain > 0.05 ? `+${f1(gain)} projected points from the changes below` : 'Your lineup is already the best one on these projections.'}${lockedSlots.size ? ` · ${lockedSlots.size} starter${lockedSlots.size === 1 ? '' : 's'} locked` : ''}</div>
+    </div>
+    ${swaps.length ? `<div class="grid sm:grid-cols-2 gap-3 mb-6">${swaps.map(card).join('')}</div>` : ''}
+    <div class="card rounded-vault-sm p-4 overflow-x-auto">
+      <table class="w-full text-[14px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="text-left font-normal pb-2">Slot</th><th class="text-left font-normal pb-2">Your starter</th><th class="text-right font-normal pb-2">Pts</th><th class="text-left font-normal pb-2 pl-4 hidden sm:table-cell">Best</th><th class="text-right font-normal pb-2 hidden sm:table-cell">Pts</th></tr></thead>
+      <tbody>${slots.map(row).join('')}</tbody></table>
+    </div>`;
+}
+load();
+</script>
+</body>
+</html>

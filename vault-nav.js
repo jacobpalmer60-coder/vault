@@ -28,6 +28,9 @@
       { key: 'grades', short: 'Grades', label: 'Trade Grades', href: 'trade_grades.html' },
       { key: 'database', short: 'Database', label: 'Trade Database', href: 'trade_database.html' },
       { key: 'managers', short: 'Managers', label: 'Managers', href: 'managers.html' }
+    ] },
+    { label: 'Tools', tabs: [
+      { key: 'startsit', short: 'Start/Sit', label: 'Start/Sit', href: 'startsit.html' }
     ] }
   ];
   const TABS = GROUPS.flatMap(g => g.tabs);
