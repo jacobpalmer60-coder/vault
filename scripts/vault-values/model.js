@@ -21,6 +21,17 @@
      one more than the other side sends count at `extra` of their value
      (EXTRA_PIECE_WEIGHT). Our values scored 0.13 against KTC's 0.22 on the same
      simple curve, but KTC on the site's formula scored ~0.10: the gap was the formula.
+     rankCurve (optional, 2026-10-18, user: "incorporate more 2-1 3-1 3-2 etc"): a
+     formula learned with the values, from every trade shape, on the same loss.
+     p = 1 + softplus(c0 + c1 z + c2 r + c3 r z), z = ln(the best piece's rank among
+     that week's assets), r = closeness of the two sides' best pieces; pieces past
+     one more than the other side sends count at sigmoid(e) of their value. By rank,
+     so it doesn't depend on the value scale (the site's table is on KTC's scale).
+     fitRank alternates values (Adam) and the formula's 5 numbers (coordinate search).
+     Left free, the first test drifted to an extreme (extra pieces worth ~0 and
+     close trades winner-take-all: trades "balance" trivially), so: pMax caps p
+     (6, the site table's highest), fixE keeps the extra-piece weight where it
+     was measured (25%), and each number stays within +-cMax.
    - Each trade's error is log(side A) - log(side B), scored with a Huber loss
      so lopsided trades and fleeces count, but can't dominate.
    - Values drift: a penalty on each week-to-week change (lambda) keeps them
@@ -36,9 +47,15 @@
    earlier one (warmFrom), which the day-by-day test uses. */
 
 class Model {
-  constructor(trades, { p = 1.5, pKnots = null, fair = null, lambda = 30, ridge = 0.002, delta = 0.25, minTrades = 15, trainUntilWeek = Infinity, prior = null, kappa = 0, kappaHalf = Infinity, kappaPick = null, keys = null } = {}) {
+  constructor(trades, { p = 1.5, pKnots = null, fair = null, rankCurve = null, extraWeight = null, lambda = 30, ridge = 0.002, delta = 0.25, minTrades = 15, trainUntilWeek = Infinity, prior = null, kappa = 0, kappaHalf = Infinity, kappaPick = null, keys = null } = {}) {
     Object.assign(this, { p, lambda, ridge, delta, kappa });
     this.pKnots = pKnots ? pKnots.map(([v, q]) => [Math.log(v), q]) : null;
+    // extraWeight (2026-10-18): with pKnots, pieces past one more than the other side
+    // sends count at this share (the site's EXTRA_PIECE_WEIGHT). By trade shape, our
+    // values beat KTC on 1-for-1, 2-for-1, 2-for-2 and 3-for-2 but lost on 3-for-1,
+    // 4+-for-1 and 4+-for-2, where every piece of a pile counted in full.
+    this.lnExtraW = extraWeight ? Math.log(extraWeight) : null;
+    this.rankCurve = rankCurve ? { c: [...rankCurve.c], e: rankCurve.e, pMax: rankCurve.pMax ?? 6, fixE: rankCurve.fixE ?? true, cMax: rankCurve.cMax ?? 6 } : null;
     this.fair = fair ? { ...fair, lv: fair.values.map(Math.log), lnExtra: Math.log(fair.extra ?? 1), strength: fair.strength ?? 1 } : null;
     // Assets common enough to rate (counted in the training trades only).
     const count = new Map();
@@ -119,6 +136,35 @@ class Model {
     }
     return p;
   }
+  // rankCurve: each week's values, negated and sorted ascending (= highest first), for ranks.
+  weekSorted(u) {
+    const out = [];
+    for (let w = 0; w < this.W; w++) { const col = new Float64Array(this.A); for (let a = 0; a < this.A; a++) col[a] = -u[a * this.W + w]; col.sort(); out.push(col); }
+    return out;
+  }
+  rankIn(sorted, x) { let lo = 0, hi = sorted.length; const nx = -x; while (lo < hi) { const m = (lo + hi) >> 1; if (sorted[m] < nx) lo = m + 1; else hi = m; } return lo + 1; }
+  static softplus(x) { return x > 30 ? x : Math.log1p(Math.exp(x)); }
+  rankP(z, r, c = this.rankCurve.c) { return Math.min(this.rankCurve.pMax, 1 + Model.softplus(c[0] + c[1] * z + c[2] * r + c[3] * r * z)); }
+  // Per trade under rankCurve: z, r, and which pieces are extras (past one more than the other side sends).
+  rankFeatures(xs, sides, sorted, extra) {
+    let bestA = -Infinity, bestB = -Infinity, nA = 0, nB = 0;
+    xs.forEach((x, i) => { if (sides[i] === 1) { nA++; if (x > bestA) bestA = x; } else { nB++; if (x > bestB) bestB = x; } });
+    const top = Math.max(bestA, bestB), r = Math.exp(Math.min(bestA, bestB) - top);
+    for (const [side, nOther] of [[1, nB], [-1, nA]]) {
+      const idx = xs.map((x, i) => i).filter(i => sides[i] === side).sort((i, j) => xs[j] - xs[i]);
+      idx.forEach((i, k) => { extra[i] = k >= nOther + 1 ? 1 : 0; });
+    }
+    return { z: Math.log(this.rankIn(sorted, top)), r, one: nA === 1 && nB === 1 };
+  }
+  // Which pieces are extras: past one more than the other side sends, by value within the side.
+  extraFlags(xs, sides, extra) {
+    let nA = 0, nB = 0;
+    sides.forEach(sd => { if (sd === 1) nA++; else nB++; });
+    for (const [side, nOther] of [[1, nB], [-1, nA]]) {
+      const idx = xs.map((x, i) => i).filter(i => sides[i] === side).sort((i, j) => xs[j] - xs[i]);
+      idx.forEach((i, k) => { extra[i] = k >= nOther + 1 ? 1 : 0; });
+    }
+  }
   // Each week's top log value (for pKnots), from the current values.
   weekTops(u) {
     const tops = new Float64Array(this.W).fill(-Infinity);
@@ -143,15 +189,32 @@ class Model {
     const wts = new Float64Array(this.pAsset.length);
     let loss = 0;
     const tops = this.pKnots || this.fair ? this.weekTops(u) : null;
-    const off = new Float64Array(64);
+    const off = new Float64Array(64), ext = new Float64Array(64);
+    const sorted = this.rankCurve ? this.weekSorted(u) : null, lnE = this.rankCurve ? Math.log(1 / (1 + Math.exp(-this.rankCurve.e))) : 0;
     for (let i = 0; i < this.n; i++) {
       const from = this.tStart[i], to = this.tStart[i + 1], wk = this.tWeek[i];
       let p = this.p, o = null;
-      if (this.fair) {
+      if (this.rankCurve) {
+        const xs = [], sd = [];
+        for (let j = from; j < to; j++) { xs.push(u[this.pAsset[j] * W + wk]); sd.push(this.pSide[j]); }
+        const f = this.rankFeatures(xs, sd, sorted[wk], ext);
+        p = f.one ? 1 : this.rankP(f.z, f.r);
+        for (let k = 0; k < xs.length; k++) off[k] = ext[k] ? lnE : 0;
+        o = off;
+      } else if (this.fair) {
         const xs = [], sd = [];
         for (let j = from; j < to; j++) { xs.push(u[this.pAsset[j] * W + wk]); sd.push(this.pSide[j]); }
         p = this.fairSetup(xs, sd, tops[wk], off); o = off;
-      } else if (tops) { let best = -Infinity; for (let j = from; j < to; j++) { const x = u[this.pAsset[j] * W + wk]; if (x > best) best = x; } p = this.pAt(best, tops[wk]); }
+      } else if (tops) {
+        let best = -Infinity; for (let j = from; j < to; j++) { const x = u[this.pAsset[j] * W + wk]; if (x > best) best = x; } p = this.pAt(best, tops[wk]);
+        if (this.lnExtraW != null) {
+          const xs = [], sd = [];
+          for (let j = from; j < to; j++) { xs.push(u[this.pAsset[j] * W + wk]); sd.push(this.pSide[j]); }
+          this.extraFlags(xs, sd, ext);
+          for (let k = 0; k < xs.length; k++) off[k] = ext[k] ? this.lnExtraW : 0;
+          o = off;
+        }
+      }
       const r = this.sideLog(u, wts, from, to, 1, wk, wts, p, o) - this.sideLog(u, wts, from, to, -1, wk, wts, p, o);
       const ar = Math.abs(r);
       loss += ar <= delta ? 0.5 * r * r : delta * (ar - 0.5 * delta);
@@ -190,6 +253,64 @@ class Model {
     return loss / this.n;
   }
 
+  // rankCurve: alternate the values (Adam) and the formula's numbers (coordinate
+  // search on the trades' loss with the values held), rounds times.
+  fitRank({ rounds = 4, iters = 150, lr = 0.05, warmIters = 60, log = null } = {}) {
+    for (let k = 0; k < rounds; k++) {
+      this.fit({ iters: k ? warmIters : iters, lr: k ? 0.02 : lr });
+      this._feat = null;
+      const before = this.tradeLossWith(this.rankCurve);
+      this.searchCurve();
+      if (log) log('  round ' + k + ': trade loss ' + (before / this.n).toFixed(5) + ' -> ' + (this.tradeLossWith(this.rankCurve) / this.n).toFixed(5) + ' c=' + this.rankCurve.c.map(x => x.toFixed(2)).join(',') + ' e=' + this.rankCurve.e.toFixed(2));
+    }
+    this.fit({ iters: warmIters, lr: 0.02 });
+    this._sorted = null; this._feat = null;
+  }
+  // Huber loss over the trades only, for formula numbers rc, values held (features cached).
+  tradeLossWith(rc) {
+    if (!this._feat) this.cacheFeatures();
+    const { z, r, one, xs, side, extra, start } = this._feat, lnE = Math.log(1 / (1 + Math.exp(-rc.e)));
+    let loss = 0;
+    for (let i = 0; i < this.n; i++) {
+      const p = one[i] ? 1 : this.rankP(z[i], r[i], rc.c);
+      let mA = -Infinity, mB = -Infinity;
+      for (let j = start[i]; j < start[i + 1]; j++) { const v = p * (xs[j] + (extra[j] ? lnE : 0)); if (side[j] === 1) { if (v > mA) mA = v; } else if (v > mB) mB = v; }
+      let sA = 0, sB = 0;
+      for (let j = start[i]; j < start[i + 1]; j++) { const v = p * (xs[j] + (extra[j] ? lnE : 0)); if (side[j] === 1) sA += Math.exp(v - mA); else sB += Math.exp(v - mB); }
+      const d = (mA + Math.log(sA)) / p - (mB + Math.log(sB)) / p, ad = Math.abs(d);
+      loss += ad <= this.delta ? 0.5 * d * d : this.delta * (ad - 0.5 * this.delta);
+    }
+    return loss;
+  }
+  cacheFeatures() {
+    const sorted = this.weekSorted(this.u), n = this.n, J = this.pAsset.length;
+    const f = { z: new Float64Array(n), r: new Float64Array(n), one: new Uint8Array(n), xs: new Float64Array(J), side: this.pSide, extra: new Uint8Array(J), start: this.tStart };
+    const ext = new Float64Array(64);
+    for (let i = 0; i < n; i++) {
+      const from = this.tStart[i], to = this.tStart[i + 1], wk = this.tWeek[i], xs = [], sd = [];
+      for (let j = from; j < to; j++) { xs.push(this.u[this.pAsset[j] * this.W + wk]); sd.push(this.pSide[j]); f.xs[j] = xs[xs.length - 1]; }
+      const ft = this.rankFeatures(xs, sd, sorted[wk], ext);
+      f.z[i] = ft.z; f.r[i] = ft.r; f.one[i] = ft.one ? 1 : 0;
+      for (let k = 0; k < xs.length; k++) f.extra[from + k] = ext[k];
+    }
+    this._feat = f;
+  }
+  searchCurve() {
+    const rc = this.rankCurve, keys = rc.fixE ? [0, 1, 2, 3] : [0, 1, 2, 3, 'e'];
+    const get = k => (k === 'e' ? rc.e : rc.c[k]), set = (k, v) => { if (k === 'e') rc.e = v; else rc.c[k] = v; };
+    let best = this.tradeLossWith(rc), step = 0.5;
+    while (step > 0.01) {
+      let moved = false;
+      for (const k of keys) for (const dir of [1, -1]) {
+        const old = get(k), nv = old + dir * step;
+        if (Math.abs(nv) > rc.cMax) continue;
+        set(k, nv);
+        const l = this.tradeLossWith(rc);
+        if (l < best - 1e-9) { best = l; moved = true; } else set(k, old);
+      }
+      if (!moved) step /= 2;
+    }
+  }
   // An asset's log value in a week (clamped to the fitted range); null if unrated.
   logValue(key, week) {
     const a = this.index.get(key);
@@ -201,6 +322,17 @@ class Model {
   // [log(side A), log(side B)] for a trade at a given week, or null if any piece is unrated.
   sides(t, week) {
     let p = this.p;
+    if (this.rankCurve) {
+      const w = Math.max(0, Math.min(this.W - 1, week - this.minWeek));
+      if (!this._sorted) this._sorted = this.weekSorted(this.u);
+      const xs = [...t.a, ...t.b].map(k => this.logValue(k, week));
+      if (xs.some(x => x == null)) return null;
+      const sd = [...t.a.map(() => 1), ...t.b.map(() => -1)], ext = new Array(xs.length);
+      const f = this.rankFeatures(xs, sd, this._sorted[w], ext), lnE = Math.log(1 / (1 + Math.exp(-this.rankCurve.e)));
+      p = f.one ? 1 : this.rankP(f.z, f.r);
+      const side = s => { const v = xs.map((x, i) => (sd[i] === s ? p * (x + (ext[i] ? lnE : 0)) : -Infinity)), m = Math.max(...v); return (m + Math.log(v.reduce((acc, y) => acc + (y === -Infinity ? 0 : Math.exp(y - m)), 0))) / p; };
+      return [side(1), side(-1)];
+    }
     if (this.fair) {
       const w = Math.max(0, Math.min(this.W - 1, week - this.minWeek));
       if (!this._tops) this._tops = this.weekTops(this.u);
@@ -216,6 +348,14 @@ class Model {
       if (!this._tops) this._tops = this.weekTops(this.u);
       const all = [...t.a, ...t.b].map(k => this.logValue(k, week)).filter(x => x != null);
       if (all.length) p = this.pAt(Math.max(...all), this._tops[w]);
+      if (this.lnExtraW != null) {
+        const xs = [...t.a, ...t.b].map(k => this.logValue(k, week));
+        if (xs.some(x => x == null)) return null;
+        const sd = [...t.a.map(() => 1), ...t.b.map(() => -1)], ext = new Array(xs.length);
+        this.extraFlags(xs, sd, ext);
+        const side = s2 => { const v = xs.map((x, i) => (sd[i] === s2 ? p * (x + (ext[i] ? this.lnExtraW : 0)) : -Infinity)), m = Math.max(...v); return (m + Math.log(v.reduce((acc, y) => acc + (y === -Infinity ? 0 : Math.exp(y - m)), 0))) / p; };
+        return [side(1), side(-1)];
+      }
     }
     const side = keys => {
       const xs = keys.map(k => this.logValue(k, week));
