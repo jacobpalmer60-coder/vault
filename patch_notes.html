@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=2e186461"></script>
+<script src="vault-core.js?v=4ebb449b"></script>
 <script src="vault-nav.js?v=7ea8e4f2"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-17', items: [
+    { kind: 'improved', page: 'League Overview', text: "Live scores in the projections: once the week's first game kicks off, the week in progress starts from the points already on the board. Starters whose NFL team has played keep their real points (a zero included), and only the starters still to play are simulated. Before, the whole week was simulated from scratch until it was final. Projected records and playoff and title odds on League Overview, the Trade Calculator's This season, and Trade Grades." },
     { kind: 'improved', page: 'How We Grade', text: "The playoff and title odds section says how accurate they've been: on 949,362 real team-sides from 2024 and 2025 trades, teams given 30% to make the playoffs made it about 30% of the time (average miss under 1 point; about 1 point for title odds). It also now says the season is simulated 4,000 times, as League Overview does, not 2,000." },
   ] },
   { date: '2026-10-11', items: [

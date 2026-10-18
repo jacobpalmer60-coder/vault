@@ -1891,6 +1891,7 @@ const Vault = {
       const gamesPlayed = Math.max(0, ...built.map(t => (t.record?.wins || 0) + (t.record?.losses || 0) + (t.record?.ties || 0)));
       const completedWeeks = Math.floor(gamesPlayed / gamesPerWeek);
       remainingWeeks = await Vault.fetchRemainingSchedule(leagueId, league, completedWeeks);
+      await Vault.attachLiveWeek(remainingWeeks, built, players, ppgMap, league);
       // Same trials and fixed seed as the Trade Calculator and Trade Grades, so the
       // odds hold still between visits and match the calculator's "before" numbers.
       const projections = Vault.simulateSeason(built, league, remainingWeeks, { trials: 4000, seed: 20260929 });
@@ -4301,6 +4302,42 @@ const Vault = {
   // given, every later week is simulated, including one that's in progress —
   // otherwise a live week (points already posted, not yet in wins/losses) was
   // skipped as "played" and dropped from the projection entirely.
+  /* The week in progress, scored live (user, 2026-10-17: "add live scores"). Once
+     the week's first NFL game has kicked off, each team's score that week is its
+     starters' points so far for players whose NFL team has played (Sleeper's live
+     stats: any player of that team with stats this week), plus the projection for
+     starters still to play (projected points per game, 0 if out that week). Only
+     that remaining part varies in Vault.simulateSeason. Sets wk.live = Map(rosterId
+     -> { banked, rest }) on the first week left; nothing changes before kickoff or
+     if the live stats can't be fetched. A game under way counts as played (its
+     players' points so far, not their rest of the game). */
+  async attachLiveWeek(remainingWeeks, teams, players, ppgMap, league) {
+    const wk = remainingWeeks && remainingWeeks[0];
+    if (!wk || !wk.entries || !wk.entries.length) return;
+    let stats;
+    try { stats = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${league.season}/${wk.week}`).then(r => (r.ok ? r.json() : null)); } catch { stats = null; }
+    if (!stats || typeof stats !== 'object') return;
+    const played = new Set(Object.keys(stats).map(id => players[id]?.team).filter(Boolean));
+    if (!played.size) return;
+    const byId = new Map(teams.map(t => [t.rosterId, t]));
+    wk.live = new Map();
+    wk.entries.forEach(e => {
+      const t = byId.get(e.roster_id);
+      if (!t) return;
+      let banked = 0, rest = 0;
+      (e.starters || []).forEach((id, i) => {
+        if (!id || id === '0') return;
+        const nfl = players[id]?.team;
+        if (nfl && played.has(nfl)) banked += +(e.starters_points || [])[i] || 0;
+        else {
+          const p = (t.plist || []).find(x => x.id === String(id));
+          rest += p ? (Vault.availableIn(p, wk.week) ? p.ppg || 0 : 0) : (ppgMap.get(String(id)) || 0);
+        }
+      });
+      wk.live.set(e.roster_id, { banked, rest });
+    });
+  },
+
   async fetchRemainingSchedule(leagueId, league, completedWeeks = null) {
     const playoffStart = league.settings?.playoff_week_start || 15;
     const startWeek = completedWeeks != null ? completedWeeks + 1 : Math.max(1, (league.settings?.leg || 1));
@@ -4321,7 +4358,9 @@ const Vault = {
         byMatchup.get(m.matchup_id).push(m.roster_id);
       });
       const pairs = [...byMatchup.values()].filter(a => a.length === 2);
-      return pairs.length ? { week: w, pairs } : null;
+      // The first week left may be under way: keep its starters and their points so
+      // far for Vault.attachLiveWeek.
+      return pairs.length ? (i === 0 ? { week: w, pairs, entries } : { week: w, pairs }) : null;
     }).filter(Boolean);
   },
 
@@ -4460,7 +4499,20 @@ const Vault = {
     const baseFpts = new Map(teams.map(t => [t.rosterId, t.record?.fpts || 0]));
 
     const totals = new Map(rosterIds.map(id => [id, { winsSum: 0, lossesSum: 0, tiesSum: 0, playoffCount: 0, champCount: 0 }]));
+    // The week in progress (Vault.attachLiveWeek): points already scored stay put;
+    // the starters still to play are drawn, on the team's blend of projection and
+    // actual scoring (rating / projection), with a trade's change taking the share
+    // of the week left.
+    const liveByWeek = new Map((remainingWeeks || []).filter(w => w.live).map(w => [w.week, w.live]));
+    const optOf = new Map(teams.map(t => [t.rosterId, t.opt || 0]));
     const drawScore = (id, week) => {
+      const live = liveByWeek.get(week)?.get(id);
+      if (live) {
+        const f = optOf.get(id) ? base.get(id) / optOf.get(id) : 1;
+        const full = weekStrength.get(week)?.get(id) || 0;
+        const restMean = Math.max(0, live.rest * f + deltaAt(id, week) * (full ? Math.min(1, live.rest * f / full) : 1));
+        return live.banked + Math.max(0, restMean + randn() * restMean * sigmaPct);
+      }
       const mean = weekStrength.get(week)?.get(id) ?? strength.get(id) ?? 0;
       return Math.max(0, mean + randn() * mean * sigmaPct);
     };
