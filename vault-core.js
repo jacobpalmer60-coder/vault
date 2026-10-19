@@ -47,6 +47,16 @@ const VAULT_CONFIG = {
   PICK_DRIFT_PCT: 5,
   CHEAP_CONSOLIDATION_PCT: -10,
   CHEAP_CONSOLIDATION_BELOW: 3000,
+  // Added 2026-10-19 on the full pool (2.68M team-sides, VaultValues
+  // research-batch.js / drift-tune2.js), each held in 2024 and in 2025: at the
+  // same price, a side whose best piece was a RB, WR or TE aged 27+ came out
+  // behind (RB −10% / −5% two years / one year on, WR −8% / −5%, TE −7% / −8%),
+  // and in straight swaps the side getting the WR came out about 8% behind.
+  // Sized below what was measured (the WR gap could be a market cycle). A TE boost
+  // helped one season and hurt the other, so it's left out.
+  AGE_CLIFF_PCT: -5,
+  AGE_CLIFF_AT: 27,
+  WR_DRIFT_PCT: -3,
   FAIR_CURVE: {
     values: [1500,2500,3500,4500,5500,6500,7500,8500,9500],
     closeness: [0.4,0.55,0.65,0.75,0.85,0.95],
@@ -260,6 +270,9 @@ const VAULT_CONFIG = {
   // value share is quoted: a tier's average points (contenders' Bad trade tier
   // averaged +1 a week) read as a contradiction next to this trade's own points.
   // level: the coarse read colors and the offered-to-you summary go by.
+  // Re-measured again 2026-10-19 on the finished backfill: 1,342,426 trades,
+  // 2,684,852 team-sides from 64,898 leagues; contenders who trade beat their odds
+  // by 2.1 points on average. The earlier pass (below) was on part of 2024.
   // Re-measured 2026-10-17 on the full backfill: 1,028,227 trades, 2,056,454
   // team-sides from every crawled 2024 and 2025 league (VaultValues
   // new-data-studies.js), verdicts re-scored with today's math. 2024 and 2025 agree,
@@ -268,16 +281,16 @@ const VAULT_CONFIG = {
   // trade at all beat their odds by 2.3 points on average (active managers), which
   // made a Toss-up read "3 points more often than their odds".
   VERDICT_TIERS: [
-    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 7.5, rebuild: 0.87, flexible: 0.86 } },
-    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 4.0, rebuild: 0.79, flexible: 0.75 } },
+    { key: 'great', min: 25, label: 'Great trade', level: 'good', record: { contend: 7.2, rebuild: 0.87, flexible: 0.85 } },
+    { key: 'good', min: 15, label: 'Good trade', level: 'good', record: { contend: 4.1, rebuild: 0.78, flexible: 0.73 } },
     // Slight edge from +6 (was +10, 2026-10-18): on the full backfill, scores of -6 to
     // +6 came out a coin flip (40-58% ahead on value later) but +6 to +10 came out
     // ahead 61%, with Slight edge rather than Toss-up. About 1 verdict in 10 moved.
-    { key: 'slight', min: 6, label: 'Slight edge', level: 'good', record: { contend: 2.3, rebuild: 0.70, flexible: 0.63 } },
+    { key: 'slight', min: 6, label: 'Slight edge', level: 'good', record: { contend: 2.4, rebuild: 0.70, flexible: 0.61 } },
     { key: 'tossup', min: -6, label: 'Toss-up', level: 'tossup', record: { contend: 0.3, rebuild: 0.49, flexible: 0.49 } },
-    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: -3.6, rebuild: 0.30, flexible: 0.37 } },
-    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: -6.2, rebuild: 0.22, flexible: 0.25 } },
-    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: -16.3, rebuild: 0.13, flexible: 0.15 } }
+    { key: 'leansbad', min: -15, label: 'Leans bad', level: 'bad', record: { contend: -3.9, rebuild: 0.31, flexible: 0.39 } },
+    { key: 'bad', min: -25, label: 'Bad trade', level: 'bad', record: { contend: -6.6, rebuild: 0.23, flexible: 0.27 } },
+    { key: 'terrible', min: -Infinity, label: 'Terrible trade', level: 'bad', record: { contend: -16.0, rebuild: 0.14, flexible: 0.16 } }
   ],
   // Depth (Vault.missedGameCost): weeks each starter is out a season, bye
   // included. Measured, not guessed: across 2018-2025 fantasy starters (top 24
@@ -2727,8 +2740,16 @@ const Vault = {
     const bg = best(got), bv = best(gave);
     const cons = got.length < gave.length && bg > bv && bg < C.CHEAP_CONSOLIDATION_BELOW ? C.CHEAP_CONSOLIDATION_PCT
       : gave.length < got.length && bv > bg && bv < C.CHEAP_CONSOLIDATION_BELOW ? -C.CHEAP_CONSOLIDATION_PCT : 0;
-    const pct = pick + cons;
-    return { pct, why: !pct ? null : Math.abs(cons) >= Math.abs(pick) ? 'cheap' : 'picks', pick, cons };
+    // Each side's best piece: a RB/WR/TE past the age cliff, and WRs.
+    const top = l => l.reduce((b, a) => ((a.value || 0) > (b.value || 0) ? a : b), l[0]);
+    const tg = top(got), tv = top(gave);
+    const old = a => (a && a.type !== 'pick' && ['RB', 'WR', 'TE'].includes(a.pos) && (a.age || 0) >= C.AGE_CLIFF_AT ? 1 : 0);
+    const isWr = a => (a && a.type !== 'pick' && a.pos === 'WR' ? 1 : 0);
+    const age = C.AGE_CLIFF_PCT * (old(tg) - old(tv)), wr = C.WR_DRIFT_PCT * (isWr(tg) - isWr(tv));
+    const pct = pick + cons + age + wr;
+    const parts = { picks: pick, cheap: cons, age, wr };
+    const why = !pct ? null : Object.entries(parts).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0][0];
+    return { pct, why, pick, cons, age, wr, oldGot: old(tg) ? tg.name : null, oldGave: old(tv) ? tv.name : null };
   },
 
   verdictTier(score) {
@@ -4150,9 +4171,12 @@ const Vault = {
       avgFit: s.trades ? s.fitSum / s.trades : 0,
       avgAgeDelta: s.trades ? s.ageDeltaSum / s.trades : 0,
       aged: s.netValueToday - s.netValue // value their trades gained (or lost) after being made
-    // Ranked by how their trades turned out (Net Now), not how they looked on
-    // the day: a manager who bought before the market moved traded better.
-    })).sort((a, b) => b.netValueToday - a.netValueToday);
+    // Ranked by Net Then, the price they got on the day (2026-10-19). On 2.6
+    // million real trade-sides (VaultValues research-batch.js), getting good prices
+    // is a real, repeatable skill (a manager's edge in some trades predicts the
+    // others, and the next season), but how the pieces moved afterward is luck
+    // (season to season correlation 0.01). Net Now used to lead.
+    })).sort((a, b) => b.netValue - a.netValue);
   },
 
   // Turns one manager's aggregated stats into plain-English tendency notes — the
@@ -4231,8 +4255,10 @@ const Vault = {
     }
     // Hindsight: did their trades gain or lose value after being made?
     const aged = s.netValueToday - s.netValue, fmtN = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n)).toLocaleString();
-    if (aged >= 1000) notes.push({ tone: 'good', text: `Their trades have gained ${fmtN(aged)} in value since they were made — they tend to buy before the market does.` });
-    else if (aged <= -1000) notes.push({ tone: 'bad', text: `Their trades have lost ${fmtN(aged).slice(1)} in value since they were made — they tend to buy high.` });
+    // Not a skill (2026-10-19): across 2.6 million real trade-sides, value gained
+    // after a trade one season didn't carry over to the next (correlation 0.01).
+    if (aged >= 1000) notes.push({ tone: 'neutral', text: `Their trades have gained ${fmtN(aged)} in value since they were made. Across real trades that part is mostly luck: it didn't carry over from one season to the next.` });
+    else if (aged <= -1000) notes.push({ tone: 'neutral', text: `Their trades have lost ${fmtN(aged).slice(1)} in value since they were made. Across real trades that part is mostly luck: it didn't carry over from one season to the next.` });
     if (s.trades >= 3) {
       const winRate = s.wonNow / s.trades;
       if (winRate >= 0.65) notes.push({ tone: 'good', text: `Most of their trades have come out ahead at today's values (${s.wonNow}-${s.lostNow}).` });

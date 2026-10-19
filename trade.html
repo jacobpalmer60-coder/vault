@@ -233,7 +233,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=e3096909"></script>
+<script src="vault-core.js?v=0848b789"></script>
 <script src="vault-nav.js?v=c2462132"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1531,7 +1531,7 @@ function improvementOf(an, side = 'A') {
   const bef = an.before[side], aft = an.after[side];
   const pts = (aft.opt - bef.opt) + Vault.depthShift('contend', bef, aft, slots).perWeek;
   const tilt = an.tilt ? an.tilt[side] : { pct: 0, why: null };
-  return { ...Vault.tradeImprovement({ valuePct: an.heads[side].pct, rosterFit: an.rosterFit[side], timelineFit: an.timelineFit[side], mode: an['res' + side].mode, ptsPerWeek: pts, valueTilt: tilt.pct }), tiltWhy: tilt.why };
+  return { ...Vault.tradeImprovement({ valuePct: an.heads[side].pct, rosterFit: an.rosterFit[side], timelineFit: an.timelineFit[side], mode: an['res' + side].mode, ptsPerWeek: pts, valueTilt: tilt.pct }), tiltWhy: tilt.why, tilt };
 }
 const VERDICT_STYLE = { good: { text: 'text-emerald-300', tone: 'good' }, tossup: { text: 'text-amber-300', tone: 'neutral' }, bad: { text: 'text-orange-300', tone: 'bad' } };
 // "You get 9% more value, but it costs you 3.9 points a week this season (title odds 32% → 27%)."
@@ -1582,11 +1582,22 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
 }
 // Why the verdict reads a little better or worse than the price alone (Vault.verdictValueTilt).
 function tiltNote(imp) {
-  if (!imp.tiltWhy || Math.abs(imp.valueTilt) < 1) return '';
-  const t = imp.tiltWhy === 'picks'
-    ? (imp.valueTilt > 0 ? 'You get picks for players, which counts in your favor: at the same KTC price, the side getting picks for players came out ahead on value 59% of the time a year later (77% two years on).' : 'You pay in picks for players, which counts against you: at the same KTC price, the side getting picks for players came out ahead on value 59% of the time a year later (77% two years on).')
-    : (imp.valueTilt < 0 ? 'Turning several pieces into one player worth under 3,000 counts against you: at the same price, those trades came out ahead on value only 39% of the time a year later.' : 'You get the pieces for their cheaper best player, which counts in your favor: at the same price, consolidating into a player worth under 3,000 came out ahead on value only 39% of the time a year later.');
-  return `<div class="text-[12px] text-zinc-400 mt-1 max-w-[640px]">${t}</div>`;
+  const t = imp.tilt;
+  if (!t || Math.abs(t.pct || 0) < 1) return '';
+  const esc = Vault.escapeHtml, against = [], favor = [];
+  // Every adjustment that applies, each with what real trades showed (Vault.verdictValueTilt).
+  if (t.pick < 0) against.push('you pay in picks for players (at the same KTC price, the side getting the picks came out ahead on value 59% of the time a year later, 77% two years on)');
+  if (t.pick > 0) favor.push('you get picks for players (at the same KTC price, the side getting the picks came out ahead on value 59% of the time a year later, 77% two years on)');
+  if (t.cons < 0) against.push('you turn several pieces into one player worth under 3,000 (at the same price, those trades came out ahead only 39% of the time)');
+  if (t.cons > 0) favor.push('you get several pieces for their cheaper best player (consolidating into a player worth under 3,000 came out ahead only 39% of the time)');
+  if (t.age < 0) against.push(`${esc(t.oldGot || 'your best piece back')} is 27 or older (at the same KTC price, RBs, WRs and TEs that age lost value afterward, in both seasons we checked)`);
+  if (t.age > 0) favor.push(`you send ${esc(t.oldGave || 'a player 27 or older')}, who's 27 or older (RBs, WRs and TEs that age lost value afterward)`);
+  if (t.wr < 0) against.push('your best piece back is a WR (in straight swaps at the same price, the side getting the WR came out about 8% behind)');
+  if (t.wr > 0) favor.push('you send the WR (in straight swaps at the same price, the side getting the WR came out about 8% behind)');
+  const cap = x => x[0].toUpperCase() + x.slice(1);
+  const part = (list, head) => (list.length ? `${head}: ${list.join('; ')}.` : '');
+  const text = [part(against, 'Counts against you'), part(favor, 'Counts in your favor')].filter(Boolean).join(' ');
+  return `<div class="text-[12px] text-zinc-400 mt-1 max-w-[640px]">${cap(text)}</div>`;
 }
 
 function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {

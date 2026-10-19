@@ -23,12 +23,13 @@
   </div>
   <p class="text-[13px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
     How every manager trades, built from their completed trades on Trade Grades.
-    Ranked by <span class="text-zinc-200">Net Now</span>: what all their trades are
-    worth today, each piece at its KTC value now, combined the way real trades
-    combine them (trade value). A deal that looked bad on the day but has aged
-    well counts as a win, because buying before the values move is the skill.
-    <span class="text-zinc-200">Net Then</span> shows what each deal looked like when it was made, at the KTC values of that day,
-    and <span class="text-zinc-200">Fit</span> is how well what they got suited their roster and timeline.
+    Ranked by <span class="text-zinc-200">Net Then</span>: the price each manager got on the day,
+    every piece at its KTC value that day, combined the way real trades combine them (trade value).
+    That's the part that's skill: in 2.6 million real trades, managers who got good prices kept getting them,
+    in their other trades and the next season.
+    <span class="text-zinc-200">Net Now</span> is the same trades at today's values. How players moved afterward
+    is mostly luck: it didn't carry over from one season to the next.
+    <span class="text-zinc-200">Fit</span> is how well what they got suited their roster and timeline.
   </p>
 
   <div id="summary" class="hidden mb-8"></div>
@@ -38,7 +39,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=e3096909"></script>
+<script src="vault-core.js?v=0848b789"></script>
 <script src="vault-nav.js?v=c2462132"></script>
 <script src="market-data.js?v=a7b9cbd5"></script>
 <script>
@@ -93,10 +94,10 @@ function renderCard(s, rank, maxAbsNet) {
           </div>
         </div>
         ${s.trades ? `<div class="text-right">
-          <div class="text-[18px] mono font-semibold ${net(s.netValueToday)}">${fmtSigned(s.netValueToday)}</div>
-          <div class="text-[12px] text-zinc-400">Net Now, today's values</div>
-          ${divergingBar(s.netValueToday, maxAbsNet)}
-          <div class="text-[12px] text-zinc-400 mt-1.5"><span class="mono ${net(s.netValue)}">${fmtSigned(s.netValue)}</span> then · <span class="mono ${net(s.aged)}">${fmtSigned(s.aged)}</span> since</div>
+          <div class="text-[18px] mono font-semibold ${net(s.netValue)}">${fmtSigned(s.netValue)}</div>
+          <div class="text-[12px] text-zinc-400">Net Then, the price on the day</div>
+          ${divergingBar(s.netValue, maxAbsNet)}
+          <div class="text-[12px] text-zinc-400 mt-1.5"><span class="mono ${net(s.netValueToday)}">${fmtSigned(s.netValueToday)}</span> now · <span class="mono ${net(s.aged)}">${fmtSigned(s.aged)}</span> since</div>
         </div>` : ''}
       </div>
 
@@ -129,7 +130,7 @@ function render(stats, teams) {
     return;
   }
   empty.classList.add('hidden');
-  const maxAbsNet = Math.max(...stats.map(s => Math.abs(s.netValueToday)), 1);
+  const maxAbsNet = Math.max(...stats.map(s => Math.abs(s.netValue)), 1);
   // Only managers who've actually traded get ranked — a +0 from zero trades
   // isn't "better" than a manager who traded and came out slightly behind.
   const traders = stats.filter(s => s.trades > 0), idle = stats.filter(s => !s.trades);
