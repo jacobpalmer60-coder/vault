@@ -9,7 +9,7 @@
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=8122fe77">
+<link rel="stylesheet" href="tailwind.css?v=3f3dfde8">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -79,6 +79,13 @@
       <div id="rookieSeasons" class="flex flex-wrap gap-1.5"></div>
     </div>
     <div id="rookiesBody" class="mt-3"></div>
+  </section>
+
+  <!-- Picks: what early, mid and late picks really trade for against KTC, and how picks gain on players (data/market-history/insights.json). -->
+  <section data-tab="picks" role="tabpanel" class="hidden card rounded-vault-sm mb-6 p-5">
+    <h2 class="text-[16px] font-semibold text-zinc-100">Picks</h2>
+    <p class="text-[12px] text-zinc-400 mt-0.5">What early, mid and late picks really trade for next to KTC's prices, and how picks hold up against players, from every trade in 2024 and 2025 Sleeper dynasty leagues.</p>
+    <div id="picksBody" class="mt-3"><div class="text-[12px] text-zinc-500">Loading…</div></div>
   </section>
 
   <!-- Every player KTC prices, ranked by market value (what managers pay), sortable. -->
@@ -153,6 +160,51 @@ const signed = v => (Math.abs(v) < 0.5 ? 'even' : `${Math.abs(Math.round(v))}% $
 const esc = s => Vault.escapeHtml(s);
 let league = null, sig = null, isSF = true, bonusTe = 0, valueField = 'sf';
 let byNorm = new Map();         // normalized name -> { name, pos, value } from KTC today
+// What 1.3 million judged trades show (data/market-history/insights.json): the
+// player outlook by age and position, and the Picks tab. Aggregates only.
+let INSIGHTS = null, ktcPicks = [];
+fetch('data/market-history/insights.json').then(r => (r.ok ? r.json() : null)).then(d => { INSIGHTS = d; renderPickMarket(); if (lookupNorm) lookUp(lookupNorm); }).catch(() => {});
+// "Outlook: at the same KTC price, RBs aged 27-28 lost value afterward: −5% a year on, −10% two years on."
+function outlookHtml(who) {
+  if (!INSIGHTS || !who || !['QB', 'RB', 'WR', 'TE'].includes(who.pos) || !(who.age > 0)) return '';
+  const r = INSIGHTS.ageByPosition.find(x => x.pos === who.pos && who.age >= x.lo && who.age < x.hi);
+  if (!r) return '';
+  const sg = v => (Math.abs(v) < 0.5 ? '0%' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(0)}%`);
+  const avg = (r.drift1 + r.drift2) / 2, same = Math.sign(r.drift1) === Math.sign(r.drift2);
+  const verb = !same ? 'had mixed results' : Math.abs(avg) < 2 ? 'held their value about even' : avg > 0 ? 'gained value' : 'lost value';
+  const cls = !same || Math.abs(avg) < 2 ? 'text-zinc-300' : avg > 0 ? 'text-emerald-300' : 'text-orange-300';
+  return `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">Outlook: at the same KTC price, ${who.pos}s aged ${r.age} have <span class="${cls}">${verb}</span> afterward: ${sg(r.drift1)} a year on, ${sg(r.drift2)} two years on (median, ${(r.n1 + r.n2).toLocaleString()} real trades).</div>`;
+}
+// The Picks tab.
+function renderPickMarket() {
+  const box = document.getElementById('picksBody');
+  if (!box || !INSIGHTS) return;
+  const P = INSIGHTS.pickTiers, fmt = isSF ? (bonusTe ? 'sf_tep' : 'sf') : 'oneQB', real = P.trades[fmt] || P.trades.sf, ktcF = isSF ? 'sf' : 'oneQB';
+  const x = v => `${v.toFixed(2)}x`;
+  const season = P.ktcSeason, row = (round, slot) => ktcPicks.find(p => +p.season === season && +p.round === round && p.slot === slot);
+  const rounds = [1, 2, 3, 4].filter(r => real[r] && P.ktc[r]);
+  const table = `<div class="overflow-x-auto"><table class="w-full text-[12px]">
+      <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 pr-3 text-left">${season} pick</th><th class="font-normal pb-2 pr-3 text-right">KTC: early</th><th class="font-normal pb-2 pr-3 text-right">Trades: early</th><th class="font-normal pb-2 pr-3 text-right">KTC: late</th><th class="font-normal pb-2 pr-3 text-right">Trades: late</th><th class="font-normal pb-2 text-right">Early pick: KTC → what trades pay</th></tr></thead>
+      <tbody>${rounds.map(r => { const k = P.ktc[r][ktcF], t = real[r], mid = row(r, 'mid'), early = row(r, 'early'); const mv = mid && mid[valueField], ev = early && early[valueField];
+        return `<tr class="border-t border-white/5"><td class="py-1.5 pr-3 text-zinc-200">${ORD(r)} round</td><td class="py-1.5 pr-3 text-right mono text-zinc-400">${x(k.early)}</td><td class="py-1.5 pr-3 text-right mono text-zinc-100">${x(t.early)}</td><td class="py-1.5 pr-3 text-right mono text-zinc-400">${x(k.late)}</td><td class="py-1.5 pr-3 text-right mono text-zinc-100">${x(t.late)}</td>
+          <td class="py-1.5 text-right mono text-zinc-300">${mv && ev ? `${Vault.fmtInt(ev)} → <span class="text-zinc-100">${Vault.fmtInt(mv * t.early)}</span>` : '—'}</td></tr>`; }).join('')}</tbody></table></div>`;
+  const pk = INSIGHTS.picksByAge || [];
+  const bars = pk.map(r => `<div class="grid grid-cols-[100px_minmax(0,1fr)_auto] items-center gap-3 py-1"><span class="text-[12px] text-zinc-300">${r.label}</span><div class="h-2.5 rounded-full bg-white/[0.04]"><div class="h-full rounded-full bg-violet-400/70" style="width:${r.ahead}%"></div></div><span class="text-[12px] mono text-zinc-300">${r.ahead}% ahead <span class="text-zinc-500">of ${r.n.toLocaleString()}</span></span></div>`).join('');
+  box.innerHTML = `<div class="grid lg:grid-cols-2 gap-4">
+      <div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
+        <div class="text-[13px] font-medium text-zinc-200">Early, mid and late: KTC against real trades</div>
+        <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">Each tier's price against the mid pick of the same round. Real trades: picks split by where their original team was projected to finish when traded.</div>
+        ${table}
+        <div class="text-[11px] text-zinc-500 mt-2">Managers pay far less for an early pick than KTC does: projected finishes hold only so often (projected-early 1sts landed early about half the time).</div>
+      </div>
+      <div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
+        <div class="text-[13px] font-medium text-zinc-200">Picks gain on players</div>
+        <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">Trades of only picks for only players at an even price: how often the side that got the picks was ahead on value later, by how long ago the trade was.</div>
+        ${bars}
+        <div class="text-[11px] text-zinc-500 mt-2">New rookie classes push existing players down KTC's scale, so picks bought at a fair price kept gaining. What each draft slot actually turned into: <a href="${Vault.linkTo('rookies.html')}" class="text-amber-200 hover:text-amber-100">Rookie Draft →</a></div>
+      </div>
+    </div>`;
+}
 let daily = null;               // { from, players: { norm: [[day, pct, n]] } }
 let history = null, historyLoading = null; // KTC value history, loaded on first lookup
 
@@ -307,7 +359,7 @@ async function lookUp(norm) {
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(who.pos)}">${who.pos || '—'}</span>
       <span class="text-[15px] font-semibold text-zinc-100">${esc(who.name)}</span>
       <span class="text-[12px] text-zinc-400 basis-full flex flex-wrap items-end gap-x-8 gap-y-2 mt-1"><span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value)}</span>KTC value</span>${read ? `<span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}${(Math.abs(read.premium) > MARKET_ADJ_CAP ? '+' : '')}</span>market price, <span title="${MARKET_PEER_TIP}" class="cursor-help ${Math.abs(marketPeerPct(mp) ?? 0) < 3 ? 'text-zinc-300' : marketPeerPct(mp) > 0 ? 'text-emerald-300' : 'text-orange-300'}">${marketPeerPhrase(mp)}</span></span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
-    </div>${liq ? `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">${liq}</div>` : ''}`;
+    </div>${liq ? `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">${liq}</div>` : ''}${outlookHtml(who)}`;
   if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
   const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
   const all = [...series.map(p => p.value), ...market.map(m => m.value), ...trend.filter(Boolean).map(t => t.value)];
@@ -574,7 +626,7 @@ function openLookup(enc) {
    One section at a time. The open tab is in the address (#all, #rookies…) so
    it can be shared or bookmarked, and remembered in this browser for next time;
    a ?p= link (a player to chart) always opens Look up. */
-const MARKET_TABS = [['lookup', 'Look up a player'], ['all', 'All players'], ['moves', 'Rising & cooling'], ['highs', 'Highs & lows'], ['positions', 'By position'], ['rookies', 'Rookie drafts']];
+const MARKET_TABS = [['lookup', 'Look up a player'], ['all', 'All players'], ['moves', 'Rising & cooling'], ['highs', 'Highs & lows'], ['positions', 'By position'], ['picks', 'Picks'], ['rookies', 'Rookie drafts']];
 function showTab(key) {
   if (!MARKET_TABS.some(([k]) => k === key)) key = 'lookup';
   document.querySelectorAll('[data-tab]').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== key));
@@ -656,10 +708,12 @@ async function init() {
     const playerMap = new Map();
     (ktc.players || []).forEach(p => {
       if (!(p[valueField] > 0)) return;
-      const row = { name: p.name, pos: p.pos, value: p[valueField] };
+      const row = { name: p.name, pos: p.pos, value: p[valueField], age: p.age };
       playerMap.set(p.ktcId, row);
       byNorm.set(Vault.normalizeName(p.name), row);
     });
+    ktcPicks = ktc.picks || [];
+    renderPickMarket();
     (ktc.picks || []).forEach(p => {
       if (p.slot !== 'mid' || !(p[valueField] > 0)) return;
       const key = `k:${p.season}-${p.round}`;
