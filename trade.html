@@ -233,7 +233,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=0848b789"></script>
+<script src="vault-core.js?v=f5cf75ed"></script>
 <script src="vault-nav.js?v=c2462132"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1569,16 +1569,43 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   lastImprovement = { ...imp, reason: improvementReason(imp, s) };
   const chosen = Vault.planOverride[teamA.rosterId] || '';
   const opt = (v, text) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${text}</option>`;
+  // Good for you but Leans bad or worse for them: the headline says One-sided (user,
+  // 2026-10-19), and your own verdict moves to the line under it (theirsLine).
+  const them = theirsOf(analysis), oneSided = !!them && imp.level === 'good' && them.level === 'bad';
+  lastImprovement.oneSided = oneSided;
   el.innerHTML = `<div class="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
-      <span class="num text-[34px] ${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span>
+      <span class="num text-[34px] ${oneSided ? 'text-orange-300' : Vault.VERDICT_TIER_TEXT[imp.tier]}">${oneSided ? 'One-sided' : imp.label}</span>
       <label class="inline-flex items-baseline gap-1.5 text-[12px] text-zinc-400" title="Judged on your timeline: contending weighs this season's lineup heavily, rebuilding weighs long-term value. Switch it to see the other answer.">for ${Vault.escapeHtml(teamA.teamName)}, as
         <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">
           ${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}
         </select></label>
     </div>
     <div class="text-[14px] text-zinc-200 mt-1 max-w-[640px]">${lastImprovement.reason}</div>
+    ${theirsLine(imp, analysis)}
     ${tiltNote(imp)}
     <div class="text-[12px] text-zinc-500 mt-1 max-w-[640px]">${Vault.verdictRecordText(imp)}</div>`;
+}
+// The other team's verdict on the same ladder, right under yours (user, 2026-10-19:
+// "if a great trade gets offered the other manager should think it's a great trade
+// too"). In 1.3 million accepted trades, when one side's verdict was Good or better,
+// the other side's was Toss-up or better only a third of the time, so your verdict
+// alone says little about how they'll see it.
+function theirsOf(analysis) {
+  const them = teamOf('B');
+  if (!them || !analysis || !analysis.heads || !analysis.heads.B) return null;
+  return improvementOf(analysis, 'B');
+}
+function theirsLine(imp, analysis) {
+  const t = theirsOf(analysis);
+  if (!t) return '';
+  const name = Vault.escapeHtml(teamOf('B').teamName), mine = Vault.escapeHtml(teamOf('A').teamName);
+  const label = x => `<span class="font-medium ${Vault.VERDICT_TIER_TEXT[x.tier]}">${x.label}</span>`;
+  if (imp.level === 'good' && t.level === 'bad') {
+    return `<div class="text-[13px] text-zinc-300 mt-1">${label(imp)} for ${mine} · ${label(t)} for ${name}</div>
+      <div class="text-[12px] text-orange-300 mt-0.5">It's good for you, but they'd see it as ${/^[AEIOU]/.test(t.label) ? 'an' : 'a'} ${t.label.toLowerCase()}, so expect a no or a counter. "How to even it up" in the details below shows what would make it work for both.</div>`;
+  }
+  const tag = imp.level === 'good' && t.level !== 'bad' ? ' <span class="ml-1 text-[11px] px-1.5 py-px rounded border border-emerald-400/30 text-emerald-300">Works for both</span>' : '';
+  return `<div class="text-[13px] text-zinc-300 mt-1">For ${name}: ${label(t)}${tag}</div>`;
 }
 // Why the verdict reads a little better or worse than the price alone (Vault.verdictValueTilt).
 function tiltNote(imp) {
@@ -2314,9 +2341,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=94cf709b"></script>
+<script src="negotiation.js?v=4230af6a"></script>
 <script src="market-data.js?v=a7b9cbd5"></script>
 <script src="market.js?v=692419ef"></script>
-<script src="coach.js?v=13a971d6"></script>
+<script src="coach.js?v=87db53ba"></script>
 </body>
 </html>

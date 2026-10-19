@@ -54,6 +54,15 @@ const VAULT_CONFIG = {
   // and in straight swaps the side getting the WR came out about 8% behind.
   // Sized below what was measured (the WR gap could be a market cycle). A TE boost
   // helped one season and hurt the other, so it's left out.
+  // How far behind (trade value, %) a manager in this spot typically goes in a trade
+  // they accept, by their side's shape: role (1-for-1, they consolidate, they get
+  // more pieces, even 2+ each) | any pick in the trade | best piece band (under
+  // 3,000 / 3,000-6,000 / 6,000+). The median of 1,312,654 sides that came out
+  // behind in accepted 2024-2025 trades (VaultValues accept-by-shape.js, 2026-10-19).
+  // Replaces one 12% for every trade: multi-piece deals run 5-9%, 1-for-1s 13-21%.
+  // Capped at ACCEPT_BEHIND_MAX so a reading never promises a lopsided deal.
+  ACCEPT_BEHIND: {"one|0|0":14.7,"one|0|1":13.1,"one|0|2":12.6,"one|1|0":21.2,"one|1|1":17.1,"one|1|2":26.7,"cons|0|0":8.8,"cons|0|1":6.7,"cons|0|2":5.2,"cons|1|0":7.4,"cons|1|1":7.4,"cons|1|2":6.4,"more|0|0":4.9,"more|0|1":4.7,"more|0|2":6.9,"more|1|0":4.9,"more|1|1":5.8,"more|1|2":8.1,"even|0|0":8.9,"even|0|1":6.3,"even|0|2":6,"even|1|0":9.2,"even|1|1":7,"even|1|2":6.8},
+  ACCEPT_BEHIND_MAX: 20,
   AGE_CLIFF_PCT: -5,
   AGE_CLIFF_AT: 27,
   WR_DRIFT_PCT: -3,
@@ -2750,6 +2759,18 @@ const Vault = {
     const parts = { picks: pick, cheap: cons, age, wr };
     const why = !pct ? null : Object.entries(parts).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0][0];
     return { pct, why, pick, cons, age, wr, oldGot: old(tg) ? tg.name : null, oldGave: old(tv) ? tv.name : null };
+  },
+
+  // How far behind a manager typically accepts, for the side that gets `got` and sends
+  // `gave` (VAULT_CONFIG.ACCEPT_BEHIND): a positive %.
+  acceptTolerance(got, gave) {
+    const C = VAULT_CONFIG;
+    if (!got || !gave || !got.length || !gave.length) return 12;
+    const role = got.length === 1 && gave.length === 1 ? 'one' : got.length < gave.length ? 'cons' : got.length > gave.length ? 'more' : 'even';
+    const picks = [...got, ...gave].some(a => a.type === 'pick') ? 1 : 0;
+    const top = Math.max(...got.map(a => a.value || 0), ...gave.map(a => a.value || 0));
+    const band = top >= 6000 ? 2 : top >= 3000 ? 1 : 0;
+    return Math.min(C.ACCEPT_BEHIND_MAX, C.ACCEPT_BEHIND[`${role}|${picks}|${band}`] ?? 12);
   },
 
   verdictTier(score) {

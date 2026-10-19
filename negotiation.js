@@ -27,7 +27,9 @@
    behind, never if the grade went against them) said one manager would decline
    in all 17 completed trades in this league, both of which happened. */
 const NEG = {
-  ACCEPT_EDGE: -12,         // a typical manager accepts up to ~12% behind (market median)...
+  ACCEPT_EDGE: -12,         // a typical manager accepts up to ~12% behind (market median); since 2026-10-19 the
+                            // default is by the trade's shape instead (Vault.acceptTolerance): 5-9% in multi-piece
+                            // deals, 13-21% in 1-for-1s, from 1.3 million accepted trades. Kept as the fallback...
   TOLERANCE_MIN: 4,         // ...a manager who's never come out behind still accepts ~4%...
   TOLERANCE_MAX: 30,        // ...and history never loosens it past 30%
   CONSOLIDATION_BONUS: 1,   // getting the trade's best single piece for more pieces: what real consolidators
@@ -190,8 +192,11 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   const siteSaysNo = an.heads.B.tone === 'bad';
   if (siteSaysNo) concerns.push({ w: -NEG.SITE_NO_PENALTY, text: 'Graded from their side, it reads as a bad trade for them.' });
   const will = own + concerns.reduce((t, c) => t + c.w, 0);
-  const accepts = will >= ctx.ask && drops <= 1;
-  return { an, edge, own, will, drops, stashed, concerns, accepts, siteSaysNo, fair, fit, headO: an.heads.A };
+  // No trade history of their own: how far behind managers in this spot (the trade's
+  // shape from their side) typically go in trades they accept.
+  const ask = ctx.basis === 'market' ? -Vault.acceptTolerance(oAssets, rAssets) : ctx.ask;
+  const accepts = will >= ask && drops <= 1;
+  return { an, edge, own, will, ask, drops, stashed, concerns, accepts, siteSaysNo, fair, fit, headO: an.heads.A };
 }
 
 // The manager's reply in their own words: what bothers them most, then what
@@ -209,7 +214,7 @@ function negReply(j, oGive, rGive, c, ctx) {
   else if (worst) lead = worst.say;
   else if (j.fit.roster <= -5) lead = 'This makes my lineup worse, and the value doesn\'t make up for it.';
   else if (j.fit.timeline <= -5) lead = 'This doesn\'t fit where my team is headed.';
-  else if (ctx.ask > -6) lead = 'I don\'t make trades where I come out behind.';
+  else if (ctx.basis === 'history' && ctx.ask > -6) lead = 'I don\'t make trades where I come out behind.';
   else lead = 'I\'ll pass on this one.';
   let next = 'What else have you got?';
   if (c && c.type === 'add') next = `Add ${negNames(c.pieces)} and we have a deal.`;
