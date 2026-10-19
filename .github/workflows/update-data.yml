@@ -37,6 +37,9 @@ jobs:
       # Small per-format history files + trimmed Sleeper player list the pages
       # actually load (see the script header) — must run after the snapshot.
       - run: node scripts/build-slim-data.js
+      # Today's injury statuses into data/history/injuries-<season>.jsonl, so a
+      # news adjustment for Vault values can be tested later (see the script).
+      - run: node scripts/snapshot-injuries.js
       # This season's week-by-week stats for every QB/RB/WR/TE (Compare page ranks,
       # team shares, weekly finishes). Past seasons were built once and don't change.
       - run: node scripts/build-weekly-stats.js
