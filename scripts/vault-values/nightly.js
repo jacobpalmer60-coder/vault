@@ -41,6 +41,19 @@ const SET = { p: 1.5, curve: 0.6, kappaPick: 1, delta: 0.12, lambda: 1, kappa: 0
 // its strength (p = 1 + curve x (site p - 1); 0.6 scored best on a held-out week:
 // 0.141 against 0.203 for one p of 1.5 for every trade). Set in main from vault-core.
 let KNOTS = null;
+// How the site prices a trade with Vault values (vault-core VAULT_VALUES_EXTRA_WEIGHT,
+// VAULT_VALUES_LEAN, VAULT_PICK_TIER_SPREAD; 2026-10-19). Read in main. Scoring "ours"
+// uses the same rules, so the track record measures what the site would show.
+let PRICE = { extra: null, lean: {}, spread: {} };
+// [log side A, log side B] for log values xa, xb at curve p, with the extra-piece
+// weight and the lean toward the side getting fewer pieces.
+function priceOurs(xa, xb, p) {
+  const lnW = PRICE.extra ? Math.log(PRICE.extra) : 0;
+  const side = (xs, nOther) => { const v = [...xs].sort((x, y) => y - x).map((x, i) => p * (x + (i >= nOther + 1 ? lnW : 0))); const m = Math.max(...v); return (m + Math.log(v.reduce((t, y) => t + Math.exp(y - m), 0))) / p; };
+  let a = side(xa, xb.length), b = side(xb, xa.length);
+  if (xa.length !== xb.length) { const L = PRICE.lean[`${Math.max(xa.length, xb.length)}-${Math.min(xa.length, xb.length)}`] || 0; if (xa.length < xb.length) a += L; else b += L; }
+  return [a, b];
+}
 const pFor = (best, top) => { // as Model.pAt
   const k = KNOTS, lv = Math.log(Math.max(500, 9999 * Math.exp(best - top)));
   if (lv <= Math.log(k[0][0])) return k[0][1];
@@ -213,7 +226,8 @@ async function runFormat(format, seasons, Vault) {
       const before = trades.filter(t => t.date < d);
       const fit = fitAll(before, players, warm, warm ? SET.dailyIters : SET.iters);
       const m = fit.model;
-      const sc = scoreTrades(trades.filter(t => t.date === d), t => m.sides(t, t.week), ktc, Vault, tuneKtcP(trades, ktc, d), marketReads(trades, ktc, Vault, d));
+      const oursAt = t => { const xa = t.a.map(k => m.logValue(k, t.week)), xb = t.b.map(k => m.logValue(k, t.week)); if ([...xa, ...xb].some(x => x == null)) return null; const w = Math.max(0, Math.min(m.W - 1, t.week - m.minWeek)); if (!m._tops) m._tops = m.weekTops(m.u); return priceOurs(xa, xb, m.pKnots ? m.pAt(Math.max(...xa, ...xb), m._tops[w]) : m.p); };
+      const sc = scoreTrades(trades.filter(t => t.date === d), oursAt, ktc, Vault, tuneKtcP(trades, ktc, d), marketReads(trades, ktc, Vault, d));
       const u = lastWeekValues(m);
       record({ date: d, replay: true, ...sc, rank: rankAgreement(u, ktc, d, players), move: dailyMove(prevU, u) });
       prevU = u; warm = fit;
@@ -227,7 +241,7 @@ async function runFormat(format, seasons, Vault) {
     const top = Math.max(...Object.values(state.u));
     const side = (keys, p) => { const xs = keys.map(k => state.u[k]); return xs.some(x => x == null) ? null : lse(xs, p); };
     const pOf = t => { if (!state.curve || !KNOTS) return state.p; const xs = [...t.a, ...t.b].map(k => state.u[k]).filter(x => x != null); return xs.length ? pFor(Math.max(...xs), top) : state.p; };
-    const sc = scoreTrades(fresh, t => { const p = pOf(t), a = side(t.a, p), b = side(t.b, p); return a == null || b == null ? null : [a, b]; }, ktc, Vault, tuneKtcP(trades, ktc, state.fitThrough), marketReads(trades, ktc, Vault, new Date(Date.parse(state.fitThrough) + 864e5).toISOString().slice(0, 10)));
+    const sc = scoreTrades(fresh, t => { const p = pOf(t), xa = t.a.map(k => state.u[k]), xb = t.b.map(k => state.u[k]); return [...xa, ...xb].some(x => x == null) ? null : priceOurs(xa, xb, p); }, ktc, Vault, tuneKtcP(trades, ktc, state.fitThrough), marketReads(trades, ktc, Vault, new Date(Date.parse(state.fitThrough) + 864e5).toISOString().slice(0, 10)));
     if (sc.sys.ours.n >= MIN_SCORE_TRADES) record({ date: lastDate, since: state.fitThrough, ...sc });
     else log(`${format}: ${sc.sys.ours.n} new trades since ${state.fitThrough}, not scored yet`);
   }
@@ -256,8 +270,8 @@ async function runFormat(format, seasons, Vault) {
 // Players we rate that KTC doesn't list are added when 30+ trades back the value
 // (fewer leans on the starting guess) and Sleeper still projects him (so retired
 // or released players traded as throw-ins stay out: on an NFL team). Picks: our value per year and
-// round is "mid"; early and late keep KTC's spread around mid until pick tiers
-// are learned from real trades. Only picks KTC still lists, so drafted classes
+// round is "mid"; early and late are mid times our own spread (VAULT_PICK_TIER_SPREAD,
+// learned from real trades 2026-10-19; KTC's spread where a round has none). Only picks KTC still lists, so drafted classes
 // drop off. Same 0-9,999 scale (our best piece in each format is 9,999).
 function buildSiteValues() {
   const ktcData = readJson(path.join(SITE_ROOT, 'data', 'ktc-values.json'));
@@ -302,7 +316,8 @@ function buildSiteValues() {
     for (const f of ALL_FORMATS) {
       const v = ours[f].picks.get(`p${p.season}-${p.round}`);
       if (v == null || !mid || !mid[f]) continue;
-      o[f] = Math.round(v * p[f] / mid[f]);
+      const sp = PRICE.spread[p.round];
+      o[f] = Math.round(v * (p.slot === 'mid' ? 1 : sp && sp[p.slot] ? sp[p.slot] : p[f] / mid[f]));
       any = true;
     }
     if (any) o.vsrc = 'vault';
@@ -366,6 +381,10 @@ function report() {
     const cm = /TRADE_VALUE_CURVE:\s*(\[\[[^\n]*\]\])/.exec(fs.readFileSync(path.join(SITE_ROOT, 'vault-core.js'), 'utf8'));
     const curve = cm ? JSON.parse(cm[1]) : null;
     KNOTS = curve ? curve.map(([v, p]) => [v, 1 + SET.curve * (p - 1)]) : null;
+    const core = fs.readFileSync(path.join(SITE_ROOT, 'vault-core.js'), 'utf8');
+    const num = re => { const m = re.exec(core); return m ? +m[1] : null; }, obj = re => { const m = re.exec(core); try { return m ? Function('return (' + m[1] + ')')() : {}; } catch { return {}; } };
+    PRICE = { extra: num(/VAULT_VALUES_EXTRA_WEIGHT:\s*([\d.]+)/), lean: obj(/VAULT_VALUES_LEAN:\s*(\{[^\n]*\})/), spread: obj(/VAULT_PICK_TIER_SPREAD:\s*(\{[^\n]*\}),/) };
+    log(`pricing: extra pieces ${PRICE.extra}, lean ${JSON.stringify(PRICE.lean)}, pick spread ${JSON.stringify(PRICE.spread)}`);
     log(KNOTS ? `curve: p ${KNOTS.map(k => k[1].toFixed(2)).join('/')}` : 'no trade value curve found; one p for every trade');
     for (const format of FORMATS) {
       try { await runFormat(format, seasons.filter(s => fs.existsSync(path.join(RAW, `${s}.json.gz`))), Vault); }

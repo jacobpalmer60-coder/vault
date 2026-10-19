@@ -84,6 +84,22 @@ const VAULT_CONFIG = {
   // The trade value curve's strength Vault values are fitted with (SET.curve in
   // scripts/vault-values/nightly.js; keep the two the same).
   VAULT_VALUES_CURVE: 0.6,
+  // With Vault values showing (2026-10-19, VaultValues pile-predict-test.js and
+  // shape-bias.js, weeks held out from each fit): pieces past one more than the other
+  // side sends count at VAULT_VALUES_EXTRA_WEIGHT (0.45 won every week; fitting it
+  // into the values instead broke 2-for-1s), and the side getting fewer pieces gets
+  // VAULT_VALUES_LEAN (log) on top: our values priced the side with more pieces
+  // about 9% high in 2-for-1s, 4% in 3-for-2s and 3.5% in 3-for-1s, every week. With
+  // both, our values beat KTC's within every common trade shape (2-for-1s 0.26 vs
+  // 0.39). KTC's numbers keep EXTRA_PIECE_WEIGHT and the fair curve.
+  VAULT_VALUES_EXTRA_WEIGHT: 0.45,
+  VAULT_VALUES_LEAN: { '2-1': 0.09, '3-1': 0.035, '3-2': 0.04 },
+  // Early / late picks against mid with Vault values: priced by real trades on our
+  // own values, picks split by their tier at the time (VaultValues pick-tier-fit.js,
+  // 2026-10-19, 2024-2025 trades: Superflex TE+ and 1QB agree within 0.01). Managers
+  // pay much less spread than KTC (an early 1st 1.17x mid there): projected tiers
+  // hold only so often.
+  VAULT_PICK_TIER_SPREAD: { 1: { early: 1.05, late: 0.96 }, 2: { early: 1.02, late: 0.98 }, 3: { early: 1.01, late: 0.98 }, 4: { early: 1.00, late: 0.99 } },
   // Playoff and title odds, corrected by how often teams really made it
   // (Vault.calibrateOdds). Fitted 2026-10-08 on 9,464 in-season team-weeks of
   // real 2025 leagues (VaultValues odds-calibration.js, held-out half checked):
@@ -1263,7 +1279,7 @@ const Vault = {
     years.forEach(year => {
       const nearest = availYears.reduce((best, y) => Math.abs(y - year) < Math.abs(best - year) ? y : best, availYears[0]);
       VAULT_CONFIG.PICK_ROUNDS.forEach(round => {
-        const spread = VAULT_CONFIG.PICK_TIER_SPREAD[round], mid = raw.get(`${nearest}-${round}-mid`);
+        const spread = Vault.pickTierSpread(round), mid = raw.get(`${nearest}-${round}-mid`);
         ['early', 'mid', 'late'].forEach(tier => {
           const val = spread && mid != null && tier !== 'mid' ? Math.round(mid * spread[tier]) : raw.get(`${nearest}-${round}-${tier}`);
           if (val != null) map.set(`${year}-${round}-${tier}`, val);
@@ -2476,12 +2492,16 @@ const Vault = {
        75.0% Fair against 74.8% (VaultValues monotone-check.js, robust-eval.js).
        Sides of more than NEVER_LESS_MAX pieces use the rules as they are. */
   tradeValueRatio(valsA, valsB, { neverLess = true } = {}) {
-    const W = VAULT_CONFIG.EXTRA_PIECE_WEIGHT, desc = l => [...l].sort((x, y) => y - x);
+    const vault = Vault.valueSource() === 'vault';
+    const W = vault ? VAULT_CONFIG.VAULT_VALUES_EXTRA_WEIGHT : VAULT_CONFIG.EXTRA_PIECE_WEIGHT, desc = l => [...l].sort((x, y) => y - x);
+    const LEAN = vault ? VAULT_CONFIG.VAULT_VALUES_LEAN : null;
     const edge = (a, b) => { // % A over B, a and b sorted high to low
       if (a.length === 1 && b.length === 1) return (a[0] - b[0]) / (((a[0] + b[0]) / 2) || 1) * 100;
       const top = Math.max(a[0], b[0]), p = Vault.tradeValueP(top, Math.min(a[0], b[0]) / (top || 1));
       const side = (l, n) => Math.pow(l.reduce((s, v, i) => s + Math.pow(Math.max(v, 0) * (i < n + 1 ? 1 : W), p), 0), 1 / p);
-      const va = side(a, b.length), vb = side(b, a.length);
+      let va = side(a, b.length), vb = side(b, a.length);
+      // Vault values: the side getting fewer pieces gets the measured lean (VAULT_VALUES_LEAN).
+      if (LEAN && a.length !== b.length) { const L = LEAN[`${Math.max(a.length, b.length)}-${Math.min(a.length, b.length)}`] || 0; if (a.length < b.length) va *= Math.exp(L); else vb *= Math.exp(L); }
       return (va - vb) / (((va + vb) / 2) || 1) * 100;
     };
     const A = desc(valsA), B = desc(valsB);
@@ -2947,13 +2967,15 @@ const Vault = {
     }));
     return first;
   },
+  // Early/late against mid for a round: Vault values' own spread when they're showing.
+  pickTierSpread(round) { return Vault.valueSource() === 'vault' ? VAULT_CONFIG.VAULT_PICK_TIER_SPREAD[round] : VAULT_CONFIG.PICK_TIER_SPREAD[round]; },
   pickValueFromRow(row, season, round, tier, isSF, bonusRecTe, first) {
     if (!row) return null;
     // Early and late 1sts and 2nds: that day's mid price times the spread
     // managers really pay, as today's prices do (Vault.buildKtcPickMap). Raw
     // KTC early/late here had League Overview's value chart disagree with its
     // own table, and past grades price picks differently from the calculator.
-    const spread = VAULT_CONFIG.PICK_TIER_SPREAD[round];
+    const spread = Vault.pickTierSpread(round);
     if (spread && tier !== 'mid') {
       const mid = Vault.pickValueFromRow(row, season, round, 'mid', isSF, bonusRecTe, first);
       if (mid != null) return Math.round(mid * spread[tier]);
