@@ -9,7 +9,7 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=637682b5">
+<link rel="stylesheet" href="tailwind.css?v=867ec984">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -61,7 +61,7 @@
             <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="te" title="TE player value: rank in the league (1 = best)">TE</th>
             <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="picksValue" title="Pick value: rank in the league (1 = best)">Picks</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="age">Age</th>
-            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="opt">Lineup PPG</th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="actualSort" title="Points per game: actually scored so far, and projected for the best lineup the rest of the season">PPG</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Lineup PPG)">VORP</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="longevity">Window</th>
             <th class="hidden min-[1100px]:table-cell text-left px-2.5 py-3.5 font-semibold sortable" data-sort="archSort">Archetype</th>
@@ -97,7 +97,7 @@
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Overall</span><span class="text-zinc-400"> — Players + Picks combined, a team's total dynasty value at KeepTradeCut prices</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">QB, RB, WR, TE, Picks</span><span class="text-zinc-400"> — The team's rank in the league at each position by the value of its players there (and its picks), 1 = best. Green is among the strongest, yellow the middle of the league, red a need</span></div>
             <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
-      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Lineup PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored with your league's own scoring settings — not necessarily who you'd actually start today</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">PPG</span><span class="text-zinc-400"> — Points actually scored per game so far (Sleeper's points for), and below it the projection: points per game if you started the best possible lineup from your full roster the rest of the season, on Sleeper's projections in your league's scoring. The projection updates every few hours as rosters, injuries and projections change; playoff and title odds blend both, leaning more on actual points as the season goes</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Lineup PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Longevity</span><span class="text-zinc-400"> — How many of the next 5 years this roster is projected to stay good enough for the playoffs, as players age and picks arrive. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from how you stand now vs. how long that lasts (see guide below)</span></div>
@@ -402,6 +402,9 @@ async function load() {
     // Flat alias so the generic column sort (a[sort.key]) can reach this — it only
     // ever does a plain property read, not a nested path into t.record.
     teams.forEach(t => { const g = t.record.wins + t.record.losses + t.record.ties; t.recordWinPct = g ? (t.record.wins + t.record.ties * 0.5) / g : -1; });
+    // Points actually scored per game so far (Sleeper's points for over weeks played).
+    const perWeek = league.settings?.league_average_match === 1 ? 2 : 1;
+    teams.forEach(t => { const wk = (t.record.wins + t.record.losses + t.record.ties) / perWeek; t.actualPpg = wk > 0 && t.record.fpts > 0 ? t.record.fpts / wk : null; t.actualSort = t.actualPpg ?? -1; });
     // Right now: title odds, then playoff odds, then lineup strength (lineup alone before there are odds).
     teams.forEach(t => { const p = t.projected; t.nowScore = p ? p.championshipPct * 1e4 + p.playoffPct * 10 + t.opt / 1e3 : t.opt; });
     if (!view) setView(teams.some(t => t.projected) ? 'now' : 'dynasty'); else render();
@@ -438,7 +441,7 @@ function youTag(t) {
 
 // The table's sorts, for phones (the table and its headers are hidden there).
 // Each pick sorts best-first; the same pick again flips the order.
-const MOBILE_SORTS = [['nowScore', 'Right now'], ['overall', 'Dynasty value'], ['playoffPct', 'Playoff odds'], ['recordWinPct', 'Record'], ['total', 'Player value'], ['picksValue', 'Pick value'], ['opt', 'Lineup PPG'], ['vorpTotal', 'VORP'], ['longevity', 'Longevity'], ['age', 'Age'], ['teamName', 'Team name']];
+const MOBILE_SORTS = [['nowScore', 'Right now'], ['overall', 'Dynasty value'], ['actualSort', 'Points per game'], ['playoffPct', 'Playoff odds'], ['recordWinPct', 'Record'], ['total', 'Player value'], ['picksValue', 'Pick value'], ['opt', 'Lineup PPG'], ['vorpTotal', 'VORP'], ['longevity', 'Longevity'], ['age', 'Age'], ['teamName', 'Team name']];
 function renderMobileSort() {
   const sel = document.getElementById('mobileSort');
   if (!sel) return;
@@ -476,7 +479,7 @@ function renderMobileCards(data, minOverall, maxOverall) {
 
       <div class="grid grid-cols-4 gap-2 text-center py-3 mt-3.5 border-y border-white/5">
         <div><div class="font-mono text-[13px] text-zinc-200">${t.age.toFixed(1)}</div><div class="text-[12px] text-zinc-400">Age</div></div>
-        <div><div class="font-mono text-[13px] text-zinc-200">${t.opt.toFixed(1)}</div><div class="text-[12px] text-zinc-400">Lineup PPG</div></div>
+        <div><div class="font-mono text-[13px] text-zinc-200">${t.actualPpg != null ? t.actualPpg.toFixed(1) : '—'}</div><div class="text-[12px] text-zinc-400">PPG <span class="text-zinc-500">(${t.opt.toFixed(0)} proj.)</span></div></div>
         <div><div class="font-mono text-[13px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—'}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
         <div><div class="font-mono text-[13px] text-zinc-200">${t.windowYears}yr</div><div class="text-[12px] text-zinc-400">Longevity</div></div>
       </div>
@@ -538,14 +541,14 @@ function renderMap() {
   const dots = [...teams].sort((a, b) => (a === mine) - (b === mine)).map(t => {
     const cx = X(t.opt), cy = Y(t.overall), me = t === mine;
     const right = cx > W - R - (narrow ? 90 : 150), name = Vault.escapeHtml(t.teamName.length > (narrow ? 11 : 18) ? t.teamName.slice(0, narrow ? 10 : 17) + '…' : t.teamName);
-    const tip = `${t.teamName}: ${t.opt.toFixed(1)} lineup points a week, ${Math.round(t.overall).toLocaleString()} dynasty value${t.projected ? `, ${t.projected.championshipPct.toFixed(1)}% title odds` : ''}`;
+    const tip = `${t.teamName}: ${t.opt.toFixed(1)} projected lineup points a week${t.actualPpg != null ? ` (${t.actualPpg.toFixed(1)} scored so far)` : ''}, ${Math.round(t.overall).toLocaleString()} dynasty value${t.projected ? `, ${t.projected.championshipPct.toFixed(1)}% title odds` : ''}`;
     return `<a href="${teamLink(t)}"><g class="cursor-pointer"><title>${Vault.escapeHtml(tip)}</title>
       <circle cx="${cx}" cy="${cy}" r="${me ? 8 : 6.5}" class="${me ? 'fill-amber-400' : 'fill-zinc-300'}" stroke="#14161b" stroke-width="2"></circle>
       <text x="${right ? cx - 11 : cx + 11}" y="${cy + 4}" text-anchor="${right ? 'end' : 'start'}" font-size="12" class="${me ? 'fill-amber-200' : 'fill-zinc-400'}">${name}</text></g></a>`;
   }).join('');
   box.innerHTML = `<div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
       <h2 class="text-[16px] font-semibold text-zinc-100">Contend or rebuild</h2>
-      <span class="text-[12px] text-zinc-400">This season's lineup against dynasty value. Lines are the league average. Click a team to open it.</span>
+      <span class="text-[12px] text-zinc-400">Projected lineup for the rest of the season against dynasty value. Lines are the league average. Click a team to open it.</span>
     </div>
     <div class="overflow-x-auto"><svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="League map: lineup strength against dynasty value">
       <line x1="${mx}" y1="${T}" x2="${mx}" y2="${H - B}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4 4"></line>
@@ -553,7 +556,7 @@ function renderMap() {
       <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="rgba(255,255,255,0.15)"></line>
       ${quad(W - R - 4, T + 12, 'end', narrow ? 'NOW + LATER' : 'STRONG NOW AND LATER')}${quad(W - R - 4, H - B - 8, 'end', 'WIN NOW')}${quad(L + 6, T + 12, 'start', 'BUILT FOR LATER')}${quad(L + 6, H - B - 8, 'start', 'REBUILD')}
       ${xt}${yt}
-      <text x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle" class="fill-zinc-400" font-size="12">Lineup points a week, this season →</text>
+      <text x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle" class="fill-zinc-400" font-size="12">${narrow ? 'Projected points a week →' : 'Projected lineup points a week, rest of season →'}</text>
       <text transform="translate(${narrow ? 11 : 14} ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle" class="fill-zinc-400" font-size="12">Dynasty value →</text>
       ${dots}
     </svg></div>`;
@@ -600,7 +603,6 @@ function render() {
   // teams even when a column's values all cluster well above zero (the norm).
   const range = f => { const vals = data.map(f); return [Math.min(...vals), Math.max(...vals)]; };
   const [minOverall, maxOverall] = range(t => t.overall);
-  const [minOpt, maxOpt] = range(t => t.opt);
   const [minVorp, maxVorp] = range(t => t.vorpTotal || 0);
   const [minLongevity, maxLongevity] = range(t => t.longevity);
   tb.innerHTML = data.map(t => {
@@ -632,9 +634,9 @@ function render() {
       </td>
       ${posCells(t)}
       <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-300">${t.age.toFixed(1)}</td>
-      <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.opt.toFixed(1)}</div>
-        ${microBar(t.opt, minOpt, maxOpt)}
+      <td class="px-2.5 py-3.5 text-right">
+        <div class="font-mono font-semibold text-[14px] text-zinc-100" title="Points actually scored per game so far">${t.actualPpg != null ? t.actualPpg.toFixed(1) : '—'}</div>
+        <div class="font-mono text-[12px] text-zinc-400 whitespace-nowrap" title="Projected best-lineup points a week, rest of season">${t.opt.toFixed(1)} proj.</div>
       </td>
       <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—'}</div>
