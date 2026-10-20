@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>Trade Lab — The Vault</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="tailwind.css?v=77290b79">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<main id="main" class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
+  <div class="mb-2">
+    <h1 class="display text-[28px] font-semibold gold-text">Trade Lab</h1>
+    <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading 1.3 million trades…</p>
+  </div>
+  <p class="text-[13px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
+    Every two-team trade in 2024 and 2025 Sleeper dynasty leagues where every piece had a KTC price, each judged as its league stood that day, then followed for up to two years. Only totals are shown: no league, team or manager.
+    <a href="how_we_grade.html#facts" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How we use it</a>
+  </p>
+
+  <div id="tiles" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+
+  <nav aria-label="Sections" class="flex flex-wrap gap-2 mb-6 text-[12px]">
+    <a href="#how" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">How managers trade</a>
+    <a href="#after" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">What happened after</a>
+    <a href="#league" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Your league vs everyone</a>
+    <a href="#explore" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Explore it yourself</a>
+  </nav>
+
+  <section id="how" class="mb-10 scroll-mt-24">
+    <h2 class="text-[18px] font-semibold text-zinc-100 mb-3">How managers trade</h2>
+    <div id="howBody" class="space-y-4"></div>
+  </section>
+
+  <section id="after" class="mb-10 scroll-mt-24">
+    <h2 class="text-[18px] font-semibold text-zinc-100 mb-3">What happened after</h2>
+    <div id="afterBody" class="space-y-4"></div>
+  </section>
+
+  <section id="league" class="mb-10 scroll-mt-24">
+    <h2 class="text-[18px] font-semibold text-zinc-100 mb-1">Your league vs everyone</h2>
+    <p id="leagueSub" class="text-[12px] text-zinc-400 mb-3">Loading your league's trades…</p>
+    <div id="leagueBody" class="space-y-4"></div>
+  </section>
+
+  <section id="explore" class="mb-10 scroll-mt-24">
+    <h2 class="text-[18px] font-semibold text-zinc-100 mb-1">Explore it yourself</h2>
+    <p class="text-[12px] text-zinc-400 mb-3 max-w-[720px]">Pick what one side of a trade looked like and see how sides like it turned out. Ahead later: that side was ahead on value a year or more on (KTC). Value change after: how much its edge grew or shrank after the trade, on average.</p>
+    <div id="exploreBody"></div>
+  </section>
+</main>
+
+<div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
+
+<script src="vault-core.js?v=d762581a"></script>
+<script src="vault-nav.js?v=30e0b77d"></script>
+<script>
+const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const esc = s => Vault.escapeHtml(String(s));
+const fmtInt = n => Math.round(n).toLocaleString();
+const pc = (v, d = 0) => (v == null ? '—' : `${(+v).toFixed(d)}%`);
+const signed = (v, d = 0) => (v == null ? '—' : Math.abs(v) < 0.5 / 10 ** d ? '0%' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(d)}%`);
+const tone = v => (v == null || Math.abs(v) < 2 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-orange-300');
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// A panel: title, one line of what it shows, the chart, and one line of what it means.
+const panel = (title, sub, inner, foot = '') => `<div class="card rounded-vault-sm p-4 min-w-0">
+    <div class="text-[14px] font-medium text-zinc-100">${title}</div>
+    <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">${sub}</div>${inner}${foot ? `<div class="text-[12px] text-zinc-400 mt-3 leading-relaxed">${foot}</div>` : ''}</div>`;
+// A horizontal bar row: label, bar, value.
+function barRow(label, v, max, valueHtml, tip, fill = 'bg-sky-400/70') {
+  const w = max ? Math.max(0, Math.min(100, v / max * 100)) : 0;
+  return `<div class="grid grid-cols-[minmax(84px,132px)_minmax(0,1fr)_auto] items-center gap-3 py-1 outline-none" tabindex="0" data-tip="${esc(tip)}">
+      <span class="text-[12px] text-zinc-300 truncate">${label}</span>
+      <div class="h-2.5 rounded-full bg-white/[0.04]"><div class="h-full rounded-full ${fill}" style="width:${w.toFixed(2)}%"></div></div>
+      <span class="text-[12px] mono text-zinc-300 text-right whitespace-nowrap">${valueHtml}</span>
+    </div>`;
+}
+// Vertical bars on one baseline (calendar, ages), each with a hover note.
+function columns(items, { fill = 'bg-sky-400/70', h = 'h-32', every = 1 } = {}) {
+  const max = Math.max(...items.map(i => i.v)) || 1;
+  return `<div class="flex items-end gap-[3px] ${h} border-b border-white/10">${items.map(i => `<div tabindex="0" data-tip="${esc(i.tip)}" class="flex-1 h-full flex items-end outline-none group/bar">
+      <div class="w-full rounded-t-[4px] ${fill} group-hover/bar:opacity-80 group-focus/bar:opacity-80" style="height:${Math.max(1, i.v / max * 100).toFixed(1)}%"></div></div>`).join('')}</div>
+    <div class="flex gap-[3px] mt-1">${items.map((i, k) => `<div class="flex-1 text-center text-[11px] text-zinc-500 truncate">${k % every === 0 ? i.label : ''}</div>`).join('')}</div>`;
+}
+const table = (head, rows) => `<div class="overflow-x-auto"><table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500">${head.map((h, i) => `<th class="font-normal pb-2 ${i ? 'text-right px-2' : 'text-left pr-3'}">${h}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr class="border-t border-white/5">${r.map((c, i) => `<td class="py-1.5 ${i ? 'text-right px-2 mono whitespace-nowrap' : 'pr-3 text-zinc-300'}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+const tile = (big, label, note = '') => `<div class="card rounded-vault-sm p-4"><div class="num text-[30px] text-zinc-100">${big}</div><div class="text-[12px] text-zinc-300 mt-1">${label}</div>${note ? `<div class="text-[11px] text-zinc-500 mt-0.5">${note}</div>` : ''}</div>`;
+
+// One tooltip for every chart: whatever's under the pointer or focused with data-tip.
+(() => {
+  const tip = document.getElementById('tip');
+  const show = (el, x, y) => { tip.textContent = el.dataset.tip; tip.classList.remove('hidden'); const r = tip.getBoundingClientRect(); tip.style.left = Math.max(8, Math.min(innerWidth - r.width - 8, x - r.width / 2)) + 'px'; tip.style.top = Math.max(8, y - r.height - 10) + 'px'; };
+  document.addEventListener('pointermove', e => { const el = e.target.closest?.('[data-tip]'); if (el && el.dataset.tip) show(el, e.clientX, e.clientY); else tip.classList.add('hidden'); });
+  document.addEventListener('focusin', e => { const el = e.target.closest?.('[data-tip]'); if (el && el.dataset.tip) { const r = el.getBoundingClientRect(); show(el, r.left + r.width / 2, r.top); } });
+  document.addEventListener('focusout', () => tip.classList.add('hidden'));
+})();
+
+/* ---------- How managers trade ---------- */
+function renderHow(d, ins) {
+  const cal = d.calendar;
+  const months = panel('When trades happen', `Share of all trades by month. ${pc(cal.inSeason)} happen during the NFL regular season.`,
+    columns(cal.months.map(m => ({ v: m.share, label: MONTHS[m.m - 1], tip: `${MONTHS[m.m - 1]}: ${pc(m.share, 1)} of trades (${fmtInt(m.n)})` }))),
+    'Two peaks: May, right after the rookie draft, and October-November, before trade deadlines. December is the quietest month.');
+  const wkMax = Math.max(...cal.weeks.map(w => w.n));
+  const weeks = panel('In season, by NFL week', 'Trades each week of the regular season.',
+    columns(cal.weeks.map(w => ({ v: w.n, label: w.w, tip: `Week ${w.w}: ${fmtInt(w.n)} trades` })), { fill: 'bg-violet-400/70' }),
+    `Trading builds to a peak around week 11 (deadlines), then falls off fast. Contenders paid within 1% of even in every month, so there's no deadline premium.`);
+  const shapeMax = Math.max(...d.shapes.map(s => s.share));
+  const shapes = panel('The shape of a deal', 'Pieces each way, fewer first: share of trades and the typical gap between the sides.',
+    d.shapes.map(s => barRow(s.shape, s.share, shapeMax, `${pc(s.share)} <span class="text-zinc-500">· ${pc(s.gap)} apart</span>`, `${s.shape}: ${fmtInt(s.n)} trades, typically ${pc(s.gap, 1)} apart on trade value`)).join(''),
+    '2-for-1s are the most common deal. 1-for-1s run more than twice as far apart as anything else: one player against another is the least certain price in a trade.');
+  const gapMax = Math.max(...d.gaps.rows.map(r => r.share));
+  const gaps = panel('How close to even', `How far apart the two sides were (trade value at KTC that day). Typical: ${pc(d.gaps.median)}.`,
+    d.gaps.rows.map(r => barRow(r.label + ' apart', r.share, gapMax, pc(r.share), `${r.label} apart: ${pc(r.share, 1)} of trades`, 'bg-emerald-400/70')).join(''),
+    'Most trades are close: more than half within 10%. About 1 in 8 is 30% or more apart.');
+  const PL = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', PICK: 'Pick' };
+  const pieceMax = Math.max(...d.bestPiece.map(p => p.share));
+  const piece = panel('What moves', 'The best piece each side got.',
+    d.bestPiece.map(p => barRow(PL[p.pos], p.share, pieceMax, pc(p.share), `${PL[p.pos]}: the best piece for ${pc(p.share, 1)} of sides`, p.pos === 'PICK' ? 'bg-violet-400/70' : 'bg-sky-400/70')).join(''),
+    `Picks are the most traded thing: ${pc(d.picks.any)} of trades include one, ${pc(d.picks.picksOnly)} are picks only, and ${pc(d.picks.playersOnly)} are players only.`);
+  const ages = panel('How old the players are', 'When a player was the best piece a side got, his age. The last bar is 34 and older.',
+    `<div class="grid grid-cols-2 md:grid-cols-4 gap-4">${d.ages.map(a => `<div><div class="flex items-center justify-between mb-2"><span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[11px] text-zinc-500">typical ${a.median}</span></div>
+      ${columns(a.hist.filter(x => x.age <= 34).map(x => ({ v: x.share, label: x.age, tip: `${a.pos} aged ${x.age === 34 ? '34+' : x.age}: ${pc(x.share, 1)}` })), { h: 'h-20', every: 3, fill: 'bg-amber-400/60' })}</div>`).join('')}</div>`,
+    'RBs and WRs move young (typically 24). The verdict counts RBs, WRs and TEs 27 and older 5% below their KTC price: that age is a cliff.');
+  const MODE = { contend: 'Contender', rebuild: 'Rebuilder', flexible: 'Flexible' };
+  const tp = ins?.timelinePairs || [];
+  const who = tp.length ? panel('Who trades with whom', 'Each pairing\'s share of trades, against what you\'d expect from how many teams of each kind trade.',
+    tp.map(r => { const [a, b] = r.pair.split('+'); return barRow(`${MODE[a]} + ${MODE[b].toLowerCase()}`, r.share, 40, `${pc(r.share)} <span class="${r.lift >= 1.05 ? 'text-emerald-300' : r.lift <= 0.95 ? 'text-orange-300' : 'text-zinc-500'}">${r.lift.toFixed(2)}x</span>`, `${MODE[a]} + ${MODE[b].toLowerCase()}: ${pc(r.share, 1)} of trades, ${r.lift.toFixed(2)}x chance`); }).join(''),
+    'Contenders trade with rebuilders and flexible teams more than chance; teams on the same timeline less.') : '';
+  const sellers = panel('Who sells points in season', 'Share of each kind of team\'s in-season trades that cost its best lineup 5+ points a week.',
+    d.sellers.map(s => barRow(s.label, s.sold5, 25, pc(s.sold5, 1), `${s.label}: sold 5+ points a week in ${pc(s.sold5, 1)} of ${fmtInt(s.n)} trades; gained 5+ in ${pc(s.gained5, 1)}`, 'bg-orange-400/70')).join(''),
+    'Teams headed to the playoffs almost never sell starters (2%), even for extra value. Buy from teams that are out of it. Trade Coach does.');
+  const busy = panel('How busy leagues are', 'Trades per league per season.',
+    table(['League size', 'Leagues', 'Quiet (1 in 4)', 'Typical', 'Busy (1 in 4)', 'Busiest 1 in 10'], d.perLeague.map(r => [`${r.teams} teams`, fmtInt(r.leagues), r.p25, `<span class="text-zinc-100">${r.median}</span>`, r.p75, `${r.p90}+`])),
+    `${pc(d.formats.sf)} of trades are in Superflex leagues, ${pc(d.formats.tep)} in TE-premium leagues.`);
+  const ROLE = { one: '1-for-1', cons: 'They got the best piece for more pieces', more: 'They got more pieces', even: 'Same number of pieces, 2+ each' };
+  const brow = (role, picks, star) => ins?.behind?.rows.find(r => r.role === role && r.picks === picks && r.star === star);
+  const behind = ins?.behind ? panel('How far behind managers go', 'In accepted trades, how far the side that gave more value was behind, by the shape of the deal from its side.',
+    table(['Their side', 'Picks in it', 'Typical', '3 in 4 within', 'Star deals (6,000+)'], ['one', 'cons', 'more', 'even'].flatMap(role => [0, 1].map(picks => { const r = brow(role, picks, 0), st = brow(role, picks, 1); return r ? [picks ? '' : ROLE[role], picks ? 'yes' : 'no', `<span class="text-zinc-100">${r.median.toFixed(0)}% behind</span>`, `${r.p75.toFixed(0)}%`, st ? `${st.median.toFixed(0)}%` : '—'] : null; })).filter(Boolean)),
+    'Once pieces are added, managers rarely go more than 5-9% behind. The Trade Calculator\'s "would they accept" and Trade Coach use this table.') : '';
+  document.getElementById('howBody').innerHTML = `${months}<div class="grid lg:grid-cols-2 gap-4">${weeks}${shapes}</div>${behind}
+    <div class="grid lg:grid-cols-2 gap-4">${gaps}${piece}</div>${ages}<div class="grid lg:grid-cols-2 gap-4">${sellers}${who || busy}</div>${who ? busy : ''}`;
+}
+
+/* ---------- What happened after ---------- */
+function renderAfter(d, ins) {
+  const VT = { 'Great trade': 'text-emerald-300', 'Good trade': 'text-emerald-300', 'Slight edge': 'text-emerald-200', 'Toss-up': 'text-amber-300', 'Leans bad': 'text-orange-300', 'Bad trade': 'text-orange-300', 'Terrible trade': 'text-rose-300' };
+  const verdicts = panel('Each verdict, followed up', 'The Trade Calculator\'s verdict for each side, and how those sides did: ahead on value a year or more later, 10%+ behind, and contenders against their playoff odds (versus the average contender that traded).',
+    table(['Verdict', 'Sides', 'Ahead later', 'Lost 10%+', 'Contenders vs odds'], d.verdicts.map(v => [`<span class="font-medium ${VT[v.tier]}">${v.tier}</span>`, fmtInt(v.n), pc(v.ahead), pc(v.lost), v.playoffs == null ? '—' : `<span class="${tone(v.playoffs)}">${v.playoffs > 0 ? '+' : v.playoffs < 0 ? '−' : ''}${Math.abs(v.playoffs).toFixed(1)} pts</span>`])),
+    'Every step down the ladder turned out worse, in both seasons and every format. Toss-up really is a coin flip.');
+  const holds = panel('Does the price hold?', 'The side\'s price at the trade, and how often it was still ahead on value a year or more later.',
+    d.priceHolds.map(r => barRow(r.label, r.ahead, 100, `${pc(r.ahead)} <span class="text-zinc-500">· typical ${signed(r.later)}</span>`, `${r.label} at the trade: ${pc(r.ahead, 1)} ahead later, typically ${signed(r.later, 1)} (${fmtInt(r.n)} sides)`, r.ahead >= 50 ? 'bg-emerald-400/70' : 'bg-orange-400/70')).join(''),
+    'Mostly, yes: the side that got more value usually stays ahead. Even at 20%+ behind, 1 in 5 came out ahead, mostly on players who broke out.');
+  const titles = panel('Trades that won titles', 'Contenders already likely in the playoffs (85%+ odds): how often they won the title against what their odds said, by points a week the trade added.',
+    d.titles.rows.map(r => barRow(r.label === 'About none' ? 'About none' : `${r.label} pts`, r.ratio, 1.5, `${r.ratio.toFixed(2)}x <span class="text-zinc-500">· ${pc(r.won, 1)} won</span>`, `${r.label} points a week: title odds ${pc(r.odds, 1)}, won ${pc(r.won, 1)} (${fmtInt(r.n)} sides)`, r.ratio >= 1.2 ? 'bg-emerald-400/70' : 'bg-sky-400/70')).join(''),
+    'For a team already headed to the playoffs, the title is where a trade shows up. Teams that trade beat their odds a little anyway (1.12x); trades adding 6+ points a week won 1.35x as often. Trade Coach shows your title odds on each suggestion.');
+  const ROLE = { cons: 'Got fewer pieces', more: 'Got more pieces', one: '1-for-1', even: 'Even, 2+ each' };
+  const shape = panel('Consolidate or spread out?', 'At an even price (within 5%): how often each side was ahead on value later.',
+    d.shapeOutcomes.map(r => barRow(ROLE[r.role], r.ahead, 100, `${pc(r.ahead)} <span class="text-zinc-500">· ${signed(r.drift, 1)}</span>`, `${ROLE[r.role]}: ${pc(r.ahead, 1)} ahead later, typical change ${signed(r.drift, 1)} (${fmtInt(r.n)} sides)`, r.ahead >= 50 ? 'bg-emerald-400/70' : 'bg-orange-400/70')).join(''),
+    'At the same price, the side that got more pieces came out ahead 63% of the time: KTC\'s consolidation bonus is a little rich. Consolidating still helped contenders win titles.');
+  const pk = ins?.picksByAge || [];
+  const picks = pk.length ? panel('Picks gain on players', 'Picks for players at an even price: how often the side that got the picks was ahead later, by how long ago the trade was.',
+    pk.map(r => barRow(r.label, r.ahead, 100, `${pc(r.ahead)} <span class="text-zinc-500">of ${fmtInt(r.n)}</span>`, `${r.label}: ${pc(r.ahead)} ahead`, 'bg-violet-400/70')).join(''),
+    'New rookie classes push existing players down the scale. The verdict counts picks about 5% above KTC.') : '';
+  const AGE = ['under 23', '23-24', '25-26', '27-28', '29-30', '31+'];
+  const ages = ins?.ageByPosition ? panel('Age and position: what the price missed', 'At an even price, how much a side whose best piece was this position and age gained or lost on value, one year on / two years on (typical).',
+    `<div class="overflow-x-auto"><table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 pr-3 text-left">Best piece</th>${AGE.map(a => `<th class="font-normal pb-2 px-1 text-right">${a}</th>`).join('')}</tr></thead>
+      <tbody>${['QB', 'RB', 'WR', 'TE'].map(pos => `<tr class="border-t border-white/5"><td class="py-1.5 pr-3"><span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(pos)}">${pos}</span></td>${AGE.map(a => { const r = ins.ageByPosition.find(x => x.pos === pos && x.age === a); return `<td class="py-1.5 px-1 text-right mono whitespace-nowrap">${r ? `<span class="${tone(r.drift1)}">${signed(r.drift1)}</span><span class="text-zinc-600"> / </span><span class="${tone(r.drift2)}">${signed(r.drift2)}</span>` : '<span class="text-zinc-600">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`,
+    '27 is a cliff for RBs, WRs and TEs.') : '';
+  const swaps = ins?.swaps ? panel('Straight swaps by position', 'One player for one at a different position, at an even price: the side that got this position, value later (typical).',
+    ins.swaps.map(r => barRow(r.pos, Math.abs(r.drift), 12, `<span class="${tone(r.drift)}">${signed(r.drift)}</span> <span class="text-zinc-500">${r.ahead}% ahead</span>`, `${r.pos}: ${signed(r.drift1)} one year on, ${signed(r.drift2)} two years on (${fmtInt(r.n)} trades)`, r.drift < 0 ? 'bg-orange-400/70' : 'bg-emerald-400/70')).join(''),
+    'The side getting the WR came out about 8% behind in both seasons; the verdict counts a WR 3% below KTC.') : '';
+  const mk = v => (Math.abs(v) < 0.5 ? 'even' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'over' : 'under'}`);
+  const deadline = ins?.contenderPaid ? panel('No deadline premium', 'How often contenders paid 10% or more over, by month, and the typical price they paid.',
+    ins.contenderPaid.map(r => barRow(r.month, r.over10, 40, `${r.over10}% <span class="text-zinc-500">· typical ${mk(-r.median)}</span>`, `${r.month}: ${fmtInt(r.n)} contender trades`, 'bg-sky-400/70')).join(''),
+    'Prices hold all year: contenders paid within 1% of even in every month, deadline included.') : '';
+  const PAIR = { 'bad+good': 'Good / bad', 'tossup+tossup': 'Toss-up both', 'good+tossup': 'Good / toss-up', 'bad+tossup': 'Toss-up / bad', 'good+good': 'Good both', 'bad+bad': 'Bad both' };
+  const pairs = ins?.verdictPairs ? panel('How both sides saw it', 'Each side\'s verdict, in trades both managers accepted.',
+    ins.verdictPairs.rows.map(r => barRow(PAIR[r.pair] || r.pair, r.share, 40, pc(r.share), `${PAIR[r.pair] || r.pair}: ${pc(r.share, 1)} of trades`, r.pair === 'good+good' ? 'bg-emerald-400/70' : 'bg-sky-400/70')).join(''),
+    'A trade that\'s good for one side is rarely good for the other (2%). The calculator shows both verdicts for that reason.') : '';
+  document.getElementById('afterBody').innerHTML = `${verdicts}<div class="grid lg:grid-cols-2 gap-4">${holds}${titles}</div><div class="grid lg:grid-cols-2 gap-4">${shape}${picks}</div>${ages}
+    <div class="grid lg:grid-cols-2 gap-4">${swaps}${deadline}</div>${pairs}`;
+}
+
+/* ---------- Your league vs everyone ---------- */
+async function renderLeague(d, ins) {
+  const sub = document.getElementById('leagueSub'), body = document.getElementById('leagueBody');
+  const leagueId = Vault.getLeagueId();
+  if (!leagueId) { sub.innerHTML = `<a href="index.html" class="text-zinc-300 underline underline-offset-2 decoration-white/20 hover:text-white">Pick your league</a> to see its trades next to everyone's.`; return; }
+  let res;
+  try { res = await Vault.fetchAndGradeAllTrades(leagueId); } catch (e) { console.error(e); sub.textContent = "Couldn't load your league's trades."; return; }
+  const { league, teams, isSF, allGraded: G } = res;
+  if (!G.length) { sub.textContent = `${league.name} has no completed trades yet.`; return; }
+  const n = G.length, size = teams.length;
+  const seasons = new Set(G.map(g => String(g.tx.season || new Date(g.tx.status_updated || g.tx.created).getFullYear())));
+  const perSeason = n / Math.max(1, seasons.size);
+  const pl = d.perLeague.reduce((b, r) => (Math.abs(r.teams - size) < Math.abs(b.teams - size) ? r : b), d.perLeague[0]);
+  const gaps = G.map(g => Math.abs(g.signedPctDiff)).sort((a, b) => a - b), med = gaps[(gaps.length - 1) >> 1];
+  const within10 = 100 * gaps.filter(x => x < 10).length / n, everyWithin10 = d.gaps.rows.slice(0, 2).reduce((s, r) => s + r.share, 0);
+  const lvl = s => (s >= 6 ? 'good' : s >= -6 ? 'tossup' : 'bad');
+  const pairOf = g => [lvl(Vault.gradedImprovement(g, 'A').score), lvl(Vault.gradedImprovement(g, 'B').score)].sort().join('+');
+  const pairs = {}; G.forEach(g => { const k = pairOf(g); pairs[k] = (pairs[k] || 0) + 1; });
+  const share = k => 100 * (pairs[k] || 0) / n, every = k => (ins?.verdictPairs?.rows || []).find(r => r.pair === k)?.share;
+  const shapeKey = g => { const a = Math.min(g.toA.length, g.toB.length, 4), b = Math.min(Math.max(g.toA.length, g.toB.length), 4); return `${a === 4 ? '4+' : a}-for-${b === 4 ? '4+' : b}`; };
+  const oneForOne = 100 * G.filter(g => shapeKey(g) === '1-for-1').length / n, ev11 = d.shapes.find(s => s.shape === '1-for-1')?.share;
+  const withPicks = 100 * G.filter(g => [...g.toA, ...g.toB].some(a => a.type === 'pick')).length / n;
+  const byTeam = new Map(); G.forEach(g => [g.teamA, g.teamB].forEach(t => byTeam.set(t.rosterId, (byTeam.get(t.rosterId) || 0) + 1)));
+  const busiest = Math.max(...byTeam.values()), busiestShare = 100 * busiest / n, traders = byTeam.size;
+  const inSeason = 100 * G.filter(g => { const m = new Date(g.tx.status_updated || g.tx.created).getMonth(); return m >= 8 && m <= 11; }).length / n;
+  const evIn = d.calendar.months.filter(m => m.m >= 9).reduce((s, m) => s + m.share, 0);
+  sub.textContent = `${n} completed trade${n === 1 ? '' : 's'} in ${league.name} (${size} teams, ${isSF ? 'Superflex' : '1QB'}), on the same definitions as the 1.3 million.`;
+  const cmp = (label, mine, theirs, note = '') => [label + (note ? `<div class="text-[11px] text-zinc-500">${note}</div>` : ''), `<span class="text-zinc-100">${mine}</span>`, theirs];
+  const rows = [
+    cmp('Trades per season', perSeason.toFixed(0), `${pl.median} <span class="text-zinc-500">(${pl.teams}-team leagues)</span>`, `${seasons.size} season${seasons.size === 1 ? '' : 's'} on Sleeper`),
+    cmp('Typical gap between the sides', pc(med, 1), pc(d.gaps.median, 1)),
+    cmp('Within 10% of even', pc(within10), pc(everyWithin10)),
+    cmp('Toss-up for both teams', pc(share('tossup+tossup')), pc(every('tossup+tossup'))),
+    cmp('Good for one, bad for the other', pc(share('bad+good')), pc(every('bad+good'))),
+    cmp('Good for both', pc(share('good+good')), pc(every('good+good'))),
+    cmp('1-for-1 deals', pc(oneForOne), pc(ev11)),
+    cmp('Include a pick', pc(withPicks), pc(d.picks.any)),
+    cmp('Sep-Dec (in season)', pc(inSeason), pc(evIn)),
+    cmp('Teams that traded', `${traders} of ${size}`, '—'),
+    cmp('Busiest team\'s share of trades', pc(busiestShare), `${pc(200 / size)} <span class="text-zinc-500">(an even spread)</span>`),
+  ];
+  const fair = med < d.gaps.median - 1 ? `Your league trades closer to even than most (typical gap ${pc(med, 1)} against ${pc(d.gaps.median, 1)}).` : med > d.gaps.median + 1 ? `Your league's trades run further apart than most (typical gap ${pc(med, 1)} against ${pc(d.gaps.median, 1)}).` : 'Your league prices trades about like everyone else.';
+  const busy = perSeason > pl.p75 ? ` It's busier than 3 in 4 leagues its size.` : perSeason < pl.p25 ? ` It's quieter than 3 in 4 leagues its size.` : '';
+  body.innerHTML = panel('Side by side', `${league.name} next to every ${pl.teams}-team league in the data where it matters (sizes), and all 1.3 million trades otherwise.`,
+    table(['', 'Your league', 'Everyone'], rows), fair + busy + ` <a href="${Vault.linkTo('trade_grades.html', leagueId)}" class="text-zinc-300 underline underline-offset-2 decoration-white/20 hover:text-white">See every trade graded</a>`);
+}
+
+/* ---------- Explore it yourself ---------- */
+const EX = { filters: {}, split: 'piece' };
+const PRESETS = [
+  { label: 'Buying a 27+ RB', f: { piece: 'RB', age: '27-29' } },
+  { label: 'Contender buying in season', f: { timeline: 'Contending', when: 'In season' } },
+  { label: 'Consolidating', f: { shape: 'Fewer pieces' } },
+  { label: 'Getting picks back', f: { piece: 'Pick' } },
+  { label: 'Overpaying 10%+', f: { price: '10%+ behind' } },
+];
+function exploreSum(cells, dims, filt) {
+  const s = { sides: 0, wl: 0, ahead: 0, lost: 0, drift: 0, poN: 0, po: 0, tN: 0, tWon: 0, tExp: 0 }, o = dims.length;
+  cells.forEach(c => {
+    for (let i = 0; i < o; i++) if (filt[i] != null && c[i] !== filt[i]) return;
+    s.sides += c[o]; s.wl += c[o + 1]; s.ahead += c[o + 2]; s.lost += c[o + 3]; s.drift += c[o + 4]; s.poN += c[o + 5]; s.po += c[o + 6]; s.tN += c[o + 7]; s.tWon += c[o + 8]; s.tExp += c[o + 9];
+  });
+  return s;
+}
+function renderExplore(d) {
+  const X = d.explore, dims = X.dims, MIN = 300;
+  const filt = dims.map(dm => { const v = EX.filters[dm.key]; const i = dm.values.indexOf(v); return i >= 0 ? i : null; });
+  const s = exploreSum(X.cells, dims, filt);
+  const enough = s.wl >= MIN;
+  const LAB = { piece: 'Best piece they got', age: 'Its age', shape: 'Shape (their side)', timeline: 'Their timeline', price: 'Price at the trade', when: 'When', format: 'Format' };
+  const SPLIT = { piece: 'Best piece', age: 'Age', shape: 'Shape', timeline: 'Timeline', price: 'Price', when: 'When', format: 'Format' };
+  const sel = dm => `<label class="flex flex-col gap-1 min-w-0"><span class="text-[11px] uppercase tracking-wider text-zinc-500">${LAB[dm.key]}</span>
+      <select onchange="EX.filters['${dm.key}'] = this.value || undefined; renderExplore(LAB_DATA)" class="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[13px] text-zinc-100 outline-none focus:border-amber-400/50">
+        <option value="">Any</option>${dm.values.map(v => `<option ${EX.filters[dm.key] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>`;
+  const presetBtns = PRESETS.map((p, i) => `<button onclick="EX.filters = { ...PRESETS[${i}].f }; renderExplore(LAB_DATA)" class="px-2.5 py-1 rounded-lg border border-white/10 text-[12px] text-zinc-300 hover:text-white hover:border-white/20">${esc(p.label)}</button>`).join('');
+  const active = Object.values(EX.filters).some(Boolean);
+  const aheadP = enough ? 100 * s.ahead / s.wl : null, lostP = enough ? 100 * s.lost / s.wl : null, drift = enough ? s.drift / s.wl : null;
+  const po = s.poN >= MIN ? s.po / s.poN - 2.09 : null, tr = s.tN >= MIN && s.tExp > 0 ? s.tWon / s.tExp : null;
+  const tiles = `<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+      ${tile(fmtInt(s.sides), 'Trade sides like this')}
+      ${tile(enough ? pc(aheadP) : '—', 'Ahead on value later', enough ? `of ${fmtInt(s.wl)} followed up` : 'too few to say')}
+      ${tile(enough ? pc(lostP) : '—', 'Lost 10%+ of value', 'a year or more on')}
+      ${tile(enough ? `<span class="${tone(drift)}">${signed(drift, 1)}</span>` : '—', 'Value change after', 'average, KTC')}
+      ${tile(tr != null ? `${tr.toFixed(2)}x` : po != null ? `${po > 0 ? '+' : '−'}${Math.abs(po).toFixed(1)}` : '—', tr != null ? 'Contenders\' titles vs odds' : 'Contenders vs playoff odds', tr != null ? `${po != null ? `playoffs ${po > 0 ? '+' : '−'}${Math.abs(po).toFixed(1)} pts vs average · ` : ''}in-season contenders` : 'in-season contenders only')}
+    </div>`;
+  // Split the current selection by one dimension.
+  const si = dims.findIndex(dm => dm.key === EX.split), sd = dims[si];
+  const parts = sd.values.map((v, k) => { const f2 = filt.slice(); f2[si] = k; const p = exploreSum(X.cells, dims, f2); return { v, p, ok: p.wl >= MIN && (filt[si] == null || filt[si] === k) }; }).filter(x => filt[si] == null || x.ok);
+  const bars = parts.map(({ v, p, ok }) => ok
+    ? barRow(esc(v), 100 * p.ahead / p.wl, 100, `${pc(100 * p.ahead / p.wl)} <span class="text-zinc-500">· ${signed(p.drift / p.wl, 1)} · ${fmtInt(p.sides)}</span>`, `${v}: ${pc(100 * p.ahead / p.wl, 1)} ahead later, ${pc(100 * p.lost / p.wl, 1)} lost 10%+, value change ${signed(p.drift / p.wl, 1)} (${fmtInt(p.sides)} sides)`, 100 * p.ahead / p.wl >= 50 ? 'bg-emerald-400/70' : 'bg-orange-400/70')
+    : `<div class="grid grid-cols-[minmax(84px,132px)_minmax(0,1fr)] gap-3 py-1 text-[12px]"><span class="text-zinc-400 truncate">${esc(v)}</span><span class="text-zinc-500">Too few trades</span></div>`).join('');
+  document.getElementById('exploreBody').innerHTML = `<div class="card rounded-vault-sm p-4">
+      <div class="flex flex-wrap items-center gap-2 mb-3"><span class="text-[12px] text-zinc-400 mr-1">Try:</span>${presetBtns}${active ? `<button onclick="EX.filters = {}; renderExplore(LAB_DATA)" class="px-2.5 py-1 text-[12px] text-zinc-400 hover:text-white">Clear</button>` : ''}</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 items-end">${dims.map(sel).join('')}</div>
+      ${tiles}
+      <div class="mt-5 flex flex-wrap items-baseline justify-between gap-2">
+        <div class="text-[14px] font-medium text-zinc-100">Ahead on value later, by</div>
+        <div class="flex flex-wrap gap-1">${dims.map(dm => `<button onclick="EX.split = '${dm.key}'; renderExplore(LAB_DATA)" class="px-2 py-0.5 rounded-md text-[12px] border ${EX.split === dm.key ? 'border-amber-400/40 text-amber-100 bg-amber-400/10' : 'border-white/10 text-zinc-400 hover:text-white'}">${SPLIT[dm.key]}</button>`).join('')}</div>
+      </div>
+      <div class="text-[11px] text-zinc-500 mt-1 mb-2">Share ahead later · average value change after · trade sides</div>
+      ${bars || '<div class="text-[12px] text-zinc-500">Too few trades like this. Loosen a filter.</div>'}
+      ${!enough ? '<div class="text-[12px] text-orange-300 mt-2">Too few trades like this to say much (under 300 followed up). Loosen a filter.</div>' : ''}
+    </div>`;
+}
+
+let LAB_DATA = null;
+async function init() {
+  const status = document.getElementById('status');
+  try {
+    const [d, ins] = await Promise.all([
+      fetch('data/market-history/trade-lab.json').then(r => { if (!r.ok) throw new Error('Trade data unavailable'); return r.json(); }),
+      fetch('data/market-history/insights.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    ]);
+    LAB_DATA = d;
+    status.textContent = `${fmtInt(d.trades)} trades · ${fmtInt(d.leagues)} leagues · ${d.seasons.join(' and ')} · updated ${d.updated}`;
+    document.getElementById('tiles').innerHTML = [
+      tile(`${(d.trades / 1e6).toFixed(2)}M`, 'Trades', `${fmtInt(d.sides)} team-sides`),
+      tile(fmtInt(d.leagues), 'Leagues', `${d.seasons.join(' and ')} seasons`),
+      tile(pc(d.gaps.median), 'Typical gap between sides', 'trade value at KTC that day'),
+      tile(pc(d.verdicts.find(v => v.tier === 'Toss-up') ? 100 * d.verdicts.find(v => v.tier === 'Toss-up').n / d.sides : null), 'Sides that were a Toss-up', 'by the Trade Calculator\'s verdict'),
+    ].join('');
+    renderHow(d, ins);
+    renderAfter(d, ins);
+    renderExplore(d);
+    renderLeague(d, ins);
+  } catch (e) {
+    console.error(e);
+    status.textContent = e.message || 'Failed to load';
+    status.className = 'text-[13px] text-rose-400 mt-1';
+  }
+}
+init();
+</script>
+</body>
+</html>

@@ -9,7 +9,7 @@
 <title>Trade Database — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=655a9195">
-<link rel="stylesheet" href="tailwind.css?v=3f3dfde8">
+<link rel="stylesheet" href="tailwind.css?v=77290b79">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -61,17 +61,14 @@
     <div id="historyBody" class="px-5 pb-5 space-y-5"></div>
   </details>
 
-  <!-- What 1.3 million judged trades show (data/market-history/insights.json, aggregates only). -->
-  <details id="insights" class="group card rounded-vault-sm mb-6 hidden" open>
-    <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-      <span>
-        <span class="block text-[16px] font-semibold text-zinc-100">What 1.3 million trades show</span>
-        <span id="insightsSub" class="block text-[12px] text-zinc-400 mt-0.5"></span>
-      </span>
-      <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
-    </summary>
-    <div id="insightsBody" class="px-5 pb-5 space-y-5"></div>
-  </details>
+  <!-- What 1.3 million judged trades show moved to its own page, Trade Lab (2026-10-20). -->
+  <a id="labLink" href="trade_lab.html" class="group card rounded-vault-sm mb-6 px-5 py-4 flex items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors">
+    <span>
+      <span class="block text-[16px] font-semibold text-zinc-100">What 1.3 million trades show</span>
+      <span class="block text-[12px] text-zinc-400 mt-0.5">How managers trade, what happened after, your league next to everyone, and an explorer: on the Trade Lab page.</span>
+    </span>
+    <span class="text-[12px] text-zinc-300 shrink-0">Open →</span>
+  </a>
 
   <div class="flex items-center gap-3 mb-5">
     <input id="searchSideA" type="text" autocomplete="off" aria-label="One side of the trade: player or pick" placeholder="e.g. Justin Herbert"
@@ -88,7 +85,7 @@
 </div>
 
 <script src="vault-core.js?v=d762581a"></script>
-<script src="vault-nav.js?v=c2462132"></script>
+<script src="vault-nav.js?v=30e0b77d"></script>
 <script>
 const TIER_LABEL = {
   full: 'Exact match — team count, QB slots, PPR, and TE premium',
@@ -439,70 +436,6 @@ function wireColumns(id, months, valueOf, fmt) {
     el.addEventListener('mouseleave', () => tip.classList.add('hidden')); el.addEventListener('blur', () => tip.classList.add('hidden'));
   });
 }
-/* What 1.3 million judged trades show (2026-10-19): how far behind managers go by
-   the shape of the deal, what happened to trades afterward, and how both sides saw
-   them. Built offline from every two-team trade in 2024-2025 Sleeper dynasty leagues
-   (VaultValues build-insights.js); aggregates only, no team or league named. */
-async function renderInsights() {
-  let d;
-  try { const res = await fetch('data/market-history/insights.json'); if (!res.ok) return; d = await res.json(); } catch { return; }
-  const box = document.getElementById('insights'), body = document.getElementById('insightsBody');
-  document.getElementById('insightsSub').textContent = `Every two-team trade in ${d.seasons.join(' and ')} Sleeper dynasty leagues (${d.trades.toLocaleString()} trades), each judged as its league stood that day, then followed for up to two years.`;
-  const panel = (title, sub, inner, foot = '') => `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
-      <div class="text-[13px] font-medium text-zinc-200">${title}</div>
-      <div class="text-[12px] text-zinc-400 mt-0.5 mb-3">${sub}</div>${inner}${foot ? `<div class="text-[11px] text-zinc-500 mt-2">${foot}</div>` : ''}</div>`;
-  const sg = v => (v == null ? '—' : Math.abs(v) < 0.5 ? '0%' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(0)}%`);
-  const tone = v => (v == null || Math.abs(v) < 2 ? 'text-zinc-300' : v > 0 ? 'text-emerald-300' : 'text-orange-300');
-
-  // 1. How far behind managers go.
-  const ROLE = { one: '1-for-1', cons: 'They get the best piece for more pieces', more: 'They get more pieces', even: 'Same number of pieces, 2+ each' };
-  const row = (role, picks, star) => d.behind.rows.find(r => r.role === role && r.picks === picks && r.star === star);
-  const behind = panel('How far behind managers go', 'In accepted trades, how far the side that gave more value was behind (trade value at KTC that day), by the shape of the deal from their side. Typical is the middle; most trades fall within the second number.',
-    `<div class="overflow-x-auto"><table class="w-full text-[12px]">
-      <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500 text-left"><th class="font-normal pb-2 pr-3">Their side</th><th class="font-normal pb-2 pr-3">Picks in it</th><th class="font-normal pb-2 pr-3 text-right">Typical</th><th class="font-normal pb-2 pr-3 text-right">3 in 4 within</th><th class="font-normal pb-2 text-right">Star deals (6,000+)</th></tr></thead>
-      <tbody>${['one', 'cons', 'more', 'even'].flatMap(role => [0, 1].map(picks => { const r = row(role, picks, 0), st = row(role, picks, 1); if (!r) return ''; return `<tr class="border-t border-white/5">
-        <td class="py-1.5 pr-3 text-zinc-300">${picks ? '' : ROLE[role]}</td><td class="py-1.5 pr-3 text-zinc-400">${picks ? 'yes' : 'no'}</td>
-        <td class="py-1.5 pr-3 text-right mono text-zinc-100">${r.median.toFixed(0)}% behind</td><td class="py-1.5 pr-3 text-right mono text-zinc-400">${r.p75.toFixed(0)}%</td>
-        <td class="py-1.5 text-right mono text-zinc-400">${st ? st.median.toFixed(0) + '%' : '—'}</td></tr>`; })).join('')}</tbody></table></div>`,
-    `1-for-1s run wide because one player's KTC value against another's is the least certain number in a trade, and pick prices are a matter of opinion. Once pieces are added, managers rarely go more than 5-9% behind. The Trade Calculator's "would they accept" and Trade Coach use this table.`);
-
-  // 2. What happened after.
-  const pk = d.picksByAge || [];
-  const picks = panel('Picks gain on players', 'Trades of only picks for only players at an even price: how often the side that got the picks was ahead on value later, by how long ago the trade was.',
-    pk.map(r => mkBarRow(r.label.replace(' months', ' mo'), r.ahead, 100, `${r.ahead}% <span class="text-zinc-500">of ${r.n.toLocaleString()}</span>`, `${r.label}: ${r.ahead}% ahead, median ${sg(r.drift)}`, 'bg-violet-400/70')).join(''),
-    'Even at a fair price, the pick side kept gaining the longer it was held: new rookie classes push existing players down KTC\'s scale. The verdict counts picks about 5% above their KTC value for this.');
-  const AGE = ['under 23', '23-24', '25-26', '27-28', '29-30', '31+'];
-  const ageTable = panel('Age and position: what the price missed', 'At an even price, how much the side whose best piece was this position and age gained or lost on value afterward (median), one year on and two years on.',
-    `<div class="overflow-x-auto"><table class="w-full text-[12px]">
-      <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 pr-3 text-left">Best piece</th>${AGE.map(a => `<th class="font-normal pb-2 px-1 text-right">${a}</th>`).join('')}</tr></thead>
-      <tbody>${['QB', 'RB', 'WR', 'TE'].map(pos => `<tr class="border-t border-white/5"><td class="py-1.5 pr-3"><span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(pos)}">${pos}</span></td>${AGE.map(a => { const r = d.ageByPosition.find(x => x.pos === pos && x.age === a); return `<td class="py-1.5 px-1 text-right mono whitespace-nowrap" title="${r ? `${r.n1.toLocaleString()} + ${r.n2.toLocaleString()} trades` : ''}">${r ? `<span class="${tone(r.drift1)}">${sg(r.drift1)}</span><span class="text-zinc-600"> / </span><span class="${tone(r.drift2)}">${sg(r.drift2)}</span>` : '<span class="text-zinc-600">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`,
-    'One year on / two years on. 27 is a cliff for RBs, WRs and TEs; the verdict counts a 27+ RB, WR or TE 5% below its KTC value.');
-  const swaps = panel('Straight swaps by position', 'One player for one player at a different position, at an even price: the side that got this position, value later (median).',
-    d.swaps.map(r => mkBarRow(r.pos, Math.abs(r.drift), 12, `<span class="${tone(r.drift)}">${sg(r.drift)}</span> <span class="text-zinc-500">${r.ahead}% ahead</span>`, `${r.pos}: ${sg(r.drift1)} one year on, ${sg(r.drift2)} two years on (${r.n.toLocaleString()} trades)`, r.drift < 0 ? 'bg-orange-400/70' : 'bg-emerald-400/70')).join(''),
-    'The side getting the WR came out about 8% behind in both seasons; the verdict counts a WR 3% below its KTC value (less than measured, in case it\'s a market cycle).');
-  const cp = d.contenderPaid || [];
-  const deadline = panel('No deadline premium', 'How often contending teams paid 10% or more over in their trades, by month, and the median price they paid (trade value at KTC that day).',
-    cp.map(r => mkBarRow(r.month, r.over10, 40, `${r.over10}% paid 10%+ over <span class="text-zinc-500">· median ${mkSigned(-r.median)}</span>`, `${r.month}: ${r.n.toLocaleString()} contender trades`, 'bg-sky-400/70')).join(''),
-    'Prices hold all year: contenders paid within 1% of even in every month, deadline included.');
-
-  // 3. How both sides saw it.
-  const PAIR = { 'bad+good': 'Good for one, bad for the other', 'tossup+tossup': 'Toss-up for both', 'good+tossup': 'Good for one, toss-up for the other', 'bad+tossup': 'Toss-up for one, bad for the other', 'good+good': 'Good for both', 'bad+bad': 'Bad for both' };
-  const SHORT = { 'bad+good': 'Good / bad', 'tossup+tossup': 'Toss-up both', 'good+tossup': 'Good / toss-up', 'bad+tossup': 'Toss-up / bad', 'good+good': 'Good both', 'bad+bad': 'Bad both' };
-  const pairs = panel('How both sides saw it', 'Each side\'s verdict on the same ladder as the Trade Calculator, in trades both managers accepted.',
-    d.verdictPairs.rows.map(r => mkBarRow(SHORT[r.pair] || r.pair, r.share, 40, `${r.share.toFixed(0)}%`, PAIR[r.pair] || r.pair, r.pair === 'good+good' ? 'bg-emerald-400/70' : 'bg-sky-400/70')).join(''),
-    'A trade that\'s great for one side is usually not great for the other: when one side\'s verdict was Good, the other\'s was a Toss-up or better only about a third of the time. The calculator shows both verdicts for that reason.');
-  const MODE = { contend: 'Contender', rebuild: 'Rebuilder', flexible: 'Flexible' };
-  const who = panel('Who trades with whom', 'Each pairing\'s share of trades, against what you\'d expect from how many teams of each kind trade.',
-    d.timelinePairs.map(r => { const [a, b] = r.pair.split('+'); return mkBarRow(`${MODE[a]} + ${MODE[b].toLowerCase()}`, r.share, 40, `${r.share.toFixed(0)}% <span class="${r.lift >= 1.05 ? 'text-emerald-300' : r.lift <= 0.95 ? 'text-orange-300' : 'text-zinc-500'}">${r.lift.toFixed(2)}x</span>`, `${r.pair}: ${r.lift}x chance`, 'bg-sky-400/70'); }).join(''),
-    'Contenders trade with rebuilders and flexible teams about 18% more than chance; teams on the same timeline less.');
-  body.innerHTML = `<div class="text-[12px] font-medium uppercase tracking-wider text-zinc-500">Building an offer</div>${behind}
-    <div class="text-[12px] font-medium uppercase tracking-wider text-zinc-500 pt-1">What happened after</div>
-    <div class="grid lg:grid-cols-2 gap-4">${picks}${swaps}</div>${ageTable}${deadline}
-    <div class="text-[12px] font-medium uppercase tracking-wider text-zinc-500 pt-1">Both sides of a trade</div>
-    <div class="grid lg:grid-cols-2 gap-4">${pairs}${who}</div>`;
-  box.classList.remove('hidden');
-}
-
 async function renderHistory(field) {
   let doc;
   try { const res = await fetch(`data/market-history/${field}.json`); if (!res.ok) return; doc = await res.json(); } catch { return; }
@@ -655,7 +588,7 @@ async function init() {
       });
     }).catch(() => {});
     renderHistory(valueField);
-    renderInsights();
+    document.getElementById('labLink').href = Vault.linkTo('trade_lab.html');
     document.getElementById('marketLink').href = Vault.linkTo('market.html');
     Vault.fetchAndGradeAllTrades(leagueId).then(({ allGraded }) => {
       leagueRows = (allGraded || []).filter(g => Number.isFinite(g.pctDiff)).map(g => ({ pct: g.pctDiff, bucket: Vault.priceWord(g.bucket || Vault.fairnessBucket(g.pctDiff, 0, 0)), label: `${g.teamA.teamName} and ${g.teamB.teamName}` }));
