@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=c8a3cb25">
+<link rel="stylesheet" href="tailwind.css?v=9d851f73">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -32,14 +32,14 @@
 </div>
 
 <script src="vault-core.js?v=d30ce494"></script>
-<script src="vault-nav.js?v=3bc8848a"></script>
+<script src="vault-nav.js?v=38cbc543"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-20', items: [
-    { kind: 'new', page: 'Contend or Rebuild?', text: "New page, Contend or Rebuild? (League menu): four ways to play the next few seasons, Push now, Reload, Rebuild and Stay the course, worked out on your team's real roster, and on any other team's. Toggle between them to see what each does to this season's title odds, the next two seasons' contention window, how much of the team's value is in RBs, WRs and TEs past the age-27 cliff, and pick capital. Each path lists the case for and against, how hard it is in your league (how many contenders would start the players you'd sell, how many teams out of the race have a starter for you), and what happened to teams in the same spot in real leagues. A path is suggested, but every one is laid out so you decide. Each has a button into Trade Coach. New research behind it, from 1.34 million trades: teams that bought made the next season's playoffs more often than teams that stood pat at every record level (winning teams 72% against 65%), and after a selling season, teams that bought the next year made the playoffs 53% of the time." },
+    { kind: 'changed', page: 'Everywhere', text: "A simpler menu: five tabs instead of fifteen pages. League (League Overview, and Teams for any one team), Trade Calculator, Market (Player Market, Rankings, Compare and Trade Search), League Trades (Trade Grades and Managers) and Trade Lab. A tab with more than one page shows them in a row underneath. Start/Sit, Waivers, Playoff Schedule and Rookie Draft are gone." },
     { kind: 'changed', page: 'Trade Search', text: "Trade Database is now Trade Search, and it opens on what it's for: the search box and real trades from leagues set up like yours, newest first. The market at a glance and Over time are folded into one line each (open them for the charts), so it no longer looks like Trade Lab, which is where the big-picture trade research lives." },
     { kind: 'changed', page: 'Everywhere', text: "Every tool now opens from the home page with your league and your team. Enter your Sleeper username and pick one of your dynasty leagues (your team there is found from your account), or enter a league ID and pick your team. A link to any tool opened without them goes through the home page first and then straight on to that page. The username list shows each league once, at its current season. Before, a page opened without a team quietly showed the league's first team, and a page opened without a league showed one picked by default." },
     { kind: 'fixed', page: 'Everywhere', text: "2QB leagues (two QB spots, no Superflex spot) are now valued like Superflex everywhere. League Overview, Team Analyzer, the Trade Calculator, Player Rankings and Waivers were using 1QB values for them, which undervalued every QB." },

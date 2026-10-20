@@ -5,30 +5,30 @@
    Usage: <div id="vault-nav"></div> then <script src="js/vault-nav.js"></script>
    ============================================================ */
 (function () {
-  // Pages, grouped. The group name gives the context, so tabs use short names
-  // (label is the full name, for the phone menu button and screen readers).
+  // Five tabs (user, 2026-10-20: "a little convoluted"): the main row is one tab per
+  // group, opening its first page; a group with more than one page shows them as a
+  // second row under it. Start/Sit, Waivers, Playoff Schedule and Rookie Draft were
+  // removed; Season Report and the contend-or-rebuild plan live in the team view.
   const GROUPS = [
     { label: 'League', tabs: [
       { key: 'overview', short: 'Overview', label: 'League Overview', href: 'app.html' },
-      { key: 'analyzer', short: 'Team Analyzer', label: 'Team Analyzer', href: 'team-analyzer.html' }
+      { key: 'analyzer', short: 'Teams', label: 'Team Analyzer', href: 'team-analyzer.html' }
     ] },
-    { label: 'Players', tabs: [
+    { label: 'Trade Calculator', tabs: [
+      { key: 'trade', short: 'Trade Calculator', label: 'Trade Calculator', href: 'trade.html' }
+    ] },
+    { label: 'Market', tabs: [
+      { key: 'market', short: 'Player Market', label: 'Player Market', href: 'market.html' },
       { key: 'rankings', short: 'Rankings', label: 'Player Rankings', href: 'player_rankings.html' },
       { key: 'compare', short: 'Compare', label: 'Compare Players', href: 'compare.html' },
-      { key: 'market', short: 'Market', label: 'Player Market', href: 'market.html' }
+      { key: 'database', short: 'Trade Search', label: 'Trade Search', href: 'trade_database.html' }
     ] },
-    { label: 'Trades', tabs: [
-      { key: 'trade', short: 'Calculator', label: 'Trade Calculator', href: 'trade.html' },
-      { key: 'grades', short: 'Grades', label: 'Trade Grades', href: 'trade_grades.html' },
-      { key: 'database', short: 'Search', label: 'Trade Search', href: 'trade_database.html' },
-      { key: 'lab', short: 'Lab', label: 'Trade Lab', href: 'trade_lab.html' },
+    { label: 'League Trades', tabs: [
+      { key: 'grades', short: 'Trade Grades', label: 'Trade Grades', href: 'trade_grades.html' },
       { key: 'managers', short: 'Managers', label: 'Managers', href: 'managers.html' }
     ] },
-    { label: 'Tools', tabs: [
-      { key: 'startsit', short: 'Start/Sit', label: 'Start/Sit', href: 'startsit.html' },
-      { key: 'waivers', short: 'Waivers', label: 'Waivers', href: 'waivers.html' },
-      { key: 'playoffs', short: 'Playoffs', label: 'Playoff Schedule', href: 'playoffs.html' },
-      { key: 'rookies', short: 'Rookie Draft', label: 'Rookie Draft', href: 'rookies.html' }
+    { label: 'Trade Lab', tabs: [
+      { key: 'lab', short: 'Trade Lab', label: 'Trade Lab', href: 'trade_lab.html' }
     ] }
   ];
   const TABS = GROUPS.flatMap(g => g.tabs);
@@ -58,7 +58,7 @@
     if (!lid || !Vault.getMyTeamId(lid)) { location.replace(Vault.pickLeagueLink()); return; }
   }
 
-  // A line under the nav: an old season, an IDP or best ball league.
+  // A line under the nav: an old season, or an IDP league.
   const notice = (inner, id = '') => `<div ${id ? `id="${id}"` : ''} class="card rounded-vault-sm px-4 py-3 text-[13px] text-zinc-300 flex flex-wrap items-center gap-x-3 gap-y-2">${inner}</div>`;
 
   function render() {
@@ -67,19 +67,17 @@
     const active = currentPage();
     const leagueId = Vault.getLeagueId();
 
-    // Wide screens: one row, a small label before each group, a divider between.
-    const tab = t => `
-      <a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''} ${t.short !== t.label ? `aria-label="${t.label}"` : ''}
-         class="relative px-3 py-2 rounded-lg text-[13px] font-medium transition-colors whitespace-nowrap
-                ${active === t.key
+    // Wide screens: the five group tabs, then the active group's pages as a second row.
+    const activeGroup = GROUPS.find(g => g.tabs.some(t => t.key === active));
+    const tabsHtml = GROUPS.map(g => {
+      const on = g === activeGroup;
+      return `<a href="${Vault.linkTo(g.tabs[0].href, leagueId)}" ${on ? 'aria-current="page"' : ''}
+         class="relative px-3.5 py-2 rounded-lg text-[14px] font-medium transition-colors whitespace-nowrap shrink-0
+                ${on
                   ? 'text-white bg-white/[0.07] after:absolute after:left-3 after:right-3 after:-bottom-[9px] after:h-[2px] after:rounded-full after:bg-amber-400'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'}">${t.short}</a>`;
-    const tabsHtml = GROUPS.map((g, i) => `
-      ${i ? '<span class="mx-2 h-5 w-px bg-white/10 shrink-0" aria-hidden="true"></span>' : ''}
-      <div role="group" aria-label="${g.label}" class="flex items-center gap-0.5 shrink-0">
-        <span class="pl-1 pr-1.5 text-[11px] uppercase tracking-[0.12em] text-zinc-500 select-none" aria-hidden="true">${g.label}</span>
-        ${g.tabs.map(tab).join('')}
-      </div>`).join('');
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'}">${g.label}</a>`;
+    }).join('');
+    const subHtml = activeGroup && activeGroup.tabs.length > 1 ? `<div class="vn-row max-w-[1400px] mx-auto px-4 sm:px-6 pb-2 items-center gap-1 overflow-x-auto scrollbar" role="group" aria-label="${activeGroup.label}">${activeGroup.tabs.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''} class="px-3 py-1.5 rounded-full text-[12px] whitespace-nowrap transition-colors ${active === t.key ? 'bg-amber-400/15 text-amber-100' : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'}">${t.short}</a>`).join('')}</div>` : '';
     // Phones: one button naming the current page; it opens the same groups as a list.
     const here = [...TABS, ...INFO].find(t => t.key === active);
     const menuHtml = `
@@ -142,7 +140,8 @@
           </div>
         </div>
         <nav aria-label="Pages">
-          <div class="vn-row max-w-[1400px] mx-auto px-4 sm:px-6 py-2 items-center overflow-x-auto scrollbar">${tabsHtml}</div>
+          <div class="vn-row max-w-[1400px] mx-auto px-4 sm:px-6 py-2 items-center gap-1 overflow-x-auto scrollbar">${tabsHtml}</div>
+          ${subHtml}
           ${menuHtml}
         </nav>
       </header>
@@ -211,9 +210,6 @@
         box.insertAdjacentHTML('beforeend', notice(`<span>IDP league: defensive players have no trade values here (KeepTradeCut doesn't rank them), so team values, trades and lineups count offense only.</span><button type="button" id="vnIdpOk" class="text-[12px] text-zinc-400 hover:text-white">Got it</button>`, 'vnIdp'));
         document.getElementById('vnIdpOk').onclick = () => { try { localStorage.setItem(k, '1'); } catch {} document.getElementById('vnIdp')?.remove(); };
       }
-    }
-    if (league.settings?.best_ball === 1 && currentPage() === 'startsit') {
-      box.insertAdjacentHTML('beforeend', notice("<span>Best ball league: Sleeper starts your highest scorers every week automatically, so there's no lineup to set. The projections below still show who's expected to score.</span>"));
     }
     const state = await fetch('https://api.sleeper.app/v1/state/nfl').then(r => r.json()).catch(() => null);
     const season = state?.league_season || state?.season;
