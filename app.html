@@ -9,7 +9,7 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=0ce6d1c2">
+<link rel="stylesheet" href="tailwind.css?v=587e9019">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -23,9 +23,18 @@
       <div id="status" class="mt-2 flex items-center gap-3 text-zinc-300 text-sm">
         <div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>
       </div>
-      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">Every team ranked by total dynasty value (players plus picks, at KeepTradeCut prices), with how good each lineup is now, how long that lasts, and their playoff odds. Click a team for more, and a link to its full Team Analyzer breakdown. <a href="#legend" onclick="document.getElementById('legend').open = true" class="text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">What do these numbers mean?</a></p>
+      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">Every team, this season and for the long run. Click a team to open it. <a href="#legend" onclick="document.getElementById('legend').open = true" class="text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">What do these numbers mean?</a></p>
     </div>
     <button id="refresh" class="self-start sm:self-auto shrink-0 btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
+  </div>
+
+  <!-- Contend or rebuild at a glance: strength this season against dynasty value. -->
+  <div id="leagueMap" class="card rounded-vault p-5 mb-6"></div>
+
+  <!-- Right now (title odds) or Dynasty (total value): which ranking the table shows. -->
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+    <div id="viewToggle" class="inline-flex rounded-lg border border-white/10 overflow-hidden" role="group" aria-label="Ranking"></div>
+    <span id="viewHint" class="text-[12px] text-zinc-400"></span>
   </div>
 
   <div class="md:hidden flex items-center justify-end gap-2 mb-3 text-[12px] text-zinc-400">
@@ -61,6 +70,9 @@
     </div>
     <div id="scrollHint" class="hidden absolute top-0 right-0 bottom-0 w-10 pointer-events-none bg-gradient-to-l from-[#14161b] to-transparent"></div>
   </div>
+
+  <!-- Each team's rank at each position: needs and strengths across the league. -->
+  <div id="posGrid" class="mt-8 card rounded-vault p-5"></div>
 
   <div class="mt-8 card rounded-vault p-6">
     <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
@@ -110,7 +122,7 @@
 <script src="vault-core.js?v=d30ce494"></script>
 <script src="vault-nav.js?v=38cbc543"></script>
 <script>
-let teams = [], sort = { key: 'overall', dir: -1 }, expanded = new Set();
+let teams = [], sort = { key: 'overall', dir: -1 };
 
 const POS_COLOR = { QB: 'bg-fuchsia-400/60', RB: 'bg-emerald-400/60', WR: 'bg-sky-400/60', TE: 'bg-amber-400/60' };
 
@@ -403,7 +415,9 @@ async function load() {
     // Flat alias so the generic column sort (a[sort.key]) can reach this — it only
     // ever does a plain property read, not a nested path into t.record.
     teams.forEach(t => { const g = t.record.wins + t.record.losses + t.record.ties; t.recordWinPct = g ? (t.record.wins + t.record.ties * 0.5) / g : -1; });
-    render();
+    // Right now: title odds, then playoff odds, then lineup strength (lineup alone before there are odds).
+    teams.forEach(t => { const p = t.projected; t.nowScore = p ? p.championshipPct * 1e4 + p.playoffPct * 10 + t.opt / 1e3 : t.opt; });
+    if (!view) setView(teams.some(t => t.projected) ? 'now' : 'dynasty'); else render();
     status.innerHTML = `<div class="size-2 rounded-full bg-emerald-400"></div><span>Live • ${teams.length} teams</span>`;
     const allYears = teams.flatMap(t => t.picks.map(p => p.season));
     if (allYears.length) {
@@ -427,16 +441,6 @@ async function load() {
   }
 }
 
-// Shared expanded detail (best lineup + top players by position + picks) — used
-// by both the desktop table row and the mobile card, so they can't drift apart.
-// A team's expanded row: the roster panel Team Analyzer shows too, and a link
-// to that team's full Team Analyzer page (flaws, trade partners, window).
-function teamDetailPanel(t) {
-  return `<div class="pt-4">${Vault.teamRosterPanel(t, teams)}
-    <a href="${Vault.linkTo('team-analyzer.html')}&team=${t.rosterId}" onclick="event.stopPropagation()" class="mt-5 inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open ${Vault.escapeHtml(t.teamName)} in Team Analyzer <span aria-hidden="true">→</span></a>
-  </div>`;
-}
-
 // Card view for narrow screens — same data as the table, no horizontal scroll.
 // Tapping a card expands the same detail panel the table row does.
 // Small "You" tag on your own team (Vault.myTeam — the nav's Your team pick).
@@ -447,7 +451,7 @@ function youTag(t) {
 
 // The table's sorts, for phones (the table and its headers are hidden there).
 // Each pick sorts best-first; the same pick again flips the order.
-const MOBILE_SORTS = [['overall', 'Overall value'], ['playoffPct', 'Playoff odds'], ['recordWinPct', 'Record'], ['total', 'Player value'], ['picksValue', 'Pick value'], ['opt', 'Lineup PPG'], ['vorpTotal', 'VORP'], ['longevity', 'Longevity'], ['age', 'Age'], ['teamName', 'Team name']];
+const MOBILE_SORTS = [['nowScore', 'Right now'], ['overall', 'Dynasty value'], ['playoffPct', 'Playoff odds'], ['recordWinPct', 'Record'], ['total', 'Player value'], ['picksValue', 'Pick value'], ['opt', 'Lineup PPG'], ['vorpTotal', 'VORP'], ['longevity', 'Longevity'], ['age', 'Age'], ['teamName', 'Team name']];
 function renderMobileSort() {
   const sel = document.getElementById('mobileSort');
   if (!sel) return;
@@ -458,25 +462,24 @@ function renderMobileCards(data, minOverall, maxOverall) {
   renderMobileSort();
   const mount = document.getElementById('mobileCards');
   mount.innerHTML = data.map(t => {
-    const exp = expanded.has(t.rosterId);
     const proj = projectedText(t);
     return `<div class="card card-hover rounded-vault-sm p-4 mobile-team-card" data-id="${t.rosterId}">
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2.5 min-w-0">
-          <span class="w-5 text-right num text-[16px] text-zinc-500 shrink-0">${t.rank}</span>
+          <span class="w-5 text-right num text-[16px] text-zinc-500 shrink-0">${t.viewRank}</span>
           <div class="min-w-0">
             <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
             <div class="text-[12px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
             ${careerRecordText(t) ? `<div class="text-[12px] text-zinc-400 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
           </div>
         </div>
-        <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
+        <svg class="size-3 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
       </div>
 
       <div class="flex items-center justify-between gap-3 mt-3.5">
         <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Overall</div>
-          <div class="num text-[26px] text-zinc-50">${Math.round(t.overall).toLocaleString()}</div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Dynasty value</div>
+          <div class="num text-[26px] text-zinc-50">${ord(rankMap(x => x.overall).get(t.rosterId))} <span class="text-[13px] font-mono text-zinc-500">${kFmt(t.overall)}</span></div>
           ${microBar(t.overall, minOverall, maxOverall)}
         </div>
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
@@ -497,12 +500,98 @@ function renderMobileCards(data, minOverall, maxOverall) {
         <div><div class="font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-zinc-100 font-medium' : 'text-zinc-200'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</div><div class="text-[12px] text-zinc-400">Title %</div></div>
       </div>
 
-      ${exp ? teamDetailPanel(t) : ''}
     </div>`;
   }).join('');
   mount.querySelectorAll('.mobile-team-card').forEach(el => {
-    el.onclick = () => { const id = Number(el.dataset.id); if (expanded.has(id)) { expanded.delete(id); } else { expanded.add(id); } render(); };
+    el.onclick = () => { location.href = teamLink(teams.find(t => t.rosterId === Number(el.dataset.id))); };
   });
+}
+
+/* ---------- Right now / Dynasty (user, 2026-10-20) ----------
+   Ranked by total value alone, a 3-9 team topped the page and an 0-12 team sat
+   above three playoff teams. Right now ranks by title odds (record, lineup and
+   schedule together), then playoff odds and lineup strength; Dynasty by total
+   value. In season the page opens on Right now. */
+const VIEWS = {
+  now: { label: 'Right now', key: 'nowScore', hint: 'Ranked by title odds, then playoff odds and lineup strength.' },
+  dynasty: { label: 'Dynasty', key: 'overall', hint: 'Ranked by total dynasty value: players plus picks, at KeepTradeCut prices.' },
+};
+let view = null;
+function setView(v) { view = v; sort = { key: VIEWS[v].key, dir: -1 }; render(); }
+function renderViewToggle() {
+  document.getElementById('viewToggle').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button type="button" onclick="setView('${k}')" aria-pressed="${view === k}" class="px-3.5 py-1.5 text-[13px] ${view === k ? 'bg-amber-400/15 text-amber-100' : 'text-zinc-400 hover:text-white'}">${v.label}</button>`).join('');
+  document.getElementById('viewHint').textContent = sort.key === VIEWS[view].key ? VIEWS[view].hint : 'Sorted by a column: click Right now or Dynasty to go back.';
+}
+// "2nd": a team's place in the league on one measure.
+const ord = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+const kFmt = v => (Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v)));
+function rankMap(f) { const m = new Map(); [...teams].sort((a, b) => f(b) - f(a)).forEach((t, i) => m.set(t.rosterId, i + 1)); return m; }
+const teamLink = t => `${Vault.linkTo('team-analyzer.html')}&team=${t.rosterId}`;
+
+/* ---------- The league map ----------
+   Each team placed by how good its lineup is this season (best-lineup points a
+   week, league scoring) against its total dynasty value. Lines at the league
+   averages split it into four: strong now and later, win now, built for later,
+   and rebuild. Your team in gold. */
+function renderMap() {
+  const box = document.getElementById('leagueMap');
+  if (!teams.length) { box.innerHTML = ''; return; }
+  // Drawn to the card's width, so it fits a phone without scrolling sideways.
+  const W = Math.max(320, Math.min(820, (box.clientWidth || 860) - 40)), narrow = W < 560, H = narrow ? 360 : 380, L = narrow ? 62 : 64, R = 16, T = 20, B = 46;
+  const xs = teams.map(t => t.opt), ys = teams.map(t => t.overall);
+  const pad = (lo, hi) => { const d = (hi - lo) || 1; return [lo - d * 0.08, hi + d * 0.08]; };
+  const [x0, x1] = pad(Math.min(...xs), Math.max(...xs)), [y0, y1] = pad(Math.min(...ys), Math.max(...ys));
+  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  const avg = a => a.reduce((s, v) => s + v, 0) / a.length, mx = X(avg(xs)), my = Y(avg(ys));
+  const mine = Vault.myTeam(teams);
+  const ticks = (lo, hi, n) => [...Array(n)].map((_, i) => lo + (hi - lo) * (i + 0.5) / n);
+  const xt = ticks(x0, x1, narrow ? 3 : 4).map(v => `<text x="${X(v)}" y="${H - B + 18}" text-anchor="middle" class="fill-zinc-500" font-size="11">${v.toFixed(0)}</text>`).join('');
+  const yt = ticks(y0, y1, 4).map(v => `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" class="fill-zinc-500" font-size="11">${kFmt(v)}</text>`).join('');
+  const quad = (x, y, anchor, text) => `<text x="${x}" y="${y}" text-anchor="${anchor}" class="fill-zinc-500" font-size="11" letter-spacing="0.08em">${text}</text>`;
+  const dots = [...teams].sort((a, b) => (a === mine) - (b === mine)).map(t => {
+    const cx = X(t.opt), cy = Y(t.overall), me = t === mine;
+    const right = cx > W - R - (narrow ? 90 : 150), name = Vault.escapeHtml(t.teamName.length > (narrow ? 11 : 18) ? t.teamName.slice(0, narrow ? 10 : 17) + '…' : t.teamName);
+    const tip = `${t.teamName}: ${t.opt.toFixed(1)} lineup points a week, ${Math.round(t.overall).toLocaleString()} dynasty value${t.projected ? `, ${t.projected.championshipPct.toFixed(1)}% title odds` : ''}`;
+    return `<a href="${teamLink(t)}"><g class="cursor-pointer"><title>${Vault.escapeHtml(tip)}</title>
+      <circle cx="${cx}" cy="${cy}" r="${me ? 8 : 6.5}" class="${me ? 'fill-amber-400' : 'fill-zinc-300'}" stroke="#14161b" stroke-width="2"></circle>
+      <text x="${right ? cx - 11 : cx + 11}" y="${cy + 4}" text-anchor="${right ? 'end' : 'start'}" font-size="12" class="${me ? 'fill-amber-200' : 'fill-zinc-400'}">${name}</text></g></a>`;
+  }).join('');
+  box.innerHTML = `<div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+      <h2 class="text-[16px] font-semibold text-zinc-100">Contend or rebuild</h2>
+      <span class="text-[12px] text-zinc-400">This season's lineup against dynasty value. Lines are the league average. Click a team to open it.</span>
+    </div>
+    <div class="overflow-x-auto"><svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="League map: lineup strength against dynasty value">
+      <line x1="${mx}" y1="${T}" x2="${mx}" y2="${H - B}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4 4"></line>
+      <line x1="${L}" y1="${my}" x2="${W - R}" y2="${my}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4 4"></line>
+      <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="rgba(255,255,255,0.15)"></line>
+      ${quad(W - R - 4, T + 12, 'end', narrow ? 'NOW + LATER' : 'STRONG NOW AND LATER')}${quad(W - R - 4, H - B - 8, 'end', 'WIN NOW')}${quad(L + 6, T + 12, 'start', 'BUILT FOR LATER')}${quad(L + 6, H - B - 8, 'start', 'REBUILD')}
+      ${xt}${yt}
+      <text x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle" class="fill-zinc-400" font-size="12">Lineup points a week, this season →</text>
+      <text transform="translate(${narrow ? 11 : 14} ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle" class="fill-zinc-400" font-size="12">Dynasty value →</text>
+      ${dots}
+    </svg></div>`;
+}
+
+/* ---------- Position strength ----------
+   Each team's rank at each position by the value of its players there (and its
+   picks), 1 = best in the league: where a roster is deep and where it needs help. */
+function renderPositions(order) {
+  const box = document.getElementById('posGrid');
+  if (!teams.length) { box.innerHTML = ''; return; }
+  const n = teams.length, mine = Vault.myTeam(teams);
+  const COLS = [['QB', t => t.qb], ['RB', t => t.rb], ['WR', t => t.wr], ['TE', t => t.te], ['Picks', t => t.picksValue]];
+  const ranks = COLS.map(([, f]) => rankMap(f));
+  const tone = r => r <= Math.ceil(n * 0.2) ? 'bg-emerald-400/25 text-emerald-50' : r <= Math.ceil(n * 0.4) ? 'bg-emerald-400/10 text-emerald-100' : r > n - Math.ceil(n * 0.2) ? 'bg-orange-400/25 text-orange-50' : r > n - Math.ceil(n * 0.4) ? 'bg-orange-400/10 text-orange-100' : 'bg-white/[0.03] text-zinc-300';
+  box.innerHTML = `<div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+      <h2 class="text-[16px] font-semibold text-zinc-100">Position strength</h2>
+      <span class="text-[12px] text-zinc-400">Each team's rank at each position by player value (1 = best). Green is a strength, orange a need.</span>
+    </div>
+    <div class="overflow-x-auto"><table class="w-full text-[13px] border-separate border-spacing-1">
+      <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="text-left font-normal pb-1 pr-3">Team</th>${COLS.map(([c]) => `<th class="font-normal pb-1 w-[14%]">${c}</th>`).join('')}</tr></thead>
+      <tbody>${order.map(t => `<tr class="cursor-pointer hover:bg-white/[0.02]" onclick="location.href='${teamLink(t)}'">
+        <td class="pr-3 py-1 truncate max-w-[220px] ${t === mine ? 'text-amber-200 font-medium' : 'text-zinc-200'}">${Vault.escapeHtml(t.teamName)}</td>
+        ${COLS.map(([c, f], i) => { const r = ranks[i].get(t.rosterId); return `<td class="text-center py-1.5 rounded-md font-mono ${tone(r)}" title="${c}: ${Math.round(f(t)).toLocaleString()} value, ${ord(r)} of ${n}">${r}</td>`; }).join('')}
+      </tr>`).join('')}</tbody></table></div>`;
 }
 
 function render() {
@@ -526,6 +615,8 @@ function render() {
     return sort.dir * (av > bv ? 1 : av < bv ? -1 : 0);
   });
   document.querySelectorAll('th.sortable').forEach(th => th.classList.toggle('active', th.dataset.sort === sort.key));
+  data.forEach((t, i) => { t.viewRank = i + 1; });
+  const rOverall = rankMap(t => t.overall), rTotal = rankMap(t => t.total), rPicks = rankMap(t => t.picksValue);
   // Min AND max of each column's real spread — see microBar/heatColor: the color
   // scale is normalized to this range, not a flat 0, so it still differentiates
   // teams even when a column's values all cluster well above zero (the norm).
@@ -541,13 +632,12 @@ function render() {
   const [minVorp, maxVorp] = range(t => t.vorpTotal || 0);
   const [minLongevity, maxLongevity] = range(t => t.longevity);
   tb.innerHTML = data.map(t => {
-    const exp = expanded.has(t.rosterId);
     const proj = projectedText(t);
     return `<tr class="team-row" data-id="${t.rosterId}">
       <td class="px-4 py-3.5">
         <div class="flex items-center gap-2.5 min-w-[170px] max-w-[230px]">
-          <span class="w-5 text-right num text-[16px] text-zinc-500">${t.rank}</span>
-          <svg class="size-3 shrink-0 text-amber-400 transition-transform ${exp ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
+          <span class="w-5 text-right num text-[16px] text-zinc-500">${t.viewRank}</span>
+          <svg class="size-3 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
           <div class="min-w-0">
             <div class="font-semibold text-[15px] text-white leading-snug">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
             <div class="text-[12px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks</div>
@@ -564,16 +654,19 @@ function render() {
         <div class="font-mono text-[12px] whitespace-nowrap ${(proj?.championshipPct ?? 0) >= 15 ? 'text-zinc-100 font-medium' : 'text-zinc-400'}" title="Title odds">${proj ? proj.championshipPct.toFixed(1) + '% title' : '—'}</div>
       </td>
       <td class="px-2.5 py-3.5 text-right">
-        <div class="num text-[20px] text-zinc-50">${Math.round(t.overall).toLocaleString()}</div>
+        <div class="num text-[20px] text-zinc-50" title="${Math.round(t.overall).toLocaleString()} total value">${ord(rOverall.get(t.rosterId))}</div>
         ${microBar(t.overall, minOverall, maxOverall)}
+        <div class="text-[11px] font-mono text-zinc-500 mt-1">${kFmt(t.overall)}</div>
       </td>
       <td class="px-2.5 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] text-zinc-100">${Math.round(t.total).toLocaleString()}</div>
+        <div class="font-mono font-semibold text-[14px] text-zinc-100" title="${Math.round(t.total).toLocaleString()} player value">${ord(rTotal.get(t.rosterId))}</div>
         ${microBar(t.total, minTotal, maxTotal)}
+        <div class="text-[11px] font-mono text-zinc-500 mt-1">${kFmt(t.total)}</div>
       </td>
       <td class="px-2.5 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] text-zinc-200">${Math.round(t.picksValue).toLocaleString()}</div>
+        <div class="font-mono font-semibold text-[14px] text-zinc-200" title="${Math.round(t.picksValue).toLocaleString()} pick value">${ord(rPicks.get(t.rosterId))}</div>
         ${microBar(t.picksValue, minPicks, maxPicks)}
+        <div class="text-[11px] font-mono text-zinc-500 mt-1">${kFmt(t.picksValue)}</div>
       </td>
       <td class="hidden min-[1100px]:table-cell px-2.5 py-3.5">${posSplitBar(t)}</td>
       <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-300">${t.age.toFixed(1)}</td>
@@ -594,12 +687,15 @@ function render() {
         <div class="text-[12px] text-zinc-400 mt-1 whitespace-nowrap">${Vault.PICK_TIER_LABEL[t.pickTier]}</div>
       </td>
     </tr>
-    ${exp ? `<tr><td colspan="12" class="px-6 pb-6 bg-black/40">${teamDetailPanel(t)}</td></tr>` : ''}`;
+`;
   }).join('');
   document.querySelectorAll('tr.team-row').forEach(tr => {
-    tr.onclick = () => { const id = Number(tr.dataset.id); if (expanded.has(id)) { expanded.delete(id); } else { expanded.add(id); } render(); };
+    tr.onclick = () => { location.href = teamLink(teams.find(t => t.rosterId === Number(tr.dataset.id))); };
   });
   renderMobileCards(data, minOverall, maxOverall);
+  renderViewToggle();
+  renderMap();
+  renderPositions(data);
   updateScrollHint();
 }
 document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.sort; if (sort.key === k) { sort.dir *= -1; } else { sort.key = k; sort.dir = -1; } render(); });
@@ -618,6 +714,8 @@ function updateScrollHint() {
   hint.classList.toggle('hidden', !hasMore);
 }
 document.getElementById('tableScroll')?.addEventListener('scroll', updateScrollHint);
+let mapResize = null;
+window.addEventListener('resize', () => { clearTimeout(mapResize); mapResize = setTimeout(renderMap, 150); });
 window.addEventListener('resize', updateScrollHint);
 
 load();
