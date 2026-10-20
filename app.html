@@ -9,7 +9,7 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=1440ee50">
+<link rel="stylesheet" href="tailwind.css?v=637682b5">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -95,7 +95,7 @@
     <div class="px-6 pb-6">
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 text-[13px]">
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Overall</span><span class="text-zinc-400"> — Players + Picks combined, a team's total dynasty value at KeepTradeCut prices</span></div>
-      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">QB, RB, WR, TE, Picks</span><span class="text-zinc-400"> — The team's rank in the league at each position by the value of its players there (and its picks), 1 = best. Green is a strength, orange a need</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">QB, RB, WR, TE, Picks</span><span class="text-zinc-400"> — The team's rank in the league at each position by the value of its players there (and its picks), 1 = best. Green is among the strongest, yellow the middle of the league, red a need</span></div>
             <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Lineup PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored with your league's own scoring settings — not necessarily who you'd actually start today</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Lineup PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
@@ -561,12 +561,12 @@ function renderMap() {
 
 /* ---------- Position strength, in the table ----------
    Each team's rank at QB, RB, WR, TE (by the value of its players there) and picks,
-   1 = best in the league, green for a strength and orange for a need. */
+   1 = best in the league: green the strongest, yellow the middle, red a need. */
 const POS_COLS = [['QB', t => t.qb], ['RB', t => t.rb], ['WR', t => t.wr], ['TE', t => t.te], ['Picks', t => t.picksValue]];
 let posRanks = [];
 function posTone(r, n) {
-  return r <= Math.ceil(n * 0.2) ? 'bg-emerald-400/25 text-emerald-50' : r <= Math.ceil(n * 0.4) ? 'bg-emerald-400/10 text-emerald-100'
-    : r > n - Math.ceil(n * 0.2) ? 'bg-orange-400/25 text-orange-50' : r > n - Math.ceil(n * 0.4) ? 'bg-orange-400/10 text-orange-100' : 'bg-white/[0.03] text-zinc-300';
+  return r <= Math.ceil(n * 0.2) ? 'bg-emerald-400/30 text-emerald-50' : r <= Math.ceil(n * 0.4) ? 'bg-emerald-400/15 text-emerald-100'
+    : r > n - Math.ceil(n * 0.2) ? 'bg-rose-500/30 text-rose-50' : r > n - Math.ceil(n * 0.4) ? 'bg-rose-500/15 text-rose-100' : 'bg-amber-400/15 text-amber-100';
 }
 function posCells(t) {
   const n = teams.length;
