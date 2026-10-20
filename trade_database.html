@@ -6,10 +6,10 @@
 <link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
   <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
-<title>Trade Database — The Vault</title>
+<title>Trade Search — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=6bda7613">
+<link rel="stylesheet" href="tailwind.css?v=c8a3cb25">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -18,66 +18,49 @@
 
 <div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
   <div class="mb-2">
-    <h1 class="display text-[28px] font-semibold gold-text">Trade Database</h1>
+    <h1 class="display text-[28px] font-semibold gold-text">Trade Search</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
   </div>
   <p class="text-[13px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
-    Completed dynasty trades from leagues set up like yours (team count, QB slots, PPR, TE premium), and how lopsided they usually are.
+    Real completed trades from dynasty leagues set up like yours. Search a player, or one for another, to see what they actually went for.
     <a href="how_we_grade.html#market" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How it works</a>
   </p>
 
-  <div id="matchBar" class="card rounded-vault-sm p-4 mb-4"></div>
+  <!-- Search first (2026-10-20: the page read like Trade Lab, charts on top): the trades are the point. -->
+  <div class="card rounded-vault-sm p-4 mb-3">
+    <div class="flex items-center gap-3">
+      <input id="searchSideA" type="text" autocomplete="off" aria-label="One side of the trade: player or pick" placeholder="Player or pick"
+        class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-amber-400/50 transition-colors" />
+      <span class="text-[11px] text-zinc-400 uppercase tracking-wider shrink-0">for</span>
+      <input id="searchSideB" type="text" autocomplete="off" aria-label="Other side of the trade (optional): player or pick" placeholder="For (optional)"
+        class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-amber-400/50 transition-colors" />
+      <button id="searchClear" class="hidden shrink-0 text-[12px] text-zinc-400 hover:text-white px-2">Clear</button>
+    </div>
+    <div id="matchBar" class="mt-3 pt-3 border-t border-white/[0.06]"></div>
+  </div>
 
-  <!-- The market at a glance: how far off completed trades run, by shape, star level and position, and your league next to it. -->
-  <details id="market" class="group card rounded-vault-sm mb-6" open>
-    <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-      <span>
-        <span class="block text-[16px] font-semibold text-zinc-100">The market at a glance</span>
+  <!-- Your format's market, folded to one line each: open for the charts. -->
+  <details id="market" class="group card rounded-vault-sm mb-2">
+    <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+      <span class="min-w-0">
+        <span class="block text-[14px] font-medium text-zinc-100">The market at a glance</span>
         <span id="marketSub" class="block text-[12px] text-zinc-400 mt-0.5">Crunching completed trades…</span>
       </span>
       <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
     </summary>
-    <div id="marketBody" class="px-5 pb-5 space-y-5"></div>
+    <div id="marketBody" class="px-4 pb-4 space-y-5"></div>
   </details>
-
-  <!-- Market highs & lows moved to the Player Market page. -->
-  <a id="marketLink" href="market.html" class="group card rounded-vault-sm mb-6 px-5 py-4 flex items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors">
-    <span>
-      <span class="block text-[16px] font-semibold text-zinc-100">Market highs &amp; lows, and market trends</span>
-      <span class="block text-[12px] text-zinc-400 mt-0.5">Who's selling above or below KTC, who's rising or cooling, and how each position trades: on the Player Market page.</span>
-    </span>
-    <span class="text-[12px] text-zinc-300 shrink-0">Open →</span>
-  </a>
-
-  <!-- Over time: Sleeper dynasty trades in your league's exact price format, month by month. -->
-  <details id="history" class="group card rounded-vault-sm mb-6 hidden" open>
-    <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-      <span>
-        <span class="block text-[16px] font-semibold text-zinc-100">Over time</span>
+  <details id="history" class="group card rounded-vault-sm mb-2 hidden">
+    <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+      <span class="min-w-0">
+        <span class="block text-[14px] font-medium text-zinc-100">Over time</span>
         <span id="historySub" class="block text-[12px] text-zinc-400 mt-0.5"></span>
       </span>
       <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
     </summary>
-    <div id="historyBody" class="px-5 pb-5 space-y-5"></div>
+    <div id="historyBody" class="px-4 pb-4 space-y-5"></div>
   </details>
-
-  <!-- What 1.3 million judged trades show moved to its own page, Trade Lab (2026-10-20). -->
-  <a id="labLink" href="trade_lab.html" class="group card rounded-vault-sm mb-6 px-5 py-4 flex items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors">
-    <span>
-      <span class="block text-[16px] font-semibold text-zinc-100">What 1.3 million trades show</span>
-      <span class="block text-[12px] text-zinc-400 mt-0.5">How managers trade, what happened after, your league next to everyone, and an explorer: on the Trade Lab page.</span>
-    </span>
-    <span class="text-[12px] text-zinc-300 shrink-0">Open →</span>
-  </a>
-
-  <div class="flex items-center gap-3 mb-5">
-    <input id="searchSideA" type="text" autocomplete="off" aria-label="One side of the trade: player or pick" placeholder="e.g. Justin Herbert"
-      class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-white/30 transition-colors" />
-    <span class="text-[11px] text-zinc-400 uppercase tracking-wider shrink-0">for</span>
-    <input id="searchSideB" type="text" autocomplete="off" aria-label="Other side of the trade (optional): player or pick" placeholder="e.g. Brock Purdy"
-      class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-white/30 transition-colors" />
-    <button id="searchClear" class="hidden shrink-0 text-[12px] text-zinc-400 hover:text-white px-2">Clear</button>
-  </div>
+  <div class="text-[12px] text-zinc-400 mb-6 mt-3">More: <a id="marketLink" href="market.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">who sells above or below KTC (Player Market)</a> · <a id="labLink" href="trade_lab.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">what 1.3 million trades show (Trade Lab)</a></div>
 
   <div id="resultCount" class="text-[12px] text-zinc-400 mb-3"></div>
   <div id="list" class="space-y-4"></div>
@@ -85,7 +68,7 @@
 </div>
 
 <script src="vault-core.js?v=d30ce494"></script>
-<script src="vault-nav.js?v=0dd6468c"></script>
+<script src="vault-nav.js?v=3bc8848a"></script>
 <script>
 const TIER_LABEL = {
   full: 'Exact match — team count, QB slots, PPR, and TE premium',

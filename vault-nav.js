@@ -20,7 +20,7 @@
     { label: 'Trades', tabs: [
       { key: 'trade', short: 'Calculator', label: 'Trade Calculator', href: 'trade.html' },
       { key: 'grades', short: 'Grades', label: 'Trade Grades', href: 'trade_grades.html' },
-      { key: 'database', short: 'Database', label: 'Trade Database', href: 'trade_database.html' },
+      { key: 'database', short: 'Search', label: 'Trade Search', href: 'trade_database.html' },
       { key: 'lab', short: 'Lab', label: 'Trade Lab', href: 'trade_lab.html' },
       { key: 'managers', short: 'Managers', label: 'Managers', href: 'managers.html' }
     ] },
