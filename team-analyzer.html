@@ -30,11 +30,14 @@
 
   <section id="singleCard" class="mb-10"></section>
   <section id="seasonCard" class="card rounded-vault p-6 mb-10"></section>
+  <section id="timelineCard" class="card rounded-vault p-6 mb-10"></section>
 </main>
 
 <script src="vault-core.js?v=d30ce494"></script>
 <script src="vault-nav.js?v=38cbc543"></script>
 <script src="season-report.js?v=837c7cb0"></script>
+<script src="market-data.js?v=11b594ea"></script>
+<script src="timeline.js?v=0a2e0bbe"></script>
 <script>
 const $ = s => document.querySelector(s);
 
@@ -56,10 +59,12 @@ async function loadLeague(id) {
   $('#status').textContent = 'Loading league…';
   renderSeason(null);
   Vault.seasonReport(id).then(r => { season = r; }).catch(e => { console.error(e); season = { error: e.message }; })
-    .then(() => renderSeason(+$('#teamSelect').value || null));
+    .then(() => { renderSeason(+$('#teamSelect').value || null); Timeline.setSeason(season); });
   try {
-    const { isSF, teams: built } = await Vault.buildLeagueTeams(id);
+    const { isSF, league, slots, remainingWeeks, teams: built } = await Vault.buildLeagueTeams(id);
     window._allTeams = built;
+    // Contend or rebuild? (timeline.js): the four paths, under This season.
+    Timeline.init({ league, slots, teams: built, remainingWeeks });
 
     const sel = $('#teamSelect'); sel.innerHTML = built.map(t => `<option value="${t.rosterId}">${Vault.escapeHtml(t.teamName)}${t.username ? ` (${Vault.escapeHtml(t.username)})` : ''}</option>`).join(''); sel.classList.remove('hidden');
     // A link can name the team (League Overview's "Open in Team Analyzer");
@@ -113,6 +118,7 @@ function statTile(label, val, display, all, key, rosterId, higherIsBetter, title
 function renderSingle(t) {
   if (!t) return;
   if (season) renderSeason(t.rosterId);
+  Timeline.render($('#timelineCard'), t);
   const all = window._allTeams || [];
   const leagueAvg = {
     qb: all.reduce((s, x) => s + x.qb, 0) / all.length,

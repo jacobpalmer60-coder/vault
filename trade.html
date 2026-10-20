@@ -487,11 +487,13 @@ async function init() {
     // Read before loading your team, which rewrites the page address.
     const coachParam = { market: 'sellhigh' }[new URLSearchParams(location.search).get('coach')] || new URLSearchParams(location.search).get('coach'); // 'market' was the combined option
     const withParam = new URLSearchParams(location.search).get('with');
+    const playerParam = new URLSearchParams(location.search).get('player');
     if (!applyTradeFromUrl()) {
       const coachFromLink = () => {
         if (!coachParam || typeof COACH_OPTIONS === 'undefined' || !COACH_OPTIONS[coachParam]) return;
         openCoach(coachParam);
         if (coachParam === 'team' && withParam && teams.some(t => String(t.rosterId) === withParam)) coachSetTeam(withParam); // ?coach=team&with=<rosterId> (Team Analyzer's "Find trades with them")
+        if (coachParam === 'shop' && playerParam && (Vault.myTeam(teams)?.plist || []).some(p => 'p_' + p.id === playerParam)) coachSetShop(playerParam); // ?coach=shop&player=p_<id> (Contend or Rebuild?'s Reload)
         if (coachReady()) coachFind();
       };
       const btn = document.getElementById('loadRostersBtn');
