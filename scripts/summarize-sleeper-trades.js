@@ -23,9 +23,6 @@
      { format, updated, leagues, trades: { crawled, priced },
        weeks: { 'YYYY-MM-DD' (the Monday): summary },
        years: { 'YYYY': summary } }   (each year summarized whole, so its medians are exact)
-   and data/market-history/<format>-players.json, by month, for players in
-   at least 2 trades that month:
-     { months: { 'YYYY-MM': { sleeperId: [trades, asMainPiece, medianPaid, oneForOne] } } }
    and data/market-history/recent-<sf|oneQB>.json, priced trades from the last
    RECENT_DAYS days (all TE-premium tiers of that QB format, each priced in its
    own league's format), newest first, for the pages to pool with KTC's feed
@@ -192,7 +189,7 @@ function main() {
       const value = pl && prices.at(normalizeName(`${pl.first_name || ''} ${pl.last_name || ''}`.trim()), d);
       return value ? { type: 'player', pos: pl.position, value, id } : null;
     };
-    const weeks = new Map(), months = new Map(), years = new Map();
+    const weeks = new Map(), years = new Map();
     let priced = 0;
     trades.forEach(({ date, a, b, f }) => {
       const s1 = a.filter(id => !negligible(id)).map(id => asset(id, date)), s2 = b.filter(id => !negligible(id)).map(id => asset(id, date));
@@ -200,7 +197,6 @@ function main() {
       priced++;
       const t = { s1, s2, date, f };
       (weeks.get(monday(date)) || weeks.set(monday(date), []).get(monday(date))).push(t);
-      (months.get(date.slice(0, 7)) || months.set(date.slice(0, 7), []).get(date.slice(0, 7))).push(t);
       (years.get(date.slice(0, 4)) || years.set(date.slice(0, 4), []).get(date.slice(0, 4))).push(t);
       if (date >= recentFrom) recent[format.startsWith('sf') ? 'sf' : 'oneQB'].push(t);
       // Each side's main piece (its best player): what that side cost over what it was worth.
@@ -216,16 +212,10 @@ function main() {
       });
     });
     // The consolidation math scales to the most valuable player at the time (see vault-core.js).
-    const weekOut = {}, monthOut = {}, yearOut = {};
+    const weekOut = {}, yearOut = {};
     [...years.keys()].sort().forEach(y => { Vault._globalMaxValue = prices.maxAt(`${y}-07-01`) || undefined; yearOut[y] = summarize(Vault, years.get(y), { players: false }); });
     [...weeks.keys()].sort().forEach(w => { Vault._globalMaxValue = prices.maxAt(w) || undefined; weekOut[w] = summarize(Vault, weeks.get(w), { players: false }); });
-    [...months.keys()].sort().forEach(m => {
-      Vault._globalMaxValue = prices.maxAt(`${m}-15`) || undefined;
-      const s = summarize(Vault, months.get(m));
-      monthOut[m] = Object.fromEntries(Object.entries(s.players).filter(([, v]) => v[0] >= 2));
-    });
     fs.writeFileSync(path.join(OUT, `${format}.json`), JSON.stringify({ format, updated: new Date().toISOString(), leagues: leagues.get(format).size, trades: { crawled: trades.length, priced }, weeks: weekOut, years: yearOut }));
-    fs.writeFileSync(path.join(OUT, `${format}-players.json`), JSON.stringify({ format, months: monthOut }));
     console.log(`${format}: ${trades.length} trades from ${leagues.get(format).size} leagues, ${priced} priced, ${weeks.size} weeks`);
   });
 

@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="vault.css?v=6987592c">
 <link rel="stylesheet" href="tailwind.css?v=77290b79">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-20', items: [
+    { kind: 'fixed', page: 'Data status', text: "The hourly Sleeper trade crawl was timing out most runs while pricing its 3.7 million trades, so the market summaries behind Player Market and Trade Database often went hours without updating, and each timed-out run lost its place in the crawl, so the next one re-crawled the same leagues. Runs now crawl 42 minutes instead of 48 and save their place as soon as the trades are uploaded." },
     { kind: 'new', page: 'Trade Lab', text: "New page, Trade Lab (Trades menu), all about the 1.34 million trades from 64,898 Sleeper dynasty leagues. How managers trade: when (peaks in May and October-November), the shape of deals, how close to even, what moves and how old, who sells points in season, how busy leagues are. What happened after: how each verdict turned out, whether the price holds, which trades won titles, consolidating vs spreading out, picks, age and position. Your league next to everyone on the same definitions (The League of Gold trades closer to even than most, and one team is in 72% of its trades). And Explore it yourself: pick a position, age, shape, timeline, price, time of year or format and see how trades like it turned out. The Trade Database's What 1.3 million trades show section moved here." },
     { kind: 'new', page: 'Trade Coach', text: "Trade Coach's Best trades now also looks for two starters from one team in a single deal, paid with your bench players and picks, priced Fair on KTC and inside what managers in that team's spot accept. None of the searches tried it before. For Skat Happens Chase Love it found Denzel Boston, Cam Skattebo and Rome Odunze for Kyren Williams and Chase Brown: a Great trade for Skat Happens, a Toss-up for Super bo or bust, title odds 24% → 31%." },
     { kind: 'new', page: 'Trade Coach', text: "During the season, every Trade Coach suggestion shows your title odds before and after, the same numbers as the calculator's This season box. For a team already headed to the playoffs, the title is where a trade shows up: in 2024 and 2025, contenders with 85%+ playoff odds won the title 1.35 times as often as their odds said after trades adding 6+ points a week, and 1.12 times (the same as any team that traded) after trades adding about none." },

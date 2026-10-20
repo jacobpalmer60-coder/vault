@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="vault.css?v=6987592c">
 <link rel="stylesheet" href="tailwind.css?v=77290b79">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -754,12 +754,6 @@ function bestPairFor(single, pool, singleIsMine) {
     if (pct < bestPct) { bestPct = pct; best = pair; }
   }
   return bestPct < VAULT_CONFIG.FAIR_PCT ? best : null;
-}
-
-// "1-for-2" / "2-for-1" from Team A's side, or null for any other shape.
-function tradeShape(c) {
-  const a = c.giveA.length, b = c.giveB.length;
-  return a === 1 && b === 2 ? '1-for-2' : a === 2 && b === 1 ? '2-for-1' : null;
 }
 
 // Every fair-looking trade between your team and each other team, deduped and
@@ -2364,8 +2358,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js?v=4230af6a"></script>
-<script src="market-data.js?v=a7b9cbd5"></script>
+<script src="market-data.js?v=11b594ea"></script>
 <script src="market.js?v=692419ef"></script>
-<script src="coach.js?v=f4a3fead"></script>
+<script src="coach.js?v=3e6a1943"></script>
 </body>
 </html>

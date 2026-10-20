@@ -442,14 +442,6 @@ function marketAcceptHtml(r, sendTeam, getTeam, cls = 'mt-1.5', short = false) {
   return `<div class="text-[12px] text-zinc-400 ${cls}" title="${tip}"><span class="${tone} font-medium">${t.label}</span> <span class="text-zinc-500">·</span> ${t.text}</div>`;
 }
 
-// Net value of a trade for the side giving `give` and getting `get`, in KTC
-// points: on KTC (consolidation-adjusted, as the grade measures) and at market
-// prices (each side scaled by its pieces' market values, the adjustment held).
-function marketNet(league, give, get) {
-  const { valueA, valueB } = Vault.tradeSideValues(give, get, { market: false });
-  const mult = list => { const s = list.reduce((t, a) => t + a.value, 0); return s ? list.reduce((t, a) => t + a.value * (1 + marketAdj(league, a) / 100), 0) / s : 1; };
-  return { ktc: valueB - valueA, market: valueB * mult(get) - valueA * mult(give) };
-}
 // "Rashee Rice trades about 13% above his KTC value", for the piece that moved a trade most.
 function marketMoverText(m) {
   return `${Vault.escapeHtml(m.a.name)} trades about ${Math.abs(Math.round(m.adj))}% ${m.adj > 0 ? 'above' : 'below'} ${m.a.type === 'pick' ? 'its' : 'his'} KTC value`;

@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=655a9195">
+<link rel="stylesheet" href="vault.css?v=6987592c">
 <link rel="stylesheet" href="tailwind.css?v=77290b79">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -69,9 +69,6 @@ let sortKey = 'recent';
 function fairBucket(pctDiff, fitA, fitB) {
   return Vault.fairnessBucket(pctDiff, fitA, fitB);
 }
-// Great/Good each get their own hue (violet/blue), not shades of green — see
-// bucketColor's comment in trade.html for why.
-function fairColor(bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).text; }
 
 const todayGrade = g => Vault.todayGrade(g);
 // Like the calculator: when roster fit and timeline moved the grade past trade

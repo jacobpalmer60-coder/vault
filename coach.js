@@ -1195,15 +1195,6 @@ function coachCardHtml(o, i) {
     </div>`;
 }
 
-// One side of an offer: each piece on its own line with its position tag and value.
-function coachPieces(list) {
-  return list.map(a => `<div class="flex items-center gap-1.5 min-w-0 py-0.5">
-      <span class="text-[11px] font-semibold w-9 text-center rounded border shrink-0 ${POS_BADGE(a.type === 'pick' ? '' : a.pos)}">${a.type === 'pick' ? 'Pick' : a.pos}</span>
-      <span class="text-[13px] text-zinc-100 truncate min-w-0">${Vault.escapeHtml(a.name)}${a.type === 'pick' && a.tier ? ` <span class="text-zinc-500">${a.tier}</span>` : ''}</span>
-      <span class="ml-auto pl-1 text-[12px] mono text-zinc-500 shrink-0">${Math.round(a.value).toLocaleString()}</span>
-    </div>`).join('');
-}
-
 function coachResultsHtml(r) {
   if (Coach.collapsed && r.list && r.list.length) return `<button onclick="Coach.collapsed = false; renderCoach()" class="mt-2 w-full text-left text-[12px] px-3 py-2 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Show options again (${r.list.length}) ▾</button>`;
   if (!r.list || !r.list.length) return `<div class="mt-3 p-3 rounded-xl bg-black/30 text-[12px] text-zinc-300">${r.empty || 'No trades found.'}${coachHasMine() ? ' Your must-include, leave-out, or position choices rule out some trades, so try loosening them (click one above to change it).' : ''}</div>`;
