@@ -9,7 +9,7 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=587e9019">
+<link rel="stylesheet" href="tailwind.css?v=4b230381">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -55,9 +55,11 @@
             <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="recordWinPct" title="Current record, and the projected final record below it">Record</th>
             <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="playoffPct" title="Playoff odds, and title odds below">Playoffs</th>
             <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="overall">Overall</th>
-            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="total">Players</th>
-            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="picksValue">Picks</th>
-            <th class="hidden min-[1100px]:table-cell text-left px-2.5 py-3.5 font-semibold sortable" data-sort="posConcentration" title="Player value by position. Sorts by how concentrated a roster's value is in its single biggest position">Position split</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="qb" title="QB player value: rank in the league (1 = best)">QB</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="rb" title="RB player value: rank in the league (1 = best)">RB</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="wr" title="WR player value: rank in the league (1 = best)">WR</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="te" title="TE player value: rank in the league (1 = best)">TE</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="picksValue" title="Pick value: rank in the league (1 = best)">Picks</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="age">Age</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="opt">Lineup PPG</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Lineup PPG)">VORP</th>
@@ -71,8 +73,6 @@
     <div id="scrollHint" class="hidden absolute top-0 right-0 bottom-0 w-10 pointer-events-none bg-gradient-to-l from-[#14161b] to-transparent"></div>
   </div>
 
-  <!-- Each team's rank at each position: needs and strengths across the league. -->
-  <div id="posGrid" class="mt-8 card rounded-vault p-5"></div>
 
   <div class="mt-8 card rounded-vault p-6">
     <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
@@ -95,9 +95,8 @@
     <div class="px-6 pb-6">
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 text-[13px]">
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Overall</span><span class="text-zinc-400"> — Players + Picks combined, a team's total dynasty value at KeepTradeCut prices</span></div>
-      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Position Split</span><span class="text-zinc-400"> — Share of player value by QB/RB/WR/TE</span></div>
-      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Players</span><span class="text-zinc-400"> — Sum of rostered player values</span></div>
-      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">QB, RB, WR, TE, Picks</span><span class="text-zinc-400"> — The team's rank in the league at each position by the value of its players there (and its picks), 1 = best. Green is a strength, orange a need</span></div>
+            <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Lineup PPG</span><span class="text-zinc-400"> — Points per game if you started the best possible lineup from your full roster, scored with your league's own scoring settings — not necessarily who you'd actually start today</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Lineup PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Longevity</span><span class="text-zinc-400"> — How many of the next 5 years this roster is projected to stay good enough for the playoffs, as players age and picks arrive. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
@@ -124,7 +123,6 @@
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 };
 
-const POS_COLOR = { QB: 'bg-fuchsia-400/60', RB: 'bg-emerald-400/60', WR: 'bg-sky-400/60', TE: 'bg-amber-400/60' };
 
 // Static reference (doesn't depend on this league's teams), so it renders once up front.
 document.getElementById('archGuide').innerHTML = Object.entries(Vault.ARCHETYPE_INFO).map(([name, info]) => `
@@ -163,17 +161,6 @@ function microBar(val, min, max) {
   const t = max > min ? (val - min) / (max - min) : 0.5;
   const pct = Math.max(3, Math.min(100, t * 100));
   return `<div class="mt-1.5 h-[4px] w-full max-w-[88px] ml-auto rounded-full bg-white/[0.06] overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%; background:rgba(236, 236, 239, ${(0.22 + 0.33 * t).toFixed(2)})"></div></div>`;
-}
-
-// Numbers stay neutral; each position's color lives on its bar, not its digits.
-const POS_TEXT = { QB: 'text-zinc-100', RB: 'text-zinc-100', WR: 'text-zinc-100', TE: 'text-zinc-100' };
-
-function posSplitBar(t) {
-  const parts = ['QB', 'RB', 'WR', 'TE'].map(p => ({ pos: p, val: t[p.toLowerCase()] }));
-  const sum = parts.reduce((s, p) => s + p.val, 0) || 1;
-  const segs = parts.map(p => `<div class="h-full ${POS_COLOR[p.pos]}" style="width:${p.val / sum * 100}%" title="${p.pos}: ${Math.round(p.val).toLocaleString()}"></div>`).join('');
-  const labels = parts.map(p => `<span class="${POS_TEXT[p.pos]}" title="${p.pos}: ${Math.round(p.val).toLocaleString()} (${Math.round(p.val / sum * 100)}% of player value)">${p.pos} ${(p.val / 1000).toFixed(1)}k</span>`).join(' ');
-  return `<div class="h-[7px] w-full max-w-[160px] rounded-full overflow-hidden flex bg-white/[0.06]">${segs}</div><div class="mt-1 flex gap-2 text-[11px] font-mono whitespace-nowrap">${labels}</div>`;
 }
 
 // One color per team line, cycled if there are more teams than colors.
@@ -485,7 +472,7 @@ function renderMobileCards(data, minOverall, maxOverall) {
         <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
       </div>
 
-      <div class="mt-3.5">${posSplitBar(t)}</div>
+      <div class="mt-3.5">${posChips(t)}</div>
 
       <div class="grid grid-cols-4 gap-2 text-center py-3 mt-3.5 border-y border-white/5">
         <div><div class="font-mono text-[13px] text-zinc-200">${t.age.toFixed(1)}</div><div class="text-[12px] text-zinc-400">Age</div></div>
@@ -572,37 +559,27 @@ function renderMap() {
     </svg></div>`;
 }
 
-/* ---------- Position strength ----------
-   Each team's rank at each position by the value of its players there (and its
-   picks), 1 = best in the league: where a roster is deep and where it needs help. */
-function renderPositions(order) {
-  const box = document.getElementById('posGrid');
-  if (!teams.length) { box.innerHTML = ''; return; }
-  const n = teams.length, mine = Vault.myTeam(teams);
-  const COLS = [['QB', t => t.qb], ['RB', t => t.rb], ['WR', t => t.wr], ['TE', t => t.te], ['Picks', t => t.picksValue]];
-  const ranks = COLS.map(([, f]) => rankMap(f));
-  const tone = r => r <= Math.ceil(n * 0.2) ? 'bg-emerald-400/25 text-emerald-50' : r <= Math.ceil(n * 0.4) ? 'bg-emerald-400/10 text-emerald-100' : r > n - Math.ceil(n * 0.2) ? 'bg-orange-400/25 text-orange-50' : r > n - Math.ceil(n * 0.4) ? 'bg-orange-400/10 text-orange-100' : 'bg-white/[0.03] text-zinc-300';
-  box.innerHTML = `<div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-      <h2 class="text-[16px] font-semibold text-zinc-100">Position strength</h2>
-      <span class="text-[12px] text-zinc-400">Each team's rank at each position by player value (1 = best). Green is a strength, orange a need.</span>
-    </div>
-    <div class="overflow-x-auto"><table class="w-full text-[13px] border-separate border-spacing-1">
-      <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="text-left font-normal pb-1 pr-3">Team</th>${COLS.map(([c]) => `<th class="font-normal pb-1 w-[14%]">${c}</th>`).join('')}</tr></thead>
-      <tbody>${order.map(t => `<tr class="cursor-pointer hover:bg-white/[0.02]" onclick="location.href='${teamLink(t)}'">
-        <td class="pr-3 py-1 truncate max-w-[220px] ${t === mine ? 'text-amber-200 font-medium' : 'text-zinc-200'}">${Vault.escapeHtml(t.teamName)}</td>
-        ${COLS.map(([c, f], i) => { const r = ranks[i].get(t.rosterId); return `<td class="text-center py-1.5 rounded-md font-mono ${tone(r)}" title="${c}: ${Math.round(f(t)).toLocaleString()} value, ${ord(r)} of ${n}">${r}</td>`; }).join('')}
-      </tr>`).join('')}</tbody></table></div>`;
+/* ---------- Position strength, in the table ----------
+   Each team's rank at QB, RB, WR, TE (by the value of its players there) and picks,
+   1 = best in the league, green for a strength and orange for a need. */
+const POS_COLS = [['QB', t => t.qb], ['RB', t => t.rb], ['WR', t => t.wr], ['TE', t => t.te], ['Picks', t => t.picksValue]];
+let posRanks = [];
+function posTone(r, n) {
+  return r <= Math.ceil(n * 0.2) ? 'bg-emerald-400/25 text-emerald-50' : r <= Math.ceil(n * 0.4) ? 'bg-emerald-400/10 text-emerald-100'
+    : r > n - Math.ceil(n * 0.2) ? 'bg-orange-400/25 text-orange-50' : r > n - Math.ceil(n * 0.4) ? 'bg-orange-400/10 text-orange-100' : 'bg-white/[0.03] text-zinc-300';
+}
+function posCells(t) {
+  const n = teams.length;
+  return POS_COLS.map(([c, f], i) => { const r = posRanks[i].get(t.rosterId); return `<td class="px-1 py-3.5"><div class="mx-auto w-10 py-1.5 rounded-md text-center font-mono text-[13px] ${posTone(r, n)}" title="${c}: ${Math.round(f(t)).toLocaleString()} value, ${ord(r)} of ${n}">${r}</div></td>`; }).join('');
+}
+// Phones: the same five as a row of chips on each team card.
+function posChips(t) {
+  const n = teams.length;
+  return `<div class="grid grid-cols-5 gap-1.5">${POS_COLS.map(([c, f], i) => { const r = posRanks[i].get(t.rosterId); return `<div class="rounded-md py-1 text-center ${posTone(r, n)}" title="${c}: ${Math.round(f(t)).toLocaleString()} value"><div class="text-[10px] uppercase tracking-wider opacity-80">${c}</div><div class="font-mono text-[14px]">${r}</div></div>`; }).join('')}</div>`;
 }
 
 function render() {
   const tb = document.getElementById('tbody');
-  // Position Split has no single natural number to sort by — use how
-  // concentrated a roster's player value is in its single biggest position
-  // (0-1) as the sort metric, computed fresh each render since it's cheap.
-  teams.forEach(t => {
-    const sum = t.qb + t.rb + t.wr + t.te || 1;
-    t.posConcentration = Math.max(t.qb, t.rb, t.wr, t.te) / sum;
-  });
   const data = [...teams].sort((a, b) => {
     // Playoffs: by the rounded odds the column shows, then title odds, so three
     // teams all at "100%" aren't ordered by a tenth of a percent of simulation noise.
@@ -616,17 +593,12 @@ function render() {
   });
   document.querySelectorAll('th.sortable').forEach(th => th.classList.toggle('active', th.dataset.sort === sort.key));
   data.forEach((t, i) => { t.viewRank = i + 1; });
-  const rOverall = rankMap(t => t.overall), rTotal = rankMap(t => t.total), rPicks = rankMap(t => t.picksValue);
+  posRanks = POS_COLS.map(([, f]) => rankMap(f));
+  const rOverall = rankMap(t => t.overall);
   // Min AND max of each column's real spread — see microBar/heatColor: the color
   // scale is normalized to this range, not a flat 0, so it still differentiates
   // teams even when a column's values all cluster well above zero (the norm).
   const range = f => { const vals = data.map(f); return [Math.min(...vals), Math.max(...vals)]; };
-  const [minTotal, maxTotal] = range(t => t.total);
-  const [minQb, maxQb] = range(t => t.qb);
-  const [minRb, maxRb] = range(t => t.rb);
-  const [minWr, maxWr] = range(t => t.wr);
-  const [minTe, maxTe] = range(t => t.te);
-  const [minPicks, maxPicks] = range(t => t.picksValue);
   const [minOverall, maxOverall] = range(t => t.overall);
   const [minOpt, maxOpt] = range(t => t.opt);
   const [minVorp, maxVorp] = range(t => t.vorpTotal || 0);
@@ -658,17 +630,7 @@ function render() {
         ${microBar(t.overall, minOverall, maxOverall)}
         <div class="text-[11px] font-mono text-zinc-500 mt-1">${kFmt(t.overall)}</div>
       </td>
-      <td class="px-2.5 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] text-zinc-100" title="${Math.round(t.total).toLocaleString()} player value">${ord(rTotal.get(t.rosterId))}</div>
-        ${microBar(t.total, minTotal, maxTotal)}
-        <div class="text-[11px] font-mono text-zinc-500 mt-1">${kFmt(t.total)}</div>
-      </td>
-      <td class="px-2.5 py-3.5 text-right">
-        <div class="font-mono font-semibold text-[14px] text-zinc-200" title="${Math.round(t.picksValue).toLocaleString()} pick value">${ord(rPicks.get(t.rosterId))}</div>
-        ${microBar(t.picksValue, minPicks, maxPicks)}
-        <div class="text-[11px] font-mono text-zinc-500 mt-1">${kFmt(t.picksValue)}</div>
-      </td>
-      <td class="hidden min-[1100px]:table-cell px-2.5 py-3.5">${posSplitBar(t)}</td>
+      ${posCells(t)}
       <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right font-mono font-semibold text-[14px] text-zinc-300">${t.age.toFixed(1)}</td>
       <td class="hidden min-[1340px]:table-cell px-2.5 py-3.5 text-right">
         <div class="font-mono font-semibold text-[14px] text-zinc-200">${t.opt.toFixed(1)}</div>
@@ -695,7 +657,6 @@ function render() {
   renderMobileCards(data, minOverall, maxOverall);
   renderViewToggle();
   renderMap();
-  renderPositions(data);
   updateScrollHint();
 }
 document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.sort; if (sort.key === k) { sort.dir *= -1; } else { sort.key = k; sort.dir = -1; } render(); });
