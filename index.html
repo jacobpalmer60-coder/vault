@@ -9,7 +9,7 @@
   <title>The Vault — Dynasty tools for Sleeper</title>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="vault.css?v=6987592c">
-  <link rel="stylesheet" href="tailwind.css?v=77290b79">
+  <link rel="stylesheet" href="tailwind.css?v=6bda7613">
 </head>
 <body class="min-h-screen text-zinc-100 antialiased">
   <div class="vault-bg"></div>
@@ -58,10 +58,17 @@
           <select id="leagueSelect" class="w-full h-12 px-4 rounded-xl bg-black/40 border border-white/10"></select>
         </div>
 
-        <!-- Open the league on League Overview. Every other tool is in the tabs on each page. -->
+        <!-- Your team: every tool opens on it (required, with the league, to use the tools). -->
+        <div id="step-team" class="hidden mt-6">
+          <label for="teamSelect" class="block text-sm font-medium text-zinc-300 mb-2">Which team is yours?</label>
+          <select id="teamSelect" class="w-full h-12 px-4 rounded-xl bg-black/40 border border-white/10"></select>
+          <p id="teamHint" class="mt-2 text-[12px] text-zinc-500">Every tool opens on your team. Change it anytime under Your team at the top of each page.</p>
+        </div>
+
+        <!-- Open the league (League Overview, or the page you were headed to). -->
         <div id="step-actions" class="hidden mt-6">
-          <a id="btnOverview" href="#" class="btn-gold-solid h-12 w-full flex items-center justify-center gap-2 text-[15px]">Open league <span aria-hidden="true">→</span></a>
-          <p class="mt-3 text-xs text-zinc-400 text-center">Opens League Overview. The Trade Calculator, Player Rankings, and every other tool are in the tabs at the top of each page. Your league is saved in this browser.</p>
+          <button id="btnOverview" type="button" disabled class="btn-gold-solid h-12 w-full flex items-center justify-center gap-2 text-[15px] disabled:opacity-40 disabled:cursor-not-allowed"><span id="btnOverviewText">Open league</span> <span aria-hidden="true">→</span></button>
+          <p id="actionsHint" class="mt-3 text-xs text-zinc-400 text-center">Opens League Overview. The Trade Calculator, Player Rankings, and every other tool are in the tabs at the top of each page. Your league and team are saved in this browser.</p>
         </div>
       </div>
 
@@ -84,90 +91,136 @@
     </div>
   </main>
 
-  <script src="vault-core.js?v=d762581a"></script>
+  <script src="vault-core.js?v=d30ce494"></script>
   <script>
+    /* The way in (user, 2026-10-20): every tool needs your league and your team.
+       Username: pick one of your dynasty leagues; your team there is found from your
+       account (pick it yourself if it isn't). League ID: pick your team. Then open
+       League Overview, or the page you were headed to (?next=, from Vault.pickLeagueLink). */
     (() => {
       const $ = id => document.getElementById(id);
       const username = $('username'), loadBtn = $('loadBtn'), leagueSelect = $('leagueSelect');
-      const stepLeague = $('step-league'), stepActions = $('step-actions'), errorMsg = $('errorMsg');
+      const stepLeague = $('step-league'), stepTeam = $('step-team'), teamSelect = $('teamSelect'), stepActions = $('step-actions'), errorMsg = $('errorMsg');
       const btnOverview = $('btnOverview');
+      const esc = Vault.escapeHtml;
       const store = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
       const stored = k => { try { return localStorage.getItem(k); } catch { return null; } };
+      const fail = msg => { errorMsg.textContent = msg; errorMsg.classList.remove('hidden'); };
+      const getJson = url => fetch(url).then(r => r.json()).catch(() => null);
 
+      // Where to go once a league and team are picked: the page you were opening
+      // (only a page of this site), else League Overview.
+      const nextRaw = new URLSearchParams(location.search).get('next');
+      const next = nextRaw && /^[\w-]+(\.html)?(\?[^#]*)?(#[\w-]*)?$/.test(nextRaw) ? nextRaw : null;
+      const nextLeague = next ? new URL(next, location.href).searchParams.get('league_id') : null;
+      const dest = id => {
+        if (!next) return Vault.linkTo('app.html', id);
+        const u = new URL(next, location.href);
+        u.searchParams.set('league_id', id);
+        return u.pathname.split('/').pop() + u.search + u.hash;
+      };
+      if (next) {
+        $('btnOverviewText').textContent = 'Continue';
+        $('actionsHint').textContent = 'Takes you on to the page you were opening. Your league and team are saved in this browser.';
+      }
+
+      let current = null; // { id, teams }
+      function syncButton() {
+        btnOverview.disabled = !(current && teamSelect.value);
+      }
+      // A league picked: show its teams, yours selected when we know it.
+      async function activate(id, { user = null } = {}) {
+        errorMsg.classList.add('hidden');
+        stepTeam.classList.add('hidden'); stepActions.classList.add('hidden'); current = null;
+        const [league, users, rosters] = await Promise.all([getJson(`https://api.sleeper.app/v1/league/${id}`), getJson(`https://api.sleeper.app/v1/league/${id}/users`), getJson(`https://api.sleeper.app/v1/league/${id}/rosters`)]);
+        if (!league || league.error || !league.name) return fail('League not found. Double-check the league ID.');
+        if (!Vault.isDynastyLeague(league)) return fail(`"${league.name}" is a redraft or keeper league. The Vault only supports dynasty leagues.`);
+        const byUser = new Map((users || []).map(u => [u.user_id, u]));
+        const teams = (rosters || []).map(r => {
+          const u = byUser.get(r.owner_id) || {};
+          return { rosterId: String(r.roster_id), owners: [r.owner_id, ...(r.co_owners || [])].filter(Boolean), name: u.metadata?.team_name || u.display_name || `Team ${r.roster_id}`, who: u.display_name || '' };
+        }).sort((a, b) => a.name.localeCompare(b.name));
+        if (!teams.length) return fail(`"${league.name}" has no teams yet.`);
+        const uid = user || Vault.getSleeperUserId();
+        const saved = Vault.getMyTeamId(id);
+        const mine = teams.find(t => t.rosterId === String(saved)) || (uid && teams.find(t => t.owners.includes(uid))) || null;
+        teamSelect.innerHTML = `<option value="">Pick your team…</option>` + teams.map(t => `<option value="${t.rosterId}" ${mine === t ? 'selected' : ''}>${esc(t.name)}${t.who && t.who !== t.name ? ` (${esc(t.who)})` : ''}</option>`).join('');
+        $('teamHint').textContent = mine && user ? `Found your team from your username. Every tool opens on it; change it anytime under Your team at the top of each page.` : 'Every tool opens on your team. Change it anytime under Your team at the top of each page.';
+        current = { id, teams };
+        stepTeam.classList.remove('hidden');
+        stepActions.classList.remove('hidden');
+        syncButton();
+        if (!mine) teamSelect.focus();
+      }
+      teamSelect.onchange = syncButton;
+      btnOverview.onclick = () => {
+        if (!current || !teamSelect.value) return;
+        Vault.setLeagueId(current.id);
+        Vault.setMyTeamId(current.id, teamSelect.value);
+        location.href = dest(current.id);
+      };
+
+      // Username: their dynasty leagues, each once (its newest season).
       async function loadLeagues() {
         const user = username.value.trim();
         if (!user) return;
         errorMsg.classList.add('hidden');
         try {
-          const u = await fetch(`https://api.sleeper.app/v1/user/${user}`).then(r => r.json());
-          if (!u || !u.user_id) throw new Error('User not found');
-          // Remembered so every page can open on your own team (Vault.myTeam).
+          const u = await getJson(`https://api.sleeper.app/v1/user/${encodeURIComponent(user)}`);
+          if (!u || !u.user_id) throw new Error('User not found. Check the spelling of your Sleeper username.');
+          // Remembered so pages can find your team in other leagues of yours too.
           Vault.setSleeperUserId(u.user_id);
           store('vault_username', user); // filled in next time
           const allLeagues = await Promise.all(
             // From next year back (new-season leagues appear before the calendar turns).
-            [...Array(13)].map((_, i) =>
-              fetch(`https://api.sleeper.app/v1/user/${u.user_id}/leagues/nfl/${new Date().getFullYear() + 1 - i}`).then(r => r.json()).catch(() => [])
-            )
+            [...Array(13)].map((_, i) => getJson(`https://api.sleeper.app/v1/user/${u.user_id}/leagues/nfl/${new Date().getFullYear() + 1 - i}`).then(a => a || []))
           ).then(a => a.flat());
-          if (!allLeagues.length) throw new Error('No leagues found for that username');
-          // The Vault only supports dynasty leagues — see Vault.isDynastyLeague.
-          // Redraft/keeper leagues are excluded here rather than left for a later
-          // page to reject, so the picker only ever offers leagues that'll work.
-          const leagues = allLeagues.filter(Vault.isDynastyLeague);
-          if (!leagues.length) throw new Error(`Found ${allLeagues.length} league(s) for that username, but none are dynasty — The Vault only supports dynasty leagues.`);
-          leagueSelect.innerHTML = leagues.map(l => `<option value="${l.league_id}">${Vault.escapeHtml(l.name)} • ${l.season}</option>`).join('');
+          if (!allLeagues.length) throw new Error('No leagues found for that username.');
+          // Dynasty only (Vault.isDynastyLeague), and each league once: Sleeper starts a
+          // new league every season, pointing back at last season's (previous_league_id).
+          const dyn = allLeagues.filter(Vault.isDynastyLeague);
+          if (!dyn.length) throw new Error(`Found ${allLeagues.length} league(s) for that username, but none are dynasty. The Vault only supports dynasty leagues.`);
+          const older = new Set(dyn.map(l => l.previous_league_id).filter(Boolean));
+          // (A league restarted without that link shows up under the same name: newest season only.)
+          const seen = new Set();
+          const leagues = dyn.filter(l => !older.has(l.league_id)).sort((a, b) => b.season - a.season || a.name.localeCompare(b.name))
+            .filter(l => { const k = Vault.norm(l.name); if (seen.has(k)) return false; seen.add(k); return true; });
+          leagueSelect.innerHTML = (leagues.length > 1 ? '<option value="">Pick a league…</option>' : '') + leagues.map(l => `<option value="${l.league_id}">${esc(l.name)} • ${l.season}</option>`).join('');
           stepLeague.classList.remove('hidden');
-          onChange();
-        } catch (e) {
-          errorMsg.textContent = e.message;
-          errorMsg.classList.remove('hidden');
-        }
+          stepTeam.classList.add('hidden'); stepActions.classList.add('hidden'); current = null;
+          if (leagues.length === 1) activate(leagues[0].league_id, { user: u.user_id });
+          else leagueSelect.focus();
+        } catch (e) { fail(e.message); }
       }
-
-      function activate(id) {
-        Vault.setLeagueId(id);
-        btnOverview.href = Vault.linkTo('app.html', id);
-        stepActions.classList.remove('hidden');
-      }
-
-      function onChange() {
-        const id = leagueSelect.value;
-        if (id) activate(id);
-      }
+      leagueSelect.onchange = () => { if (leagueSelect.value) activate(leagueSelect.value, { user: Vault.getSleeperUserId() }); };
 
       loadBtn.onclick = loadLeagues;
       // Enter submits, like any other form.
       username.addEventListener('keydown', e => { if (e.key === 'Enter') loadLeagues(); });
       $('directLeagueId').addEventListener('keydown', e => { if (e.key === 'Enter') $('directBtn').click(); });
+      $('directBtn').onclick = () => {
+        const id = $('directLeagueId').value.trim();
+        if (!id) return;
+        stepLeague.classList.add('hidden');
+        activate(id);
+      };
 
       // Returning visitor: username filled in, and their last league offered up top.
       if (stored('vault_username')) username.value = stored('vault_username');
       const lastLeague = stored('vault_league_id');
-      if (lastLeague) {
-        fetch(`https://api.sleeper.app/v1/league/${lastLeague}`).then(r => r.json()).then(l => {
+      if (lastLeague && !nextLeague) {
+        getJson(`https://api.sleeper.app/v1/league/${lastLeague}`).then(l => {
           if (!l || !l.name || !Vault.isDynastyLeague(l)) return; // only offer leagues that work
           $('resumeName').textContent = `${l.name} • ${l.season}`;
-          $('resumeBtn').href = Vault.linkTo('app.html', lastLeague);
+          const btn = $('resumeBtn');
+          if (Vault.getMyTeamId(lastLeague)) btn.href = dest(lastLeague);
+          else btn.onclick = e => { e.preventDefault(); $('directLeagueId').value = lastLeague; activate(lastLeague); }; // no team yet: pick it first
           $('resume').classList.remove('hidden');
           $('loadBtn').className = 'btn-gold h-12 px-5 text-sm text-zinc-200'; // one gold action per view: Open league
-        }).catch(() => {});
+        });
       }
-      leagueSelect.onchange = onChange;
-      $('directBtn').onclick = async () => {
-        const id = $('directLeagueId').value.trim();
-        if (!id) return;
-        errorMsg.classList.add('hidden');
-        try {
-          const league = await fetch(`https://api.sleeper.app/v1/league/${id}`).then(r => r.json());
-          if (!league || league.error) throw new Error('League not found. Double-check the league ID.');
-          if (!Vault.isDynastyLeague(league)) throw new Error(`"${league.name}" is a redraft/keeper league, not dynasty — The Vault only supports dynasty leagues.`);
-          activate(id);
-        } catch (e) {
-          errorMsg.textContent = e.message;
-          errorMsg.classList.remove('hidden');
-        }
-      };
+      // Sent here from a link to a league whose team isn't picked yet: straight to its teams.
+      if (nextLeague) { $('directLeagueId').value = nextLeague; activate(nextLeague); }
     })();
   </script>
 </body>

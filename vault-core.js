@@ -3,7 +3,6 @@
    Shared config + data pipeline for all Vault pages.
    ============================================================ */
 const VAULT_CONFIG = {
-  DEFAULT_LEAGUE_ID: '1313454100225990656',
   KTC_URL: 'data/ktc-values.json',
   VAULT_VALUES_URL: 'data/vault-values/values.json',
   // What each player and pick actually trades for, per league format, built
@@ -438,7 +437,7 @@ const Vault = {
     }
     let stored = null;
     try { stored = localStorage.getItem('vault_league_id'); } catch {}
-    return stored || VAULT_CONFIG.DEFAULT_LEAGUE_ID;
+    return stored || null; // none picked: tools send you to the home page (vault-nav.js)
   },
   setLeagueId(id) {
     try { localStorage.setItem('vault_league_id', id); } catch {}
@@ -475,7 +474,12 @@ const Vault = {
   },
   linkTo(page, id) {
     const lid = id || Vault.getLeagueId();
-    return `${page}?league_id=${encodeURIComponent(lid)}`;
+    return lid ? `${page}?league_id=${encodeURIComponent(lid)}` : page;
+  },
+  // The home page, set to come back here once a league is picked.
+  pickLeagueLink() {
+    const here = (location.pathname.split('/').pop() || 'app.html') + location.search + location.hash;
+    return './?next=' + encodeURIComponent(here); // the home page (./, not index.html: some hosts drop the query when redirecting it)
   },
 
   /* ---------- formatting / string helpers ---------- */
@@ -895,11 +899,15 @@ const Vault = {
     if (b <= 1) return 2;
     return 3;
   },
+  // Superflex or 2QB: two lineup spots a QB can fill, so QBs are priced on KTC's
+  // Superflex values. (Checking for a SUPER_FLEX slot alone priced 2QB leagues as 1QB.)
+  isSuperflex(league) {
+    return (league?.roster_positions || []).filter(p => p === 'QB' || p === 'SUPER_FLEX').length >= 2;
+  },
   tradeFormatSig(league) {
-    const rp = league.roster_positions || [];
     return {
       teams: league.total_rosters,
-      qbs: rp.filter(p => p === 'QB' || p === 'SUPER_FLEX').length >= 2 ? 2 : 1,
+      qbs: Vault.isSuperflex(league) ? 2 : 1,
       ppr: Vault.ktcPprCode(league.scoring_settings?.rec ?? 0),
       tep: Vault.ktcTepCode(league.scoring_settings?.bonus_rec_te ?? 0)
     };
@@ -1084,7 +1092,7 @@ const Vault = {
   // lineup.
   async buildTeamValueHistory(leagueId, { teams: pageTeams } = {}) {
     const { league, users, rosters, players, traded, drafts } = await Vault.fetchSleeperCore(leagueId);
-    const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+    const isSF = Vault.isSuperflex(league);
     const bonusRecTe = league.scoring_settings?.bonus_rec_te;
     const slots = (league.roster_positions || []).filter(s => !['BN', 'IR', 'TAXI'].includes(s));
     const userMap = new Map(users.map(u => [u.user_id, u]));
@@ -1765,7 +1773,7 @@ const Vault = {
   async buildLeagueTeams(leagueId) {
     const { league, users, rosters, players, traded, drafts } = await Vault.fetchSleeperCore(leagueId);
     const { ktcData, projData, gradeData } = await Vault.fetchValueSheets();
-    const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+    const isSF = Vault.isSuperflex(league);
     const pickYears = Vault.futurePickYears(league, drafts);
     const { valMap, ppgMap, pickMap } = Vault.buildValueMaps({ ktcData, projData, gradeData, isSF, scoringSettings: league.scoring_settings, pickYears });
 

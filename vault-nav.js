@@ -5,12 +5,6 @@
    Usage: <div id="vault-nav"></div> then <script src="js/vault-nav.js"></script>
    ============================================================ */
 (function () {
-  // A visitor who hasn't picked a league (no league in the link, none saved)
-  // goes to the home page to choose theirs, instead of seeing a default league.
-  let saved = null;
-  try { saved = localStorage.getItem('vault_league_id'); } catch {}
-  if (!new URLSearchParams(location.search).get('league_id') && !saved) { location.replace('index.html'); return; }
-
   // Pages, grouped. The group name gives the context, so tabs use short names
   // (label is the full name, for the phone menu button and screen readers).
   const GROUPS = [
@@ -53,6 +47,19 @@
     const found = [...TABS, ...INFO].find(t => t.href.replace(/\.html$/, '') === file);
     return found?.key || (file === 'index' || file === '' ? 'home' : '');
   }
+
+  // Every tool needs your league and your team (user, 2026-10-20): the home page is
+  // the way in. A tool opened without both (no league in the link or saved, or no
+  // team saved for that league) goes to the home page, which asks for them and comes
+  // back here. The home page and the info pages stay open to anyone.
+  const isTool = TABS.some(t => t.key === currentPage());
+  if (isTool) {
+    const lid = Vault.getLeagueId();
+    if (!lid || !Vault.getMyTeamId(lid)) { location.replace(Vault.pickLeagueLink()); return; }
+  }
+
+  // A line under the nav: an old season, an IDP or best ball league.
+  const notice = (inner, id = '') => `<div ${id ? `id="${id}"` : ''} class="card rounded-vault-sm px-4 py-3 text-[13px] text-zinc-300 flex flex-wrap items-center gap-x-3 gap-y-2">${inner}</div>`;
 
   function render() {
     const mount = document.getElementById('vault-nav');
@@ -131,14 +138,15 @@
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
             ${infoHtml}
             <select id="myTeamPick" data-search="Your team…" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden max-w-[190px] bg-[#14161a] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-zinc-200"></select>
-            <a href="index.html" class="btn-ghost text-[12px] px-3 py-1.5">Switch League</a>
+            <a href="${leagueId ? 'index.html' : Vault.escapeHtml(Vault.pickLeagueLink())}" class="btn-ghost text-[12px] px-3 py-1.5">${leagueId ? 'Switch League' : 'Pick your league'}</a>
           </div>
         </div>
         <nav aria-label="Pages">
           <div class="vn-row max-w-[1400px] mx-auto px-4 sm:px-6 py-2 items-center overflow-x-auto scrollbar">${tabsHtml}</div>
           ${menuHtml}
         </nav>
-      </header>`;
+      </header>
+      <div id="vnNotices" class="max-w-[1400px] mx-auto px-4 sm:px-6 empty:hidden flex flex-col gap-2 pt-3"></div>`;
     const header = mount.querySelector('header');
     const setNavH = () => document.documentElement.style.setProperty('--nav-h', (getComputedStyle(header).position === 'sticky' ? header.offsetHeight : 0) + 'px');
     setNavH();
@@ -154,15 +162,76 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.classList.contains('hidden')) { setOpen(false); btn.focus(); } });
   }
 
-  // "Your team" picker — two small Sleeper calls (users + rosters), independent
-  // of whatever the page itself loads, so it's the same on every page. Picking
-  // a team saves it for this league and reloads so the page opens on it.
+  // "Your team" picker: small Sleeper calls (league, users, rosters), independent
+  // of whatever the page itself loads, so it's the same on every page. Picking a
+  // team saves it for this league and reloads so the page opens on it.
+  const reloadOnTeam = () => {
+    const u = new URL(location.href);
+    // Drop a shared trade's own team params (a/b/give_a/give_b/by), or the Trade
+    // Calculator would reopen on the old team from the URL.
+    ['a', 'b', 'give_a', 'give_b', 'by'].forEach(k => u.searchParams.delete(k));
+    location.href = u.toString();
+  };
+  // Sleeper starts a new league each season: an old season's league is over.
+  // Find this league's current season through its owners' leagues this season
+  // (each points back at last season's with previous_league_id).
+  async function currentSeasonOf(league, users, season) {
+    const key = 'vault_next_season_' + league.league_id;
+    try { const hit = sessionStorage.getItem(key); if (hit) return hit === '-' ? null : JSON.parse(hit); } catch {}
+    const get = u => fetch(u).then(r => r.json()).catch(() => null);
+    let calls = 0, found = null;
+    for (const u of (users || []).slice(0, 4)) {
+      const ls = (await get(`https://api.sleeper.app/v1/user/${u.user_id}/leagues/nfl/${season}`)) || [];
+      for (const l of ls.filter(Vault.isDynastyLeague)) {
+        let prev = l.previous_league_id;
+        for (let hop = 0; prev && hop < 8 && calls < 40; hop++) {
+          if (prev === league.league_id) { found = { id: l.league_id, season: l.season }; break; }
+          const p = await get(`https://api.sleeper.app/v1/league/${prev}`); calls++;
+          if (!p || +p.season < +league.season) break;
+          prev = p.previous_league_id;
+        }
+        if (found || calls >= 40) break;
+      }
+      if (found || calls >= 40) break;
+    }
+    try { sessionStorage.setItem(key, found ? JSON.stringify(found) : '-'); } catch {}
+    return found;
+  }
+  async function leagueNotices(league, users) {
+    const box = document.getElementById('vnNotices');
+    if (!box || !league) return;
+    const esc = Vault.escapeHtml;
+    const link = (href, text) => `<a href="${esc(href)}" class="text-amber-200 hover:text-amber-100 underline underline-offset-2 decoration-amber-200/30">${text}</a>`;
+    const IDP = ['DL', 'DE', 'DT', 'LB', 'DB', 'CB', 'S', 'IDP_FLEX'];
+    if ((league.roster_positions || []).some(p => IDP.includes(p))) {
+      const k = 'vault_note_idp_' + league.league_id;
+      let seen = false;
+      try { seen = !!localStorage.getItem(k); } catch {}
+      if (!seen) {
+        box.insertAdjacentHTML('beforeend', notice(`<span>IDP league: defensive players have no trade values here (KeepTradeCut doesn't rank them), so team values, trades and lineups count offense only.</span><button type="button" id="vnIdpOk" class="text-[12px] text-zinc-400 hover:text-white">Got it</button>`, 'vnIdp'));
+        document.getElementById('vnIdpOk').onclick = () => { try { localStorage.setItem(k, '1'); } catch {} document.getElementById('vnIdp')?.remove(); };
+      }
+    }
+    if (league.settings?.best_ball === 1 && currentPage() === 'startsit') {
+      box.insertAdjacentHTML('beforeend', notice("<span>Best ball league: Sleeper starts your highest scorers every week automatically, so there's no lineup to set. The projections below still show who's expected to score.</span>"));
+    }
+    const state = await fetch('https://api.sleeper.app/v1/state/nfl').then(r => r.json()).catch(() => null);
+    const season = state?.league_season || state?.season;
+    if (season && league.season && +league.season < +season) {
+      box.insertAdjacentHTML('beforeend', notice(`<span>This is ${esc(league.name)}'s ${esc(String(league.season))} season, which is over: Sleeper starts a new league each season.</span><span id="vnNextSeason" class="text-zinc-500">Looking for its ${esc(String(season))} season…</span>`, 'vnOld'));
+      const next = await currentSeasonOf(league, users, season);
+      const el = document.getElementById('vnNextSeason');
+      if (el) el.outerHTML = next ? link(Vault.linkTo(location.pathname.split('/').pop() || 'app.html', next.id), `Open the ${esc(String(next.season))} season →`) : link('index.html', 'Pick its current season on the home page →');
+    }
+  }
   async function mountMyTeamPicker() {
     const sel = document.getElementById('myTeamPick');
     if (!sel) return;
     const leagueId = Vault.getLeagueId();
+    if (!leagueId) return;
     try {
-      const [users, rosters] = await Promise.all([
+      const [league, users, rosters] = await Promise.all([
+        fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()),
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`).then(r => r.json()),
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`).then(r => r.json())
       ]);
@@ -171,19 +240,13 @@
         const u = userById.get(r.owner_id) || {};
         return { rosterId: r.roster_id, ownerId: r.owner_id, name: u.metadata?.team_name || u.display_name || `Team ${r.roster_id}` };
       }).sort((a, b) => a.name.localeCompare(b.name));
-      if (!teams.length) return;
+      if (!teams.length) return; // no such league: the page says so itself
       const mine = Vault.myTeam(teams, leagueId);
-      sel.innerHTML = `<option value="">Your team…</option>` + teams.map(t => `<option value="${t.rosterId}" ${mine && mine.rosterId === t.rosterId ? 'selected' : ''}>${Vault.escapeHtml(t.name)}</option>`).join('');
+      sel.innerHTML = `<option value="" disabled>Your team…</option>` + teams.map(t => `<option value="${t.rosterId}" ${mine && mine.rosterId === t.rosterId ? 'selected' : ''}>${Vault.escapeHtml(t.name)}</option>`).join('');
       sel.classList.remove('hidden');
-      // Reload onto the new team: drop a shared trade's own team params (a/b/give_a/
-      // give_b/by), or the Trade Calculator would reopen on the old team from the URL.
-      sel.onchange = () => {
-        Vault.setMyTeamId(leagueId, sel.value || null);
-        const u = new URL(location.href);
-        ['a', 'b', 'give_a', 'give_b', 'by'].forEach(k => u.searchParams.delete(k));
-        location.href = u.toString();
-      };
-    } catch (e) { /* picker is optional; the page works without it */ }
+      sel.onchange = () => { Vault.setMyTeamId(leagueId, sel.value || null); reloadOnTeam(); };
+      leagueNotices(league, users);
+    } catch (e) { /* the page works without the picker */ }
   }
 
   // Keyboard access for things that are clicked but aren't buttons or links

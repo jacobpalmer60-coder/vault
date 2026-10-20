@@ -9,7 +9,7 @@
 <title>Waivers — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=77290b79">
+<link rel="stylesheet" href="tailwind.css?v=6bda7613">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -30,8 +30,8 @@
   <p class="text-[12px] text-zinc-500 mt-8 max-w-[720px] leading-relaxed">This week: Sleeper's weekly projections in your league's scoring (the same ones Start/Sit uses), the best lineup with the player added against without. Rest of season: the site's weekly lineups over the weeks left (who plays which week, byes, injuries, matchups), as on League Overview. Dynasty value: KeepTradeCut. Drop: the player on your roster with the least dynasty value who isn't in your best lineup.</p>
 </main>
 
-<script src="vault-core.js?v=d762581a"></script>
-<script src="vault-nav.js?v=30e0b77d"></script>
+<script src="vault-core.js?v=d30ce494"></script>
+<script src="vault-nav.js?v=0dd6468c"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => Vault.escapeHtml(s == null ? '' : String(s));
@@ -48,7 +48,7 @@ async function load() {
     const [{ players, rosters }, { ktcData, projData, gradeData }, state] = await Promise.all([
       Vault.fetchSleeperCore(id), Vault.fetchValueSheets(), fetch('https://api.sleeper.app/v1/state/nfl').then(r => r.json()).catch(() => ({}))
     ]);
-    const isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+    const isSF = Vault.isSuperflex(league);
     const { valMap, ppgMap } = Vault.buildValueMaps({ ktcData, projData, gradeData, isSF, scoringSettings: league.scoring_settings, pickYears: [] });
     const owned = new Set(rosters.flatMap(r => [...(r.players || []), ...(r.taxi || []), ...(r.reserve || [])]).map(String));
     // This week's projections (only in the regular season).

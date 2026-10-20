@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=77290b79">
+<link rel="stylesheet" href="tailwind.css?v=6bda7613">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -118,8 +118,8 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=d762581a"></script>
-<script src="vault-nav.js?v=30e0b77d"></script>
+<script src="vault-core.js?v=d30ce494"></script>
+<script src="vault-nav.js?v=0dd6468c"></script>
 <script src="market-data.js?v=11b594ea"></script>
 <script>
 (() => {
@@ -818,7 +818,7 @@
       const league = await fetch(`https://api.sleeper.app/v1/league/${id}`).then(r => r.json());
       if (!league || league.error) throw new Error('League not found');
       if (!Vault.isDynastyLeague(league)) throw new Error(`"${league.name}" is a redraft/keeper league, not dynasty — The Vault only supports dynasty leagues.`);
-      isSF = (league.roster_positions || []).includes('SUPER_FLEX');
+      isSF = Vault.isSuperflex(league);
       leagueObj = league;
       scoringSettings = league.scoring_settings || {};
       rosterPositions = league.roster_positions || [];

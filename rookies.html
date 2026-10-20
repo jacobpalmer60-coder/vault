@@ -9,7 +9,7 @@
 <title>Rookie Draft — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=77290b79">
+<link rel="stylesheet" href="tailwind.css?v=6bda7613">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,8 +31,8 @@
   <p class="text-[12px] text-zinc-500 mt-8 max-w-[720px] leading-relaxed">Each class is ordered by where its players went across those drafts (median pick), counted among the positions your league starts, in 12-team rounds (early: picks 1-4, mid 5-8, late 9-12). The latest class is left out of the slot table until it has a season played. Worth today: his KeepTradeCut value now in your league's format. Starter: 4,000+ today; star: 7,000+; bust: under 1,000. Your picks' slots are where each team is expected to pick (next draft by projected record), the same rule as everywhere on the site.</p>
 </main>
 
-<script src="vault-core.js?v=d762581a"></script>
-<script src="vault-nav.js?v=30e0b77d"></script>
+<script src="vault-core.js?v=d30ce494"></script>
+<script src="vault-nav.js?v=0dd6468c"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => Vault.escapeHtml(s == null ? '' : String(s));
@@ -59,8 +59,9 @@ async function load() {
     const hasIdp = (league.roster_positions || []).some(p => IDP.has(p) || p === 'IDP_FLEX');
     const order = s => doc.seasons[s].players.filter(([, , pos]) => (pos === 'QB' || pos === 'RB' || pos === 'WR' || pos === 'TE') || (hasIdp && IDP.has(pos)))
       .sort((a, b) => a[4] - b[4]).map(([pid, name, pos, n], i) => ({ pid, name, pos, n, at: Math.floor(i / 12) + (i % 12) / 12 }));
-    // Slots: every class with a season played, by round and tier.
-    const mature = seasons.filter(s => +s <= +league.season - 1);
+    // Slots: every class with a season played (all but the newest), by round and
+    // tier. From the data, not the league's season: an old league found no classes.
+    const mature = seasons.slice(0, -1);
     const bySlot = new Map();
     let drafts = 0;
     for (const s of mature) {
