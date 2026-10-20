@@ -9,7 +9,7 @@
 <title>Team Analyzer — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=9d851f73">
+<link rel="stylesheet" href="tailwind.css?v=0ce6d1c2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -23,16 +23,18 @@
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Team Analyzer</h1>
       <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
-      <p class="text-[13px] text-zinc-400 mt-2 max-w-[620px]">One team in depth: where it ranks, its weak spots, the teams it lines up best with for trades, how many years it can contend, its best lineup and its whole roster. Pick any team on the right.</p>
+      <p class="text-[13px] text-zinc-400 mt-2 max-w-[620px]">One team in depth: where it ranks, its weak spots, the teams it lines up best with for trades, how many years it can contend, how this season is really going (luck, injuries, lineup calls), its best lineup and its whole roster. Pick any team on the right.</p>
     </div>
     <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
   </div>
 
   <section id="singleCard" class="mb-10"></section>
+  <section id="seasonCard" class="card rounded-vault p-6 mb-10"></section>
 </main>
 
 <script src="vault-core.js?v=d30ce494"></script>
 <script src="vault-nav.js?v=38cbc543"></script>
+<script src="season-report.js?v=837c7cb0"></script>
 <script>
 const $ = s => document.querySelector(s);
 
@@ -40,8 +42,21 @@ const $ = s => document.querySelector(s);
 // same suggestions while a trade is actually being built.
 function getTradePartners(t, all) { return Vault.tradePartnerSuggestions(t, all, 2); }
 
+// This season (season-report.js): loads alongside the team values and fills
+// in below the team card once Sleeper's weekly data is in.
+let season = null;
+function renderSeason(rosterId) {
+  Vault.renderSeasonReport($('#seasonCard'), season, rosterId, {
+    myId: (Vault.myTeam(window._allTeams || []) || {}).rosterId,
+    onPickTeam: id => { const sel = $('#teamSelect'); sel.value = String(id); sel.onchange(); $('#singleCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+}
+
 async function loadLeague(id) {
   $('#status').textContent = 'Loading league…';
+  renderSeason(null);
+  Vault.seasonReport(id).then(r => { season = r; }).catch(e => { console.error(e); season = { error: e.message }; })
+    .then(() => renderSeason(+$('#teamSelect').value || null));
   try {
     const { isSF, teams: built } = await Vault.buildLeagueTeams(id);
     window._allTeams = built;
@@ -97,6 +112,7 @@ function statTile(label, val, display, all, key, rosterId, higherIsBetter, title
 
 function renderSingle(t) {
   if (!t) return;
+  if (season) renderSeason(t.rosterId);
   const all = window._allTeams || [];
   const leagueAvg = {
     qb: all.reduce((s, x) => s + x.qb, 0) / all.length,
