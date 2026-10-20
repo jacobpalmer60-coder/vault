@@ -233,7 +233,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=0dbc26c4"></script>
+<script src="vault-core.js?v=5948b44c"></script>
 <script src="vault-nav.js?v=c2462132"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -401,6 +401,8 @@ async function init() {
   try {
     const built = await Vault.buildLeagueTeams(Vault.getLeagueId());
     league = built.league; slots = built.slots;
+    // Vault values for the verdict blend (VAULT_CONFIG.VERDICT_BLEND_WEIGHT); the price stays KTC.
+    await Vault.loadVerdictBlend(built.isSF, league.scoring_settings?.bonus_rec_te);
     remainingWeeks = built.remainingWeeks || [];
     // The ACTIVE roster cap — taxi and IR are separate pools Sleeper tracks (see
     // team.taxiIds/reserveIds), but they're not generic overflow capacity a newly
@@ -1531,13 +1533,15 @@ function improvementOf(an, side = 'A') {
   const bef = an.before[side], aft = an.after[side];
   const pts = (aft.opt - bef.opt) + Vault.depthShift('contend', bef, aft, slots).perWeek;
   const tilt = an.tilt ? an.tilt[side] : { pct: 0, why: null };
-  return { ...Vault.tradeImprovement({ valuePct: an.heads[side].pct, rosterFit: an.rosterFit[side], timelineFit: an.timelineFit[side], mode: an['res' + side].mode, ptsPerWeek: pts, valueTilt: tilt.pct }), tiltWhy: tilt.why, tilt };
+  const price = an.heads[side].pct, blended = an.vpct ? an.vpct[side] : null;
+  // pricePct: the price on its own (the sentence and Coach's price checks read it); the score reads the blend.
+  return { ...Vault.tradeImprovement({ valuePct: blended ?? price, rosterFit: an.rosterFit[side], timelineFit: an.timelineFit[side], mode: an['res' + side].mode, ptsPerWeek: pts, valueTilt: tilt.pct }), tiltWhy: tilt.why, tilt, pricePct: price };
 }
 const VERDICT_STYLE = { good: { text: 'text-emerald-300', tone: 'good' }, tossup: { text: 'text-amber-300', tone: 'neutral' }, bad: { text: 'text-orange-300', tone: 'bad' } };
 // "You get 9% more value, but it costs you 3.9 points a week this season (title odds 32% → 27%)."
 function improvementReason(imp, s) {
   const r = Math.round, pc = v => (v < 1 && v > 0 ? '<1' : r(v)) + '%', n = v => Math.abs(v).toFixed(1);
-  const v = imp.valuePct, fit = imp.rosterFit + imp.timelineFit, pts = imp.ptsPerWeek; // fit: roster fit and timeline, for every timeline (REBUILD_READ_WEIGHTS since 2026-10-09)
+  const v = imp.pricePct ?? imp.valuePct, fit = imp.rosterFit + imp.timelineFit, pts = imp.ptsPerWeek; // fit: roster fit and timeline, for every timeline (REBUILD_READ_WEIGHTS since 2026-10-09)
   const plan = { contend: 'win-now plans', rebuild: 'rebuild' }[imp.mode] || 'roster';
   // The concrete reasons first: points this season (when the timeline counts
   // them) and value. Fit only when there's no real points change or it's clearly
@@ -2227,7 +2231,9 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
 
   // The verdict's value read beyond the price (Vault.verdictValueTilt): A gets giveB, B gets giveA.
   const tilt = { A: Vault.verdictValueTilt(giveB, giveA), B: Vault.verdictValueTilt(giveA, giveB) };
-  return { before, after, pool, resA, resB, trade, heads, wins, rosterFit, timelineFit, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, overallPct, verdict, bucket, tilt };
+  // The verdict's value read on blended player values (Vault.verdictValuePct); null falls back to the price.
+  const vpct = { A: Vault.verdictValuePct(giveB, giveA), B: Vault.verdictValuePct(giveA, giveB) };
+  return { before, after, pool, resA, resB, trade, heads, wins, rosterFit, timelineFit, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, overallPct, verdict, bucket, tilt, vpct };
 }
 
 function toggleOfferedBy(side) {
@@ -2344,6 +2350,6 @@ init();
 <script src="negotiation.js?v=4230af6a"></script>
 <script src="market-data.js?v=a7b9cbd5"></script>
 <script src="market.js?v=692419ef"></script>
-<script src="coach.js?v=87db53ba"></script>
+<script src="coach.js?v=3f84994c"></script>
 </body>
 </html>

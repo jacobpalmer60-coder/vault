@@ -63,6 +63,15 @@ const VAULT_CONFIG = {
   // Capped at ACCEPT_BEHIND_MAX so a reading never promises a lopsided deal.
   ACCEPT_BEHIND: {"one|0|0":14.7,"one|0|1":13.1,"one|0|2":12.6,"one|1|0":21.2,"one|1|1":17.1,"one|1|2":26.7,"cons|0|0":8.8,"cons|0|1":6.7,"cons|0|2":5.2,"cons|1|0":7.4,"cons|1|1":7.4,"cons|1|2":6.4,"more|0|0":4.9,"more|0|1":4.7,"more|0|2":6.9,"more|1|0":4.9,"more|1|1":5.8,"more|1|2":8.1,"even|0|0":8.9,"even|0|1":6.3,"even|0|2":6,"even|1|0":9.2,"even|1|1":7,"even|1|2":6.8},
   ACCEPT_BEHIND_MAX: 20,
+  // The verdict's value read on blended player values (2026-10-20, VaultValues
+  // verdict-blend-test.js on 1.58M team-sides of 2025 trades, every week priced by
+  // values fitted only on earlier trades): each piece's price times its Vault value
+  // (learned from real trades, mapped onto the same scale) at this weight, geometric.
+  // Against KTC alone the verdict tracked playoffs vs odds 51% better (rank corr 10.4
+  // vs 6.9) and weekly points gained 30% better (13.0 vs 10.0); value later on KTC's
+  // own scale slipped 7% (33.5 vs 36.0). The price (Fair / Lopsided / Unfair) stays
+  // on KTC and market prices; completed trades (Trade Grades) stay KTC-only.
+  VERDICT_BLEND_WEIGHT: 0.35,
   AGE_CLIFF_PCT: -5,
   AGE_CLIFF_AT: 27,
   WR_DRIFT_PCT: -3,
@@ -2760,6 +2769,46 @@ const Vault = {
      minus the share given (−1..1) times the pick drift, and the cheap-consolidation
      cost when this side gets fewer pieces and a bigger best piece worth under
      CHEAP_CONSOLIDATION_BELOW (its partner gets the mirror). why: the bigger of the two. */
+  // Load Vault values for the verdict blend (VERDICT_BLEND_WEIGHT) and fit the line
+  // that puts them on KTC's scale for this format (log KTC ≈ a + b log ours, players
+  // both rate at 500+). With Vault values already showing, there's nothing to blend.
+  async loadVerdictBlend(isSF, bonusRecTe) {
+    Vault._verdictBlend = null;
+    if (Vault.valueSource() === 'vault') return null;
+    try {
+      const [ours, ktcData] = await Promise.all([fetch(VAULT_CONFIG.VAULT_VALUES_URL).then(r => (r.ok ? r.json() : null)), Vault.fetchKtcValues({ raw: true })]);
+      if (!ours || !ktcData) return null;
+      const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
+      const ktcMap = Vault.buildKtcValueMap(ktcData, isSF, bonusRecTe);
+      const byName = new Map(), picks = new Map(), xs = [], ys = [];
+      for (const p of ours.players || []) {
+        if (p.vsrc !== 'vault' || !(p[field] > 0)) continue;
+        const n = Vault.normalizeName(p.name); byName.set(n, p[field]);
+        const k = ktcMap.get(n); if (k >= 500) { xs.push(Math.log(p[field])); ys.push(Math.log(k)); }
+      }
+      for (const p of ours.picks || []) if (p.vsrc === 'vault' && p[field] > 0) picks.set(`${p.season}-${p.round}-${p.slot}`, p[field]);
+      if (xs.length < 50) return null;
+      const mx = xs.reduce((t, x) => t + x, 0) / xs.length, my = ys.reduce((t, y) => t + y, 0) / ys.length;
+      let sxy = 0, sxx = 0; xs.forEach((x, i) => { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) ** 2; });
+      const b = sxy / sxx;
+      Vault._verdictBlend = { byName, picks, a: my - b * mx, b, w: VAULT_CONFIG.VERDICT_BLEND_WEIGHT };
+    } catch { Vault._verdictBlend = null; }
+    return Vault._verdictBlend;
+  },
+  // A piece's value for the verdict: its price, blended with its Vault value (on KTC's scale).
+  verdictPieceValue(a) {
+    const base = Vault.gradeValue(a), B = Vault._verdictBlend;
+    if (!B || !(base > 0)) return base;
+    const ours = a.type === 'pick' ? B.picks.get(`${a.season}-${a.round}-${a.tier || 'mid'}`) : B.byName.get(Vault.normalizeName(a.name || ''));
+    if (!(ours > 0)) return base;
+    return Math.exp((1 - B.w) * Math.log(base) + B.w * (B.a + B.b * Math.log(ours)));
+  },
+  // The verdict's value %, for the side that gets `got`, on blended values; null without the blend.
+  verdictValuePct(got, gave) {
+    if (!Vault._verdictBlend || !got || !gave || !got.length || !gave.length) return null;
+    const R = Vault.tradeValueRatio(got.map(Vault.verdictPieceValue), gave.map(Vault.verdictPieceValue));
+    return Number.isFinite(R) ? 200 * (R - 1) / (R + 1) : null;
+  },
   verdictValueTilt(got, gave) {
     const C = VAULT_CONFIG;
     if (!got || !gave || !got.length || !gave.length) return { pct: 0, why: null };

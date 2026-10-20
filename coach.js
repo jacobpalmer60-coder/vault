@@ -127,8 +127,8 @@ function coachSensible({ c, mine, theirs }) {
   const noFiller = side => { const top = Math.max(...side.map(a => a.value)); return side.every(a => a.value >= top * COACH_MIN_PIECE); };
   // …and the other team isn't further behind on value than managers in their spot
   // typically accept (Vault.acceptTolerance, by the trade's shape from their side).
-  return theirs.score >= COACH_THEIR_MIN && theirs.valuePct >= -Vault.acceptTolerance(c.giveA, c.giveB) && Vault.verdictTier(mine.score).level === 'good' && mine.rosterFit >= -1 && theirs.rosterFit >= -1
-    && mine.valuePct >= -COACH_VALUE_FLOOR && noFiller(c.giveA) && noFiller(c.giveB) && coachKtcFair(c.giveA, c.giveB) && !coachAsksCornerstone(c.partner, c.giveB);
+  return theirs.score >= COACH_THEIR_MIN && (theirs.pricePct ?? theirs.valuePct) >= -Vault.acceptTolerance(c.giveA, c.giveB) && Vault.verdictTier(mine.score).level === 'good' && mine.rosterFit >= -1 && theirs.rosterFit >= -1
+    && (mine.pricePct ?? mine.valuePct) >= -COACH_VALUE_FLOOR && noFiller(c.giveA) && noFiller(c.giveB) && coachKtcFair(c.giveA, c.giveB) && !coachAsksCornerstone(c.partner, c.giveB);
 }
 // Swaps that fill both teams' needs (user, 2026-10-09): the value-matched search
 // (suggestionPool) rarely pairs your depth at one position with a partner's
