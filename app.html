@@ -9,7 +9,7 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=4b230381">
+<link rel="stylesheet" href="tailwind.css?v=1440ee50">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -55,11 +55,11 @@
             <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="recordWinPct" title="Current record, and the projected final record below it">Record</th>
             <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="playoffPct" title="Playoff odds, and title odds below">Playoffs</th>
             <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="overall">Overall</th>
-            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="qb" title="QB player value: rank in the league (1 = best)">QB</th>
-            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="rb" title="RB player value: rank in the league (1 = best)">RB</th>
-            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="wr" title="WR player value: rank in the league (1 = best)">WR</th>
-            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="te" title="TE player value: rank in the league (1 = best)">TE</th>
-            <th class="text-center px-1 py-3.5 font-semibold sortable w-[52px]" data-sort="picksValue" title="Pick value: rank in the league (1 = best)">Picks</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="qb" title="QB player value: rank in the league (1 = best)">QB</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="rb" title="RB player value: rank in the league (1 = best)">RB</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="wr" title="WR player value: rank in the league (1 = best)">WR</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="te" title="TE player value: rank in the league (1 = best)">TE</th>
+            <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="picksValue" title="Pick value: rank in the league (1 = best)">Picks</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="age">Age</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="opt">Lineup PPG</th>
             <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Lineup PPG)">VORP</th>
@@ -570,12 +570,12 @@ function posTone(r, n) {
 }
 function posCells(t) {
   const n = teams.length;
-  return POS_COLS.map(([c, f], i) => { const r = posRanks[i].get(t.rosterId); return `<td class="px-1 py-3.5"><div class="mx-auto w-10 py-1.5 rounded-md text-center font-mono text-[13px] ${posTone(r, n)}" title="${c}: ${Math.round(f(t)).toLocaleString()} value, ${ord(r)} of ${n}">${r}</div></td>`; }).join('');
+  return POS_COLS.map(([c, f], i) => { const r = posRanks[i].get(t.rosterId); return `<td class="px-1 py-3.5"><div class="mx-auto w-14 py-1 rounded-md text-center ${posTone(r, n)}" title="${c}: ${Math.round(f(t)).toLocaleString()} value, ${ord(r)} of ${n}"><div class="font-mono text-[13px] leading-tight">${r}</div><div class="font-mono text-[10px] leading-tight opacity-75">${kFmt(f(t))}</div></div></td>`; }).join('');
 }
 // Phones: the same five as a row of chips on each team card.
 function posChips(t) {
   const n = teams.length;
-  return `<div class="grid grid-cols-5 gap-1.5">${POS_COLS.map(([c, f], i) => { const r = posRanks[i].get(t.rosterId); return `<div class="rounded-md py-1 text-center ${posTone(r, n)}" title="${c}: ${Math.round(f(t)).toLocaleString()} value"><div class="text-[10px] uppercase tracking-wider opacity-80">${c}</div><div class="font-mono text-[14px]">${r}</div></div>`; }).join('')}</div>`;
+  return `<div class="grid grid-cols-5 gap-1.5">${POS_COLS.map(([c, f], i) => { const r = posRanks[i].get(t.rosterId); return `<div class="rounded-md py-1 text-center ${posTone(r, n)}" title="${c}: ${Math.round(f(t)).toLocaleString()} value"><div class="text-[10px] uppercase tracking-wider opacity-80">${c}</div><div class="font-mono text-[14px] leading-tight">${r}</div><div class="font-mono text-[10px] leading-tight opacity-75">${kFmt(f(t))}</div></div>`; }).join('')}</div>`;
 }
 
 function render() {
