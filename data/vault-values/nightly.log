@@ -319,3 +319,22 @@
 2026-10-19T15:53:51 oneQB_tepp: 11,221 trades through 2026-10-13, 450 rated, rank agreement 0.893 [12s]
 2026-10-19T15:53:52 site values: 494 players (456 of KTC's rated by us, 30 added), 36 picks
 2026-10-19T15:53:52 done
+2026-10-20T13:45:16 start (sf_tep, sf, sf_tepp, oneQB, oneQB_tep, oneQB_tepp)
+2026-10-20T13:45:16 data from ../../data
+2026-10-20T13:45:16 pricing: extra pieces 0.45, lean {"2-1":0.09,"3-1":0.035,"3-2":0.04}, pick spread {"1":{"early":1.05,"late":0.96},"2":{"early":1.02,"late":0.98},"3":{"early":1.01,"late":0.98},"4":{"early":1,"late":0.99}}
+2026-10-20T13:45:16 curve: p 4.00/4.00/2.91/2.13/2.20/2.01/1.70/1.59/1.47
+2026-10-20T13:45:30 sf_tep: picks anchored to the 2026 rookie drafts (10,548)
+2026-10-20T13:47:18 sf_tep: 527,509 trades through 2026-10-20, 697 rated, rank agreement 0.969 [122s]
+2026-10-20T13:47:32 sf: picks anchored to the 2026 rookie drafts (12,458)
+2026-10-20T13:49:23 sf: 564,567 trades through 2026-10-20, 686 rated, rank agreement 0.967 [125s]
+2026-10-20T13:49:36 sf_tepp: picks anchored to the 2026 rookie drafts (5,813)
+2026-10-20T13:50:32 sf_tepp: 286,920 trades through 2026-10-20, 668 rated, rank agreement 0.957 [69s]
+2026-10-20T13:50:46 oneQB: picks anchored to the 2026 rookie drafts (8,011)
+2026-10-20T13:51:57 oneQB: 375,739 trades through 2026-10-20, 649 rated, rank agreement 0.964 [86s]
+2026-10-20T13:52:09 oneQB_tep: picks anchored to the 2026 rookie drafts (926)
+2026-10-20T13:52:17 oneQB_tep: 46,152 trades through 2026-10-20, 543 rated, rank agreement 0.951 [20s]
+2026-10-20T13:52:28 oneQB_tepp: picks anchored to the 2026 rookie drafts (250)
+2026-10-20T13:52:29 oneQB_tepp: 76 new trades since 2026-10-13, not scored yet
+2026-10-20T13:52:31 oneQB_tepp: 11,474 trades through 2026-10-20, 452 rated, rank agreement 0.891 [14s]
+2026-10-20T13:52:31 site values: 493 players (457 of KTC's rated by us, 29 added), 36 picks
+2026-10-20T13:52:31 done
