@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=5948b44c"></script>
+<script src="vault-core.js?v=d762581a"></script>
 <script src="vault-nav.js?v=c2462132"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,10 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-20', items: [
+    { kind: 'new', page: 'Trade Coach', text: "Trade Coach's Best trades now also looks for two starters from one team in a single deal, paid with your bench players and picks, priced Fair on KTC and inside what managers in that team's spot accept. None of the searches tried it before. For Skat Happens Chase Love it found Denzel Boston, Cam Skattebo and Rome Odunze for Kyren Williams and Chase Brown: a Great trade for Skat Happens, a Toss-up for Super bo or bust, title odds 24% → 31%." },
+    { kind: 'new', page: 'Trade Coach', text: "During the season, every Trade Coach suggestion shows your title odds before and after, the same numbers as the calculator's This season box. For a team already headed to the playoffs, the title is where a trade shows up: in 2024 and 2025, contenders with 85%+ playoff odds won the title 1.35 times as often as their odds said after trades adding 6+ points a week, and 1.12 times (the same as any team that traded) after trades adding about none." },
+    { kind: 'changed', page: 'Trade Calculator', text: "Out of the playoff race: during the season, a team with under 5% playoff odds no longer gets credit or blame for this season's points in its verdict. A 2-10 team selling a starter used to read as a Bad trade for it because of the points it loses, though for teams that far out those points said almost nothing about how the trade turned out, and they sell starters about 10 times as often as playoff teams do. The other team's line says when it applies. Trade Coach finds more trades with teams that are out of it." },
+    { kind: 'fixed', page: 'Trade Coach', text: "Trade Coach's Go all-in and Fix a position no longer suggest trades that are a Bad trade or worse for the other team, like taking Kenneth Walker from a contender with 100% playoff odds. Contenders with 85%+ playoff odds gave up 5+ points a week in only 2.2% of the in-season trades they accepted, even for extra value." },
     { kind: 'changed', page: 'Trade Calculator', text: "The verdict (Good trade, Toss-up and so on) now blends each player's price with his Vault value, what real trades say he's worth, learned nightly from completed Sleeper dynasty trades: 35% Vault value, 65% price. Tested on 1.58 million team-sides of 2025 trades, each priced by values that had never seen them, verdicts on the blend picked the teams that went on to beat their playoff odds about 50% better, and the ones that gained points a week about 30% better, than verdicts on KTC alone. The price you see (Fair / Lopsided / Unfair) is unchanged and still matches KTC; completed trades on Trade Grades stay KTC-only. Trade Coach finds more fair trades with it: 8 for Skat Happens Chase Love instead of 3." },
   ] },
   { date: '2026-10-19', items: [

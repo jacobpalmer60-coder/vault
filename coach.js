@@ -106,6 +106,13 @@ const coachImproves = o => Vault.verdictTier(coachScore(o)).level === 'good';
 // Best trades then lists Good trade or better for you (COACH_UPSIDE) when it
 // finds 3+, else Slight edge or better.
 const COACH_THEIR_MIN = -6, COACH_UPSIDE = 15, COACH_MIN_PIECE = 0.2;
+// Go all-in and Fix a position may pay a premium, but not hand the other team a
+// Bad trade or worse (2026-10-20: Go all-in offered Kenneth Walker out of a
+// 100%-odds contender, Terrible for them). In accepted 2024-2025 in-season trades
+// (VaultValues contender-sellers.js), contenders at 85%+ playoff odds gave up 5+
+// points a week in 2.2% of their trades, and not for extra value (same median
+// price as their other trades); Bad or worse for them in 5%, Terrible in 0.5%.
+const COACH_UPGRADE_THEIR_MIN = -15;
 // Fair on KTC's own calculator too (user, 2026-10-09: "they'd never accept",
 // "doesn't match KTC"). Most managers check an offer on KTC, and KTC shrinks its
 // biggest-piece bonus to almost nothing when a piece coming back is close in
@@ -201,6 +208,48 @@ function coachWinWins(me) {
       const { valueA, valueB } = Vault.tradeSideValues(A, B);
       out.push({ partner: p, giveA: A, giveB: B, result: computeTradeAnalysis(me, p, A, B, valueA, valueB) });
     });
+  });
+  return out;
+}
+// Two upgrades from one team in one deal (2026-10-20). The searches above build
+// packages for one player at a time, so none found 2027 R1 + Denzel Boston for
+// Kyren Williams + Chase Brown: two starters from a 1-11 team, title odds 24% →
+// 31%, a Toss-up their way. For each other team: pairs of its players who'd start
+// for you (COACH.UPGRADE_BY over your weakest starter there, not its cornerstone),
+// paid with up to BUNDLE_MAX of your bench players and picks, the BUNDLE_PER_PAIR
+// packages priced closest to your timeline's aim (WIN_WIN_TARGET), no further
+// your way than managers in their spot accept (Vault.acceptTolerance), you no
+// more than COACH_VALUE_FLOOR behind, and Fair on KTC's calculator. A win-now
+// search, so not for rebuilding teams; the usual checks for both teams decide
+// what's listed.
+const BUNDLE_TARGETS = 5, BUNDLE_PAY = 10, BUNDLE_MAX = 4, BUNDLE_PER_PAIR = 3;
+function coachBundles(me) {
+  if (Vault.teamMode(me) === 'rebuild') return [];
+  const starters = me.lineup.filter(s => s.id), startKeys = new Set(starters.map(s => 'p_' + s.id)), off = coachOffLimits(me), floor = {};
+  ['QB', 'RB', 'WR', 'TE'].forEach(P => { const at = starters.filter(s => s.pos === P); if (at.length) floor[P] = Math.min(...at.map(s => s.ppg)); });
+  const pay = me.assets.filter(a => !startKeys.has(a.key) && !off.has(a.key) && a.value >= 1500).sort((x, y) => y.value - x.value).slice(0, BUNDLE_PAY);
+  const packs = [];
+  const grow = (from, cur) => { if (cur.length) packs.push(cur); if (cur.length < BUNDLE_MAX) for (let i = from; i < pay.length; i++) grow(i + 1, [...cur, pay[i]]); };
+  grow(0, []);
+  const out = [], aim = WIN_WIN_TARGET[Vault.teamMode(me)] ?? WIN_WIN_TARGET.flexible;
+  teams.filter(t => t.rosterId !== me.rosterId && coachPartnerOK(t)).forEach(p => {
+    const gain = a => (a.ppg || 0) - floor[a.pos];
+    const tg = p.assets.filter(a => a.type === 'player' && floor[a.pos] != null && gain(a) >= COACH.UPGRADE_BY && !coachTheirOff(a) && !Vault.cornerstone(p, a))
+      .sort((x, y) => gain(y) - gain(x)).slice(0, BUNDLE_TARGETS);
+    tg.forEach((a, i) => tg.slice(i + 1).forEach(b => {
+      const get = [a, b], want = a.value + b.value, cands = [];
+      packs.forEach(A => {
+        const s = sumValue(A);
+        if (s < want * 0.8 || s > want * 1.6) return;
+        const { valueA, valueB } = Vault.tradeSideValues(A, get);
+        const yours = (valueB - valueA) / (((valueA + valueB) / 2) || 1) * 100; // % more trade value to you
+        if (yours <= Vault.acceptTolerance(A, get) && yours >= -COACH_VALUE_FLOOR && Math.abs(coachKtcPct(A, get)) < VAULT_CONFIG.FAIR_PCT) cands.push({ A, gap: Math.abs(yours - aim) });
+      });
+      cands.sort((x, y) => x.gap - y.gap).slice(0, BUNDLE_PER_PAIR).forEach(({ A }) => {
+        const { valueA, valueB } = Vault.tradeSideValues(A, get);
+        out.push({ partner: p, giveA: A, giveB: get, result: computeTradeAnalysis(me, p, A, get, valueA, valueB) });
+      });
+    }));
   });
   return out;
 }
@@ -404,6 +453,7 @@ async function coachUpgrades(me, positions, protect, progress, pay, valueMode = 
         // Never pay a premium to send away one of your starters: a Lopsided
         // offer is only worth it when it's paid with bench players and picks.
         if (cand.edge >= VAULT_CONFIG.FAIR_PCT && cand.give.some(x => starterKeys.has(x.key))) continue;
+        if (coachTheirScore({ partner: t, give: cand.give, get: cand.get }) < COACH_UPGRADE_THEIR_MIN) continue;
         // Net lineup gain: the healthy best lineup, minus any depth it costs
         // (what bye and injury weeks cost the lineup, Vault.depthShift), with
         // depth counted at the grade's weight.
@@ -436,7 +486,7 @@ async function coachPosition(me, progress) {
 async function coachContend(me, progress) {
   const protect = new Set(me.lineup.filter(s => s.id).map(s => 'p_' + s.id));
   const list = await coachUpgrades(me, ['QB', 'RB', 'WR', 'TE'], protect, progress, 'paid with picks, prospects, and bench players');
-  if (!list.length) return { empty: 'No lineup upgrade found that your picks, prospects, and bench can pay for.' };
+  if (!list.length) return { empty: 'No lineup upgrade found that your picks, prospects, and bench can pay for and the other team would take.' };
   return { title: 'Win-now trades', list };
 }
 
@@ -578,7 +628,7 @@ async function coachBest(me, progress) {
   progress('Searching the league for fair trades…');
   await coachTick();
   const must = coachMust(me), off = coachOffLimits(me);
-  const pool = [...suggestionPool(me), ...coachNeedSwaps(me), ...coachWinWins(me)].filter(c =>
+  const pool = [...suggestionPool(me), ...coachNeedSwaps(me), ...coachWinWins(me), ...coachBundles(me)].filter(c =>
     coachPartnerOK(c.partner) && must.every(m => c.giveA.includes(m)) && !c.giveA.some(a => off.has(a.key))
     && !c.giveB.some(coachTheirOff) && coachTheirMust(c.partner).every(m => c.giveB.includes(m)) && coachGroupsOK(c.giveA, c.giveB)
     && coachDepthOK(me, c.partner, c.giveA, c.giveB));
@@ -1092,6 +1142,19 @@ function renderCoach() {
 // "5% under trade value" (you'd get more value than you send; over = you'd overpay), and, when
 // the pieces have market reads, the same against what managers actually pay ("31% under market
 // price"). Then the pieces, one line of why, and the button.
+// Your title odds before → after, in season (the calculator's This season box,
+// same simulation): for a team already headed to the playoffs, the title is where
+// a trade shows up. In accepted 2024-2025 trades (VaultValues coach-backtest.js),
+// contenders at 85%+ playoff odds won the title 1.35x as often as their odds said
+// after trades adding 6+ points a week, 1.12x (the same as any team that traded)
+// after ones adding about none. Hidden when both are under 1%.
+function coachTitleOdds(o) {
+  if (!remainingWeeks.length || typeof tradeSeasonOdds !== 'function') return null;
+  const me = coachMe(), { next } = tradeSeasonOdds(me, o.partner, o.give, o.get);
+  const before = seasonBase?.get(me.rosterId)?.championshipPct, after = next.get(me.rosterId)?.championshipPct;
+  if (before == null || after == null || (before < 1 && after < 1)) return null;
+  return { before, after };
+}
 function coachCardHtml(o, i) {
   // The price line is trade value alone, as labeled (Vault.tradeSideValues on
   // what you give and get). o.edge is the overall price grade, which also blends
@@ -1109,6 +1172,8 @@ function coachCardHtml(o, i) {
       <span class="text-[12px] mono text-zinc-400">${Math.round(a.value).toLocaleString()}</span>
     </div>`;
   const side = (label, list) => list.map((a, k) => row(k ? '' : label, a, !k)).join('');
+  const title = coachTitleOdds(o), pc = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
+  const titleLine = title ? `<div class="text-[12px] text-zinc-400 mt-2.5">Title odds <span class="mono text-zinc-100">${pc(title.before)} → ${pc(title.after)}</span>${Math.round(title.after) !== Math.round(title.before) ? ` <span class="font-semibold ${title.after > title.before ? 'text-emerald-400' : 'text-rose-400'}">${title.after > title.before ? '+' : '−'}${Math.abs(Math.round(title.after) - Math.round(title.before))}</span>` : ''}</div>` : '';
   return `<div class="p-4 rounded-xl border ${lop ? 'border-orange-500/25' : 'border-white/[0.07]'} bg-white/[0.02] flex flex-col">
       <div class="flex items-baseline justify-between gap-2">
         <span class="text-[12px] text-zinc-400 min-w-0 truncate">Trade with <span class="text-zinc-100 font-medium">${Vault.escapeHtml(o.partner.teamName)}</span></span>
@@ -1120,6 +1185,7 @@ function coachCardHtml(o, i) {
         ${priceStatHtml(ktcPct, "KTC's calculator", PRICE_TIP.ktc, 'text-[22px]')}
       </div>
       <div class="border-b border-white/[0.06]">${side('Give', o.give)}${side('Get', o.get)}</div>
+      ${titleLine}
       ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}
       ${typeof marketAcceptHtml === 'function' ? marketAcceptHtml(marketAcceptable(league, o.give, o.get), coachMe().teamName, o.partner.teamName, 'mt-2.5', true) : ''}
       ${(() => { const t = improvementOf(negJudgeFor(coachMe(), o.give, o.partner, o.get, negContextFor(o.partner)).an, 'B'); return `<div class="text-[12px] text-zinc-400 mt-1">For ${Vault.escapeHtml(o.partner.teamName)}: <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.tier]}">${t.label}</span></div>`; })()}

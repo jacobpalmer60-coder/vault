@@ -233,7 +233,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=5948b44c"></script>
+<script src="vault-core.js?v=d762581a"></script>
 <script src="vault-nav.js?v=c2462132"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1528,14 +1528,22 @@ function seasonOdds(deltas) {
    grade (fair for both teams?) sits under it as supporting detail. (2026-10-07:
    a trade at a fair price that made the league favorite worse read "Good".) */
 let seasonFor = new Map(), lastImprovement = null;
+// In season with under VAULT_CONFIG.OUT_OF_RACE_PCT playoff odds: this season's
+// points don't count in the team's verdict (a sale that costs a 2-10 team its
+// lineup read as Bad for it, and Coach dropped trades teams that far out take).
+function outOfRace(team) {
+  const played = (team?.record?.wins || 0) + (team?.record?.losses || 0) + (team?.record?.ties || 0);
+  return !!team && remainingWeeks.length > 0 && played > 0 && team.playoffPct != null && team.playoffPct < VAULT_CONFIG.OUT_OF_RACE_PCT;
+}
 // The score for one side of a computeTradeAnalysis result.
 function improvementOf(an, side = 'A') {
   const bef = an.before[side], aft = an.after[side];
-  const pts = (aft.opt - bef.opt) + Vault.depthShift('contend', bef, aft, slots).perWeek;
+  const out = outOfRace(teams.find(t => t.rosterId === bef.rosterId));
+  const pts = out ? 0 : (aft.opt - bef.opt) + Vault.depthShift('contend', bef, aft, slots).perWeek;
   const tilt = an.tilt ? an.tilt[side] : { pct: 0, why: null };
   const price = an.heads[side].pct, blended = an.vpct ? an.vpct[side] : null;
   // pricePct: the price on its own (the sentence and Coach's price checks read it); the score reads the blend.
-  return { ...Vault.tradeImprovement({ valuePct: blended ?? price, rosterFit: an.rosterFit[side], timelineFit: an.timelineFit[side], mode: an['res' + side].mode, ptsPerWeek: pts, valueTilt: tilt.pct }), tiltWhy: tilt.why, tilt, pricePct: price };
+  return { ...Vault.tradeImprovement({ valuePct: blended ?? price, rosterFit: an.rosterFit[side], timelineFit: an.timelineFit[side], mode: an['res' + side].mode, ptsPerWeek: pts, valueTilt: tilt.pct }), tiltWhy: tilt.why, tilt, pricePct: price, outOfRace: out };
 }
 const VERDICT_STYLE = { good: { text: 'text-emerald-300', tone: 'good' }, tossup: { text: 'text-amber-300', tone: 'neutral' }, bad: { text: 'text-orange-300', tone: 'bad' } };
 // "You get 9% more value, but it costs you 3.9 points a week this season (title odds 32% → 27%)."
@@ -1570,7 +1578,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   if (!analysis.heads || !aAssets.length || !bAssets.length) { el.innerHTML = ''; return; }
   const imp = improvementOf(analysis, 'A');
   const s = seasonFor.get(teamA.rosterId);
-  lastImprovement = { ...imp, reason: improvementReason(imp, s) };
+  lastImprovement = { ...imp, reason: improvementReason(imp, s) + (imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : '') };
   const chosen = Vault.planOverride[teamA.rosterId] || '';
   const opt = (v, text) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${text}</option>`;
   // Good for you but Leans bad or worse for them: the headline says One-sided (user,
@@ -1609,7 +1617,8 @@ function theirsLine(imp, analysis) {
       <div class="text-[12px] text-orange-300 mt-0.5">It's good for you, but they'd see it as ${/^[AEIOU]/.test(t.label) ? 'an' : 'a'} ${t.label.toLowerCase()}, so expect a no or a counter. "How to even it up" in the details below shows what would make it work for both.</div>`;
   }
   const tag = imp.level === 'good' && t.level !== 'bad' ? ' <span class="ml-1 text-[11px] px-1.5 py-px rounded border border-emerald-400/30 text-emerald-300">Works for both</span>' : '';
-  return `<div class="text-[13px] text-zinc-300 mt-1">For ${name}: ${label(t)}${tag}</div>`;
+  const out = t.outOfRace ? ` <span class="text-[12px] text-zinc-500">(out of the playoff race, so this season's points don't count)</span>` : '';
+  return `<div class="text-[13px] text-zinc-300 mt-1">For ${name}: ${label(t)}${out}${tag}</div>`;
 }
 // Why the verdict reads a little better or worse than the price alone (Vault.verdictValueTilt).
 function tiltNote(imp) {
@@ -1631,11 +1640,9 @@ function tiltNote(imp) {
   return `<div class="text-[12px] text-zinc-400 mt-1 max-w-[640px]">${cap(text)}</div>`;
 }
 
-function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
-  const box = document.getElementById('seasonImpact');
-  // Nothing to project once the regular season is over (or before a schedule exists).
-  seasonFor = new Map();
-  if (!remainingWeeks.length || !(aAssets.length || bAssets.length)) { box.classList.add('hidden'); return; }
+// The season re-run with a trade: both teams' lineup and depth change, and the odds
+// after (next; seasonBase holds the odds before). Shared with Coach's cards.
+function tradeSeasonOdds(teamA, teamB, aAssets, bAssets) {
   const baseKey = teams.map(t => t.rosterId).join(',');
   if (!seasonBase || seasonBaseKey !== baseKey) { seasonBase = seasonOdds(new Map()); seasonBaseKey = baseKey; }
   const { before, after } = Vault.simulateTrade(teams, slots, teamA.rosterId, teamB.rosterId, aAssets, bAssets);
@@ -1643,8 +1650,6 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
   // injury weeks cost it, Vault.depthShift, in full points: the odds are points).
   const lineA = after.A.opt - before.A.opt, lineB = after.B.opt - before.B.opt;
   const depA = Vault.depthShift('contend', before.A, after.A, slots).perWeek, depB = Vault.depthShift('contend', before.B, after.B, slots).perWeek;
-  const dA = lineA + depA, dB = lineB + depB;
-  const parts = { [teamA.rosterId]: [lineA, depA], [teamB.rosterId]: [lineB, depB] };
   // Each week moves by that week's lineup change (Vault.seasonLineupDetail's
   // byWeek: who's available, matchups), plus depth every week.
   const weekly = (bef, aft, dep, line) => {
@@ -1652,6 +1657,17 @@ function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
     return { flat: dep, avg: line, byWeek: new Map([...aft.optByWeek].map(([w, v]) => [w, v - (bef.optByWeek.get(w) ?? v)])) };
   };
   const next = seasonOdds(new Map([[teamA.rosterId, weekly(before.A, after.A, depA, lineA)], [teamB.rosterId, weekly(before.B, after.B, depB, lineB)]]));
+  return { before, after, lineA, lineB, depA, depB, next };
+}
+
+function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
+  const box = document.getElementById('seasonImpact');
+  // Nothing to project once the regular season is over (or before a schedule exists).
+  seasonFor = new Map();
+  if (!remainingWeeks.length || !(aAssets.length || bAssets.length)) { box.classList.add('hidden'); return; }
+  const { before, after, lineA, lineB, depA, depB, next } = tradeSeasonOdds(teamA, teamB, aAssets, bAssets);
+  const dA = lineA + depA, dB = lineB + depB;
+  const parts = { [teamA.rosterId]: [lineA, depA], [teamB.rosterId]: [lineB, depB] };
   const pct = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
   const change = (b, a) => {
     const d = Math.round(a) - Math.round(b);
@@ -2350,6 +2366,6 @@ init();
 <script src="negotiation.js?v=4230af6a"></script>
 <script src="market-data.js?v=a7b9cbd5"></script>
 <script src="market.js?v=692419ef"></script>
-<script src="coach.js?v=3f84994c"></script>
+<script src="coach.js?v=f4a3fead"></script>
 </body>
 </html>

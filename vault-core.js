@@ -63,6 +63,14 @@ const VAULT_CONFIG = {
   // Capped at ACCEPT_BEHIND_MAX so a reading never promises a lopsided deal.
   ACCEPT_BEHIND: {"one|0|0":14.7,"one|0|1":13.1,"one|0|2":12.6,"one|1|0":21.2,"one|1|1":17.1,"one|1|2":26.7,"cons|0|0":8.8,"cons|0|1":6.7,"cons|0|2":5.2,"cons|1|0":7.4,"cons|1|1":7.4,"cons|1|2":6.4,"more|0|0":4.9,"more|0|1":4.7,"more|0|2":6.9,"more|1|0":4.9,"more|1|1":5.8,"more|1|2":8.1,"even|0|0":8.9,"even|0|1":6.3,"even|0|2":6,"even|1|0":9.2,"even|1|1":7,"even|1|2":6.8},
   ACCEPT_BEHIND_MAX: 20,
+  // Out of the race: in season, a team under this % playoff odds gets no credit or
+  // blame for this season's points in its verdict (2026-10-20, VaultValues
+  // out-of-race.js, 2024-2025 in-season trades). For contend/flexible teams under
+  // 5%, the points part of the score tracked how the trade turned out for playoffs
+  // (r 0.03) and titles (0.02) barely at all, and it made the score track value
+  // later worse (0.46 -> 0.36); teams that far out sold 5+ points a week in 24% of
+  // their trades, playoff-bound contenders in 2%.
+  OUT_OF_RACE_PCT: 5,
   // The verdict's value read on blended player values (2026-10-20, VaultValues
   // verdict-blend-test.js on 1.58M team-sides of 2025 trades, every week priced by
   // values fitted only on earlier trades): each piece's price times its Vault value
