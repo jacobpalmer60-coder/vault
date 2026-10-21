@@ -338,3 +338,24 @@
 2026-10-20T13:52:31 oneQB_tepp: 11,474 trades through 2026-10-20, 452 rated, rank agreement 0.891 [14s]
 2026-10-20T13:52:31 site values: 493 players (457 of KTC's rated by us, 29 added), 36 picks
 2026-10-20T13:52:31 done
+2026-10-21T14:00:33 start (sf_tep, sf, sf_tepp, oneQB, oneQB_tep, oneQB_tepp)
+2026-10-21T14:00:33 data from ../../data
+2026-10-21T14:00:33 pricing: extra pieces 0.45, lean {"2-1":0.09,"3-1":0.035,"3-2":0.04}, pick spread {"1":{"early":1.05,"late":0.96},"2":{"early":1.02,"late":0.98},"3":{"early":1.01,"late":0.98},"4":{"early":1,"late":0.99}}
+2026-10-21T14:00:33 curve: p 4.00/4.00/2.91/2.13/2.20/2.01/1.70/1.59/1.47
+2026-10-21T14:00:45 sf_tep: picks anchored to the 2026 rookie drafts (11,097)
+2026-10-21T14:02:23 sf_tep: 561,510 trades through 2026-10-21, 701 rated, rank agreement 0.975 [110s]
+2026-10-21T14:02:35 sf: picks anchored to the 2026 rookie drafts (13,115)
+2026-10-21T14:04:11 sf: 600,869 trades through 2026-10-21, 686 rated, rank agreement 0.976 [109s]
+2026-10-21T14:04:22 sf_tepp: picks anchored to the 2026 rookie drafts (6,099)
+2026-10-21T14:04:27 sf_tepp: 78 new trades since 2026-10-20, not scored yet
+2026-10-21T14:05:10 sf_tepp: 304,621 trades through 2026-10-21, 673 rated, rank agreement 0.962 [59s]
+2026-10-21T14:05:22 oneQB: picks anchored to the 2026 rookie drafts (8,446)
+2026-10-21T14:06:24 oneQB: 400,278 trades through 2026-10-21, 652 rated, rank agreement 0.972 [73s]
+2026-10-21T14:06:34 oneQB_tep: picks anchored to the 2026 rookie drafts (978)
+2026-10-21T14:06:35 oneQB_tep: 15 new trades since 2026-10-20, not scored yet
+2026-10-21T14:06:40 oneQB_tep: 48,802 trades through 2026-10-21, 545 rated, rank agreement 0.956 [17s]
+2026-10-21T14:06:49 oneQB_tepp: picks anchored to the 2026 rookie drafts (258)
+2026-10-21T14:06:50 oneQB_tepp: 1 new trades since 2026-10-20, not scored yet
+2026-10-21T14:06:51 oneQB_tepp: 12,078 trades through 2026-10-21, 457 rated, rank agreement 0.905 [11s]
+2026-10-21T14:06:51 site values: 495 players (457 of KTC's rated by us, 31 added), 36 picks
+2026-10-21T14:06:51 done
