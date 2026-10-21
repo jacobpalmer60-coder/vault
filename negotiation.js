@@ -677,6 +677,6 @@ function renderOfferButton() {
   if (!bothSides) { el.innerHTML = ''; return; }
   const O = negOfferingSide(), R = negOther(O);
   const done = Negotiation.rounds.length && ['deal', 'walk'].includes(Negotiation.rounds[Negotiation.rounds.length - 1].decision);
-  const label = done ? 'Negotiate again' : Negotiation.rounds.length ? 'Send revised offer' : `Offer to ${Vault.escapeHtml(teamOf(R).teamName)}`;
+  const label = done ? 'Negotiate again' : Negotiation.rounds.length ? 'Send revised offer' : `Negotiate with ${Vault.escapeHtml(teamOf(R).teamName)}`;
   el.innerHTML = `<button onclick="${done ? 'negReset(); negOffer(this)' : 'negOffer(this)'}" title="See how ${Vault.escapeHtml(teamOf(R).teamName)} would likely respond — accept, decline, or counter" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors">${label}</button>`;
 }
