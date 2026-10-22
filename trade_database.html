@@ -9,7 +9,7 @@
 <title>Trade Search — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=c9cdf183">
+<link rel="stylesheet" href="tailwind.css?v=7dc6ede6">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -68,12 +68,12 @@
 </div>
 
 <script src="vault-core.js?v=d30ce494"></script>
-<script src="vault-nav.js?v=38cbc543"></script>
+<script src="vault-nav.js?v=786ac780"></script>
 <script>
 const TIER_LABEL = {
-  full: 'Exact match — team count, QB slots, PPR, and TE premium',
-  noTep: 'Relaxed — matched on team count, QB slots, and PPR (any TE premium)',
-  noPpr: 'Relaxed — matched on team count and QB slots only (any PPR/TE premium)'
+  full: 'same settings',
+  noTep: 'any TE premium (too few with yours)',
+  noPpr: 'any PPR or TE premium (too few with yours)'
 };
 
 function pprLabel(code) { return { 1: '0 PPR', 2: '0.5 PPR', 3: '1 PPR', 4: 'Tiered PPR' }[code] || '—'; }
@@ -256,7 +256,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
   const body = document.getElementById('marketBody');
   if (n < 200) { document.getElementById('market').classList.add('hidden'); return; }
   const med = mkMedian(rows.map(r => r.pct)), mean = rows.reduce((s, r) => s + r.pct, 0) / n;
-  document.getElementById('marketSub').textContent = `${n.toLocaleString()} completed trades from leagues like yours (${fmt})${src && src.sleeper ? `: ${src.ktc.toLocaleString()} from KTC's feed (last ${src.ktcDays} days) and ${src.sleeper.toLocaleString()} from Sleeper dynasty leagues (the ${src.sleeperDays} days before)` : ', from KTC\'s feed'}${src && src.looser ? `. Not enough ${src.looser} trades yet, so this is a broader match` : ''}`;
+  document.getElementById('marketSub').textContent = `What trades in leagues like yours (${fmt}) cost, by position and value${src && src.sleeper ? `: the last ${src.ktcDays + src.sleeperDays} days` : ''}${src && src.looser ? `. Not enough ${src.looser} trades yet, so this is a broader match` : ''}`;
 
   // Your league next to the market.
   const lg = league && league.length ? league : null;
@@ -435,7 +435,7 @@ async function renderHistory(field) {
   });
   box.classList.remove('hidden');
   const fmt = FORMAT_NAME[field] || field;
-  document.getElementById('historySub').textContent = `${doc.trades.priced.toLocaleString()} completed ${fmt} trades from ${doc.leagues.toLocaleString()} Sleeper dynasty leagues, each priced at KTC values from the day it happened`;
+  document.getElementById('historySub').textContent = `${fmt} trades in Sleeper dynasty leagues, year by year, each priced at KTC values from the day it happened`;
   // Year by year: each year summarized whole by the pricing step, so its numbers are exact.
   const yearRows = Object.entries(doc.years || {}).filter(([, s]) => s.n >= HIST_MIN).sort(([a], [b]) => b.localeCompare(a));
   const years = !yearRows.length ? '' : `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
@@ -528,12 +528,11 @@ async function init() {
     document.getElementById('matchBar').innerHTML = `
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <div class="text-[13px] font-medium text-zinc-200">${sig.teams}-team, ${isSF ? 'Superflex' : '1QB'}, ${pprLabel(sig.ppr)}, ${tepLabel(sig.tep)}</div>
-          <div class="text-[12px] text-zinc-400 mt-1">${TIER_LABEL[tier]}</div>
+          <div class="text-[13px] text-zinc-200"><span class="mono font-medium text-zinc-100">${pool.length.toLocaleString()}</span> trade${pool.length === 1 ? '' : 's'} from leagues like yours</div>
+          <div class="text-[12px] text-zinc-400 mt-1">${sig.teams}-team, ${isSF ? 'Superflex' : '1QB'}, ${pprLabel(sig.ppr)}, ${tepLabel(sig.tep)}${tier === 'full' ? '' : ` · ${TIER_LABEL[tier]}`}</div>
         </div>
-        <div class="text-[12px] text-zinc-400 shrink-0">${pool.length.toLocaleString()} matching trade${pool.length === 1 ? '' : 's'} found</div>
       </div>
-      ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded with the Trade Calculator's own value math: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-orange-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(${priced.length.toLocaleString()} fully priced)</span></div>` : ''}`;
+      ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded with the Trade Calculator's own value math: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-orange-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(of the ${priced.length.toLocaleString()} KTC fully prices)</span></div>` : ''}`;
 
     // The market at a glance: completed trades from leagues like this one. Steps down
     // Vault.tradeFormatTiers (exact settings -> any team count -> QB + TE premium
@@ -575,7 +574,7 @@ async function init() {
       leagueRows = (allGraded || []).filter(g => Number.isFinite(g.pctDiff)).map(g => ({ pct: g.pctDiff, bucket: Vault.priceWord(g.bucket || Vault.fairnessBucket(g.pctDiff, 0, 0)), label: `${g.teamA.teamName} and ${g.teamB.teamName}` }));
       redraw();
     }).catch(e => { console.warn('League trades unavailable', e); leagueRows = []; redraw(); });
-    status.textContent = `${tradesData.count.toLocaleString()} trades in database • updated ${new Date(tradesData.updated).toLocaleDateString()}`;
+    status.textContent = `Updated ${new Date(tradesData.updated).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
 
     const list = document.getElementById('list');
@@ -608,7 +607,7 @@ async function init() {
       const label = qA && qB ? `"${searchSideA.value.trim()}" for "${searchSideB.value.trim()}"` : (qA || qB ? `"${(searchSideA.value || searchSideB.value).trim()}"` : '');
       resultCount.textContent = label
         ? `${matches.length.toLocaleString()} trade${matches.length === 1 ? '' : 's'} matching ${label}${matches.length > CAP ? ` — showing ${CAP} most recent` : ''}`
-        : (pool.length > CAP ? `Showing ${CAP} most recent of ${pool.length.toLocaleString()}` : '');
+        : (pool.length > CAP ? `The ${CAP} newest` : '');
 
       if (!sorted.length) {
         list.innerHTML = '';

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=c9cdf183">
+<link rel="stylesheet" href="tailwind.css?v=7dc6ede6">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -67,42 +67,18 @@
           <tr class="text-left text-zinc-400">
             <th class="px-4 py-3 font-medium w-14">#</th>
             <th class="px-4 py-3 font-medium sortable" data-key="player">Player <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable" data-key="pos">Pos <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable" data-key="team">Team <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="age">Age <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="value">Value <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="marketRaw" title="What managers pay for him in completed trades, against his KTC value: the price trade value (the grade) uses, the same on every page (Player Market). Hover a cell for how that compares with similar players.">Market <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="marketPrice" title="What managers pay for him in completed trades: the price trade value (the grade) uses, the same on every page (Player Market), and how far that is from his KTC value. Hover a cell for how that compares with similar players.">Market price <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="trendDelta" title="Value change over the selected trend window (see the 3mo/6mo/1yr/All toggle above the table) — tracked for players rostered in your league only">Trend <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg">PPG <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg" title="Projected points per game in your league's scoring. Green: top fifth at his position; red: bottom fifth.">Proj. PPG <span class="sort-ind"></span></th>
             <th class="px-4 py-3 font-medium sortable text-right" data-key="vorp" title="Value Over Replacement Player — PPG above the best player at this position who wouldn't start anywhere in your league. Comparable ACROSS positions, unlike raw PPG — this is why a Superflex QB is worth so much more than a similar-PPG RB: replacement-level QB is far worse relative to a starter.">VORP <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="vpRatio">Value/PPG <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="vVorpRatio" title="KTC value per point of VORP — how much you're paying, in dollars, for this player's real edge over a replacement, on a scale comparable across positions (unlike Value/PPG, which favors QBs just for scoring more raw points at every tier).">Value/VORP <span class="sort-ind"></span></th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.06]">
-          <tr><td colspan="12" class="px-4 py-16 text-center text-zinc-400">Loading data…</td></tr>
+          <tr><td colspan="8" class="px-4 py-16 text-center text-zinc-400">Loading data…</td></tr>
         </tbody>
       </table>
-    </div>
-  </div>
-
-  <!-- Status Log -->
-  <div class="mt-6 grid lg:grid-cols-3 gap-4">
-    <div class="glass p-4 lg:col-span-2">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400">Status Log</h2>
-        <button id="clearLog" class="text-xs px-2 py-1 text-zinc-400 hover:text-white">Clear</button>
-      </div>
-      <div id="log" class="h-32 overflow-y-auto scrollbar mono text-xs text-zinc-400 space-y-1 bg-black/30 rounded-xl p-3 border border-white/5"></div>
-    </div>
-    <div class="glass p-4">
-      <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400 mb-2">Notes</h2>
-      <ul class="text-xs text-zinc-400 space-y-2 leading-relaxed">
-        <li>• Value column switches automatically between KTC's Superflex and 1QB values (0.5 TE premium) based on your league's format</li>
-        <li>• PPG = season projection ÷ projected games, scored with your loaded league's actual scoring settings (not a generic PPR assumption)</li>
-        <li>• Value/PPG = Value ÷ PPG</li>
-        <li>• Merge key = normalized player name</li>
-      </ul>
     </div>
   </div>
 
@@ -119,20 +95,18 @@
 </div>
 
 <script src="vault-core.js?v=d30ce494"></script>
-<script src="vault-nav.js?v=38cbc543"></script>
-<script src="market-data.js?v=11b594ea"></script>
+<script src="vault-nav.js?v=786ac780"></script>
+<script src="market-data.js?v=07632230"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
   const tbody = $('#tbody');
-  const logEl = $('#log');
   const statPlayers = $('#statPlayers');
   const statFormat = $('#statFormat');
   const statFormatDetail = $('#statFormatDetail');
   const leagueInfo = $('#leagueInfo');
 
   let allRows = [];
-  let vorpRatioCuts = [0, Infinity];
   let filteredRows = [];
   let sortKey = 'value';
   let sortDir = 'desc';
@@ -147,19 +121,17 @@
   // meaningless once value history reached back years; Infinity means "All".
   let trendWindowDays = 90;
 
-  function log(msg, type = 'info') {
-    const time = new Date().toLocaleTimeString();
-    const color = type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-amber-400' : 'text-zinc-400';
-    const line = document.createElement('div');
-    line.innerHTML = `<span class="${color}">[${time}]</span> ${msg}`;
-    logEl.appendChild(line);
-    logEl.scrollTop = logEl.scrollHeight;
-  }
+  // Load steps go to the console (the on-page status log was removed, 2026-10-21).
+  function log(msg, type = 'info') { if (type === 'error') console.error(msg); else console.debug(msg); }
 
   const fmtInt = Vault.fmtInt;
   const fmtFloat = Vault.fmtFloat;
   const fmtSigned = n => Number.isFinite(n) ? Vault.signed(n, x => x.toFixed(1)) : '—';
   const posColor = pos => `pos-badge-${['QB','RB','WR','TE'].includes(pos) ? pos : 'default'}`;
+  // Red-yellow-green by rank within his position, as League Overview's position ranks:
+  // top fifth green, bottom fifth red.
+  const ppgTone = (r, n) => r <= Math.ceil(n * 0.2) ? 'bg-emerald-400/30 text-emerald-50' : r <= Math.ceil(n * 0.4) ? 'bg-emerald-400/15 text-emerald-100'
+    : r > n - Math.ceil(n * 0.2) ? 'bg-rose-500/30 text-rose-50' : r > n - Math.ceil(n * 0.4) ? 'bg-rose-500/15 text-rose-100' : 'bg-amber-400/15 text-amber-100';
 
   // Official primary/secondary brand colors, keyed by Sleeper's canonical team
   // abbreviation (also what its logo CDN uses). Public team-identity facts, not
@@ -637,10 +609,6 @@
         const value = p[valueField];
         const ppg = ppgMap.get(norm) ?? null;
         const vorp = Vault.vorp(ppg, p.pos, replacementLevels);
-        const vpRatio = (Number.isFinite(value) && Number.isFinite(ppg) && ppg > 0) ? value / ppg : null;
-        // Under ~1 PPG of edge the ratio stops meaning anything (a 0.2-VORP QB reads
-        // as 27,000 per point) — shown as '—' rather than a runaway number.
-        const vVorpRatio = (Number.isFinite(value) && Number.isFinite(vorp) && vorp >= 1) ? value / vorp : null;
         // Full history — trendValues/trendDelta/windowedSeries (what's actually
         // displayed) get derived from this by applyTrendWindow() below, since
         // they depend on the current trend-window toggle, not just the data.
@@ -658,15 +626,10 @@
           });
           if (!Object.keys(seasonHistory).length) seasonHistory = null;
         }
-        return { player: p.name, norm, pos: p.pos, team: TEAM_ALIAS[p.team] || p.team, age: p.age, value, ppg, vorp, vpRatio, vVorpRatio, trendSeries, yearsExp, seasonHistory, pid };
+        return { player: p.name, norm, pos: p.pos, team: TEAM_ALIAS[p.team] || p.team, age: p.age, value, ppg, vorp, trendSeries, yearsExp, seasonHistory, pid };
       });
 
       allRows = rows.filter(r => r.value != null);
-      // Cheap/expensive cutoffs for Value/VORP coloring come from this league's own
-      // spread (bottom and top thirds), not fixed numbers that drift whenever
-      // replacement levels or KTC's scale move.
-      const ratios = allRows.map(r => r.vVorpRatio).filter(v => v != null).sort((a, b) => a - b);
-      vorpRatioCuts = ratios.length ? [ratios[Math.floor(ratios.length / 3)], ratios[Math.floor(ratios.length * 2 / 3)]] : [0, Infinity];
       applyTrendWindow();
       log(`Merged rows: ${allRows.length.toLocaleString()}`);
 
@@ -677,6 +640,8 @@
       byPos.forEach(list => {
         list.sort((a, b) => b.value - a.value);
         list.forEach((r, i) => { r.posRank = i + 1; r.posCount = list.length; });
+        const scored = list.filter(r => r.ppg > 0).sort((a, b) => b.ppg - a.ppg);
+        scored.forEach((r, i) => { r.ppgRank = i + 1; r.ppgCount = scored.length; });
       });
 
       statPlayers.textContent = allRows.length.toLocaleString();
@@ -684,13 +649,13 @@
       applyFiltersAndRender();
       if (leagueObj) marketLoad(leagueObj).then(() => {
         if (!Market.data || Market.data.failed) return;
-        allRows.forEach(r => { const m = marketPlayer(leagueObj, r.player, r.pos); r.marketAdj = m.read ? m.adj : null; r.marketRaw = m.read ? m.read.premium : null; r.marketPeer = m.read ? marketPeerPct(m) : null; r.marketText = m.read ? marketAdjText(m) : null; r.marketPeerText = m.read ? marketPeerPhrase(m) : null; });
+        allRows.forEach(r => { const m = marketPlayer(leagueObj, r.player, r.pos); r.marketAdj = m.read ? m.adj : null; r.marketPrice = m.read ? Math.round(r.value * (1 + m.adj / 100)) : null; r.marketPeer = m.read ? marketPeerPct(m) : null; r.marketText = m.read ? marketAdjText(m) : null; r.marketPeerText = m.read ? marketPeerPhrase(m) : null; });
         applyFiltersAndRender();
       }).catch(() => {});
     } catch (e) {
       console.error(e);
       log(e.message, 'error');
-      tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
     }
   }
 
@@ -735,7 +700,7 @@
 
   function renderTable() {
     if (filteredRows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-16 text-center text-zinc-400">No players match filters</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-zinc-400">No players match filters</td></tr>`;
       return;
     }
     const frag = document.createDocumentFragment();
@@ -748,29 +713,19 @@
       tr.addEventListener('click', () => openPlayerModal(r.norm));
       tr.innerHTML = `
         <td class="px-4 py-3 text-zinc-400 mono text-xs">${i + 1}</td>
-        <td class="px-4 py-3 font-medium text-zinc-100">${Vault.escapeHtml(r.player)}</td>
-        <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${posColor(r.pos)}">${r.pos || '—'}</span></td>
-        <td class="px-4 py-3 text-zinc-400 mono text-xs">${Vault.escapeHtml(r.team) || '—'}</td>
+        <td class="px-4 py-2.5"><div class="font-medium text-zinc-100">${Vault.escapeHtml(r.player)}</div>
+          <div class="mt-0.5 flex items-center gap-1.5"><span class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold border ${posColor(r.pos)}">${r.pos || '—'}</span><span class="text-zinc-500 mono text-[11px]">${Vault.escapeHtml(r.team) || 'FA'}</span></div></td>
         <td class="px-4 py-3 text-right mono text-xs text-zinc-400">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
         <td class="px-4 py-3 text-right mono font-medium text-zinc-100">${fmtInt(r.value)}</td>
-        <td class="px-4 py-3 text-right mono text-xs whitespace-nowrap ${r.marketAdj == null || Math.abs(r.marketAdj) < 3 ? 'text-zinc-400' : r.marketAdj > 0 ? 'text-emerald-400' : 'text-orange-400'}" title="${r.marketAdj == null ? 'Not enough completed trades yet' : 'Market price ' + fmtInt(r.value * (1 + r.marketAdj / 100)) + ', ' + (r.marketText === 'even' ? 'right at' : r.marketText) + ' his KTC value' + (r.marketPeerText ? '; ' + r.marketPeerText : '') + '.'}">${r.marketText || '—'}</td>
+        <td class="px-4 py-3 text-right whitespace-nowrap" title="${r.marketAdj == null ? 'Not enough completed trades yet' : 'Market price ' + fmtInt(r.marketPrice) + ', ' + (r.marketText === 'even' ? 'right at' : r.marketText) + ' his KTC value' + (r.marketPeerText ? '; ' + r.marketPeerText : '') + '.'}">${r.marketPrice == null ? '<span class="text-zinc-500 text-xs">—</span>'
+          : `<div class="mono text-zinc-200">${fmtInt(r.marketPrice)}</div><div class="mono text-[11px] ${Math.abs(r.marketAdj) < 3 ? 'text-zinc-500' : r.marketAdj > 0 ? 'text-emerald-400' : 'text-orange-400'}">${r.marketText === 'even' ? 'at KTC value' : r.marketText + ' KTC'}</div>`}</td>
         <td class="px-4 py-3 text-right">
           ${r.trendDelta != null
             ? `<div class="flex items-center justify-end gap-2">${sparkline(r.trendValues)}<span class="mono text-xs ${r.trendDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${r.trendDelta > 0 ? '+' : r.trendDelta < 0 ? '−' : ''}${fmtInt(Math.abs(r.trendDelta))}</span></div>`
             : '<span class="text-zinc-400 text-xs">—</span>'}
         </td>
-        <td class="px-4 py-3 text-right mono text-zinc-400">${fmtFloat(r.ppg, 2)}</td>
+        <td class="px-4 py-3 text-right">${r.ppgRank ? `<span class="inline-block min-w-[3.25rem] px-1.5 py-0.5 rounded-md text-center mono ${ppgTone(r.ppgRank, r.ppgCount)}" title="${r.pos}${r.ppgRank} by projected points">${fmtFloat(r.ppg, 1)}</span>` : '<span class="text-zinc-500 mono">—</span>'}</td>
         <td class="px-4 py-3 text-right mono ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-400'}">${r.vorp != null ? fmtSigned(r.vorp) : '—'}</td>
-        <td class="px-4 py-3 text-right mono">
-          <span class="${r.vpRatio != null && r.vpRatio < 300 ? 'text-emerald-400' : r.vpRatio != null && r.vpRatio > 600 ? 'text-orange-400' : 'text-zinc-300'}">
-            ${r.vpRatio != null ? fmtFloat(r.vpRatio, 0) : '—'}
-          </span>
-        </td>
-        <td class="px-4 py-3 text-right mono">
-          <span class="${r.vVorpRatio != null && r.vVorpRatio <= vorpRatioCuts[0] ? 'text-emerald-400' : r.vVorpRatio != null && r.vVorpRatio >= vorpRatioCuts[1] ? 'text-orange-400' : 'text-zinc-300'}">
-            ${r.vVorpRatio != null ? fmtFloat(r.vVorpRatio, 0) : '—'}
-          </span>
-        </td>
       `;
       frag.appendChild(tr);
     });
@@ -785,7 +740,7 @@
         sortDir = sortDir === 'asc' ? 'desc' : 'asc';
       } else {
         sortKey = key;
-        sortDir = key === 'player' || key === 'team' || key === 'pos' ? 'asc' : 'desc';
+        sortDir = key === 'player' ? 'asc' : 'desc';
       }
       applyFiltersAndRender();
     });
@@ -809,8 +764,6 @@
     document.querySelectorAll('.pos-btn').forEach((b, i) => b.classList.toggle('bg-white/[0.08]', i === 0));
     applyFiltersAndRender();
   });
-
-  $('#clearLog').addEventListener('click', () => logEl.innerHTML = '');
 
   async function loadLeague(id) {
     try {

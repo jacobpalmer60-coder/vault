@@ -121,7 +121,7 @@
 
     mount.innerHTML = `
       ${main ? `<a href="#${main.id}" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-amber-400 focus:text-black focus:font-semibold">Skip to content</a>` : ''}
-      <header class="md:sticky md:top-0 z-40 border-b border-white/[0.07] bg-[#0c0d10]/95">
+      <header class="z-40 border-b border-white/[0.07] bg-[#0c0d10]/95">
         <!-- Two rows: brand + settings on top, page tabs underneath (full width,
              scrolls sideways on phones), so adding a page never pushes the
              settings onto a wrapped row. -->
@@ -146,10 +146,6 @@
         </nav>
       </header>
       <div id="vnNotices" class="max-w-[1400px] mx-auto px-4 sm:px-6 empty:hidden flex flex-col gap-2 pt-3"></div>`;
-    const header = mount.querySelector('header');
-    const setNavH = () => document.documentElement.style.setProperty('--nav-h', (getComputedStyle(header).position === 'sticky' ? header.offsetHeight : 0) + 'px');
-    setNavH();
-    addEventListener('resize', setNavH);
     // Between phone and full desktop the row can still overflow: start it at the current tab.
     const row = mount.querySelector('nav > div'), cur = row.querySelector('[aria-current]');
     if (cur && row.scrollWidth > row.clientWidth) row.scrollLeft = Math.max(0, cur.offsetLeft - row.offsetLeft - 24);

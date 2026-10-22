@@ -76,7 +76,12 @@ function marketLoad(league) {
       sleeperCount++;
     });
     const days = last >= first ? Math.round((new Date(last) - new Date(first)) / 864e5) + 1 : 0;
-    Market.data = { byPlayer, isSF: qbs === 2, days, sleeperCount };
+    // Today's KTC row for each key (picks: the mid pick), for marketComps' drift check.
+    const nowRow = new Map();
+    (ktc.players || []).forEach(p => nowRow.set('n:' + Vault.normalizeName(p.name), p));
+    (ktc.picks || []).forEach(p => { const k = `k:${p.season}-${p.round}`; if (!nowRow.has(k) || p.slot === 'mid') nowRow.set(k, p); });
+    const nowValue = (key, tep) => { const r = nowRow.get(key), v = r && (r[fieldFor(tep)] ?? r[base]); return v > 0 ? v : null; };
+    Market.data = { byPlayer, isSF: qbs === 2, days, sleeperCount, nowValue };
     return Market.data;
   }).catch(e => { console.warn('The market unavailable', e); Market.data = { failed: true }; return Market.data; });
   return Market.loading;
@@ -117,6 +122,12 @@ function marketKeyOf(a) {
   const round = a.round ?? a.ktcRound; // league round (graded trades' picks carry it too)
   return a.type === 'pick' ? (a.season && round ? `k:${a.season}-${round}` : '') : 'n:' + Vault.normalizeName(a.name);
 }
+// A trade from when his KTC value was more than this far from today's (either way)
+// isn't used: what he went for then, as a % of KTC, says little about his price now.
+// Case Keenum went from 17 to 827 on KTC after he started; managers had paid ~2,000
+// for him (9,806% over a value of 17), and the median premium on today's 827 priced
+// him at 9,157, first in the market and in the calculator (2026-10-21).
+const MARKET_MAX_DRIFT = 1.5;
 function marketComps(name) {
   const d = Market.data;
   if (!d || d.failed) return [];
@@ -125,9 +136,11 @@ function marketComps(name) {
     const inOne = t.k1.includes(id);
     const ps = inOne ? t.s1 : t.s2, os = inOne ? t.s2 : t.s1;
     const him = ps[(inOne ? t.k1 : t.k2).indexOf(id)];
+    const now = d.nowValue ? d.nowValue(id, t.fmt?.tep ?? 0) : null;
+    if (now && (him.value > now * MARKET_MAX_DRIFT || now > him.value * MARKET_MAX_DRIFT)) return null;
     return { t, ps, os, him, paid: marketPaid(ps, os), shape: `${marketShape(ps.length)}-${marketShape(os.length)}`,
       dir: Math.sign(os.length - ps.length), main: ps.every(a => a.value <= him.value), raw: os.reduce((s, a) => s + a.value, 0) };
-  });
+  }).filter(Boolean);
 }
 
 /* A player's market value: in completed trades where he was the main piece, what

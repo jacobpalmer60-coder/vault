@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=c9cdf183">
+<link rel="stylesheet" href="tailwind.css?v=7dc6ede6">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -32,12 +32,19 @@
 </div>
 
 <script src="vault-core.js?v=d30ce494"></script>
-<script src="vault-nav.js?v=38cbc543"></script>
+<script src="vault-nav.js?v=786ac780"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-21', items: [
+    { kind: 'fixed', page: 'Trade Calculator', text: "A player whose KTC value jumped could get a wildly wrong market price. Case Keenum went from a KTC value of 17 to 827 after he started; managers had paid about 2,000 for him, but that read as 9,806% over his old value, and applied to today's 827 it priced him at 9,157, first in Player Market and in the Trade Calculator. Market prices now leave out trades from when a player's KTC value was more than 1.5 times higher or lower than today's, so they come from trades at prices like his current one." },
+    { kind: 'changed', page: 'Player Market', text: "Four tabs instead of seven: Look up a player, All players, Movers (Rising & cooling and Market highs & lows together) and By position. Picks and Rookie drafts moved to Trade Lab, under Picks and rookie drafts. Rising & cooling now starts at a KTC value of 1,000 and leaves out players whose KTC value or price swung so far that the change says more about KTC catching up than about the market (Carson Wentz led Cooling at \"237% over\" from when KTC had him at a few hundred)." },
+    { kind: 'improved', page: 'Player Rankings', text: "A simpler table: player (with position and team underneath), age, value, market price, trend, projected points and VORP. Market price is now the price itself, with how far it is from his KTC value underneath (\"9% under KTC\"). Projected points are colored within each position, green for the top fifth to red for the bottom fifth, like League Overview. Value/PPG, Value/VORP and the status log and notes at the bottom are gone." },
+    { kind: 'improved', page: 'Trade Search', text: "One number at the top: how many trades from leagues like yours there are, with your league's settings under it. The database total and the separate counts on The market at a glance and Over time are gone." },
+    { kind: 'fixed', page: 'Compare', text: "The game log's header row no longer floats over a week's row as you scroll: it stays at the top of the window." }
+  ] },
   { date: '2026-10-20', items: [
     { kind: 'changed', page: 'Trade Calculator', text: "Balance and Make it work for both are now one button, Even it out. It shows when either team would see the trade as a bad one. If it's bad for them, it adds one of your pieces (or takes one of theirs out) until it's at least a Toss-up for them, keeping it as good as possible for you. If it's bad for you, they add a piece (or one of yours comes out) until it's at least a Toss-up for you and still fine for them. The written \"to even it up, add…\" suggestion in Details is gone too, so there's one way to do it." },
     { kind: 'improved', page: 'Trade Calculator', text: "The Trade Calculator's answer is now one card: your verdict and the other team's side by side, one line on why, then your title odds and the price on trade value and KTC. The details (what moved the verdict, how trades like it turned out, the market) sit under Why, and the second verdict box further down is gone. New: when a trade is One-sided, Make it work for both makes the smallest change (one of your pieces added, or one of theirs taken out) that turns it into a Toss-up or better for them while keeping it as good as possible for you. Send offer link copies a link for the other manager that opens on their side, as your offer to them (Worth accepting, Worth a counter or Decline); they can adjust it and send it back. The practice button is now Negotiate with (team)." },

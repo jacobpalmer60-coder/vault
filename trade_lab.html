@@ -9,7 +9,7 @@
 <title>Trade Lab — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=c9cdf183">
+<link rel="stylesheet" href="tailwind.css?v=7dc6ede6">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,6 +31,7 @@
   <nav aria-label="Sections" class="flex flex-wrap gap-2 mb-6 text-[12px]">
     <a href="#how" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">How managers trade</a>
     <a href="#after" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">What happened after</a>
+    <a href="#picks" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Picks and rookie drafts</a>
     <a href="#league" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Your league vs everyone</a>
     <a href="#explore" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Explore it yourself</a>
   </nav>
@@ -43,6 +44,23 @@
   <section id="after" class="mb-10 scroll-mt-24">
     <h2 class="text-[18px] font-semibold text-zinc-100 mb-3">What happened after</h2>
     <div id="afterBody" class="space-y-4"></div>
+  </section>
+
+  <!-- Picks and rookie drafts (moved from Player Market, 2026-10-21): early/mid/late
+       picks against real trades, picks against players later, and where each rookie went. -->
+  <section id="picks" class="mb-10 scroll-mt-24">
+    <h2 class="text-[18px] font-semibold text-zinc-100 mb-3">Picks and rookie drafts</h2>
+    <div id="picksBody" class="space-y-4"><div class="text-[12px] text-zinc-500">Loading…</div></div>
+    <div class="card rounded-vault-sm p-4 min-w-0 mt-4">
+      <div class="flex items-baseline justify-between gap-3 flex-wrap">
+        <div>
+          <div class="text-[14px] font-medium text-zinc-100">Rookie drafts</div>
+          <div id="rookiesSub" class="text-[12px] text-zinc-400 mt-0.5">Where each rookie actually went in Sleeper dynasty rookie drafts, and what each pick slot bought.</div>
+        </div>
+        <div id="rookieSeasons" class="flex flex-wrap gap-1.5"></div>
+      </div>
+      <div id="rookiesBody" class="mt-3"><div class="text-[12px] text-zinc-500">Loading…</div></div>
+    </div>
   </section>
 
   <section id="league" class="mb-10 scroll-mt-24">
@@ -61,7 +79,7 @@
 <div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
 
 <script src="vault-core.js?v=d30ce494"></script>
-<script src="vault-nav.js?v=38cbc543"></script>
+<script src="vault-nav.js?v=786ac780"></script>
 <script>
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
 const esc = s => Vault.escapeHtml(String(s));
@@ -296,6 +314,98 @@ function renderExplore(d) {
     </div>`;
 }
 
+/* ---------- Picks and rookie drafts ----------
+   Moved from Player Market's Picks and Rookie drafts tabs (2026-10-21, user: fewer
+   tabs there). In your league's QB format and TE premium, with today's KTC values. */
+const ORD = n => n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n] || 'th');
+const PR = { isSF: true, bonusTe: 0, valueField: 'sf', ktcPicks: [], byNorm: new Map(), rookieDoc: null, rookieSeason: null };
+const lookupLink = norm => `${Vault.linkTo('market.html')}&p=${encodeURIComponent(norm)}`;
+async function renderPicksRookies(ins) {
+  const leagueId = Vault.getLeagueId();
+  const league = leagueId ? await fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()).catch(() => null) : null;
+  PR.isSF = league ? Vault.tradeFormatSig(league).qbs === 2 : true;
+  PR.bonusTe = league?.scoring_settings?.bonus_rec_te || 0;
+  PR.valueField = (PR.isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(PR.bonusTe);
+  const [ktc, rookies] = await Promise.all([
+    Vault.fetchKtcValues().catch(() => ({})),
+    fetch(`data/market-history/rookies-${PR.isSF ? 'sf' : 'oneQB'}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null)
+  ]);
+  (ktc.players || []).forEach(p => { if (p[PR.valueField] > 0) PR.byNorm.set(Vault.normalizeName(p.name), { name: p.name, value: p[PR.valueField] }); });
+  PR.ktcPicks = ktc.picks || [];
+  PR.rookieDoc = rookies;
+  renderPickMarket(ins);
+  renderRookies();
+}
+// Early / mid / late picks: KTC's spread against what real trades paid, and picks against players later.
+function renderPickMarket(ins) {
+  const box = document.getElementById('picksBody');
+  if (!ins?.pickTiers) { box.innerHTML = '<div class="text-[12px] text-zinc-500">Pick data unavailable.</div>'; return; }
+  const P = ins.pickTiers, fmt = PR.isSF ? (PR.bonusTe ? 'sf_tep' : 'sf') : 'oneQB', real = P.trades[fmt] || P.trades.sf, ktcF = PR.isSF ? 'sf' : 'oneQB';
+  const x = v => `${v.toFixed(2)}x`;
+  const season = P.ktcSeason, row = (round, slot) => PR.ktcPicks.find(p => +p.season === season && +p.round === round && p.slot === slot);
+  const rounds = [1, 2, 3, 4].filter(r => real[r] && P.ktc[r]);
+  const table = `<div class="overflow-x-auto"><table class="w-full text-[12px]">
+      <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 pr-3 text-left">${season} pick</th><th class="font-normal pb-2 pr-3 text-right">KTC: early</th><th class="font-normal pb-2 pr-3 text-right">Trades: early</th><th class="font-normal pb-2 pr-3 text-right">KTC: late</th><th class="font-normal pb-2 pr-3 text-right">Trades: late</th><th class="font-normal pb-2 text-right">Early pick: KTC → what trades pay</th></tr></thead>
+      <tbody>${rounds.map(r => { const k = P.ktc[r][ktcF], t = real[r], mid = row(r, 'mid'), early = row(r, 'early'); const mv = mid && mid[PR.valueField], ev = early && early[PR.valueField];
+        return `<tr class="border-t border-white/5"><td class="py-1.5 pr-3 text-zinc-200">${ORD(r)} round</td><td class="py-1.5 pr-3 text-right mono text-zinc-400">${x(k.early)}</td><td class="py-1.5 pr-3 text-right mono text-zinc-100">${x(t.early)}</td><td class="py-1.5 pr-3 text-right mono text-zinc-400">${x(k.late)}</td><td class="py-1.5 pr-3 text-right mono text-zinc-100">${x(t.late)}</td>
+          <td class="py-1.5 text-right mono text-zinc-300">${mv && ev ? `${fmtInt(ev)} → <span class="text-zinc-100">${fmtInt(mv * t.early)}</span>` : '—'}</td></tr>`; }).join('')}</tbody></table></div>`;
+  const bars = (ins.picksByAge || []).map(r => `<div class="grid grid-cols-[100px_minmax(0,1fr)_auto] items-center gap-3 py-1"><span class="text-[12px] text-zinc-300">${r.label}</span><div class="h-2.5 rounded-full bg-white/[0.04]"><div class="h-full rounded-full bg-violet-400/70" style="width:${r.ahead}%"></div></div><span class="text-[12px] mono text-zinc-300">${r.ahead}% ahead <span class="text-zinc-500">of ${r.n.toLocaleString()}</span></span></div>`).join('');
+  box.innerHTML = `<div class="grid lg:grid-cols-2 gap-4">
+      ${panel('Early, mid and late: KTC against real trades', 'Each tier\'s price against the mid pick of the same round. Real trades: picks split by where their original team was projected to finish when traded.', table, 'Managers pay far less for an early pick than KTC does: projected finishes hold only so often (projected-early 1sts landed early about half the time).')}
+      ${panel('Picks gain on players', 'Trades of only picks for only players at an even price: how often the side that got the picks was ahead on value later, by how long ago the trade was.', bars, 'New rookie classes push existing players down KTC\'s scale, so picks bought at a fair price kept gaining.')}
+    </div>`;
+}
+/* data/market-history/rookies-<sf|oneQB>.json (scripts/summarize-sleeper-trades.js):
+   per rookie class, each rookie's typical draft position in rounds from the first
+   pick (0.25 = a quarter through round 1), shown as a 12-team pick ("1.04"), and
+   the KTC value on draft day of the players taken at each round's early / mid /
+   late third: what that pick actually bought. */
+const pickLabel = r => { const round = Math.floor(r + 1e-9), slot = Math.min(12, Math.round((r - round) * 12) + 1); return `${round + 1}.${String(slot).padStart(2, '0')}`; };
+const vsKtcText = v => (Math.abs(v) < 0.5 ? 'even' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'over' : 'under'}`);
+function renderRookies() {
+  const box = document.getElementById('rookiesBody'), seasons = Object.keys(PR.rookieDoc?.seasons || {}).sort().reverse();
+  if (!seasons.length) { document.getElementById('rookieSeasons').innerHTML = ''; box.innerHTML = '<div class="text-[12px] text-zinc-500">Rookie classes appear once at least 5 leagues\' rookie drafts in your QB format are in.</div>'; return; }
+  PR.rookieSeason = seasons.includes(PR.rookieSeason) ? PR.rookieSeason : seasons[0];
+  const season = PR.rookieSeason;
+  document.getElementById('rookieSeasons').innerHTML = seasons.map(s => `<button onclick="PR.rookieSeason='${s}'; renderRookies()" aria-pressed="${s === season}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${s === season ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${s}</button>`).join('');
+  const S = PR.rookieDoc.seasons[season];
+  const rows = S.players.map(([pid, name, pos, n, mid, lo, hi], i) => {
+    const norm = Vault.normalizeName(name), today = PR.byNorm.get(norm);
+    return `<tr class="border-t border-white/5${today ? ' hover:bg-white/[0.02] cursor-pointer' : ''}" ${today ? `onclick="location.href='${lookupLink(norm)}'"` : ''}>
+        <td class="py-1.5 pr-3 text-right mono text-zinc-500">${i + 1}</td>
+        <td class="py-1.5 pr-3"><span class="inline-flex items-center gap-2"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(pos)}">${esc(pos || '—')}</span><span class="text-zinc-100">${esc(name)}</span></span></td>
+        <td class="py-1.5 pr-3 text-right mono text-zinc-100">${pickLabel(mid)}</td>
+        <td class="py-1.5 pr-3 text-right mono text-zinc-400 whitespace-nowrap">${pickLabel(lo)}–${pickLabel(hi)}</td>
+        <td class="py-1.5 pr-3 text-right mono text-zinc-400">${fmtInt(n)}</td>
+        <td class="py-1.5 text-right mono text-zinc-300">${today ? fmtInt(today.value) : '—'}</td>
+      </tr>`;
+  }).join('');
+  const tiers = ['early', 'mid', 'late'], rounds = [1, 2, 3, 4].filter(r => tiers.some(t => S.buys[`${r}-${t}`]));
+  // buys: [players, median KTC value of who was taken, KTC's own value for that pick slot the same day (null when KTC's pick history lacks the year)].
+  const slots = rounds.flatMap(r => tiers.map(t => ({ r, t, b: S.buys[`${r}-${t}`] }))).filter(s => s.b);
+  const withKtc = slots.filter(s => s.b[2] > 0), vsKtc = b => (b[1] / b[2] - 1) * 100;
+  const buys = withKtc.length ? `<table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 text-left">Pick</th><th class="font-normal pb-2 pl-2 text-right" title="KTC's value for this pick on draft day">KTC said</th><th class="font-normal pb-2 pl-2 text-right" title="Median draft-day KTC value of the players taken here">Bought</th><th class="font-normal pb-2 pl-2 text-right">Diff</th></tr></thead>
+    <tbody>${slots.map(({ r, t, b }) => { const d = b[2] > 0 ? vsKtc(b) : null; return `<tr class="border-t border-white/5" title="${b[0]} players taken"><td class="py-1.5 text-zinc-300 whitespace-nowrap">${ORD(r)} <span class="text-zinc-500">${t}</span></td><td class="py-1.5 pl-2 text-right mono text-zinc-400">${b[2] > 0 ? fmtInt(b[2]) : '—'}</td><td class="py-1.5 pl-2 text-right mono text-zinc-100">${fmtInt(b[1])}</td><td class="py-1.5 pl-2 text-right mono ${d == null || Math.abs(d) < 5 ? 'text-zinc-300' : d > 0 ? 'text-emerald-300' : 'text-orange-300'}">${d == null ? '—' : vsKtcText(d)}</td></tr>`; }).join('')}</tbody></table>`
+    : `<table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 text-left">Round</th>${tiers.map(t => `<th class="font-normal pb-2 text-right capitalize">${t}</th>`).join('')}</tr></thead>
+    <tbody>${rounds.map(r => `<tr class="border-t border-white/5"><td class="py-1.5 text-zinc-300">${ORD(r)}</td>${tiers.map(t => { const b = S.buys[`${r}-${t}`]; return `<td class="py-1.5 text-right mono ${b ? 'text-zinc-100' : 'text-zinc-600'}" title="${b ? b[0] + ' players' : ''}">${b ? fmtInt(b[1]) : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
+  // One line on the 1sts, the picks people argue about: did they buy what KTC priced them at?
+  const firsts = withKtc.filter(s => s.r === 1), firstsSaid = firsts.reduce((t, s) => t + s.b[2], 0), firstsGot = firsts.reduce((t, s) => t + s.b[1], 0);
+  const firstsLine = firsts.length ? (() => { const d = (firstsGot / firstsSaid - 1) * 100; return Math.abs(d) < 5 ? `${season} 1sts bought about what KTC priced them at.` : `${season} 1sts bought players worth ${Math.abs(Math.round(d))}% ${d > 0 ? 'more' : 'less'} than KTC priced the picks at on draft day.`; })() : '';
+  document.getElementById('rookiesSub').textContent = `Where each ${season} rookie actually went in ${fmtInt(S.drafts)} Sleeper dynasty rookie drafts in your QB format, and what each pick slot bought.`;
+  box.innerHTML = `<div class="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4">
+      <div class="min-w-0 overflow-x-auto max-h-[420px] overflow-y-auto scrollbar"><table class="w-full text-[12px]">
+        <thead class="sticky top-0 bg-[#14161a]"><tr class="text-[11px] uppercase tracking-wider text-zinc-500"><th class="font-normal pb-2 pr-3 text-right">#</th><th class="font-normal pb-2 pr-3 text-left">Rookie</th><th class="font-normal pb-2 pr-3 text-right" title="Typical pick, as in a 12-team draft">Pick</th><th class="font-normal pb-2 pr-3 text-right">Range</th><th class="font-normal pb-2 pr-3 text-right">Drafts</th><th class="font-normal pb-2 text-right">KTC now</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <div class="min-w-0">
+        <div class="text-[13px] font-medium text-zinc-200">What each pick bought</div>
+        <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">${withKtc.length ? 'What KTC said each pick was worth on draft day, next to the KTC value of the players actually taken there (median, each round split in thirds).' : 'KTC value, on draft day, of the players taken in each round\'s first, middle and last third (median).'}</div>
+        ${firstsLine ? `<div class="text-[12px] text-zinc-200 mb-2">${firstsLine}</div>` : ''}
+        ${buys}
+      </div>
+    </div>
+    <div class="text-[11px] text-zinc-500 mt-2">Pick: each rookie's median spot across drafts, shown as in a 12-team draft. Range: his earliest to latest. Click a rookie to see his market.</div>`;
+}
+
 let LAB_DATA = null;
 async function init() {
   const status = document.getElementById('status');
@@ -315,6 +425,7 @@ async function init() {
     renderHow(d, ins);
     renderAfter(d, ins);
     renderExplore(d);
+    renderPicksRookies(ins).catch(e => { console.error(e); document.getElementById('picksBody').innerHTML = '<div class="text-[12px] text-zinc-500">Couldn\'t load picks.</div>'; });
     renderLeague(d, ins);
   } catch (e) {
     console.error(e);

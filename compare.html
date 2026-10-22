@@ -9,7 +9,7 @@
 <title>Compare Players — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=c9cdf183">
+<link rel="stylesheet" href="tailwind.css?v=7dc6ede6">
 <style>
   /* Up to four series, in the dataviz reference order for dark surfaces
      (blue, orange, aqua, yellow), validated on this card surface for adjacent
@@ -23,9 +23,10 @@
   .ring1 { box-shadow: inset 0 3px 0 var(--p1); } .ring2 { box-shadow: inset 0 3px 0 var(--p2); }
   .ring3 { box-shadow: inset 0 3px 0 var(--p3); } .ring4 { box-shadow: inset 0 3px 0 var(--p4); }
   .win { font-weight: 600; color: #fafafa; }
-  /* The player-name row stays in view while you scroll a long table: pinned
-     just under the site header (--nav-h, set by vault-nav.js) on wide screens. */
-  .sticky-head th { position: sticky; top: var(--nav-h, 0px); z-index: 5; background: #14161a; box-shadow: 0 1px 0 rgba(255,255,255,0.08); }
+  /* The player-name row stays in view while you scroll a long table, pinned to the
+     top of the window. (It used to sit under the site header's height, but the header
+     scrolls away, so the row floated over the table's rows, 2026-10-21.) */
+  .sticky-head th { position: sticky; top: 0; z-index: 5; background: #14161a; box-shadow: 0 1px 0 rgba(255,255,255,0.08); }
   #chartTip { pointer-events: none; }
   input[type=date] { color-scheme: dark; }
 </style>
@@ -105,8 +106,8 @@
 </div>
 
 <script src="vault-core.js?v=d30ce494"></script>
-<script src="vault-nav.js?v=38cbc543"></script>
-<script src="market-data.js?v=11b594ea"></script>
+<script src="vault-nav.js?v=786ac780"></script>
+<script src="market-data.js?v=07632230"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
 <script>
 const $ = id => document.getElementById(id);
