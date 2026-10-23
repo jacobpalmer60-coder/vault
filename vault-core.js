@@ -1491,14 +1491,68 @@ const Vault = {
      value edge at the trade's date, roster fit (positional + lineup + depth),
      timeline fit (age/picks + plan fit), and this season's points a week
      (lineup + depth). One verdict system everywhere (user review, 2026-10-09). */
+  // g.outOfRaceA / B (set by Vault.markOutOfRace): that side had under
+  // OUT_OF_RACE_PCT playoff odds when it traded, so this season's points count 0
+  // in its verdict, as in the Trade Calculator.
   gradedImprovement(g, side) {
     const fit = g['fit' + side], tl = g['timeline' + side], arch = g['arch' + side], dep = g['depth' + side] || {};
     const rosterFit = (fit?.posFit || 0) + (g['optNote' + side]?.fit || 0) + (g['vorpNote' + side]?.fit || 0) + (dep.fit || 0);
     const timelineFit = (tl?.fit || 0) + (arch?.archFit || 0);
     const valuePct = side === 'A' ? -g.signedPctDiff : g.signedPctDiff; // signedPctDiff > 0: A gave more
-    const ptsPerWeek = (g['dOpt' + side] || 0) + (dep.perWeek || 0);
+    const outOfRace = !!g['outOfRace' + side];
+    const ptsPerWeek = outOfRace ? 0 : (g['dOpt' + side] || 0) + (dep.perWeek || 0);
     const tilt = side === 'A' ? Vault.verdictValueTilt(g.toA, g.toB) : Vault.verdictValueTilt(g.toB, g.toA);
-    return Vault.tradeImprovement({ valuePct, rosterFit, timelineFit, mode: tl?.mode || 'flexible', ptsPerWeek, valueTilt: tilt.pct });
+    return { ...Vault.tradeImprovement({ valuePct, rosterFit, timelineFit, mode: tl?.mode || 'flexible', ptsPerWeek, valueTilt: tilt.pct }), outOfRace };
+  },
+  /* Playoff odds as of a week of this season (2026-10-23, for Trade Grades' out-of-race
+     read): standings through the week before it, from the Season Report's weekly results
+     (Vault.seasonReport), then the rest of the regular season played out, the weeks
+     already played with their real matchups and then the schedule still to come. Each
+     team plays at today's roster strength (who it had then isn't kept). Map of rosterId
+     -> { playoffPct, … }, or null without this season's report. */
+  oddsAsOfWeek(report, teams, league, remainingWeeks, week) {
+    if (!report || report.error || report.empty || report.fromPrevious || !report.teams) return null;
+    const byId = new Map(report.teams.map(rt => [rt.rosterId, rt]));
+    const recordOf = rt => {
+      const r = { wins: 0, losses: 0, ties: 0, fpts: 0 };
+      (rt?.weeks || []).filter(x => x.week < week).forEach(x => {
+        [x.result, x.medResult].forEach(res => { if (res === 'W') r.wins++; else if (res === 'L') r.losses++; else if (res === 'T') r.ties++; });
+        r.fpts += x.pts || 0;
+      });
+      return r;
+    };
+    const asOf = teams.map(t => ({ ...t, record: recordOf(byId.get(t.rosterId)) }));
+    const played = [...new Set(report.teams.flatMap(rt => rt.weeks.map(x => x.week)))].filter(w => w >= week).sort((a, b) => a - b).map(w => {
+      const seen = new Set(), pairs = [];
+      report.teams.forEach(rt => { const x = rt.weeks.find(y => y.week === w); if (x && x.opp != null && !seen.has(rt.rosterId)) { pairs.push([rt.rosterId, x.opp]); seen.add(rt.rosterId); seen.add(x.opp); } });
+      return { week: w, pairs };
+    });
+    const later = (remainingWeeks || []).filter(w => w.week >= week && !played.some(p => p.week === w.week)).map(w => ({ week: w.week, pairs: w.pairs }));
+    const weeks = [...played, ...later];
+    return weeks.length ? Vault.simulateSeason(asOf, league, weeks, { trials: 2000, seed: 20260929 }) : null;
+  },
+  // Marks each of this season's trades with outOfRaceA / outOfRaceB: under
+  // OUT_OF_RACE_PCT playoff odds the week it happened (Vault.oddsAsOfWeek), once
+  // games had been played. Returns how many trades it changed.
+  markOutOfRace(graded, report, ctx) {
+    if (!report || report.error || report.empty || report.fromPrevious) return 0;
+    const memo = new Map(), cut = VAULT_CONFIG.OUT_OF_RACE_PCT;
+    let n = 0;
+    graded.forEach(g => {
+      const wk = +g.tx?.leg;
+      if (String(g.tx?.season) !== String(report.season) || !(wk >= 2)) return;
+      if (!memo.has(wk)) memo.set(wk, Vault.oddsAsOfWeek(report, ctx.teams, ctx.league, ctx.remainingWeeks, wk));
+      const odds = memo.get(wk);
+      if (!odds) return;
+      ['A', 'B'].forEach(side => {
+        const o = odds.get(g['team' + side].rosterId);
+        g['oddsThen' + side] = o ? o.playoffPct : null;
+        const out = !!o && o.playoffPct < cut;
+        if (out !== !!g['outOfRace' + side]) n++;
+        g['outOfRace' + side] = out;
+      });
+    });
+    return n;
   },
   // The price alone, in words: Fair / Lopsided / Unfair. (fairnessBucket's Good
   // and Great add fit to a Fair price; on the page those words belong to the

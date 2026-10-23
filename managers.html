@@ -9,7 +9,7 @@
 <title>Managers — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=ec314225">
+<link rel="stylesheet" href="tailwind.css?v=1aad7bb2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -22,24 +22,17 @@
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
   </div>
   <p class="text-[13px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
-    How every manager trades, built from their completed trades on Trade Grades.
-    Ranked by <span class="text-zinc-200">Net Then</span>: the price each manager got on the day,
-    every piece at its KTC value that day, combined the way real trades combine them (trade value).
-    That's the part that's skill: in 2.6 million real trades, managers who got good prices kept getting them,
-    in their other trades and the next season.
-    <span class="text-zinc-200">Net Now</span> is the same trades at today's values. How players moved afterward
-    is mostly luck: it didn't carry over from one season to the next.
-    <span class="text-zinc-200">Fit</span> is how well what they got suited their roster and timeline.
+    How every manager in your league trades, from their completed trades. Ranked by <span class="text-zinc-200">Net Then</span>, the value they came out ahead or behind at each trade's own prices: that part is skill, while how players moved afterward (<span class="text-zinc-200">Net Now</span>) is mostly luck. Tap a manager for more.
+    <a href="how_we_grade.html#grades" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How grading works</a>
   </p>
 
   <div id="summary" class="hidden mb-8"></div>
   <!-- Who pays up: what each manager has paid over (or under) KTC value, by the position of what they got. -->
   <div id="paysUp" class="hidden mb-8"></div>
-  <div id="grid" class="grid md:grid-cols-2 gap-5"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=481628e6"></script>
+<script src="vault-core.js?v=0ad7a7e3"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script src="market-data.js?v=07632230"></script>
 <script>
@@ -57,53 +50,22 @@ function bestWorstLine(rec, label, tone) {
   <div class="flex items-center justify-end gap-1.5 -mt-0.5 mb-1 text-[11px] text-zinc-500">graded ${Vault.gradePill(rec.gradeThen)}${Vault.priceWord(rec.gradeNow) !== Vault.priceWord(rec.gradeThen) ? ` → ${Vault.gradePill(rec.gradeNow)} now` : ' then and now'}</div>`;
 }
 
-// Net value can land either side of zero — a diverging bar centered on a zero
-// tick (fills right in emerald for a gain, left in rose for a loss) instead of a
-// plain 0-to-max magnitude bar, which would wrongly read "longer = better"
-// regardless of sign. Same treatment as the League at a glance table,
-// since both render the exact same Vault.buildManagerStats numbers.
-function divergingBar(val, maxAbs) {
-  if (!maxAbs) return '';
-  const pct = Math.min(100, Math.abs(val) / maxAbs * 100) / 2;
-  // Yellow right at the zero tick, deepening into green or red as the magnitude
-  // grows — a true diverging read (barely-off-zero looks neutral, not already
-  // fully red/green) instead of a flat color the instant a number ticks off zero.
-  const gradient = val > 0 ? 'linear-gradient(to right, #fbbf24, #34d399)' : val < 0 ? 'linear-gradient(to left, #fbbf24, #fb7185)' : 'transparent';
-  return `<div class="mt-1.5 h-[4px] w-full max-w-[120px] ml-auto relative rounded-full bg-white/[0.06] overflow-hidden">
-    <div class="absolute inset-y-0 left-1/2 w-px bg-white/20"></div>
-    <div class="absolute inset-y-0 rounded-full" style="background:${gradient}; width:${pct}%; ${val >= 0 ? `left:50%` : `right:50%`}"></div>
-  </div>`;
-}
-
 // That manager's trades on Trade Grades.
 function tradesLink(rosterId) { const u = Vault.linkTo('trade_grades.html'); return u + (u.includes('?') ? '&' : '?') + 'team=' + rosterId; }
 
-function renderCard(s, rank, maxAbsNet) {
+function renderCard(s) {
   const notes = Vault.managerTendencyNotes(s, window._avgTrades || 0).slice(0, 4);
   const p = Vault.managerProfile(s, window._avgTrades || 0);
-  const net = v => v > 0 ? 'text-emerald-400' : v < 0 ? 'text-rose-400' : 'text-zinc-400';
   return `
-    <div class="card rounded-vault-sm p-5">
-      <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
-        <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider">${rank ? `Rank #${rank}` : 'No trades yet'}</div>
-          <h2 class="text-[16px] sm:text-[18px] font-semibold text-zinc-100 break-words">${s.trades ? `<a href="${tradesLink(s.rosterId)}" title="See only this manager's trades" class="hover:text-white hover:underline underline-offset-4">${Vault.escapeHtml(s.teamName)}</a>` : Vault.escapeHtml(s.teamName)}</h2>
-          <div class="flex items-center gap-2 mt-1 flex-wrap">
-            <span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span>
-            ${s.record ? `<span class="text-[12px] mono text-zinc-400">${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''} season</span>` : ''}
-          </div>
-        </div>
-        ${s.trades ? `<div class="text-right">
-          <div class="text-[18px] mono font-semibold ${net(s.netValue)}">${fmtSigned(s.netValue)}</div>
-          <div class="text-[12px] text-zinc-400">Net Then, the price on the day</div>
-          ${divergingBar(s.netValue, maxAbsNet)}
-          <div class="text-[12px] text-zinc-400 mt-1.5"><span class="mono ${net(s.netValueToday)}">${fmtSigned(s.netValueToday)}</span> now · <span class="mono ${net(s.aged)}">${fmtSigned(s.aged)}</span> since</div>
-        </div>` : ''}
+    <div class="rounded-xl bg-black/25 border border-white/5 p-4 my-1">
+      <div class="flex items-start justify-between gap-3 mb-3 flex-wrap">
+        <p class="text-[13px] text-zinc-200 leading-relaxed max-w-[640px]">${p.blurb}</p>
+        ${s.trades ? `<a href="${tradesLink(s.rosterId)}" class="shrink-0 text-[12px] text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">See their trades on Trade Grades</a>` : ''}
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-1 text-center py-3 border-y border-white/5 mb-4">
         <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[12px] text-zinc-400">Trades</div></div>
-        <div title="Trades ahead vs. behind on value: at today's prices, and (below) on the day"><div class="text-[14px] mono">${s.wonNow}-${s.lostNow} <span class="text-[12px] text-zinc-500">now</span></div><div class="text-[12px] text-zinc-400">${s.won}-${s.lost} then</div></div>
+        <div title="Trades they came out ahead in: at today's prices, and (below) at each trade's own"><div class="text-[14px] mono">${s.wonNow} of ${s.trades} <span class="text-[12px] text-zinc-500">won now</span></div><div class="text-[12px] text-zinc-400">${s.won} of ${s.trades} then</div></div>
         <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.avgFit, 1)}</div><div class="text-[12px] text-zinc-400">Avg Fit</div></div>
         <div title="How many of this manager's trades graded Fair, Lopsided, and Unfair: at today's prices, and (below) on the day"><div class="text-[14px] mono"><span class="text-emerald-400">${s.fairNow}</span> · <span class="text-orange-400">${s.lopsidedNow}</span> · <span class="text-rose-400">${s.unfairNow}</span> <span class="text-[12px] text-zinc-500">now</span></div><div class="text-[12px] text-zinc-400"><span class="text-emerald-400">${s.fair}</span> · <span class="text-orange-400">${s.lopsided}</span> · <span class="text-rose-400">${s.unfair}</span> then</div><div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">Fair · Lop · Unfair</div></div>
       </div>
@@ -121,20 +83,16 @@ function renderCard(s, rank, maxAbsNet) {
 
 function render(stats, teams) {
   window._avgTrades = stats.length ? stats.reduce((s, x) => s + x.trades, 0) / stats.length : 0;
-  const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');
   if (!stats.length) {
-    grid.innerHTML = '';
     empty.classList.remove('hidden');
     empty.textContent = 'No completed trades found for this league yet.';
     return;
   }
   empty.classList.add('hidden');
-  const maxAbsNet = Math.max(...stats.map(s => Math.abs(s.netValue)), 1);
   // Only managers who've actually traded get ranked — a +0 from zero trades
   // isn't "better" than a manager who traded and came out slightly behind.
   const traders = stats.filter(s => s.trades > 0), idle = stats.filter(s => !s.trades);
-  grid.innerHTML = [...traders.map((s, i) => renderCard(s, i + 1, maxAbsNet)), ...idle.map(s => renderCard(s, null, maxAbsNet))].join('');
   renderSummaryTable([...traders, ...idle], teams);
 }
 
@@ -158,6 +116,12 @@ function sortGlance(key) {
   glanceSort = glanceSort.key === key ? { key, dir: -glanceSort.dir } : { key, dir: key === 'teamName' ? 1 : -1 };
   renderSummaryTable(glanceData.rows, glanceData.teams);
 }
+// Managers whose details are open under their row.
+const openManagers = new Set();
+function toggleManager(id) {
+  if (openManagers.has(id)) openManagers.delete(id); else openManagers.add(id);
+  renderSummaryTable(glanceData.rows, glanceData.teams);
+}
 function renderSummaryTable(rows, teams) {
   glanceData = { rows, teams };
   const box = document.getElementById('summary');
@@ -175,18 +139,17 @@ function renderSummaryTable(rows, teams) {
   const mine = Vault.myTeam(teams || []);
   box.classList.remove('hidden');
   box.innerHTML = `
-    <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">League at a glance</div>
+    <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Every manager</div>
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full text-[13px] min-w-[1040px]">
+        <table class="w-full text-[13px] min-w-[720px]">
           <thead class="bg-black/40 border-b border-white/5">
             <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
               ${th('Manager', 'teamName', 'text-left', '', 'px-4')}
               <th class="text-left px-3 py-2.5">Trading style</th>
-              <th class="text-left px-3 py-2.5">Description</th>
               ${th('Trades', 'trades', 'text-right')}
-              ${th('W-L Then', 'wlThen', 'text-right', "Trades ahead vs. behind on trade value at the prices on each trade's date")}
-              ${th('W-L Now', 'wlNow', 'text-right', "Trades ahead vs. behind on trade value at today's prices")}
+              ${th('Won then', 'wlThen', 'text-right', "Trades they came out ahead in, at the prices on each trade's date")}
+              ${th('Won now', 'wlNow', 'text-right', "The same, at today's prices")}
               ${th('Net Then', 'netValue', 'text-right', "Net trade value across every trade at the KTC values on each trade's date")}
               ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's KTC values")}
               ${th('Fit', 'avgFit', 'text-right', 'Timeline and positional-need fit, averaged per trade: how well the pieces they got suited their roster. 1.5 or more reads as usually fitting.', 'px-4')}
@@ -196,20 +159,20 @@ function renderSummaryTable(rows, teams) {
             ${sorted.map(s => {
               const p = Vault.managerProfile(s, window._avgTrades || 0);
               const user = nameOf.get(s.rosterId);
-              return `<tr class="align-top">
+              const open = openManagers.has(s.rosterId);
+              return `<tr class="align-top cursor-pointer hover:bg-white/[0.02]" onclick="toggleManager(${s.rosterId})" aria-expanded="${open}" data-kbd>
                 <td class="px-4 py-3 min-w-[170px]">
-                  <div class="font-medium text-zinc-100">${s.trades ? `<a href="${tradesLink(s.rosterId)}" title="See only this manager's trades" class="hover:text-white hover:underline underline-offset-4">${Vault.escapeHtml(s.teamName)}</a>` : Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
+                  <div class="font-medium text-zinc-100"><span class="inline-block w-3 text-zinc-500">${open ? '▾' : '▸'}</span>${Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
                   <div class="text-[12px] text-zinc-400">${[user ? '@' + Vault.escapeHtml(user) : '', s.record ? `${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''}` : ''].filter(Boolean).join(' • ')}</div>
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap"><span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
-                <td class="px-3 py-3 text-zinc-300 leading-relaxed min-w-[320px]">${p.blurb}</td>
                 <td class="px-3 py-3 text-right mono text-zinc-400">${s.trades}</td>
-                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.won}-${s.lost}` : '—'}</td>
-                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.wonNow}-${s.lostNow}` : '—'}</td>
+                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.won} of ${s.trades}` : '—'}</td>
+                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.wonNow} of ${s.trades}` : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValue) : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValueToday) : '—'}</td>
                 <td class="px-4 py-3 text-right mono ${s.avgFit > 0.5 ? 'text-emerald-400' : s.avgFit < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.trades ? (s.avgFit >= 0 ? '+' : '−') + Math.abs(s.avgFit).toFixed(1) : '—'}</td>
-              </tr>`;
+              </tr>${open ? `<tr><td colspan="8" class="px-3 pb-3">${renderCard(s)}</td></tr>` : ''}`;
             }).join('')}
           </tbody>
         </table>

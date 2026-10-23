@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=ec314225">
+<link rel="stylesheet" href="tailwind.css?v=1aad7bb2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=481628e6"></script>
+<script src="vault-core.js?v=0ad7a7e3"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -41,6 +41,10 @@ const NOTES = [
   { date: '2026-10-23', items: [
     { kind: 'improved', page: 'Teams', text: "Teams is split into tabs: Overview, Roster, This season and Contend or rebuild?, one at a time instead of one long page. The team's name, record, playoff odds and value tiles stay on top. Overview answers how the team is doing in two lines (this season's verdict and the suggested path, each linking to its tab), then its weak spots and best trade partners. The five-year contention window now sits inside Contend or rebuild?, next to the four paths, instead of in a separate card." },
     { kind: 'improved', page: 'Teams', text: "Trade partners now name names: which of their players would start for the team and how many points a week each adds, and what they'd want back (its best picks if they're building for later, or bench players who'd start for them). Each partner shows its record and playoff odds. The Trade Calculator's partner suggestions use the same, more specific reasons." },
+    { kind: 'fixed', page: 'Trade Grades', text: "A team out of the playoff race when it traded (under 5% playoff odds that week) no longer gets credit or blame for this season's points in its verdict, the same rule the Trade Calculator uses. The odds come from the real standings up to the week of the trade, with the rest of the season played out from there, and the card says when it applies. In The League of Gold, Bye Week was 0-8 when it traded with Skat Happens Chase Love on Oct 8." },
+    { kind: 'new', page: 'Trade Grades', text: "A Team picker: show every trade, your trades, or any one team's, with how many each has. It remembers your choice, and the Managers page opens it on that manager." },
+    { kind: 'improved', page: 'Trade Grades', text: "Shorter trade cards: the verdicts, what each team got, and one line for the price (\"paid 2% under then (Fair) · 1% under today (Fair)\"). This season's odds and the full breakdown are folded under More, so the list takes about half the scrolling." },
+    { kind: 'improved', page: 'Managers', text: "One table instead of a table and a card per manager: tap a manager to open their details (their trading style in a sentence, trades, fit, best and worst moves) right under their row. The intro is two lines, the Description column moved into those details, and W-L now reads Won then and Won now (\"5 of 8\"), so it isn't mistaken for a season record." },
     { kind: 'changed', page: 'Teams', text: "Weak spots read in plain words (\"41% of RB value is in players 27 or older\", \"Few picks: 8th of 10\") instead of labels like RB Age Cliff and Pick Poor. Roster names are no longer cut off: the roster shows three columns on laptop screens and six on wide ones." }
   ] },
   { date: '2026-10-21', items: [
