@@ -758,11 +758,13 @@ async function coachDowntier(me, progress) {
         packs.push([...tm, L, f]);
         fillers.slice(i + 1).forEach(g => packs.push([...tm, L, f, g]));
       });
-      let best = null;
-      packs.filter(p => sumValue(p) > sent && sumValue(p) <= sent * 2 && coachGroupsOK(give, p)).forEach(p => {
+      // The package closest to Fair that passes the list's checks (2026-10-23:
+      // picking the closest first and checking after dropped the lead entirely).
+      const judged = packs.filter(p => sumValue(p) > sent && sumValue(p) <= sent * 2 && coachGroupsOK(give, p)).map(p => {
         const j = negJudgeFor(me, give, t, p, ctx);
-        if (coachMarketOK(give, p) && j.edge < VAULT_CONFIG.LOPSIDED_PCT && (!best || coachKey({ edge: j.edge, an: j.an }) < coachKey(best))) best = { partner: t, give, get: p, edge: j.edge, score: coachScore(j), lead: L };
-      });
+        return coachMarketOK(give, p) && j.edge < VAULT_CONFIG.LOPSIDED_PCT ? { partner: t, give, get: p, edge: j.edge, an: j.an, score: coachScore(j), lead: L } : null;
+      }).filter(Boolean).sort((x, y) => coachKey(x) - coachKey(y));
+      const best = judged.find(o => coachListOK(o, 'downtier'));
       if (best) found.push(best);
     });
   }
@@ -776,9 +778,13 @@ async function coachDowntier(me, progress) {
   const fair = varied.filter(o => Math.abs(o.edge) < VAULT_CONFIG.FAIR_PCT);
   const list = (fair.length >= 3 ? fair : fair.concat(varied.filter(o => Math.abs(o.edge) >= VAULT_CONFIG.FAIR_PCT).slice(0, 3))).slice(0, COACH.TARGET_SHOW)
     .map(o => {
-      const n = x => Math.round(x).toLocaleString(), rest = o.get.filter(a => a !== o.lead);
+      const n = x => Math.round(x).toLocaleString(), rest = o.get.filter(a => a !== o.lead), ktc = coachKtcPct(o.give, o.get);
+      // Down-tier skips the KTC-fair check (coachListOK): KTC's calculator adds a big
+      // bonus for the single best piece, so a 1-for-2 or 1-for-3 reads as the other
+      // team overpaying 15-50% (user, 2026-10-23: "Allow it, labeled"). Say so.
+      const ktcNote = ktc >= VAULT_CONFIG.FAIR_PCT ? ` On KTC's calculator ${Vault.escapeHtml(o.partner.teamName)} would be paying ${Math.round(ktc)}% more, so expect pushback if they check it there.` : '';
       return { ...o, id: negKeys(o.give).join() + '>' + negKeys(o.get).join(),
-        why: `Down from ${Vault.escapeHtml(v.name)} (${n(v.value)}) to ${Vault.escapeHtml(o.lead.name)} (${n(o.lead.value)}), plus ${negNames(rest)}: +${n(sumValue(o.get) - sent)} KTC value in total.` };
+        why: `Down from ${Vault.escapeHtml(v.name)} (${n(v.value)}) to ${Vault.escapeHtml(o.lead.name)} (${n(o.lead.value)}), plus ${negNames(rest)}: +${n(sumValue(o.get) - sent)} KTC value in total.${ktcNote}` };
     });
   if (!list.length) return { empty: `No team would give a lesser ${Coach.downSame ? v.pos + ' ' : ''}player plus more for ${Vault.escapeHtml(v.name)} right now.` };
   return { title: `Down-tier ${Vault.escapeHtml(v.name)}`, list };
@@ -796,7 +802,7 @@ const COACH_RUN = { downtier: coachDowntier, team: coachTeam, best: coachBest, s
 function coachListOK(o, option) {
   const theirMin = option === 'position' || option === 'contend' ? COACH_UPGRADE_THEIR_MIN : COACH_THEIR_MIN;
   return (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= theirMin
-    && (COACH_PRICE_PLAYS.has(option) || coachKtcFair(o.give, o.get, option)) && (COACH_CORNERSTONE_OK.has(option) || !coachAsksCornerstone(o.partner, o.get)) && !coachSameSpotSwap(o);
+    && (COACH_PRICE_PLAYS.has(option) || option === 'downtier' || coachKtcFair(o.give, o.get, option)) && (COACH_CORNERSTONE_OK.has(option) || !coachAsksCornerstone(o.partner, o.get)) && !coachSameSpotSwap(o);
 }
 
 async function coachFind() {
