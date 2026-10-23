@@ -9,7 +9,7 @@
 <title>Team Analyzer — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=7dc6ede6">
+<link rel="stylesheet" href="tailwind.css?v=ec314225">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -23,21 +23,25 @@
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Team Analyzer</h1>
       <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
-      <p class="text-[13px] text-zinc-400 mt-2 max-w-[620px]">One team in depth: where it ranks, its weak spots, the teams it lines up best with for trades, how many years it can contend, how this season is really going (luck, injuries, lineup calls), its best lineup and its whole roster. Pick any team on the right.</p>
+      <p class="text-[13px] text-zinc-400 mt-2 max-w-[620px]">One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team on the right.</p>
     </div>
     <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
   </div>
 
-  <section id="singleCard" class="mb-10"></section>
-  <section id="seasonCard" class="card rounded-vault p-6 mb-10"></section>
-  <section id="timelineCard" class="card rounded-vault p-6 mb-10"></section>
+  <!-- The team's header stays above the tabs; one section at a time below (2026-10-23). -->
+  <section id="singleCard" class="mb-4"></section>
+  <div id="teamTabs" role="tablist" aria-label="Team sections" class="flex flex-wrap gap-1.5 mb-4 scroll-mt-4"></div>
+  <section data-tab="overview" role="tabpanel" id="overviewCard" class="mb-10"></section>
+  <section data-tab="roster" role="tabpanel" id="rosterCard" class="hidden card rounded-vault p-6 mb-10"></section>
+  <section data-tab="season" role="tabpanel" id="seasonCard" class="hidden card rounded-vault p-6 mb-10"></section>
+  <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=d30ce494"></script>
+<script src="vault-core.js?v=481628e6"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script src="season-report.js?v=837c7cb0"></script>
 <script src="market-data.js?v=07632230"></script>
-<script src="timeline.js?v=0a2e0bbe"></script>
+<script src="timeline.js?v=e398b38a"></script>
 <script>
 const $ = s => document.querySelector(s);
 
@@ -53,6 +57,37 @@ function renderSeason(rosterId) {
     myId: (Vault.myTeam(window._allTeams || []) || {}).rosterId,
     onPickTeam: id => { const sel = $('#teamSelect'); sel.value = String(id); sel.onchange(); $('#singleCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
+  renderGlance();
+}
+
+/* ---------- Tabs ----------
+   Overview, Roster, This season, Contend or rebuild: one at a time, in the address
+   (#roster…) so a link opens on it, and remembered in this browser. */
+const TEAM_TABS = [['overview', 'Overview'], ['roster', 'Roster'], ['season', 'This season'], ['future', 'Contend or rebuild?']];
+function showTab(key) {
+  if (!TEAM_TABS.some(([k]) => k === key)) key = 'overview';
+  document.querySelectorAll('[data-tab]').forEach(el => el.classList.toggle('hidden', el.dataset.tab !== key));
+  $('#teamTabs').innerHTML = TEAM_TABS.map(([k, label]) => `<button role="tab" aria-selected="${k === key}" onclick="showTab('${k}')" class="whitespace-nowrap text-[13px] px-3 sm:px-3.5 py-2 rounded-lg border transition-colors ${k === key ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`).join('');
+  try { localStorage.setItem('vault_team_tab', key); } catch {}
+  const u = new URL(location.href); u.hash = key === 'overview' ? '' : key; history.replaceState(null, '', u);
+}
+window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
+const pctText = v => (v > 0 && v < 1 ? '<1' : v > 99 && v < 100 ? '>99' : Math.round(v)) + '%';
+
+// Overview's first card: one line from This season and one from Contend or rebuild?,
+// each filled in when its section has the numbers.
+let shownTeam = null, suggestion = null;
+function renderGlance() {
+  const box = $('#glance');
+  if (!box || !shownTeam) return;
+  const st = season && !season.error && !season.empty && season.teams ? season.teams.find(x => x.rosterId === shownTeam.rosterId) : null;
+  const row = (label, body, tab, link) => `<div class="grid sm:grid-cols-[130px_minmax(0,1fr)_auto] gap-x-4 gap-y-1 py-3 border-t border-white/5 first:border-t-0 items-baseline">
+      <div class="text-[11px] uppercase tracking-widest text-zinc-400">${label}</div>
+      <div class="text-[14px] text-zinc-200 leading-relaxed">${body}</div>
+      <button onclick="showTab('${tab}')" class="text-left sm:text-right text-[12px] text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">${link}</button>
+    </div>`;
+  box.innerHTML = row('This season', st ? Vault.escapeHtml(st.verdict) : season ? '<span class="text-zinc-400">No games played yet.</span>' : '<span class="text-zinc-400">Loading this season…</span>', 'season', 'Luck, injuries, lineup calls')
+    + row('Which way', suggestion ? `<span class="font-semibold text-amber-200">${suggestion.label}</span> <span class="text-zinc-400">is suggested.</span> ${Vault.escapeHtml(suggestion.why)}` : '<span class="text-zinc-400">Working out the four paths…</span>', 'future', 'All four paths');
 }
 
 async function loadLeague(id) {
@@ -62,7 +97,7 @@ async function loadLeague(id) {
     .then(() => { renderSeason(+$('#teamSelect').value || null); Timeline.setSeason(season); });
   try {
     const { isSF, league, slots, remainingWeeks, teams: built } = await Vault.buildLeagueTeams(id);
-    window._allTeams = built;
+    window._allTeams = built; window._slots = slots;
     // Contend or rebuild? (timeline.js): the four paths, under This season.
     Timeline.init({ league, slots, teams: built, remainingWeeks });
 
@@ -117,9 +152,12 @@ function statTile(label, val, display, all, key, rosterId, higherIsBetter, title
 
 function renderSingle(t) {
   if (!t) return;
+  shownTeam = t; suggestion = null;
   if (season) renderSeason(t.rosterId);
-  Timeline.render($('#timelineCard'), t);
   const all = window._allTeams || [];
+  Timeline.render($('#timelineCard'), t, { extraHtml: windowChart(t, all) });
+  // The suggested path for the Overview line, after the page has painted (a few season simulations).
+  setTimeout(() => { if (shownTeam !== t) return; suggestion = Timeline.suggestFor(t); renderGlance(); }, 0);
   const leagueAvg = {
     qb: all.reduce((s, x) => s + x.qb, 0) / all.length,
     rb: all.reduce((s, x) => s + x.rb, 0) / all.length,
@@ -131,7 +169,6 @@ function renderSingle(t) {
   const flaws = Vault.fatalFlaws(t, leagueAvg, all);
   const partners = getTradePartners(t, all);
   const isMine = Vault.myTeam(all) === t; // your own team: each partner links to Trade Coach's trades with them
-  const win = Vault.contentionWindow(t, all);
 
   const statTiles = [
     statTile('Overall', t.overall, Math.round(t.overall).toLocaleString(), all, 'overall', t.rosterId, true),
@@ -146,53 +183,83 @@ function renderSingle(t) {
     <div class="flex items-start justify-between gap-4">
       <div>
         <h2 class="display text-[24px] gold-text">${Vault.escapeHtml(t.teamName)}</h2>
-        <p class="text-[12px] text-zinc-400">${[t.username ? '@' + Vault.escapeHtml(t.username) : '', `Rank #${t.rank}`, `Peak: ${win.peakYear}`].filter(Boolean).join(' • ')}</p>
+        <p class="text-[12px] text-zinc-400">${[t.username ? '@' + Vault.escapeHtml(t.username) : '', `#${t.rank} of ${all.length} in value`, t.record ? `${t.record.wins}-${t.record.losses}${t.record.ties ? '-' + t.record.ties : ''}` : '', Number.isFinite(t.playoffPct) ? `${pctText(t.playoffPct)} playoff odds` : ''].filter(Boolean).join(' · ')}</p>
       </div>
-      <div class="text-right">
-        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
-        <div class="text-[12px] text-zinc-400 mt-1">${Vault.PICK_TIER_LABEL[t.pickTier]} • ${t.windowYears}yr window</div>
-      </div>
+      <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="shrink-0 px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
     </div>
     <div class="grid md:grid-cols-6 gap-4 mt-6">
       ${statTiles}
     </div>
+  </div>`;
 
-    <div class="grid lg:grid-cols-3 gap-4 mt-6">
-      <div class="bg-black/40 rounded-2xl p-4 border border-orange-500/20">
-        <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Flaws</div>
-        <div class="space-y-1.5 text-[12px]">${flaws.length ? flaws.map(f => `<div class="flex gap-2"><span class="text-orange-400">•</span><span>${f}</span></div>`).join('') : '<div class="text-zinc-400">Nothing notable</div>'}</div>
+  // Overview: the glance, flaws and trade partners.
+  const partnerSub = p => [p.record ? `${p.record.wins}-${p.record.losses}${p.record.ties ? '-' + p.record.ties : ''}` : '', Number.isFinite(p.playoffPct) ? `${pctText(p.playoffPct)} playoff odds` : '', p.arch].filter(Boolean).join(' · ');
+  $('#overviewCard').innerHTML = `
+    <div class="card rounded-vault p-5 mb-4"><div id="glance"></div></div>
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="card rounded-vault p-5">
+        <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Weak spots</div>
+        <div class="space-y-1.5 text-[13px] text-zinc-200">${flaws.length ? flaws.map(f => `<div class="flex gap-2"><span class="text-orange-400">•</span><span>${f}</span></div>`).join('') : '<div class="text-zinc-400">Nothing notable</div>'}</div>
       </div>
-      <div class="bg-black/40 rounded-2xl p-4 border border-emerald-500/20">
-        <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Best Trade Partners</div>
-        <div class="space-y-3">${partners.map(p => `
+      <div class="card rounded-vault p-5">
+        <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Best trade partners</div>
+        <div class="space-y-4">${partners.map(p => `
           <div>
-            <div class="flex justify-between items-center">
-              <div><div class="text-[13px]">${Vault.escapeHtml(p.teamName)}</div><div class="text-[12px] text-zinc-400">${p.arch}</div></div>
-              <div class="text-[12px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0" title="How well your rosters and timelines complement each other">${p.fit >= 6 ? 'Strong fit' : p.fit >= 3 ? 'Good fit' : p.fit >= 1 ? 'Some fit' : 'Weak fit'}</div>
+            <div class="flex justify-between items-start gap-3">
+              <div class="min-w-0"><div class="text-[14px] text-zinc-100">${Vault.escapeHtml(p.teamName)}</div><div class="text-[12px] text-zinc-400">${Vault.escapeHtml(partnerSub(p))}</div></div>
+              <div class="text-[12px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0" title="How well the two rosters and timelines complement each other">${p.fit >= 6 ? 'Strong fit' : p.fit >= 3 ? 'Good fit' : p.fit >= 1 ? 'Some fit' : 'Weak fit'}</div>
             </div>
-            <div class="mt-1.5 space-y-0.5">${p.reasons.map(r => `<div class="flex gap-1.5 text-[12px] text-zinc-400"><span class="text-emerald-400/80">•</span><span>${r}</span></div>`).join('')}</div>
+            <div class="mt-1.5 space-y-0.5">${[...partnerLines(t, p), ...p.reasons].slice(0, 3).map(r => `<div class="flex gap-1.5 text-[13px] text-zinc-300"><span class="text-emerald-400/80">•</span><span>${Vault.escapeHtml(r)}</span></div>`).join('')}</div>
             ${isMine ? `<a href="${Vault.linkTo('trade.html')}&coach=team&with=${p.rosterId}" class="inline-block mt-1.5 text-[12px] text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20">Find trades with them</a>` : ''}
           </div>`).join('')}</div>
       </div>
-      <div class="bg-black/40 rounded-2xl p-4 border border-white/10">
-        <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Contention Window (5yr)</div>
-        <div class="flex items-end gap-1.5 h-[70px]">${win.proj.map((v, i) => `<div class="flex-1 h-full flex flex-col justify-end items-center"><div class="w-full bg-gradient-to-t from-emerald-500/30 to-emerald-400/80 rounded-t" style="height:${Math.max(8, v / win.peak * 100)}%" title="${win.startYear + i}: ${v.toLocaleString()} value, ${win.projPPG[i].toFixed(1)} PPG"></div></div>`).join('')}</div>
-        <div class="flex justify-between text-[12px] mt-1 text-zinc-400">${win.proj.map((v, i) => `<span>${win.startYear + i}</span>`).join('')}</div>
-        <div class="mt-2 h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex">${win.proj.map((v, i) => `<div class="h-full ${win.inWindow[i] ? 'bg-emerald-400' : 'bg-zinc-700'}" style="width:${100 / win.proj.length}%"></div>`).join('')}</div>
-        <div class="text-center text-[12px] mt-1.5 text-emerald-300">${win.hasWindow ? t.windowYears + ' of ' + win.years + ' years in window' : 'No window'} • Peak ${Math.round(win.peak).toLocaleString()} in ${win.peakYear}</div>
-        ${win.seasonOdds != null ? `<div class="text-center text-[12px] mt-0.5 text-zinc-400">${win.startYear}: ${win.seasonOdds.toFixed(0)}% playoff odds${t.record ? ` at ${t.record.wins}-${t.record.losses}${t.record.ties ? '-' + t.record.ties : ''}` : ''}</div>` : ''}
-        <div class="mt-3 pt-2 border-t border-zinc-800 text-[12px] text-zinc-400 space-y-1">
-          <div class="flex items-center gap-1.5"><span class="w-3 h-1.5 bg-emerald-400 rounded"></span> In window (${win.seasonOdds != null ? `${win.startYear}: playoff odds ≥ 50%; later years: ` : ''}value ≥88% peak + PPG ≥ playoff line)</div>
-          <div class="flex items-center gap-1.5"><span class="w-3 h-1.5 bg-zinc-700 rounded"></span> Outside window</div>
-          <div>Playoff line: ${win.playoffLine.toFixed(1)} PPG (top ${win.playoffSpots})</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="mt-8">${Vault.teamRosterPanel(t, all)}</div>
-  </div>`;
+    </div>`;
+  renderGlance();
+  $('#rosterCard').innerHTML = Vault.teamRosterPanel(t, all);
 }
 
+// What a trade with this partner could look like, in names (2026-10-23, user: "what they
+// have that you need, what you have that they'd want"): their players who'd start for
+// this team, by points a week added to its best lineup; and what they'd want back:
+// picks if they're building for later, else this team's bench players who'd start for them.
+const ORD = r => r + ({ 1: 'st', 2: 'nd', 3: 'rd' }[r] || 'th');
+function partnerLines(t, p) {
+  const slots = window._slots, lines = [];
+  if (!slots) return lines;
+  const gain = (team, x) => Vault.seasonLineupDetail([...team.plist, x], slots).total - team.opt;
+  const best = (from, to) => from.plist.filter(x => x.value > 0 && x.ppg > 0).sort((a, b) => b.ppg - a.ppg).slice(0, 25)
+    .map(x => ({ x, g: gain(to, x) })).filter(c => c.g >= 1).sort((a, b) => b.g - a.g).slice(0, 2);
+  const pts = c => `${c.x.name} (+${c.g.toFixed(1)} pts a week)`;
+  const theirs = best(p, t);
+  if (theirs.length) lines.push(`Would start for ${t.teamName}: ${theirs.map(pts).join(', ')}`);
+  if (Vault.teamMode(p) === 'rebuild') {
+    const picks = [...(t.picks || [])].filter(k => k.value > 0).sort((a, b) => b.value - a.value).slice(0, 2);
+    if (picks.length) lines.push(`Picks ${p.teamName} would want: ${t.teamName}'s ${picks.map(k => `${k.season} ${ORD(k.round)}`).join(' and ')}`);
+  } else {
+    const starting = new Set((t.lineup || []).map(x => x.id));
+    const mine = best({ ...t, plist: t.plist.filter(x => !starting.has(x.id)) }, p);
+    if (mine.length) lines.push(`Would start for ${p.teamName}: ${mine.map(pts).join(', ')}`);
+  }
+  return lines;
+}
+
+// The five-year contention window, under Contend or rebuild?'s tiles: projected
+// value each season, and which seasons are in the window.
+function windowChart(t, all) {
+  const win = Vault.contentionWindow(t, all);
+  return `<div class="mt-3 rounded-2xl bg-black/30 border border-white/5 p-4">
+      <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+        <div class="text-[11px] uppercase tracking-widest text-zinc-400">Contention window, next ${win.years} seasons</div>
+        <div class="text-[12px] text-zinc-400">${win.hasWindow ? `${t.windowYears} of ${win.years} seasons in the window` : 'No season in the window'} · peak value in ${win.peakYear}</div>
+      </div>
+      <div class="flex items-end gap-2 h-[64px]">${win.proj.map((v, i) => `<div class="flex-1 h-full flex flex-col justify-end"><div class="w-full rounded-t ${win.inWindow[i] ? 'bg-emerald-400/70' : 'bg-zinc-600/60'}" style="height:${Math.max(8, v / win.peak * 100)}%" title="${win.startYear + i}: ${Math.round(v).toLocaleString()} projected value, ${win.projPPG[i].toFixed(1)} projected PPG"></div></div>`).join('')}</div>
+      <div class="flex gap-2 text-[12px] mt-1 text-zinc-400">${win.proj.map((v, i) => `<span class="flex-1 text-center">${win.startYear + i}</span>`).join('')}</div>
+      <div class="text-[11px] text-zinc-500 mt-2">Green: in the window (${win.seasonOdds != null ? `this season, playoff odds of 50% or more; later, ` : ''}projected value within 88% of its peak and projected points above the playoff line, ${win.playoffLine.toFixed(1)} a week for the top ${win.playoffSpots}). Hover a bar for its numbers.</div>
+    </div>`;
+}
+
+
+showTab(location.hash.slice(1) || (() => { try { return localStorage.getItem('vault_team_tab'); } catch { return null; } })() || 'overview');
 window.addEventListener('DOMContentLoaded', () => loadLeague(Vault.getLeagueId()));
 </script>
 </body>

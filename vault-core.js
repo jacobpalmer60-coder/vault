@@ -3758,25 +3758,25 @@ const Vault = {
     const { needs } = Vault.positionalProfile(t, all);
     needs.forEach(k => {
       const avg = leagueAvg[k];
-      flaws.push(`${k.toUpperCase()} Need: ${Math.round(t[k]).toLocaleString()} value${avg ? ` vs league avg ${Math.round(avg).toLocaleString()}` : ''}${t.posCount && t.startable && t.posCount[k] < t.startable[k] ? ` — ${t.posCount[k]} startable for ${t.startable[k]} spots` : ''}`);
+      flaws.push(`${k.toUpperCase()} is a need: ${Math.round(t[k]).toLocaleString()} of value${avg ? `, league average ${Math.round(avg).toLocaleString()}` : ''}${t.posCount && t.startable && t.posCount[k] < t.startable[k] ? `; ${t.posCount[k]} startable for ${t.startable[k]} spots` : ''}`);
     });
     const rbOld = t.plist.filter(p => p.pos === 'RB' && p.age >= 27).reduce((s, p) => s + p.value, 0);
     const rbTotal = t.rb || 1;
-    if (rbOld / rbTotal > 0.4) flaws.push(`RB Age Cliff: ${Math.round(rbOld / rbTotal * 100)}% of RB value is 27+`);
+    if (rbOld / rbTotal > 0.4) flaws.push(`${Math.round(rbOld / rbTotal * 100)}% of RB value is in players 27 or older`);
     const wrOld = t.plist.filter(p => p.pos === 'WR' && p.age >= 29).reduce((s, p) => s + p.value, 0);
     const wrTotal = t.wr || 1;
-    if (wrOld / wrTotal > 0.4) flaws.push(`WR Age Cliff: ${Math.round(wrOld / wrTotal * 100)}% of WR value is 29+`);
-    if (t.picksValue < leagueAvg.picks * 0.85) flaws.push(`Pick Poor: ${Math.round(t.picksValue).toLocaleString()} pick value vs league avg ${Math.round(leagueAvg.picks).toLocaleString()}`);
+    if (wrOld / wrTotal > 0.4) flaws.push(`${Math.round(wrOld / wrTotal * 100)}% of WR value is in players 29 or older`);
+    if (t.picksValue < leagueAvg.picks * 0.85) { const r = all ? 1 + all.filter(x => x.picksValue > t.picksValue).length : null; flaws.push(`Few picks: ${r ? `${r}${({ 1: 'st', 2: 'nd', 3: 'rd' })[r % 10 > 3 || (r % 100 > 10 && r % 100 < 14) ? 0 : r % 10] || 'th'} of ${all.length}, ` : ''}${Math.round(t.picksValue).toLocaleString()} of value, league average ${Math.round(leagueAvg.picks).toLocaleString()}`); }
     // Depth check is relative to the team's own roster, not a fixed headcount —
     // a fixed threshold like "16" never fires in deep superflex formats where
     // every team rosters 30+ valued players.
     const rosterSize = t.plist.filter(p => p.value > 0).length;
     const starters = t.plist.filter(p => p.value > 1000).length;
-    if (rosterSize && starters / rosterSize < 0.7) flaws.push(`Thin Depth: only ${starters} of ${rosterSize} rostered players clear 1k value`);
-    if (leagueAvg.age && t.age > leagueAvg.age + 1) flaws.push(`Aging Core: ${t.age.toFixed(1)} avg age vs league ${leagueAvg.age.toFixed(1)}`);
+    if (rosterSize && starters / rosterSize < 0.7) flaws.push(`Thin bench: only ${starters} of ${rosterSize} players are worth 1,000 or more`);
+    if (leagueAvg.age && t.age > leagueAvg.age + 1) flaws.push(`Older than most: average age ${t.age.toFixed(1)}, league ${leagueAvg.age.toFixed(1)}`);
     const topAssets = [...t.plist].filter(p => p.value > 0).sort((a, b) => b.value - a.value).slice(0, 3);
     const top3Share = t.total ? topAssets.reduce((s, p) => s + p.value, 0) / t.total : 0;
-    if (top3Share > 0.4) flaws.push(`Top-Heavy: top 3 players are ${Math.round(top3Share * 100)}% of total value`);
+    if (top3Share > 0.4) flaws.push(`Top-heavy: the top 3 players are ${Math.round(top3Share * 100)}% of the team's value`);
     return flaws.slice(0, 3);
   },
 
@@ -3802,30 +3802,40 @@ const Vault = {
       // is looking to sell into a rival's win-now window), and two rebuilders both
       // want the same things (picks, youth) with little to offer each other —
       // same-timeline pairs are real trade partners far less often in practice.
+      // The players behind a position match (2026-10-23: "deep at WR" alone said
+      // nothing): the side's best at that position outside its own best lineup,
+      // else its best there.
+      const spare = (team, k) => {
+        const starting = new Set((team.lineup || []).map(x => x.id).filter(Boolean));
+        const at = (team.plist || []).filter(x => x.pos === k.toUpperCase() && x.value > 0).sort((a, b) => b.value - a.value);
+        const bench = at.filter(x => !starting.has(x.id));
+        return (bench.length ? bench : at).slice(0, 2).map(x => x.name).join(', ');
+      };
+      const matched = [];
+      needs.forEach(n => {
+        if (theirSurplus.includes(n)) { score += 3; const who = spare(o, n); matched.push(`They're deep at ${n.toUpperCase()}, your biggest need${who ? ` (${who})` : ''}`); }
+      });
+      surpluses.forEach(s => {
+        if (theirNeeds.includes(s)) { score += 2; const who = spare(t, s); matched.push(`You're deep at ${s.toUpperCase()}, which they're missing${who ? ` (${who})` : ''}`); }
+      });
       const theirMode = Vault.teamMode(o);
       if ((myMode === 'contend' && theirMode === 'rebuild') || (myMode === 'rebuild' && theirMode === 'contend')) {
         score += 3;
         reasons.push(myMode === 'contend'
-          ? `You want production now, they want picks and youth — classic complementary timelines`
-          : `They want production now, you want picks and youth — classic complementary timelines`);
+          ? 'They\'re building for later and you\'re contending: they\'d sell production for picks and young players'
+          : 'They\'re contending and you\'re building for later: they\'d pay picks and young players for production');
       } else if (myMode !== 'flexible' && myMode === theirMode) {
         score -= 3;
-        reasons.push(`Both ${myMode === 'contend' ? 'contending' : 'rebuilding'} — less natural trade partners, same timeline and same needs`);
+        reasons.push(`Both ${myMode === 'contend' ? 'contending' : 'rebuilding'}: same timeline, so you want the same things`);
       }
-
-      needs.forEach(n => {
-        if (theirSurplus.includes(n)) { score += 3; reasons.push(`They're deep at ${n.toUpperCase()} — your biggest need`); }
-      });
-      surpluses.forEach(s => {
-        if (theirNeeds.includes(s)) { score += 2; reasons.push(`You're deep at ${s.toUpperCase()} — something they're missing`); }
-      });
+      reasons.unshift(...matched);
       if (Math.abs(t.age - o.age) > 2.5) {
         score += 1;
-        reasons.push(t.age > o.age ? `They're ${(t.age - o.age).toFixed(1)} yrs younger — different timelines can make a deal work` : `You're ${(o.age - t.age).toFixed(1)} yrs younger — different timelines can make a deal work`);
+        reasons.push(t.age > o.age ? `They're ${(t.age - o.age).toFixed(1)} years younger on average: different timelines make deals easier` : `You're ${(o.age - t.age).toFixed(1)} years younger on average: different timelines make deals easier`);
       }
       if (t.picksValue < 5000 && o.picksValue > 8000) { score += 2; reasons.push(`They're pick-rich (${Math.round(o.picksValue).toLocaleString()}) while you're pick-poor`); }
       if (t.picksValue > 8000 && o.picksValue < 5000) { score += 2; reasons.push(`You're pick-rich while they're pick-poor (${Math.round(o.picksValue).toLocaleString()})`); }
-      if (!reasons.length) reasons.push('Roughly matched value and timeline — no glaring need overlap');
+      if (!reasons.length) reasons.push('Similar value and timeline, with no clear position match');
       return { ...o, fit: score, reasons };
     }).sort((a, b) => b.fit - a.fit).slice(0, limit);
   },
@@ -4825,7 +4835,7 @@ const Vault = {
       const full = `${p.season} R${p.round}${via ? ` via ${nameOf(p.original)}` : ''}`;
       return `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate" title="${esc(full)}">${p.season} R${p.round}${via}</span><span class="mono text-zinc-400 shrink-0">${n(p.value)}${p.tier ? ` <span class="${TIER_COLOR[p.tier] || 'text-zinc-400'}">${p.tier}</span>` : ''}</span></div>`;
     }).join('');
-    return `<div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-6">
+    return `<div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,1.5fr)_repeat(5,minmax(0,1fr))] gap-6">
         <div>${lineupHead}<div class="space-y-1.5">${lineup || none}</div></div>
         ${positions}
         <div>${picksHead}<div class="space-y-1.5 max-h-[220px] overflow-auto pr-1 scrollbar">${pickRows || none}</div></div>

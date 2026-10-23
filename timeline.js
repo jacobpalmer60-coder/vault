@@ -295,6 +295,7 @@ function renderSummary(o) {
       ${tile('Age-27 cliff', `${Math.round(o.cliff.share)}%`, 'of player value in RB/WR/TE 27+')}
       ${tile('Picks', n0(me.picksValue), `#${P.picksRank} of ${ctx.teams.length}`)}
     </div>
+    ${extraHtml}
     ${sig ? `<div class="text-[13px] text-zinc-300 mt-3">This season so far: ${sig}</div>` : ''}
     <div class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
       <span class="text-[12px] uppercase tracking-wider text-zinc-500">Suggested for ${esc(me.teamName)}</span>
@@ -477,8 +478,12 @@ function init({ league, slots, teams, remainingWeeks }) {
   // Market prices (completed trades) fill in when they arrive.
   if (typeof marketLoad === 'function') marketLoad(league).then(() => { if (shown) renderDetail(shown); }).catch(() => {});
 }
-function render(mount, team) {
+// opts.extraHtml: shown under the summary tiles (the Teams page's five-year
+// contention window, 2026-10-23).
+let extraHtml = '';
+function render(mount, team, opts = {}) {
   if (!mount || !ctx || !team) return;
+  extraHtml = opts.extraHtml || '';
   // A different team opens on its own suggested path (a ?path= link only applies to the team it came with).
   if (shown && shown.me.rosterId !== team.rosterId) {
     pathKey = null;
@@ -498,5 +503,11 @@ function setSeason(report) {
   seasonReport = report;
   if (shown && $('#tlSummary')) { renderSummary(shown); renderDetail(shown); }
 }
-window.Timeline = { init, render, show, setSeason };
+// The suggested path for a team, for a one-line summary elsewhere (the Teams page's Overview).
+function suggestFor(team) {
+  if (!ctx || !team) return null;
+  const o = workOut(team);
+  return { key: o.suggest.key, label: PATHS.find(p => p.key === o.suggest.key).label, why: o.suggest.why };
+}
+window.Timeline = { init, render, show, setSeason, suggestFor };
 })();
