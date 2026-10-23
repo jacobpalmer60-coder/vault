@@ -103,9 +103,9 @@ const coachImproves = o => Vault.verdictTier(coachScore(o)).level === 'good';
 // - no throw-ins: every piece is worth at least COACH_MIN_PIECE of its side's best;
 // - you don't give up value (COACH_VALUE_FLOOR);
 // - it reads Fair on KTC's calculator too (coachKtcFair).
-// Best trades then lists Good trade or better for you (COACH_UPSIDE) when it
-// finds 3+, else Slight edge or better.
-const COACH_THEIR_MIN = -6, COACH_UPSIDE = 15, COACH_MIN_PIECE = 0.2;
+// Best trades then lists them best for you first (Good trade or better at the
+// top), down to Slight edge.
+const COACH_THEIR_MIN = -6, COACH_MIN_PIECE = 0.2;
 // Go all-in and Fix a position may pay a premium, but not hand the other team a
 // Bad trade or worse (2026-10-20: Go all-in offered Kenneth Walker out of a
 // 100%-odds contender, Terrible for them). In accepted 2024-2025 in-season trades
@@ -430,7 +430,11 @@ async function coachTarget(me, progress) {
 // valueMode (Fix a position): an upgrade is any lineup gain AND you end up
 // with the best asset in the deal (the most valuable single piece comes to
 // you). Otherwise (Go all-in): COACH.MIN_GAIN points a week.
-async function coachUpgrades(me, positions, protect, progress, pay, valueMode = false) {
+// UPGRADE_TARGETS players looked at, UPGRADE_PER_TARGET packages each (different
+// lead pieces), UPGRADE_SHOW listed (2026-10-23, user: "there's gotta be more
+// trades to upgrade RB": 15 / 1 / 5 left two RB upgrades on a roster with a dozen).
+const UPGRADE_TARGETS = 25, UPGRADE_PER_TARGET = 2, UPGRADE_SHOW = 10;
+async function coachUpgrades(me, positions, protect, progress, pay, valueMode = false, option = valueMode ? 'position' : 'contend') {
   const starters = me.lineup.filter(s => s.id);
   const floor = {};
   positions.forEach(P => { const at = starters.filter(s => s.pos === P); floor[P] = at.length ? Math.min(...at.map(s => s.ppg)) : 0; });
@@ -438,22 +442,24 @@ async function coachUpgrades(me, positions, protect, progress, pay, valueMode = 
   const budget = sumValue(must) + me.assets.filter(a => !protect.has(a.key) && !off.has(a.key) && !must.includes(a)).map(a => a.value).sort((x, y) => y - x).slice(0, 3).reduce((t, v) => t + v, 0);
   const cands = teams.filter(t => t !== me && coachPartnerOK(t))
     .flatMap(t => t.assets.filter(a => a.type === 'player' && !coachTheirOff(a) && positions.includes(a.pos) && (a.ppg || 0) >= floor[a.pos] + COACH.UPGRADE_BY && a.value <= budget).map(a => ({ a, t })))
-    .sort((x, y) => (y.a.ppg - floor[y.a.pos]) - (x.a.ppg - floor[x.a.pos])).slice(0, 15);
+    .sort((x, y) => (y.a.ppg - floor[y.a.pos]) - (x.a.ppg - floor[x.a.pos])).slice(0, UPGRADE_TARGETS);
   const run = async ceiling => {
     const out = [];
     for (const { a, t } of cands) {
       progress(`Pricing ${a.name}${ceiling > VAULT_CONFIG.FAIR_PCT ? ' with a premium' : ''}…`);
       await coachTick();
-      // The cheapest few packages, best for you first; keep the first that
-      // really upgrades your lineup (a package built on one of your own
-      // starters there may only be a sidegrade, so try the next one).
-      let o = null, gain = 0;
-      const starterKeys = new Set(starters.map(s => 'p_' + s.id));
-      for (const cand of coachOffers(me, t, [a], { protect, ceiling, limit: 4 })) {
+      // The cheapest packages, best for you first; keep the first few that
+      // really upgrade your lineup and pass every check the list will apply (a
+      // package built on one of your own starters there may only be a
+      // sidegrade, and one KTC calls off would be dropped, so try the next).
+      const starterKeys = new Set(starters.map(s => 'p_' + s.id)), kept = [], leads = new Set();
+      for (const cand of coachOffers(me, t, [a], { protect, ceiling, limit: 8, perLead: 2 })) {
         // Never pay a premium to send away one of your starters: a Lopsided
         // offer is only worth it when it's paid with bench players and picks.
         if (cand.edge >= VAULT_CONFIG.FAIR_PCT && cand.give.some(x => starterKeys.has(x.key))) continue;
-        if (coachTheirScore({ partner: t, give: cand.give, get: cand.get }) < COACH_UPGRADE_THEIR_MIN) continue;
+        // One package per lead piece of yours, so the two shown differ.
+        const lead = [...cand.give].sort((x, y) => y.value - x.value)[0].key;
+        if (leads.has(lead)) continue;
         // Net lineup gain: the healthy best lineup, minus any depth it costs
         // (what bye and injury weeks cost the lineup, Vault.depthShift), with
         // depth counted at the grade's weight.
@@ -461,15 +467,18 @@ async function coachUpgrades(me, positions, protect, progress, pay, valueMode = 
         const g = aft.opt - me.opt + Vault.depthShift('contend', me, aft, slots).perWeek * VAULT_CONFIG.DEPTH_FIT_WEIGHT;
         const top = list => Math.max(...list.map(x => x.value));
         const betterAsset = top(cand.get) > top(cand.give);
-        if (valueMode ? g >= 0.5 && betterAsset : g >= COACH.MIN_GAIN) { o = cand; gain = g; break; }
+        if (!(valueMode ? g >= 0.5 && betterAsset : g >= COACH.MIN_GAIN)) continue;
+        if (!coachListOK(cand, option)) continue;
+        leads.add(lead);
+        kept.push({ ...cand, id: a.key + '|' + negKeys(cand.give).join(), gain: g, why: `${Vault.escapeHtml(a.name)} starts for you: about +${g.toFixed(1)} pts/week to your lineup, depth included${pay ? `, ${pay}` : ''}.${cand.note ? ' ' + cand.note : ''}` });
+        if (kept.length >= UPGRADE_PER_TARGET) break;
       }
-      if (!o) continue;
-      out.push({ ...o, id: a.key, gain, why: `${Vault.escapeHtml(a.name)} starts for you: about +${gain.toFixed(1)} pts/week to your lineup, depth included${pay ? `, ${pay}` : ''}.${o.note ? ' ' + o.note : ''}` });
+      out.push(...kept);
     }
     return out;
   };
   const list = await coachPriced(run, 3);
-  return list.sort((x, y) => coachFairFirst(x, y) || y.gain - x.gain).slice(0, COACH.SHOW);
+  return list.sort((x, y) => coachFairFirst(x, y) || y.gain - x.gain).slice(0, UPGRADE_SHOW);
 }
 
 async function coachPosition(me, progress) {
@@ -652,8 +661,9 @@ async function coachBest(me, progress) {
   const scored = pool.filter(c => !sameValue(c))
     .map(c => { const j = negJudgeFor(me, c.giveA, c.partner, c.giveB, negContextFor(c.partner)); return { c, j, mine: improvementOf(j.an, 'A'), theirs: improvementOf(j.an, 'B') }; })
     .filter(x => coachMarketOK(x.c.giveA, x.c.giveB) && coachSensible(x));
-  const upside = scored.filter(x => x.mine.score >= COACH_UPSIDE);
-  (upside.length >= 3 ? upside : scored)
+  // Good trade or better first (the sort below), then Slight edges to fill the list (2026-10-23, user: "doesn't give many options": when
+  // 3+ had real upside only those showed, 4 in The League of Gold).
+  scored
     .map(x => ({ ...x, mk: market(x.c) }))
     .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || y.mine.score - x.mine.score || sumValue(x.c.giveA) - sumValue(y.c.giveA))
     .forEach(({ c, j, mk }) => {
@@ -712,7 +722,9 @@ async function coachTeam(me, progress) {
   // by construction, so closest-to-Fair says little about them.
   const picksOnly = o => [...o.give, ...o.get].every(a => a.type === 'pick');
   const perLead = new Map();
-  const varied = found.sort((x, y) => picksOnly(x) - picksOnly(y) || coachKey(x) - coachKey(y)).filter(o => {
+  // The list's own checks first (coachListOK), then the closest to Fair: picking
+  // 8 first left none once the checks ran (2026-10-23).
+  const varied = found.filter(o => coachListOK(o, 'team')).sort((x, y) => picksOnly(x) - picksOnly(y) || coachKey(x) - coachKey(y)).filter(o => {
     const lead = [...o.get].sort((x, y) => y.value - x.value)[0].key, n = perLead.get(lead) || 0;
     if (n >= 2) return false;
     perLead.set(lead, n + 1);
@@ -774,6 +786,19 @@ async function coachDowntier(me, progress) {
 
 const COACH_RUN = { downtier: coachDowntier, team: coachTeam, best: coachBest, sellhigh: coachSellHigh, buylow: coachBuyLow, shop: coachShop, target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
 
+// Every list's last check: good enough for you (price plays: anything but a
+// losing trade), no value given up, not bad for them (Fix a position and Go
+// all-in: COACH_UPGRADE_THEIR_MIN, as their search uses), Fair on KTC's
+// calculator, no cornerstone, no same-spot swap. coachUpgrades runs it while
+// picking each target's offers (2026-10-23: it kept the first offer per target
+// and only then filtered, so James Cook was dropped for a package KTC calls
+// off while his third package passed everything).
+function coachListOK(o, option) {
+  const theirMin = option === 'position' || option === 'contend' ? COACH_UPGRADE_THEIR_MIN : COACH_THEIR_MIN;
+  return (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= theirMin
+    && (COACH_PRICE_PLAYS.has(option) || coachKtcFair(o.give, o.get, option)) && (COACH_CORNERSTONE_OK.has(option) || !coachAsksCornerstone(o.partner, o.get)) && !coachSameSpotSwap(o);
+}
+
 async function coachFind() {
   if (Coach.busy) return;
   Coach.collapsed = false;
@@ -805,7 +830,7 @@ async function coachFind() {
       // Price plays (shopping a player you've decided to move, selling high,
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
-      res.list = res.list.filter(o => (COACH_PRICE_PLAYS.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheirScore(o) >= COACH_THEIR_MIN && (COACH_PRICE_PLAYS.has(option) || coachKtcFair(o.give, o.get, option)) && (COACH_CORNERSTONE_OK.has(option) || !coachAsksCornerstone(o.partner, o.get)) && !coachSameSpotSwap(o)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      res.list = res.list.filter(o => coachListOK(o, option)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
       if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} without giving up value right now. Try another trade type, or Go all-in to spend future value on this season.`; }
     }
     Coach.results[option] = { ...res, meId: me.rosterId, key: coachInputKey(), planNote };
