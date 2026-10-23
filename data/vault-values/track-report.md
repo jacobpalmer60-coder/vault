@@ -1,6 +1,6 @@
 # VaultValues track record
 
-Updated 2026-10-22 14:07 UTC. Each night's values are scored on trades made after them, which they never saw, next to KTC on the same trades. **Relative error**: each trade's imbalance against how spread out the values are (lower is better; a flatter value set can't game it). "Replay" nights were rebuilt afterwards by refitting day by day.
+Updated 2026-10-23 13:50 UTC. Each night's values are scored on trades made after them, which they never saw, next to KTC on the same trades. **Relative error**: each trade's imbalance against how spread out the values are (lower is better; a flatter value set can't game it). "Replay" nights were rebuilt afterwards by refitting day by day.
 
 ## The pass bar
 
@@ -8,12 +8,12 @@ Over 8 weeks: beat what the site grades with today (KTC values on its calibrated
 
 | Format | Weeks scored | Weeks beating the site's KTC trade value (the bar) | Weeks beating KTC + market price | Weeks beating KTC (its own adjustment) | Weeks beating KTC + curve | Rank agreement (latest) | Median daily move | Trades priced: ours / KTC | Status |
 |---|---|---|---|---|---|---|---|---|---|
-| sf_tep | 6 | 0/6 | 0/6 | 6/6 | 6/6 | 0.974 | 0.8% | 99.9% / 96.8% | Building (6/8 weeks) |
-| sf | 6 | 0/6 | 0/6 | 6/6 | 6/6 | 0.978 | 1.1% | 99.9% / 96.8% | Building (6/8 weeks) |
-| sf_tepp | 6 | 0/6 | 0/6 | 6/6 | 6/6 | 0.966 | 1.0% | 99.8% / 96.2% | Building (6/8 weeks) |
-| oneQB | 6 | 0/6 | 0/6 | 6/6 | 6/6 | 0.975 | 0.9% | 99.9% / 96.9% | Building (6/8 weeks) |
-| oneQB_tep | 6 | 0/6 | 0/6 | 6/6 | 4/6 | 0.955 | 1.5% | 98.7% / 95.9% | Building (6/8 weeks) |
-| oneQB_tepp | 3 | 0/3 | 0/3 | 2/3 | 0/3 | 0.905 | 1.0% | 95.1% / 95.0% | Building (3/8 weeks) |
+| sf_tep | 6 | 0/6 | 0/6 | 6/6 | 6/6 | 0.975 | 0.8% | 99.9% / 96.8% | Building (6/8 weeks) |
+| sf | 6 | 0/6 | 0/6 | 6/6 | 6/6 | 0.980 | 0.9% | 99.9% / 96.8% | Building (6/8 weeks) |
+| sf_tepp | 6 | 0/6 | 0/6 | 6/6 | 6/6 | 0.965 | 1.0% | 99.8% / 96.2% | Building (6/8 weeks) |
+| oneQB | 6 | 0/6 | 0/6 | 6/6 | 6/6 | 0.978 | 0.9% | 99.9% / 96.9% | Building (6/8 weeks) |
+| oneQB_tep | 6 | 0/6 | 0/6 | 6/6 | 4/6 | 0.956 | 1.2% | 98.7% / 95.9% | Building (6/8 weeks) |
+| oneQB_tepp | 3 | 0/3 | 0/3 | 2/3 | 0/3 | 0.898 | 1.0% | 95.1% / 95.0% | Building (3/8 weeks) |
 
 ## Week by week
 
