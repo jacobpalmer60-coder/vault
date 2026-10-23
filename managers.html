@@ -9,7 +9,7 @@
 <title>Managers — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=1aad7bb2">
+<link rel="stylesheet" href="tailwind.css?v=059e9903">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -142,17 +142,17 @@ function renderSummaryTable(rows, teams) {
     <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Every manager</div>
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full text-[13px] min-w-[720px]">
+        <table class="w-full text-[13px] sm:min-w-[720px]">
           <thead class="bg-black/40 border-b border-white/5">
             <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
               ${th('Manager', 'teamName', 'text-left', '', 'px-4')}
-              <th class="text-left px-3 py-2.5">Trading style</th>
+              <th class="hidden sm:table-cell text-left px-3 py-2.5">Trading style</th>
               ${th('Trades', 'trades', 'text-right')}
-              ${th('Won then', 'wlThen', 'text-right', "Trades they came out ahead in, at the prices on each trade's date")}
-              ${th('Won now', 'wlNow', 'text-right', "The same, at today's prices")}
+              ${th('Won then', 'wlThen', 'hidden sm:table-cell text-right', "Trades they came out ahead in, at the prices on each trade's date")}
+              ${th('Won now', 'wlNow', 'hidden sm:table-cell text-right', "The same, at today's prices")}
               ${th('Net Then', 'netValue', 'text-right', "Net trade value across every trade at the KTC values on each trade's date")}
               ${th('Net Now', 'netValueToday', 'text-right', "The same trades at today's KTC values")}
-              ${th('Fit', 'avgFit', 'text-right', 'Timeline and positional-need fit, averaged per trade: how well the pieces they got suited their roster. 1.5 or more reads as usually fitting.', 'px-4')}
+              ${th('Fit', 'avgFit', 'hidden sm:table-cell text-right', 'Timeline and positional-need fit, averaged per trade: how well the pieces they got suited their roster. 1.5 or more reads as usually fitting.', 'px-4')}
             </tr>
           </thead>
           <tbody class="divide-y divide-white/5">
@@ -161,17 +161,18 @@ function renderSummaryTable(rows, teams) {
               const user = nameOf.get(s.rosterId);
               const open = openManagers.has(s.rosterId);
               return `<tr class="align-top cursor-pointer hover:bg-white/[0.02]" onclick="toggleManager(${s.rosterId})" aria-expanded="${open}" data-kbd>
-                <td class="px-4 py-3 min-w-[170px]">
+                <td class="px-3 sm:px-4 py-3 sm:min-w-[170px]">
                   <div class="font-medium text-zinc-100"><span class="inline-block w-3 text-zinc-500">${open ? '▾' : '▸'}</span>${Vault.escapeHtml(s.teamName)}${mine && mine.rosterId === s.rosterId ? ' <span class="align-middle ml-1 text-[11px] px-1.5 py-px rounded bg-amber-400 text-black font-semibold">You</span>' : ''}</div>
                   <div class="text-[12px] text-zinc-400">${[user ? '@' + Vault.escapeHtml(user) : '', s.record ? `${s.record.wins}-${s.record.losses}${s.record.ties ? '-' + s.record.ties : ''}` : ''].filter(Boolean).join(' • ')}</div>
+                  <div class="sm:hidden mt-1.5"><span class="text-[11px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></div>
                 </td>
-                <td class="px-3 py-3 whitespace-nowrap"><span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
+                <td class="hidden sm:table-cell px-3 py-3 whitespace-nowrap"><span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
                 <td class="px-3 py-3 text-right mono text-zinc-400">${s.trades}</td>
-                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.won} of ${s.trades}` : '—'}</td>
-                <td class="px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.wonNow} of ${s.trades}` : '—'}</td>
+                <td class="hidden sm:table-cell px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.won} of ${s.trades}` : '—'}</td>
+                <td class="hidden sm:table-cell px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.wonNow} of ${s.trades}` : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValue) : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValueToday) : '—'}</td>
-                <td class="px-4 py-3 text-right mono ${s.avgFit > 0.5 ? 'text-emerald-400' : s.avgFit < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.trades ? (s.avgFit >= 0 ? '+' : '−') + Math.abs(s.avgFit).toFixed(1) : '—'}</td>
+                <td class="hidden sm:table-cell px-4 py-3 text-right mono ${s.avgFit > 0.5 ? 'text-emerald-400' : s.avgFit < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.trades ? (s.avgFit >= 0 ? '+' : '−') + Math.abs(s.avgFit).toFixed(1) : '—'}</td>
               </tr>${open ? `<tr><td colspan="8" class="px-3 pb-3">${renderCard(s)}</td></tr>` : ''}`;
             }).join('')}
           </tbody>

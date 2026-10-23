@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=1aad7bb2">
+<link rel="stylesheet" href="tailwind.css?v=059e9903">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -1339,7 +1339,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const offered = offeredBy === 'B';
   const yourLabel = offered ? { good: 'Worth accepting', tossup: 'Worth a counter', bad: 'Decline' }[imp.level] : imp.label;
   const tile = (who, label, cls, sub) => `<div class="rounded-xl bg-black/25 border border-white/5 px-4 py-3 min-w-0">
-      <div class="text-[11px] uppercase tracking-wider text-zinc-500 truncate">${who}</div>
+      <div class="text-[11px] uppercase tracking-wider text-zinc-500 leading-snug break-words">${who}</div>
       <div class="num text-[26px] leading-tight mt-0.5 ${cls}">${label}</div>${sub ? `<div class="text-[12px] text-zinc-400 mt-1">${sub}</div>` : ''}</div>`;
   const yourSub = `${offered ? `<span class="${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span> · ` : ''}<label class="inline-flex items-baseline gap-1" title="Judged on your timeline: contending weighs this season's lineup heavily, rebuilding weighs long-term value.">as <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}</select></label>`;
   const theirSub = them && them.outOfRace ? 'out of the playoff race, so this season\'s points don\'t count' : '';

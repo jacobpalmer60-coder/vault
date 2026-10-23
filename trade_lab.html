@@ -9,7 +9,7 @@
 <title>Trade Lab — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=1aad7bb2">
+<link rel="stylesheet" href="tailwind.css?v=059e9903">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -107,7 +107,7 @@ function columns(items, { fill = 'bg-sky-400/70', h = 'h-32', every = 1 } = {}) 
   const max = Math.max(...items.map(i => i.v)) || 1;
   return `<div class="flex items-end gap-[3px] ${h} border-b border-white/10">${items.map(i => `<div tabindex="0" data-tip="${esc(i.tip)}" class="flex-1 h-full flex items-end outline-none group/bar">
       <div class="w-full rounded-t-[4px] ${fill} group-hover/bar:opacity-80 group-focus/bar:opacity-80" style="height:${Math.max(1, i.v / max * 100).toFixed(1)}%"></div></div>`).join('')}</div>
-    <div class="flex gap-[3px] mt-1">${items.map((i, k) => `<div class="flex-1 text-center text-[11px] text-zinc-500 truncate">${k % every === 0 ? i.label : ''}</div>`).join('')}</div>`;
+    <div class="flex gap-[3px] mt-1">${items.map((i, k) => `<div class="flex-1 min-w-0 text-center text-[11px] text-zinc-500 whitespace-nowrap overflow-visible">${k % every === 0 ? i.label : ''}</div>`).join('')}</div>`;
 }
 const table = (head, rows) => `<div class="overflow-x-auto"><table class="w-full text-[12px]"><thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500">${head.map((h, i) => `<th class="font-normal pb-2 ${i ? 'text-right px-2' : 'text-left pr-3'}">${h}</th>`).join('')}</tr></thead>
     <tbody>${rows.map(r => `<tr class="border-t border-white/5">${r.map((c, i) => `<td class="py-1.5 ${i ? 'text-right px-2 mono whitespace-nowrap' : 'pr-3 text-zinc-300'}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;

@@ -9,7 +9,7 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=1aad7bb2">
+<link rel="stylesheet" href="tailwind.css?v=059e9903">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -538,13 +538,35 @@ function renderMap() {
   const xt = ticks(x0, x1, narrow ? 3 : 4).map(v => `<text x="${X(v)}" y="${H - B + 18}" text-anchor="middle" class="fill-zinc-500" font-size="11">${v.toFixed(0)}</text>`).join('');
   const yt = ticks(y0, y1, 4).map(v => `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" class="fill-zinc-500" font-size="11">${kFmt(v)}</text>`).join('');
   const quad = (x, y, anchor, text) => `<text x="${x}" y="${y}" text-anchor="${anchor}" class="fill-zinc-500" font-size="11" letter-spacing="0.08em">${text}</text>`;
-  const dots = [...teams].sort((a, b) => (a === mine) - (b === mine)).map(t => {
-    const cx = X(t.opt), cy = Y(t.overall), me = t === mine;
-    const right = cx > W - R - (narrow ? 90 : 150), name = Vault.escapeHtml(t.teamName.length > (narrow ? 11 : 18) ? t.teamName.slice(0, narrow ? 10 : 17) + '…' : t.teamName);
+  // Labels placed so they don't collide (2026-10-23: on a phone "Allen's Cr…" sat
+  // on "Skat Happe…"): your team first, then the rest, each trying right, left,
+  // above and below its dot; a label with no free spot is left off (the dot and
+  // its tooltip stay). Widths are estimated at 6.6px a character (12px text).
+  const pts = teams.map(t => ({ t, cx: X(t.opt), cy: Y(t.overall), me: t === mine, short: t.teamName.length > (narrow ? 11 : 18) ? t.teamName.slice(0, narrow ? 10 : 17) + '…' : t.teamName }));
+  // The four corner captions are in the way too (about 8.5px a letter: 11px caps, spaced out).
+  const cap = (x, y, anchor, text) => { const w = text.length * 8.5; return anchor === 'end' ? { x0: x - w, x1: x, y0: y - 11, y1: y + 2 } : { x0: x, x1: x + w, y0: y - 11, y1: y + 2 }; };
+  const boxes = [...pts.map(p => ({ x0: p.cx - 8, x1: p.cx + 8, y0: p.cy - 8, y1: p.cy + 8 })),
+    cap(W - R - 4, T + 12, 'end', narrow ? 'NOW + LATER' : 'STRONG NOW AND LATER'), cap(W - R - 4, H - B - 8, 'end', 'WIN NOW'), cap(L + 6, T + 12, 'start', 'BUILT FOR LATER'), cap(L + 6, H - B - 8, 'start', 'REBUILD')];
+  const hits = (b, list) => list.some(o => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0);
+  const labels = new Map();
+  [...pts].sort((a, b) => b.me - a.me).forEach(p => {
+    const w = p.short.length * 6.6, h = 14;
+    // Above and below: centered on the dot, slid back inside the plot near an edge.
+    const mid = Math.max(L, Math.min(W - R - w, p.cx - w / 2));
+    const spots = [[p.cx + 11, p.cy + 4, 'start', p.cx + 11, p.cx + 11 + w], [p.cx - 11, p.cy + 4, 'end', p.cx - 11 - w, p.cx - 11], [mid, p.cy - 12, 'start', mid, mid + w], [mid, p.cy + 21, 'start', mid, mid + w]];
+    for (const [x, y, anchor, x0, x1] of spots) {
+      const b = { x0: x0 - 3, x1: x1 + 3, y0: y - h + 2, y1: y + 4 }; // a little room around each label
+      if (x0 < L || x1 > W - R || b.y0 < 0 || b.y1 > H - B + 4 || hits(b, boxes)) continue;
+      boxes.push(b); labels.set(p, { x, y, anchor });
+      break;
+    }
+  });
+  const dots = [...pts].sort((a, b) => a.me - b.me).map(p => {
+    const t = p.t, lab = labels.get(p);
     const tip = `${t.teamName}: ${t.opt.toFixed(1)} projected lineup points a week${t.actualPpg != null ? ` (${t.actualPpg.toFixed(1)} scored so far)` : ''}, ${Math.round(t.overall).toLocaleString()} dynasty value${t.projected ? `, ${t.projected.championshipPct.toFixed(1)}% title odds` : ''}`;
     return `<a href="${teamLink(t)}"><g class="cursor-pointer"><title>${Vault.escapeHtml(tip)}</title>
-      <circle cx="${cx}" cy="${cy}" r="${me ? 8 : 6.5}" class="${me ? 'fill-amber-400' : 'fill-zinc-300'}" stroke="#14161b" stroke-width="2"></circle>
-      <text x="${right ? cx - 11 : cx + 11}" y="${cy + 4}" text-anchor="${right ? 'end' : 'start'}" font-size="12" class="${me ? 'fill-amber-200' : 'fill-zinc-400'}">${name}</text></g></a>`;
+      <circle cx="${p.cx}" cy="${p.cy}" r="${p.me ? 8 : 6.5}" class="${p.me ? 'fill-amber-400' : 'fill-zinc-300'}" stroke="#14161b" stroke-width="2"></circle>
+      ${lab ? `<text x="${lab.x}" y="${lab.y}" text-anchor="${lab.anchor}" font-size="12" class="${p.me ? 'fill-amber-200' : 'fill-zinc-400'}">${Vault.escapeHtml(p.short)}</text>` : ''}</g></a>`;
   }).join('');
   box.innerHTML = `<div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
       <h2 class="text-[16px] font-semibold text-zinc-100">Contend or rebuild</h2>

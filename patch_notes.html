@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=1aad7bb2">
+<link rel="stylesheet" href="tailwind.css?v=059e9903">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-23', items: [
+    { kind: 'improved', page: 'Everywhere', text: "Better on phones. Player Rankings fits the screen (player, value, market price and projected points; age, trend and VORP show on wider screens). Managers shows each team's style under its name and keeps trades and Net Then and Net Now in view. Teams shows its six numbers two across instead of one per row, so the tabs are a scroll away instead of two. League Overview's map no longer piles team names on top of each other: each name takes a free spot around its dot (yours first), and a name with no room is left off (tap the dot). Trade Lab's chart labels and the Trade Calculator's verdict boxes no longer cut off text." },
     { kind: 'improved', page: 'Teams', text: "Teams is split into tabs: Overview, Roster, This season and Contend or rebuild?, one at a time instead of one long page. The team's name, record, playoff odds and value tiles stay on top. Overview answers how the team is doing in two lines (this season's verdict and the suggested path, each linking to its tab), then its weak spots and best trade partners. The five-year contention window now sits inside Contend or rebuild?, next to the four paths, instead of in a separate card." },
     { kind: 'improved', page: 'Teams', text: "Trade partners now name names: which of their players would start for the team and how many points a week each adds, and what they'd want back (its best picks if they're building for later, or bench players who'd start for them). Each partner shows its record and playoff odds. The Trade Calculator's partner suggestions use the same, more specific reasons." },
     { kind: 'fixed', page: 'Trade Calculator', text: "Trade Coach finds many more trades. Fix a position and Go all-in kept only the first offer it built for each player, before checking whether that offer would pass, so a player was dropped when his first package didn't (James Cook was left out over a package KTC's calculator calls off, while another package for him passed everything). They now check every package as they go, keep up to two different ones per player, look at 25 players instead of 15, and list up to 10 instead of 5. They also no longer drop trades that only lean bad for the other team, as intended since Oct 20. Fix a position at RB in The League of Gold went from 1 trade to 10, across 7 running backs." },
