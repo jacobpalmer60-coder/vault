@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=059e9903">
+<link rel="stylesheet" href="tailwind.css?v=fd73a387">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,10 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-23', items: [
+    { kind: 'new', page: 'Trade Calculator', text: "When a Trade Coach search finds nothing, it now shows the closest deals: the offers that just missed, why each one did, and what would fix it. For example, Get a player for Brock Purdy finds nothing Allen's Creamy Surprise would take, but adding Dallas Goedert to one offer makes it a Toss-up for them. Open any of them in the builder to adjust." },
+    { kind: 'new', page: 'Trade Calculator', text: "Quick filters above Trade Coach's results: pay with anything or with picks and bench only (none of your starters go out), up to 1, 2 or 3 pieces each way, and a position you want back (QB, RB, WR, TE or a pick). Changing one searches again." },
+    { kind: 'new', page: 'Trade Calculator', text: "Pin to compare: pin up to four trades from the builder and see them side by side, each with both teams' verdicts, the price on trade value and on KTC's calculator, and your title odds. Open any of them back in the builder. Pins are kept for your league in this browser." },
+    { kind: 'improved', page: 'Trade Calculator', text: "Trade Coach is faster. Best trades runs its quick checks before the slow ones and keeps what it worked out, so a first search takes about 5 seconds instead of 7, and searching again or changing a filter is close to instant. Fix a position and Go all-in skip the lineup math on offers that would be dropped anyway." },
     { kind: 'improved', page: 'Everywhere', text: "Better on phones. Player Rankings fits the screen (player, value, market price and projected points; age, trend and VORP show on wider screens). Managers shows each team's style under its name and keeps trades and Net Then and Net Now in view. Teams shows its six numbers two across instead of one per row, so the tabs are a scroll away instead of two. League Overview's map no longer piles team names on top of each other: each name takes a free spot around its dot (yours first), and a name with no room is left off (tap the dot). Trade Lab's chart labels and the Trade Calculator's verdict boxes no longer cut off text." },
     { kind: 'improved', page: 'Teams', text: "Teams is split into tabs: Overview, Roster, This season and Contend or rebuild?, one at a time instead of one long page. The team's name, record, playoff odds and value tiles stay on top. Overview answers how the team is doing in two lines (this season's verdict and the suggested path, each linking to its tab), then its weak spots and best trade partners. The five-year contention window now sits inside Contend or rebuild?, next to the four paths, instead of in a separate card." },
     { kind: 'improved', page: 'Teams', text: "Trade partners now name names: which of their players would start for the team and how many points a week each adds, and what they'd want back (its best picks if they're building for later, or bench players who'd start for them). Each partner shows its record and playoff odds. The Trade Calculator's partner suggestions use the same, more specific reasons." },

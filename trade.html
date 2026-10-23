@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=059e9903">
+<link rel="stylesheet" href="tailwind.css?v=fd73a387">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -156,11 +156,15 @@
       </div>
       <div class="flex items-center gap-2 flex-wrap ml-auto">
         <span id="offerBtn"></span>
+        <button onclick="pinTrade()" title="Keep this trade to compare with others side by side" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors">Pin to compare</button>
         <button onclick="shareTrade(this)" title="Copy a link for the other manager: it opens on their side, as your offer to them, and they can adjust it and send it back" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Send offer link</button>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
   </div>
+
+  <!-- Pinned trades side by side (pinTrade / renderCompare). -->
+  <div id="compareTray" class="hidden mb-4"></div>
 
   <!-- Trade-wide verdict + archetype (applies to both sides, so spans full width) -->
 
@@ -473,6 +477,7 @@ async function init() {
     const coachParam = { market: 'sellhigh' }[new URLSearchParams(location.search).get('coach')] || new URLSearchParams(location.search).get('coach'); // 'market' was the combined option
     const withParam = new URLSearchParams(location.search).get('with');
     const playerParam = new URLSearchParams(location.search).get('player');
+    renderCompare(); // trades pinned on an earlier visit
     if (!applyTradeFromUrl()) {
       const coachFromLink = () => {
         if (!coachParam || typeof COACH_OPTIONS === 'undefined' || !COACH_OPTIONS[coachParam]) return;
@@ -556,6 +561,68 @@ function applyTradeFromUrl() {
     bar.insertAdjacentHTML('afterbegin', `<div class="text-[12px] text-amber-300 mb-2">${missing} piece${missing === 1 ? '' : 's'} from this shared link ${missing === 1 ? 'is' : 'are'} no longer on ${missing === 1 ? 'that' : 'those'} roster${missing === 1 ? '' : 's'}, so ${missing === 1 ? 'it was' : 'they were'} left out.</div>`);
   }
   return true;
+}
+
+/* ---------- Compare offers ----------
+   Pin up to COMPARE_MAX trades and see them side by side (2026-10-23, user picked
+   "Compare offers side by side"): each team's verdict, the price on trade value and
+   KTC's calculator, and title odds, worked out fresh each time from today's rosters.
+   Kept per league in this browser. A pin whose pieces have since moved says so. */
+const COMPARE_MAX = 4;
+const compareKey = () => 'vault_compare_' + Vault.getLeagueId();
+let pinned = (() => { try { const v = JSON.parse(localStorage.getItem(compareKey()) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } })();
+function savePins() { try { localStorage.setItem(compareKey(), JSON.stringify(pinned)); } catch {} }
+function pinTrade() {
+  const a = teamOf('A'), b = teamOf('B');
+  if (!a || !b || !(selectedA.size + selectedB.size)) return;
+  const p = { a: a.rosterId, b: b.rosterId, give: [...selectedA], get: [...selectedB] };
+  const same = x => x.a === p.a && x.b === p.b && x.give.join() === p.give.join() && x.get.join() === p.get.join();
+  if (!pinned.some(same)) { pinned = [p, ...pinned].slice(0, COMPARE_MAX); savePins(); }
+  renderCompare();
+  document.getElementById('compareTray').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function unpinTrade(i) { pinned.splice(i, 1); savePins(); renderCompare(); }
+function openPinned(i) {
+  const p = pinned[i], selA = document.getElementById('teamA'), selB = document.getElementById('teamB');
+  if (!p) return;
+  if (selA.value !== String(p.a)) { selA.value = String(p.a); selA.onchange(); }
+  if (selB.value !== String(p.b)) { selB.value = String(p.b); selB.onchange(); }
+  negLoad(p.give, p.get);
+  document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function renderCompare() {
+  const box = document.getElementById('compareTray');
+  if (!box) return;
+  if (!pinned.length || !teams.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  const pctWord = v => (Math.abs(v) < 1 ? 'even' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'under' : 'over'}`);
+  const names = list => list.map(x => Vault.escapeHtml(x.name)).join(', ') || 'nothing';
+  const card = (p, i) => {
+    const a = teams.find(t => t.rosterId === p.a), b = teams.find(t => t.rosterId === p.b);
+    const give = a ? p.give.map(k => a.assets.find(x => x.key === k)).filter(Boolean) : [], get = b ? p.get.map(k => b.assets.find(x => x.key === k)).filter(Boolean) : [];
+    const gone = !a || !b || give.length < p.give.length || get.length < p.get.length;
+    const btns = `<div class="flex gap-2 mt-auto pt-3">${gone ? '' : `<button onclick="openPinned(${i})" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Open</button>`}<button onclick="unpinTrade(${i})" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40">Remove</button></div>`;
+    if (gone) return `<div class="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02] flex flex-col"><div class="text-[13px] text-zinc-300">${b ? `With ${Vault.escapeHtml(b.teamName)}` : 'A pinned trade'}</div><div class="text-[12px] text-zinc-500 mt-1">Some of these pieces have changed teams since, so it can't be worked out.</div>${btns}</div>`;
+    const j = negJudgeFor(a, give, b, get, negContextFor(b)), mine = improvementOf(j.an, 'A'), them = improvementOf(j.an, 'B');
+    const tv = Vault.tradeSideValues(give, get), price = (tv.valueB - tv.valueA) / (((tv.valueA + tv.valueB) / 2) || 1) * 100, ktc = coachKtcPct(give, get);
+    let odds = null;
+    if (remainingWeeks.length && typeof tradeSeasonOdds === 'function') { const { next } = tradeSeasonOdds(a, b, give, get), was = seasonBase?.get(a.rosterId)?.championshipPct, now = next.get(a.rosterId)?.championshipPct; if (was != null && now != null) odds = [was, now]; }
+    const pc = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
+    const line = (k, v) => `<div class="flex items-baseline justify-between gap-3 py-1 border-t border-white/[0.05] text-[12px]"><span class="text-zinc-500">${k}</span><span class="text-right text-zinc-200">${v}</span></div>`;
+    return `<div class="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02] flex flex-col min-w-0">
+        <div class="text-[12px] text-zinc-400 truncate">With <span class="text-zinc-100 font-medium">${Vault.escapeHtml(b.teamName)}</span></div>
+        <div class="text-[12px] text-zinc-300 mt-1.5"><span class="text-zinc-500">Give</span> ${names(give)}</div>
+        <div class="text-[12px] text-zinc-300 mb-2"><span class="text-zinc-500">Get</span> ${names(get)}</div>
+        ${line(`For ${Vault.escapeHtml(a.teamName)}`, `<span class="font-semibold ${Vault.VERDICT_TIER_TEXT[mine.tier]}">${mine.label}</span>`)}
+        ${line(`For ${Vault.escapeHtml(b.teamName)}`, `<span class="font-semibold ${Vault.VERDICT_TIER_TEXT[them.tier]}">${them.label}</span>`)}
+        ${line('Trade value', `${Vault.escapeHtml(a.teamName)} pays ${pctWord(price)}`)}
+        ${line("KTC's calculator", pctWord(ktc))}
+        ${odds ? line('Title odds', `${pc(odds[0])} → ${pc(odds[1])}`) : ''}
+        ${btns}
+      </div>`;
+  };
+  box.classList.remove('hidden');
+  box.innerHTML = `<div class="flex items-baseline justify-between gap-3 flex-wrap mb-2"><div class="text-[15px] font-medium text-zinc-100">Pinned trades</div><div class="text-[12px] text-zinc-500">Up to ${COMPARE_MAX}, side by side. Pin another from the trade above.</div></div>
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">${pinned.map(card).join('')}</div>`;
 }
 
 async function shareTrade(btn) {
@@ -2069,6 +2136,6 @@ init();
 <script src="negotiation.js?v=7d597d52"></script>
 <script src="market-data.js?v=07632230"></script>
 <script src="market.js?v=692419ef"></script>
-<script src="coach.js?v=e1e18133"></script>
+<script src="coach.js?v=5d7e7d36"></script>
 </body>
 </html>
