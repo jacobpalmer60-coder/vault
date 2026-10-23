@@ -435,7 +435,8 @@ async function coachTarget(me, progress) {
 // UPGRADE_TARGETS players looked at, UPGRADE_PER_TARGET packages each (different
 // lead pieces), UPGRADE_SHOW listed (2026-10-23, user: "there's gotta be more
 // trades to upgrade RB": 15 / 1 / 5 left two RB upgrades on a roster with a dozen).
-const UPGRADE_TARGETS = 25, UPGRADE_PER_TARGET = 2, UPGRADE_SHOW = 10;
+// UPGRADE_SHOW is before coachShape folds a player's second package into his card (then 10).
+const UPGRADE_TARGETS = 25, UPGRADE_PER_TARGET = 2, UPGRADE_SHOW = 20;
 async function coachUpgrades(me, positions, protect, progress, pay, valueMode = false, option = valueMode ? 'position' : 'contend') {
   const starters = me.lineup.filter(s => s.id);
   const floor = {};
@@ -838,6 +839,74 @@ function coachListOK(o, option) {
     && (COACH_PRICE_PLAYS.has(option) || option === 'downtier' || coachKtcFair(o.give, o.get, option)) && (COACH_CORNERSTONE_OK.has(option) || !coachAsksCornerstone(o.partner, o.get)) && !coachSameSpotSwap(o);
 }
 
+/* ---------- Why it works, and who to call ----------
+   (2026-10-23, user: "I wanna be wowed by how awesome these trades are"; picked all
+   four: lead with the best move, cut the filler, sell the why, read the other
+   manager.) coachExplain works out each listed trade's lineup gain, title odds,
+   who starts over whom, the other team's situation, and how that manager trades
+   (Trade Grades history: Negotiation.styles, marketOverpay). coachShape then, for
+   a contender in season, ranks by title odds gained, drops trades that barely
+   move the team, and puts managers who've never traded after the rest. */
+// Filler: under 2 pts a week and under 2 points of title odds (1 is within the simulation's wobble).
+const COACH_FILLER_PTS = 2, COACH_FILLER_TITLE = 2, COACH_CONTENDER_PCT = 50;
+let coachPays = null, coachPaysFor = null;
+function coachManagerRead(partner, give) {
+  const st = Negotiation.styles && Negotiation.styles.get ? Negotiation.styles.get(partner.rosterId) : null;
+  if (!st) return null;
+  const all = [...Negotiation.styles.values()], avg = all.reduce((t, s) => t + (s.trades || 0), 0) / (all.length || 1);
+  const name = Vault.escapeHtml(partner.teamName), n = st.trades || 0;
+  if (Negotiation.graded && coachPaysFor !== Negotiation.graded && typeof marketOverpay === 'function') { coachPays = marketOverpay(league, Negotiation.graded); coachPaysFor = Negotiation.graded; }
+  const top = give.length ? give.reduce((m, a) => (a.value > m.value ? a : m)) : null, pos = top ? (top.type === 'pick' ? 'Pick' : top.pos) : null;
+  const pay = pos && coachPays ? coachPays.get(partner.rosterId)?.[pos] : null;
+  const paysUp = pay && pay.n >= PAYS_UP_MIN && pay.avg >= PAYS_UP_AT ? `${name} has paid about ${Math.round(pay.avg)}% over market for ${pos === 'Pick' ? 'picks' : pos + 's'} in your league (${pay.n} trades).` : '';
+  if (!n) return { never: true, tone: 'text-orange-300', text: `${name} hasn't made a trade in your league yet, so this is a long shot.` };
+  const active = n >= Math.max(3, avg * 1.5);
+  // Only when it says something: an ordinary trade count doesn't.
+  if (!paysUp && !active) return null;
+  return { never: false, tone: 'text-emerald-300', text: paysUp || `${name} trades a lot (${n} trades, league average ${avg.toFixed(1)}).` };
+}
+function coachExplain(me, o) {
+  const aft = coachAfter(me.rosterId, o.partner.rosterId, o.give, o.get);
+  const gain = aft.opt - me.opt, title = coachTitleOdds(o);
+  // Who starts over whom: new starters from the trade, and who they push out of the lineup.
+  const before = new Set((me.lineup || []).map(s => s.id).filter(Boolean)), after = new Set((aft.lineup || []).map(s => s.id).filter(Boolean));
+  const gave = new Set(o.give.map(a => a.key));
+  const inn = o.get.filter(a => a.type === 'player' && after.has(a.key.slice(2)));
+  const out = (me.lineup || []).filter(s => s.id && !after.has(s.id) && !gave.has('p_' + s.id)).map(s => s.name);
+  const starts = inn.map((a, i) => out[i] ? `${Vault.escapeHtml(a.name)} starts over ${Vault.escapeHtml(out[i])}` : `${Vault.escapeHtml(a.name)} starts for you`);
+  const p = o.partner, name = Vault.escapeHtml(p.teamName), rec = p.record ? `${p.record.wins}-${p.record.losses}${p.record.ties ? '-' + p.record.ties : ''}` : '';
+  const pc = v => (v < 1 && v > 0 ? 'under 1' : v > 99 && v < 100 ? 'over 99' : Math.round(v)) + '%';
+  let situation = '';
+  if (remainingWeeks.length && Number.isFinite(p.playoffPct)) {
+    if (p.playoffPct < VAULT_CONFIG.OUT_OF_RACE_PCT) situation = `${name} is ${rec} and out of the race (${pc(p.playoffPct)} playoff odds): teams that far out sell starters.`;
+    else if (p.playoffPct >= 85) situation = `${name} is a contender too (${pc(p.playoffPct)} playoff odds): contenders rarely sell starters.`;
+  }
+  if (!situation && Vault.teamMode(p) === 'rebuild') situation = `${name} is building for later, so picks and young players appeal to them.`;
+  return { gain, title, starts, situation, manager: coachManagerRead(p, o.give) };
+}
+// Contender in season: playing for this year's title, so that's the headline and the order.
+const coachContending = me => remainingWeeks.length > 0 && Number.isFinite(me.playoffPct) && me.playoffPct >= COACH_CONTENDER_PCT && Vault.teamMode(me) !== 'rebuild';
+function coachShape(me, list, option) {
+  // The same player twice (Fix a position and Go all-in keep two ways to pay for
+  // each): one card, the second way to pay shown on it, so more players fit the list.
+  if (option === 'contend' || option === 'position') {
+    const first = new Map();
+    list = list.filter(o => { const k = o.partner.rosterId + '<' + negKeys(o.get).join(); const f = first.get(k); if (f) { (f.alts ||= []).push(o); return false; } first.set(k, o); return true; }).slice(0, 10);
+  }
+  list.forEach(o => { o.ctx = coachExplain(me, o); });
+  if (!coachContending(me) || !['best', 'team', 'contend', 'position'].includes(option)) return list;
+  const tGain = o => (o.ctx.title ? o.ctx.title.after - o.ctx.title.before : 0);
+  const real = list.filter(o => o.ctx.gain >= COACH_FILLER_PTS || tGain(o) >= COACH_FILLER_TITLE);
+  const kept = real.length >= 3 ? real : list;
+  return kept.sort((x, y) => (x.ctx.manager?.never ? 1 : 0) - (y.ctx.manager?.never ? 1 : 0) || tGain(y) - tGain(x) || y.ctx.gain - x.ctx.gain);
+}
+function coachWhyHtml(o) {
+  const c = o.ctx;
+  if (!c) return '';
+  const lines = [c.situation, c.starts.length ? c.starts.join('; ') + '.' : '', c.manager ? `<span class="${c.manager.tone}">${c.manager.text}</span>` : ''].filter(Boolean);
+  return lines.length ? `<ul class="mt-2.5 space-y-1 text-[12px] text-zinc-300">${lines.map(l => `<li class="flex gap-1.5"><span class="text-amber-300/70">•</span><span>${l}</span></li>`).join('')}</ul>` : '';
+}
+
 /* ---------- Quick filters ----------
    Above the results (2026-10-23, user picked "Steer Coach searches"): pay with
    picks and bench only (coachOffLimits), at most N pieces each way, and a
@@ -942,6 +1011,7 @@ async function coachFind() {
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
       res.list = res.list.filter(o => coachListOK(o, option)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      if (res.list.length) { progress('Working out what each trade does for you…'); await coachTick(); res.list = coachShape(me, res.list, option); }
       if (!res.list.length) { progress('Looking for the closest deals…'); res.near = coachNearMisses(me, raw, option); }
       if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} without giving up value right now. Try another trade type, or Go all-in to spend future value on this season.`; }
     }
@@ -1293,7 +1363,18 @@ function coachTitleOdds(o) {
   if (before == null || after == null || (before < 1 && after < 1)) return null;
   return { before, after };
 }
-function coachCardHtml(o, i, near = false) {
+// hero: the list's first trade, led by what it does for you in big type.
+function coachHeroHeadHtml(o) {
+  const c = o.ctx, pc = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
+  if (!c) return '';
+  // Price plays (Sell high, Buy low, Shop): the headline is how far ahead you come out.
+  const edge = COACH_PRICE_PLAYS.has(Coach.option) && typeof marketEdge === 'function' && Market.data && !Market.data.failed ? marketEdge(league, o.give, o.get).ktc : null;
+  const ahead = edge != null && edge >= 1 ? `<div><div class="num text-[30px] text-emerald-300">+${Math.round(edge)}%</div><div class="text-[12px] text-zinc-400">ahead on KTC value, at prices managers pay</div></div>` : '';
+  const pts = c.gain >= 0.5 ? `<div><div class="num text-[30px] text-emerald-300">+${c.gain.toFixed(1)}</div><div class="text-[12px] text-zinc-400">points a week to your best lineup</div></div>` : '';
+  const odds = c.title && Math.round(c.title.after) !== Math.round(c.title.before) ? `<div><div class="num text-[30px] text-zinc-100">${pc(c.title.before)} → <span class="${c.title.after > c.title.before ? 'text-emerald-300' : 'text-zinc-100'}">${pc(c.title.after)}</span></div><div class="text-[12px] text-zinc-400">your title odds</div></div>` : '';
+  return ahead || pts || odds ? `<div class="text-[11px] uppercase tracking-widest text-amber-300/80 mb-2">Your best move</div><div class="flex flex-wrap gap-x-8 gap-y-2 mb-3">${ahead}${pts}${odds}</div>` : `<div class="text-[11px] uppercase tracking-widest text-amber-300/80 mb-2">Your best move</div>`;
+}
+function coachCardHtml(o, i, near = false, hero = false) {
   // The price line is trade value alone, as labeled (Vault.tradeSideValues on
   // what you give and get). o.edge is the overall price grade, which also blends
   // both teams' roster fit and timeline: it showed Chase for Lamb + Adams as
@@ -1312,7 +1393,8 @@ function coachCardHtml(o, i, near = false) {
   const side = (label, list) => list.map((a, k) => row(k ? '' : label, a, !k)).join('');
   const title = coachTitleOdds(o), pc = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
   const titleLine = title ? `<div class="text-[12px] text-zinc-400 mt-2.5">Title odds <span class="mono text-zinc-100">${pc(title.before)} → ${pc(title.after)}</span>${Math.round(title.after) !== Math.round(title.before) ? ` <span class="font-semibold ${title.after > title.before ? 'text-emerald-400' : 'text-rose-400'}">${title.after > title.before ? '+' : '−'}${Math.abs(Math.round(title.after) - Math.round(title.before))}</span>` : ''}</div>` : '';
-  return `<div class="p-4 rounded-xl border ${lop ? 'border-orange-500/25' : 'border-white/[0.07]'} bg-white/[0.02] flex flex-col">
+  return `<div class="p-4 rounded-xl border ${hero ? 'md:col-span-2 border-amber-400/30 bg-amber-400/[0.04] p-5' : `${lop ? 'border-orange-500/25' : 'border-white/[0.07]'} bg-white/[0.02]`} flex flex-col">
+      ${hero ? coachHeroHeadHtml(o) : ''}
       <div class="flex items-baseline justify-between gap-2">
         <span class="text-[12px] text-zinc-400 min-w-0 truncate">Trade with <span class="text-zinc-100 font-medium">${Vault.escapeHtml(o.partner.teamName)}</span></span>
         <span class="text-[12px] font-semibold text-right ${verdict.cls}" title="Price: ${forYou ? `${forYou}, in your favor` : lop ? 'Lopsided against you' : 'Fair'}">${verdict.label}</span>
@@ -1323,8 +1405,10 @@ function coachCardHtml(o, i, near = false) {
         ${priceStatHtml(ktcPct, "KTC's calculator", PRICE_TIP.ktc, 'text-[22px]')}
       </div>
       <div class="border-b border-white/[0.06]">${side('Give', o.give)}${side('Get', o.get)}</div>
-      ${titleLine}
+      ${hero ? '' : titleLine}
+      ${coachWhyHtml(o)}
       ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}
+      ${o.alts && o.alts.length ? `<div class="text-[12px] text-zinc-400 mt-2">Or pay with ${o.alts.map(a => `<span class="text-zinc-200">${a.give.map(x => Vault.escapeHtml(x.name)).join(' + ')}</span>`).join(', or ')}.</div>` : ''}
       ${typeof marketAcceptHtml === 'function' ? marketAcceptHtml(marketAcceptable(league, o.give, o.get), coachMe().teamName, o.partner.teamName, 'mt-2.5', true) : ''}
       ${(() => { const t = improvementOf(negJudgeFor(coachMe(), o.give, o.partner, o.get, negContextFor(o.partner)).an, 'B'); return `<div class="text-[12px] text-zinc-400 mt-1">For ${Vault.escapeHtml(o.partner.teamName)}: <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.tier]}">${t.label}</span></div>`; })()}
       <div class="flex items-center justify-end gap-2 mt-auto pt-3">
@@ -1342,11 +1426,11 @@ function coachResultsHtml(r) {
   return `
     <div class="mt-3 mb-2 flex items-baseline justify-between gap-3 flex-wrap">
       <div class="text-[15px] font-medium text-zinc-100">${r.title}</div>
-      <div class="text-[12px] text-zinc-500">${r.list.length} option${r.list.length > 1 ? 's' : ''}, best for your team first</div>
+      <div class="text-[12px] text-zinc-500">${r.list.length} option${r.list.length > 1 ? 's' : ''}, ${coachContending(coachMe()) && ['best', 'team', 'contend', 'position'].includes(Coach.option) ? 'biggest boost to your title odds first' : 'best for your team first'}</div>
     </div>
     ${r.planNote ? `<div class="text-[12px] text-zinc-300 mb-2">${r.planNote}</div>` : ''}
     ${over ? '<div class="text-[12px] text-orange-300 mb-2">Some of these pay a premium: nobody would take a Fair offer for them. Those are marked Lopsided. Nothing here is Unfair.</div>' : ''}
-    <div class="grid gap-3 md:grid-cols-2">${r.list.map((o, i) => coachCardHtml(o, i)).join('')}</div>`;
+    <div class="grid gap-3 md:grid-cols-2">${r.list.map((o, i) => coachCardHtml(o, i, false, i === 0 && !!o.ctx)).join('')}</div>`;
 }
 
 // Negotiate option: a prompt to offer the loaded trade. Once rounds exist

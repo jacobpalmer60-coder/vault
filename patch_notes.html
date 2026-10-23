@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=fd73a387">
+<link rel="stylesheet" href="tailwind.css?v=91b2c4cd">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-23', items: [
+    { kind: 'improved', page: 'Trade Calculator', text: "Trade Coach leads with your best move: the top trade gets a big card that says what it does for you in plain numbers (\"+10.3 points a week, title odds 24% → 32%\"), or for Sell high and Buy low how far ahead you come out. In season, a contender's lists are ordered by how much each trade raises your title odds, and trades that barely change your lineup or your odds are left out instead of filling the list. Every card says why it works: the other team's situation (\"1-11 and out of the race: teams that far out sell starters\", or a warning when they're a contender too), who starts over whom on your team, and how that manager trades (they've never made a trade, they trade a lot, or they've paid over market for what you're sending). Managers who've never traded drop to the bottom, marked as a long shot. Go all-in and Fix a position show each player once, with a second way to pay on the same card." },
     { kind: 'new', page: 'Trade Calculator', text: "When a Trade Coach search finds nothing, it now shows the closest deals: the offers that just missed, why each one did, and what would fix it. For example, Get a player for Brock Purdy finds nothing Allen's Creamy Surprise would take, but adding Dallas Goedert to one offer makes it a Toss-up for them. Open any of them in the builder to adjust." },
     { kind: 'new', page: 'Trade Calculator', text: "Quick filters above Trade Coach's results: pay with anything or with picks and bench only (none of your starters go out), up to 1, 2 or 3 pieces each way, and a position you want back (QB, RB, WR, TE or a pick). Changing one searches again." },
     { kind: 'new', page: 'Trade Calculator', text: "Pin to compare: pin up to four trades from the builder and see them side by side, each with both teams' verdicts, the price on trade value and on KTC's calculator, and your title odds. Open any of them back in the builder. Pins are kept for your league in this browser." },
