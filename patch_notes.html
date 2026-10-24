@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=46b0bd9f"></script>
+<script src="vault-core.js?v=51061628"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-24', items: [
+    { kind: 'changed', page: 'Trade Calculator', text: "Consolidating counts for teams that aren't contending: getting fewer pieces than you send now counts 6% below the price in a rebuilding or flexible team's verdict, at any value (getting more, 6% above). In real trades, Slight edge or better trades that consolidated ended 10%+ behind later 25% of the time, against 6% for the side that spread out; with this the verdict predicted value later better in both seasons. Contenders don't get it: consolidating into a better starter helps this season." },
+    { kind: 'changed', page: 'Trade Calculator', text: "Trade Coach pays over only when the trade is still good for you: Get a player, Fix a position and buying from one team may pay up to 6% over value only when the trade is a Slight edge or better for you; Toss-ups need an even-or-better price. In real trades, Toss-ups that also paid over came out ahead later only 38% of the time." },
     { kind: 'new', page: 'Trade Calculator', text: "How trades like this aged: under Why, the patterns that match your trade and how sides like it stood one, two and four years later, at an even price. The age and position of the best piece you get, getting younger or older, picks for players, consolidating. For example, \"Sides whose best piece got was a RB aged 25-26: 58% ahead a year on, 49% two years on, 48% four years on.\" From 2024-2025 trades and the 2021-2023 long view on Trade Lab." },
     { kind: 'new', page: 'Trade Calculator', text: "A note when a contender pays over for points: if your trade adds 2+ points a week this season but costs you 2% or more in value, the calculator says what that did in real trades (contenders who paid 2-10% over beat their playoff odds by 5.8 points, against 6.4 for those who kept their value, and 36% were still ahead on value later). Information only; it doesn't change the verdict." },
     { kind: 'changed', page: 'Trade Calculator', text: "Age counts more for teams that aren't contending: in the verdict, a RB, WR or TE 27 or older is now valued 10% below his price for rebuilding and flexible teams (it was 5%, and still is for contenders, since veterans do help this season). Tested on 2024-2025 trades, the verdict then predicted which side was ahead later better in both seasons without hurting how it tracks contenders' playoffs; followed four years, 2021-2023 trades showed RBs and WRs that age losing 15-17% of their value. Your own verdict changes only if your team isn't contending; in The League of Gold about 6% of other teams' verdicts on Trade Coach trades moved." },

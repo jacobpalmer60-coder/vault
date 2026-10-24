@@ -87,6 +87,13 @@ const VAULT_CONFIG = {
   // The long view backs it for RBs and WRs: 2021-2023 player trades at an even price,
   // RB/WR 27-28 lost 15-17% over four years (TEs that age held up).
   AGE_CLIFF_PCT_LONG: -10,
+  // Getting fewer pieces than you send (any price), for rebuilding and flexible teams
+  // (2026-10-24, VaultValues cons-tune.js; verdict-audit: Slight edge+ sides that got 1
+  // for 2+ ended 10%+ behind 25% of the time, 2+ for 1 only 6%). At −6 value later
+  // tracked better in both seasons (2025 41.3 → 42.0, 2024 33.8 → 35.7, rebuilders
+  // 50.6 → 52.7); contenders stay at 0: consolidating helps this season's lineup, and
+  // a cut there hurt how their verdict tracked playoffs. Getting more pieces is +6.
+  CONSOLIDATION_PCT_LONG: -6,
   AGE_CLIFF_AT: 27,
   WR_DRIFT_PCT: -3,
   FAIR_CURVE: {
@@ -2971,10 +2978,12 @@ const Vault = {
     const old = a => (a && a.type !== 'pick' && ['RB', 'WR', 'TE'].includes(a.pos) && (a.age || 0) >= C.AGE_CLIFF_AT ? 1 : 0);
     const isWr = a => (a && a.type !== 'pick' && a.pos === 'WR' ? 1 : 0);
     const age = (mode === 'contend' ? C.AGE_CLIFF_PCT : C.AGE_CLIFF_PCT_LONG) * (old(tg) - old(tv)), wr = C.WR_DRIFT_PCT * (isWr(tg) - isWr(tv));
-    const pct = pick + cons + age + wr;
-    const parts = { picks: pick, cheap: cons, age, wr };
+    // Consolidating at any price, for teams not contending (CONSOLIDATION_PCT_LONG).
+    const fewer = mode === 'contend' ? 0 : C.CONSOLIDATION_PCT_LONG * (got.length < gave.length ? 1 : got.length > gave.length ? -1 : 0);
+    const pct = pick + cons + age + wr + fewer;
+    const parts = { picks: pick, cheap: cons, age, wr, fewer };
     const why = !pct ? null : Object.entries(parts).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0][0];
-    return { pct, why, pick, cons, age, wr, oldGot: old(tg) ? tg.name : null, oldGave: old(tv) ? tv.name : null };
+    return { pct, why, pick, cons, age, wr, fewer, oldGot: old(tg) ? tg.name : null, oldGave: old(tv) ? tv.name : null };
   },
 
   // How far behind a manager typically accepts, for the side that gets `got` and sends

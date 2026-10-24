@@ -284,7 +284,10 @@ const coachValuePct = o => { const tv = Vault.tradeSideValues(o.give, o.get); re
 // (user, 2026-10-24: "The buyer doesn't set the price. Seller does").
 const COACH_PREMIUM_OK = new Set(['target', 'position']), COACH_TARGET_PREMIUM = 6;
 const coachBuyer = o => Math.max(...o.get.map(a => a.value)) > Math.max(...o.give.map(a => a.value));
-const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) >= -(COACH_PREMIUM_OK.has(option) || (option === 'team' && coachBuyer(o)) ? COACH_TARGET_PREMIUM : COACH_VALUE_FLOOR);
+// Only when the trade is still Slight edge or better for you (2026-10-24, user, after the
+// backtest: Toss-ups that also paid 2-6% over were the weakest group, 38% ahead later).
+const coachPremiumOK = (o, option) => (COACH_PREMIUM_OK.has(option) || (option === 'team' && coachBuyer(o))) && Vault.verdictTier(coachScore(o)).level === 'good';
+const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) >= -(coachPremiumOK(o, option) ? COACH_TARGET_PREMIUM : COACH_VALUE_FLOOR);
 // Lists where you picked the player, the team or the position (user, 2026-10-24): a
 // fair price there usually reads Toss-up for you (two contenders rarely both win a
 // trade), so Toss-ups show too, after the better trades and labeled. Get a player
