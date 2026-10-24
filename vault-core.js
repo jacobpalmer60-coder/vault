@@ -161,6 +161,19 @@ const VAULT_CONFIG = {
   // and the per-year decay rate past it, once it does — used by contentionWindow's
   // 5-year projection so aging is modeled per-position, not by one flat team-wide cutoff.
   POSITION_DECAY: { RB: [26, 0.85], WR: [27, 0.92], QB: [30, 0.96], TE: [28, 0.93] },
+  // What the player taken at each rookie-draft slot scored, PPR points a game in
+  // games played (0 if he never played), in his 1st, 2nd and 3rd season: 61,730
+  // rookie drafts of the 2023-2025 classes from the crawl, Sleeper's season stats
+  // (VaultValues rookie-years.js, 2026-10-24). Slots as Vault.ktcPickSlot maps them.
+  ROOKIE_PPG: {
+    '1.early': [13.8, 15.4, 15.8], '1.mid': [10.9, 13.0, 13.4], '1.late': [9.9, 10.1, 10.2],
+    '2.early': [8.8, 9.1, 8.2], '2.mid': [6.5, 7.6, 7.0], '2.late': [5.3, 6.4, 6.4],
+    '3.early': [5.1, 5.9, 5.7], '3.mid': [4.9, 5.6, 4.4], '3.late': [4.7, 5.3, 4.0],
+    '4.early': [4.4, 4.7, 4.4], '4.mid': [4.1, 4.0, 4.9], '4.late': [3.9, 3.3, 5.1]
+  },
+  // The NFL's top N RB/WR/TE by PPR points a game (4+ games), averaged over 2024 and
+  // 2025: puts ROOKIE_PPG on a league's own scoring (Vault.contentionWindow).
+  ROOKIE_PPR_TOP: { 40: 17.07, 60: 15.79, 80: 14.77, 100: 13.89, 120: 13.07, 140: 12.32, 160: 11.66, 200: 10.46 },
   // Value Based Adjustment: boosts assets above VBA_REFERENCE, discounts those
   // below it, so a single elite piece outweighs several mid-tier pieces summing
   // to the same raw value. Fitted against a real KeepTradeCut trade-calculator
@@ -2288,29 +2301,38 @@ const Vault = {
       return Math.pow(rate, decayYears);
     }
 
-    // League-wide $-value-per-PPG-point rate, used below to translate a converting
-    // pick's dollar value into an estimated PPG contribution — built from every
-    // rostered player in the league with real value AND real production, so it
-    // reflects the market rate rather than one roster's own mix.
+    // A pick that's arrived plays like the rookies taken at its slot really did
+    // (VAULT_CONFIG.ROOKIE_PPG, PPR), scaled to this league's scoring: its top
+    // RB/WR/TE starters' points a game over the NFL's top as many in PPR
+    // (ROOKIE_PPR_TOP). It was the pick's value at the league's value per point a
+    // game, which made a late 1st a 13.6-point starter in its first year; players
+    // taken there averaged 9.9 (2026-10-24, VaultValues rookie-years.js).
     // A trade only moves players between teams, so this is the same for every
     // trade in a league; computed once per list of teams.
     const rateKey = all.reduce((s, team) => s + team.total, 0) + '|' + all.length;
     const rateMemo = Vault._cwRate.get(all);
-    let dollarsPerPpg = rateMemo && rateMemo.key === rateKey ? rateMemo.rate : null;
-    if (dollarsPerPpg == null) {
-      let sumValue = 0, sumPpg = 0;
-      all.forEach(team => team.plist.forEach(p => {
-        if (p.value > 0 && p.ppg > 0) { sumValue += p.value; sumPpg += p.ppg; }
-      }));
-      dollarsPerPpg = sumPpg ? sumValue / sumPpg : 1;
-      Vault._cwRate.set(all, { key: rateKey, rate: dollarsPerPpg });
+    let rookieScale = rateMemo && rateMemo.key === rateKey ? rateMemo.rate : null;
+    if (rookieScale == null) {
+      const flexPos = new Set(['RB', 'WR', 'TE']);
+      const perTeam = Math.max(1, Math.round(all.reduce((s, team) => s + (team.lineup || []).filter(x => x.id && flexPos.has(x.pos)).length, 0) / (all.length || 1)));
+      const k = perTeam * all.length;
+      const ppgs = all.flatMap(team => team.plist.filter(p => flexPos.has(p.pos) && p.ppg > 0).map(p => p.ppg)).sort((a, b) => b - a).slice(0, k);
+      const leagueTop = ppgs.length ? ppgs.reduce((s, v) => s + v, 0) / ppgs.length : 0;
+      const ref = Object.entries(VAULT_CONFIG.ROOKIE_PPR_TOP).map(([n, v]) => [+n, v]).sort((a, b) => a[0] - b[0]);
+      const at = n => { if (n <= ref[0][0]) return ref[0][1]; for (let i = 1; i < ref.length; i++) if (n <= ref[i][0]) { const [n0, v0] = ref[i - 1], [n1, v1] = ref[i]; return v0 + (v1 - v0) * (n - n0) / (n1 - n0); } return ref[ref.length - 1][1]; };
+      rookieScale = leagueTop ? leagueTop / at(k) : 1;
+      Vault._cwRate.set(all, { key: rateKey, rate: rookieScale });
     }
+    const rookiePpg = (p, projYear) => {
+      const round = p.ktcRound || p.round, row = VAULT_CONFIG.ROOKIE_PPG[`${Math.min(4, round)}.${p.ktcTier || 'mid'}`] || VAULT_CONFIG.ROOKIE_PPG['4.late'];
+      return row[Math.min(2, Math.max(0, projYear - p.season))] * (round > 4 ? 0.8 : 1) * rookieScale;
+    };
 
     // The projection depends only on this team (and the rate above), so it's kept
     // per team object: a Trade Coach search re-ranks the same untouched teams
     // against every trade (2026-10-23, faster first search). The key catches any
     // change to the roster, picks or lineup.
-    const projKey = `${t.total}|${t.picksValue}|${t.opt}|${dollarsPerPpg.toPrecision(10)}`;
+    const projKey = `${t.total}|${t.picksValue}|${t.opt}|${rookieScale.toPrecision(10)}`;
     const memo = Vault._cwProj.get(t);
     const { proj, projPPG } = memo && memo.key === projKey ? memo : (() => {
     // Age lookup for the current starters — t.lineup carries slot/pos/ppg but not
@@ -2329,7 +2351,7 @@ const Vault = {
       // PPG is projected off the current STARTING LINEUP (t.lineup) only, not the
       // full ~30-man roster — summing every rostered player's ppg would triple-to-
       // quadruple the real number, since a lineup only starts ~11 of them. A pick
-      // that's arrived by this year gets estimated via the league's $-per-PPG rate,
+      // that's arrived by this year plays like rookies at its slot did (rookiePpg),
       // then greedily swapped in for the current WEAKEST starter it beats — modeling
       // a roster upgrade (replacing a bench-caliber starter), not stacking unlimited
       // extra PPG onto a lineup that only has so many slots to fill. Without that
@@ -2338,7 +2360,7 @@ const Vault = {
       const starterPpgs = t.lineup.filter(s => s.id).map(s => s.ppg * decayFactor(s.pos, ageById.get(s.id) || 0, y));
       const arrivedPickPpgs = (t.picks || [])
         .filter(p => projYear >= p.season)
-        .map(p => (p.value || 0) / dollarsPerPpg)
+        .map(p => rookiePpg(p, projYear))
         .sort((a, b) => b - a);
       arrivedPickPpgs.forEach(pickPpg => {
         let weakestIdx = 0;
