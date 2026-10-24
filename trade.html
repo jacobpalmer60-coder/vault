@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=91b2c4cd">
+<link rel="stylesheet" href="tailwind.css?v=bf444ba5">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -162,6 +162,10 @@
       </div>
     </div>
   </div>
+
+  <!-- The verdict, kept on screen while the trade card is scrolled away (picking
+       from the rosters below): tap to go back to it (renderVerdictDock). -->
+  <button id="verdictDock" onclick="document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' })" title="Go to the trade and its verdict" class="hidden fixed bottom-3 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[520px] z-40 rounded-xl border border-white/10 bg-zinc-900/95 backdrop-blur px-4 py-2.5 text-left shadow-lg shadow-black/40 hover:border-white/20 transition-colors"></button>
 
   <!-- Pinned trades side by side (pinTrade / renderCompare). -->
   <div id="compareTray" class="hidden mb-4"></div>
@@ -1387,11 +1391,23 @@ function improvementReason(imp, s) {
   if (second.even) return `${cap(first.text)}, ${second.text}.`;
   return `${cap(first.text)}, ${Math.sign(first.w) === Math.sign(second.w) ? 'and' : 'but'} ${second.text}.`;
 }
+// The verdict dock: shown once there's a verdict and the two verdict tiles are off
+// screen (below the fold on a phone, or scrolled away while picking from the rosters).
+function renderVerdictDock(html) {
+  const dock = document.getElementById('verdictDock'), tiles = document.getElementById('forYou');
+  if (!dock) return;
+  if (html !== undefined) dock.innerHTML = html;
+  const r = tiles && tiles.getBoundingClientRect();
+  const inView = !r || !r.height || (r.bottom > 60 && r.top < innerHeight - 140);
+  dock.classList.toggle('hidden', !dock.innerHTML || inView);
+}
+let dockFrame = 0;
+['scroll', 'resize'].forEach(ev => addEventListener(ev, () => { if (!dockFrame) dockFrame = requestAnimationFrame(() => { dockFrame = 0; renderVerdictDock(); }); }, { passive: true }));
 function renderForYou(teamA, aAssets, bAssets, analysis) {
   const el = document.getElementById('forYou');
   lastImprovement = null;
   if (!el) return;
-  if (!analysis.heads || !aAssets.length || !bAssets.length) { el.innerHTML = ''; return; }
+  if (!analysis.heads || !aAssets.length || !bAssets.length) { el.innerHTML = ''; renderVerdictDock(''); return; }
   const imp = improvementOf(analysis, 'A');
   const s = seasonFor.get(teamA.rosterId);
   lastImprovement = { ...imp, reason: improvementReason(imp, s) + (imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : '') };
@@ -1417,6 +1433,11 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub) : ''}
     </div>
     <div class="text-[14px] text-zinc-200 mt-3 max-w-[640px]">${improvementReason(imp, null)}${imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : ''}</div>`;
+  const dockSide = (who, label, cls) => `<div class="min-w-0"><div class="text-[10px] uppercase tracking-wider text-zinc-500 truncate">${who}</div><div class="num text-[17px] leading-tight ${cls}">${label}</div></div>`;
+  renderVerdictDock(`<div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3">
+      ${dockSide(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier])}
+      ${them ? dockSide(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier]) : '<div></div>'}
+      <span class="text-[11px] text-zinc-400">See trade ↑</span></div>`);
   // Your title odds in the card's number row, when the season is on.
   const ts = document.getElementById('titleStat');
   if (ts) ts.innerHTML = s && (s.before.championshipPct >= 1 || s.after.championshipPct >= 1) ? (() => { const pc = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%', d = Math.round(s.after.championshipPct) - Math.round(s.before.championshipPct);
@@ -1734,7 +1755,7 @@ function updateTrade() {
   // row; everything that explains them sits under Why.
   const cardNumbers = aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 flex flex-wrap gap-x-10 gap-y-3">
       <div id="titleStat"></div>
-      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · trade value`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, ktcSameCall(tradeEdge, ktcEdge) ? "KTC's calculator · same call" : "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}</div>` : '';
+      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · trade value`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, ktcSameCall(tradeEdge, ktcEdge) ? "KTC's calculator · same call" : "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}<div id="marketStat"></div></div>` : '';
   diffLabelEl.innerHTML = `<div id="forYou"></div>${cardNumbers}<div id="workBoth"></div>
     ${aAssets.length && bAssets.length ? `<details class="group mt-3 max-w-[640px]" id="whyBox"><summary class="inline-flex items-center gap-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200"><span>Why</span><span class="group-open:hidden">▾</span><span class="hidden group-open:inline">▴</span></summary><div class="mt-2 space-y-1.5"><div id="whyVerdict"></div>
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
@@ -2136,7 +2157,7 @@ init();
 </script>
 <script src="negotiation.js?v=7d597d52"></script>
 <script src="market-data.js?v=07632230"></script>
-<script src="market.js?v=692419ef"></script>
+<script src="market.js?v=7b8420cd"></script>
 <script src="coach.js?v=2c2d3b5d"></script>
 </body>
 </html>

@@ -95,6 +95,8 @@ function renderMarketRead(aAssets, bAssets) {
   // The market price is in the verdict above; this names who moves it away from KTC.
   const check = mk.movers.length && Math.abs(mk.delta) >= 2 ? `<div class="mt-2 text-[12px] leading-relaxed text-zinc-400"><span class="text-zinc-500">Market vs KTC:</span> ${mk.movers.slice(0, 2).map(marketMoverText).join(', and ')}. Trade value, the grade, uses these prices.</div>` : '';
   const m = marketRead(aAssets, bAssets);
+  const stat = document.getElementById('marketStat');
+  if (stat) stat.innerHTML = '';
   if (!m) { box.innerHTML = check; return; }
   const name = Vault.escapeHtml(m.player.name);
   const payer = Vault.escapeHtml((m.youGet ? teamOf('A') : teamOf('B'))?.teamName || (m.youGet ? 'you' : 'they'));
@@ -135,4 +137,18 @@ function renderMarketRead(aAssets, bAssets) {
         <div class="text-[11px] text-zinc-500 mt-2">${m.sleeper ? "From KTC's trade database (priced at today's KTC values, in each trade's own format) and, before that, Sleeper dynasty leagues (priced at KTC values from each trade's day)" : "From KTC's trade database, priced at today's KTC values in each trade's own format"}. Over and under KTC here count extra pieces and the best piece the way trade value does, on KTC's numbers, so they differ from KTC's calculator. Trade value, the grade, then prices each player at what he goes for in trades like these.</div>
       </div>
     </details>${check}`;
+  // On the verdict card, next to trade value and KTC: is this a usual price for
+  // him in real trades? One tap opens those trades (openMarketTrades).
+  if (stat) stat.innerHTML = `<button onclick="openMarketTrades()" class="text-left group/ms" title="What the team getting ${name} paid in ${m.n} completed trades from leagues like yours (${m.like}): usually ${marketRange(m.low, m.high)}. Here ${payer} pays ${marketSigned(m.ours)}. Tap to see the trades.">
+      <div class="num text-[24px] ${where === 'within' ? 'text-zinc-100' : verdict.cls}">${where === 'within' ? 'Usual price' : where === 'below' ? 'Under usual' : 'Over usual'}</div>
+      <div class="text-[11px] text-zinc-400 mt-0.5 group-hover/ms:text-zinc-200">for ${name} · <span class="underline decoration-dotted underline-offset-2">${m.n} real trades</span></div>
+    </button>`;
+}
+// Opens Details and the market's trades, and scrolls to them.
+function openMarketTrades() {
+  const det = document.getElementById('tradeDetails'), box = document.getElementById('marketRead');
+  if (det) det.open = true;
+  const inner = box && box.querySelector('details');
+  if (inner) inner.open = true;
+  if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
