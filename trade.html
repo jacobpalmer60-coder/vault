@@ -448,6 +448,7 @@ async function init() {
 
     document.getElementById('loadRostersBtn').onclick = () => {
       if (typeof negReset === 'function') { negReset(); negPreloadStyles(); }
+      if (typeof marketLoad === 'function') marketLoad(league).catch(() => {}); // completed-trade prices too, so Trade Coach's first search doesn't wait on them
       if (typeof coachReset === 'function') coachReset(); // trade history loads in the background for negotiations
       // Picked on the "Which team is yours?" screen: remember it, like the nav's
       // Your team menu, so no other page has to ask. (Not when a shared trade
@@ -2136,6 +2137,6 @@ init();
 <script src="negotiation.js?v=7d597d52"></script>
 <script src="market-data.js?v=07632230"></script>
 <script src="market.js?v=692419ef"></script>
-<script src="coach.js?v=9d7ff11c"></script>
+<script src="coach.js?v=2c2d3b5d"></script>
 </body>
 </html>

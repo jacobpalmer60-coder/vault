@@ -42,7 +42,15 @@ const COACH_OPTIONS = {
 };
 const Coach = { option: 'best', step: 'type', shopKey: null, targetKey: null, teamId: null, downKey: null, downSame: false, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [], groups: [] }, theirs: { must: [], keep: [], never: [], groups: [] }, benchOnly: false, maxPieces: 0, picker: { open: false, q: '', pos: 'ALL' } };
 
-const coachTick = () => new Promise(r => setTimeout(r, 0));
+// A breather between steps of a search, so the page stays responsive. A message,
+// not setTimeout: browsers stretch timers to a second or more in a background tab,
+// so switching tabs mid-search made it crawl (2026-10-23).
+const coachTick = (() => {
+  if (typeof MessageChannel === 'undefined') return () => new Promise(r => setTimeout(r, 0));
+  const ch = new MessageChannel(), waiting = [];
+  ch.port1.onmessage = () => { const r = waiting.shift(); if (r) r(); };
+  return () => new Promise(r => { waiting.push(r); ch.port2.postMessage(0); });
+})();
 
 /* ---------- Your timeline ----------
    The same per-team timeline as the calculator's Timeline picker
@@ -74,7 +82,7 @@ function coachScore(o) {
   if (o.an) return improvementOf(o.an, 'A').score;
   if (o.score != null) return o.score;
   const id = `${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
-  if (!coachScoreMemo.has(id)) coachScoreMemo.set(id, improvementOf(negJudgeFor(coachMe(), o.give, o.partner, o.get, negContextFor(o.partner)).an, 'A').score);
+  if (!coachScoreMemo.has(id)) coachScoreMemo.set(id, improvementOf(coachJudged(coachMe(), o.partner, o.give, o.get).an, 'A').score);
   return coachScoreMemo.get(id);
 }
 // For ORDER only, value beyond about 4% your way earns no extra credit, so the
@@ -88,7 +96,7 @@ function coachRankScore(o) {
   if (imp) return Vault.tradeImprovement({ ...imp, valuePct: Math.min(imp.valuePct, COACH_VALUE_CREDIT) }).score;
   const id = `rank:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
   if (!coachScoreMemo.has(id)) {
-    const i2 = improvementOf(negJudgeFor(coachMe(), o.give, o.partner, o.get, negContextFor(o.partner)).an, 'A');
+    const i2 = improvementOf(coachJudged(coachMe(), o.partner, o.give, o.get).an, 'A');
     coachScoreMemo.set(id, Vault.tradeImprovement({ ...i2, valuePct: Math.min(i2.valuePct, COACH_VALUE_CREDIT) }).score);
   }
   return coachScoreMemo.get(id);
@@ -267,7 +275,7 @@ const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) 
 // The other team's verdict score for the same trade (memoized like coachScore).
 function coachTheirScore(o) {
   const id = `them:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
-  if (!coachScoreMemo.has(id)) coachScoreMemo.set(id, improvementOf(negJudgeFor(coachMe(), o.give, o.partner, o.get, negContextFor(o.partner)).an, 'B').score);
+  if (!coachScoreMemo.has(id)) coachScoreMemo.set(id, improvementOf(coachJudged(coachMe(), o.partner, o.give, o.get).an, 'B').score);
   return coachScoreMemo.get(id);
 }
 // Win-wins first (user, 2026-10-08): trades that aren't a Bad trade for the
@@ -362,8 +370,7 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
     packs.push([...must, a]);
     pool.slice(i + 1).forEach(b => { const s = mustVal + a.value + b.value; if (s >= want * 0.7 && s <= want * 1.7) packs.push([...must, a, b]); });
   });
-  const ctx = negContextFor(partner);
-  const judge = list => list.map(give => ({ give, j: negJudgeFor(me, give, partner, get, ctx) })).filter(x => coachMarketOK(x.give, get));
+  const judge = list => list.map(give => ({ give, j: coachJudged(me, partner, give, get) })).filter(x => coachMarketOK(x.give, get));
   const offer = x => ({ partner, give: x.give, get, edge: x.j.edge, score: coachScore(x.j) });
   let taken = judge(packs);
   let found = taken.filter(x => x.j.edge < ceiling).map(offer);
@@ -388,7 +395,7 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
       let best = null;
       fillers.forEach(fl => {
         const g2 = [...get, fl];
-        const j = negJudgeFor(me, x.give, partner, g2, ctx);
+        const j = coachJudged(me, partner, x.give, g2);
         if (coachMarketOK(x.give, g2) && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || coachKey({ edge: j.edge, an: j.an }) < coachKey(best))) best = { partner, give: x.give, get: g2, edge: j.edge, score: coachScore(j), note: `They add ${Vault.escapeHtml(fl.name)} to even it out.` };
       });
       if (best) found.push(best);
@@ -435,8 +442,8 @@ async function coachTarget(me, progress) {
 // UPGRADE_TARGETS players looked at, UPGRADE_PER_TARGET packages each (different
 // lead pieces), UPGRADE_SHOW listed (2026-10-23, user: "there's gotta be more
 // trades to upgrade RB": 15 / 1 / 5 left two RB upgrades on a roster with a dozen).
-// UPGRADE_SHOW is before coachShape folds a player's second package into his card (then 10).
-const UPGRADE_TARGETS = 25, UPGRADE_PER_TARGET = 2, UPGRADE_SHOW = 20;
+// UPGRADE_STOP: players with a trade before the search stops. UPGRADE_SHOW is before coachShape folds a player's second package into his card (then 10).
+const UPGRADE_TARGETS = 25, UPGRADE_PER_TARGET = 2, UPGRADE_SHOW = 20, UPGRADE_STOP = 12;
 async function coachUpgrades(me, positions, protect, progress, pay, valueMode = false, option = valueMode ? 'position' : 'contend') {
   const starters = me.lineup.filter(s => s.id);
   const floor = {};
@@ -449,6 +456,9 @@ async function coachUpgrades(me, positions, protect, progress, pay, valueMode = 
   const run = async ceiling => {
     const out = [];
     for (const { a, t } of cands) {
+      // Players come best upgrade first: once UPGRADE_STOP have a trade, the rest can't
+      // beat them for a list of 10 (2026-10-23, faster first search).
+      if (new Set(out.map(o => o.id.split('|')[0])).size >= UPGRADE_STOP) break;
       progress(`Pricing ${a.name}${ceiling > VAULT_CONFIG.FAIR_PCT ? ' with a premium' : ''}…`);
       await coachTick();
       // The cheapest packages, best for you first; keep the first few that
@@ -517,7 +527,7 @@ function coachSaleOffers(me, v, filter) {
     pool.forEach((a, i) => pool.slice(i + 1).forEach(b => { const s = tmVal + a.value + b.value; if (s >= v.value * 0.6 && s <= v.value * 1.5) packs.push([...tm, a, b]); }));
     let best = null;
     packs.filter(pack => coachGroupsOK([v], pack)).forEach(pack => {
-      const j = negJudgeFor(me, [v], t, pack, negContextFor(t));
+      const j = coachJudged(me, t, [v], pack);
       if (coachMarketOK([v], pack) && j.edge < VAULT_CONFIG.FAIR_PCT && (!best || coachKey({ edge: j.edge, an: j.an }) < coachKey(best))) best = { partner: t, give: [v], get: pack, edge: j.edge, score: coachScore(j) };
     });
     if (best) offers.push(best);
@@ -644,7 +654,8 @@ async function coachRebuild(me, progress) {
 // `me` is a new object whenever the league's rosters reload, which starts over.
 const coachCache = { me: null, plan: null, pool: null, judged: new Map() };
 function coachCacheFor(me) {
-  const plan = Vault.planOverride[me.rosterId] || 'auto';
+  // Either team's timeline changes the grades (Vault.planOverride), so any change starts over.
+  const plan = JSON.stringify(Vault.planOverride);
   if (coachCache.me !== me || coachCache.plan !== plan) Object.assign(coachCache, { me, plan, pool: null, judged: new Map() });
   return coachCache;
 }
@@ -691,9 +702,13 @@ async function coachBest(me, progress) {
   // reason to take, that help both rosters, with real upside for you, best for
   // you first. Checking this after picking the top 10 left a thin list padded
   // with trades that were bad for the other team.
-  const scored = pool.filter(c => !sameValue(c))
-    .map(c => { const j = coachJudged(me, c.partner, c.giveA, c.giveB); return { c, j, mine: improvementOf(j.an, 'A'), theirs: improvementOf(j.an, 'B') }; })
-    .filter(x => coachSensible(x) && coachDepthOK(me, x.c.partner, x.c.giveA, x.c.giveB));
+  // In batches, yielding between them, so the page stays responsive and a head start can stop.
+  const scored = [], todo = pool.filter(c => !sameValue(c));
+  for (let i = 0; i < todo.length; i++) {
+    if (i && i % 150 === 0) { progress('Checking which of those their managers would take…'); await coachTick(); }
+    const c = todo[i], j = coachJudged(me, c.partner, c.giveA, c.giveB), x = { c, j, mine: improvementOf(j.an, 'A'), theirs: improvementOf(j.an, 'B') };
+    if (coachSensible(x) && coachDepthOK(me, c.partner, c.giveA, c.giveB)) scored.push(x);
+  }
   // Good trade or better first (the sort below), then Slight edges to fill the list (2026-10-23, user: "doesn't give many options": when
   // 3+ had real upside only those showed, 4 in The League of Gold).
   scored
@@ -730,7 +745,7 @@ async function coachTeam(me, progress) {
   if (!coachPartnerOK(partner)) return { empty: `${name} doesn't have any of the pieces you require under Their side.` };
   progress(`Looking for trades with ${partner.teamName}…`);
   await coachTick();
-  const must = coachMust(me), off = coachOffLimits(me), ctx = negContextFor(partner);
+  const must = coachMust(me), off = coachOffLimits(me);
   const seen = new Set(), found = [];
   const add = (give, get, edge, why) => {
     const id = negKeys(give).join() + '>' + negKeys(get).join();
@@ -742,7 +757,7 @@ async function coachTeam(me, progress) {
     must.every(m => c.giveA.includes(m)) && !c.giveA.some(a => off.has(a.key))
     && !c.giveB.some(coachTheirOff) && coachTheirMust(partner).every(m => c.giveB.includes(m)))
     .forEach(c => {
-      const j = negJudgeFor(me, c.giveA, partner, c.giveB, ctx);
+      const j = coachJudged(me, partner, c.giveA, c.giveB);
       if (coachMarketOK(c.giveA, c.giveB) && j.edge < VAULT_CONFIG.LOPSIDED_PCT) add(c.giveA, c.giveB, j.edge, c.result.bucket === 'Great' ? 'A strong fit for both rosters.' : c.result.bucket === 'Good' ? 'A strong fit for one side.' : '');
     });
   const targets = partner.assets.filter(a => !coachTheirOff(a) && a.value >= 500).sort((x, y) => y.value - x.value).slice(0, 8);
@@ -781,7 +796,7 @@ async function coachDowntier(me, progress) {
   for (const t of teams.filter(x => x !== me && coachPartnerOK(x))) {
     progress(`Checking ${t.teamName}…`);
     await coachTick();
-    const ctx = negContextFor(t), tm = coachTheirMust(t);
+    const tm = coachTheirMust(t);
     const leads = t.assets.filter(a => a.type === 'player' && !coachTheirOff(a) && a.value >= v.value * 0.4 && a.value <= v.value * 0.92 && (!Coach.downSame || a.pos === v.pos))
       .sort((x, y) => y.value - x.value).slice(0, 4);
     leads.forEach(L => {
@@ -794,7 +809,7 @@ async function coachDowntier(me, progress) {
       // The package closest to Fair that passes the list's checks (2026-10-23:
       // picking the closest first and checking after dropped the lead entirely).
       const judged = packs.filter(p => sumValue(p) > sent && sumValue(p) <= sent * 2 && coachGroupsOK(give, p)).map(p => {
-        const j = negJudgeFor(me, give, t, p, ctx);
+        const j = coachJudged(me, t, give, p);
         return coachMarketOK(give, p) && j.edge < VAULT_CONFIG.LOPSIDED_PCT ? { partner: t, give, get: p, edge: j.edge, an: j.an, score: coachScore(j), lead: L } : null;
       }).filter(Boolean).sort((x, y) => coachKey(x) - coachKey(y));
       const best = judged.find(o => coachListOK(o, 'downtier'));
@@ -951,7 +966,7 @@ function coachMissReasons(o, option) {
 function coachNearMisses(me, raw, option) {
   if (!raw || !raw.length) return [];
   const off = coachOffLimits(me), theirMin = option === 'position' || option === 'contend' ? COACH_UPGRADE_THEIR_MIN : COACH_THEIR_MIN;
-  const judged = (o, give) => { const j = negJudgeFor(me, give, o.partner, o.get, negContextFor(o.partner)); return { partner: o.partner, give, get: o.get, edge: j.edge, an: j.an, why: o.why }; };
+  const judged = (o, give) => { const j = coachJudged(me, o.partner, give, o.get); return { partner: o.partner, give, get: o.get, edge: j.edge, an: j.an, why: o.why }; };
   const seen = new Set(), out = [];
   for (const o of raw.filter(x => coachPiecesOK(x.give, x.get)).slice(0, COACH_NEAR_LOOK)) {
     let best = { o, reasons: coachMissReasons(o, option), add: null };
@@ -1000,6 +1015,16 @@ async function coachFind() {
   // Wait for both, however long they take (each settles even when its download
   // fails): with a time limit, a slow connection got a different list for the
   // same league (user, 2026-10-09: "why would numbers change based upon loading speed?").
+  // The head start: when it's on this very search, let that part finish; then stop
+  // it (it yields often, so that's quick) so this search has the computer to itself,
+  // and pick it back up once these results are showing.
+  let resumeHeadStart = false;
+  if (Coach.prewarm && !Coach.prewarmFinished && !(option === 'best' && Coach.prewarmBest)) {
+    if (Coach.prewarmPhase === option) { progress('Finishing the search started when you opened Trade Coach…'); await Coach.prewarmPhaseDone; }
+    Coach.prewarmStop = true;
+    await Coach.prewarm;
+    resumeHeadStart = !Coach.prewarmFinished;
+  }
   if (!Negotiation.styles) { progress('Reading every manager\'s trade history…'); await negPreloadStyles(); }
   // What players go for in completed trades: Best trades and the acceptable read use it.
   if (typeof marketLoad === 'function' && !Market.data) { progress('Reading what players go for in completed trades…'); await marketLoad(league); }
@@ -1022,6 +1047,7 @@ async function coachFind() {
   }
   Coach.busy = false;
   renderCoach();
+  if (resumeHeadStart) { Coach.prewarm = null; coachPrewarm(); }
 }
 
 // Results belong to the inputs they were found for.
@@ -1034,11 +1060,40 @@ const coachInputKey = () => ({ shop: Coach.shopKey, target: Coach.targetKey, tea
 // its player, team, or position), then what every trade must include, what to
 // leave out, and position rules, each skippable, then the trades.
 const COACH_STEPS = [['type', 'Trade type'], ['include', 'Must include'], ['exclude', 'Leave out'], ['positions', 'Positions'], ['results', 'Trades']];
+// Head start (2026-10-23, user: "make the first search faster"): opening Trade
+// Coach starts Best trades in the background, filling coachCandidates and
+// coachJudged, while the options are being picked. Find trades waits for it (the
+// rest of the work is then mostly done) instead of starting the same work twice.
+function coachPrewarm() {
+  if (Coach.prewarm || !teams.length || !coachMe()) return;
+  Coach.prewarmStop = false; Coach.prewarmBest = false; Coach.prewarmPhase = null; Coach.prewarmFinished = false;
+  const me = coachMe();
+  Coach.prewarm = (async () => {
+    await new Promise(r => setTimeout(r, 150)); // let the panel paint first
+    if (!Negotiation.styles) await negPreloadStyles();
+    if (typeof marketLoad === 'function' && !Market.data) await marketLoad(league);
+    // Best trades, then Go all-in (the two slow ones; Fix a position needs a position picked).
+    try {
+      for (const option of ['best', 'contend']) {
+        if (coachMe() !== me || Vault.planOverride[me.rosterId] === 'rebuild') return;
+        Coach.prewarmPhase = option;
+        let phaseDone;
+        Coach.prewarmPhaseDone = new Promise(r => { phaseDone = r; });
+        // A search for something else stops it: progress throws once Coach.prewarmStop is set.
+        const stop = () => { if (Coach.prewarmStop) throw new Error('stopped'); };
+        try { stop(); const res = await COACH_RUN[option](me, stop); stop(); if (res.list) coachShape(me, res.list.filter(o => coachListOK(o, option)), option); } catch (e) { if (e.message !== 'stopped') console.warn('Trade Coach head start', e); return; } finally { phaseDone(); }
+        if (option === 'best') Coach.prewarmBest = true;
+      }
+      Coach.prewarmFinished = true;
+    } finally { Coach.prewarmPhase = null; }
+  })();
+}
 function openCoach(option) {
   if (option) { Coach.option = option; Coach.collapsed = false; if (option !== 'negotiate') Coach.step = 'type'; }
   const wasOpen = coachOpen();
   setView('coach');
   renderCoach();
+  coachPrewarm();
   if (option === 'target' && !Coach.targetKey) coachOpenPicker();
   if (!wasOpen) document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -1073,7 +1128,7 @@ function coachSync() {
   const neg = document.getElementById('negotiation');
   if (neg) neg.classList.toggle('hidden', !(Coach.option === 'negotiate' && Negotiation.rounds.length));
 }
-function coachReset() { Coach.results = {}; if (coachOpen()) renderCoach(); }
+function coachReset() { Coach.results = {}; Coach.prewarm = null; if (coachOpen()) { renderCoach(); coachPrewarm(); } }
 function coachSetOption(o) {
   Coach.option = o; Coach.collapsed = false;
   if (o === 'team' && !Coach.teamId && teamOf('B')) Coach.teamId = String(teamOf('B').rosterId);
@@ -1410,7 +1465,7 @@ function coachCardHtml(o, i, near = false, hero = false) {
       ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}
       ${o.alts && o.alts.length ? `<div class="text-[12px] text-zinc-400 mt-2">Or pay with ${o.alts.map(a => `<span class="text-zinc-200">${a.give.map(x => Vault.escapeHtml(x.name)).join(' + ')}</span>`).join(', or ')}.</div>` : ''}
       ${typeof marketAcceptHtml === 'function' ? marketAcceptHtml(marketAcceptable(league, o.give, o.get), coachMe().teamName, o.partner.teamName, 'mt-2.5', true) : ''}
-      ${(() => { const t = improvementOf(negJudgeFor(coachMe(), o.give, o.partner, o.get, negContextFor(o.partner)).an, 'B'); return `<div class="text-[12px] text-zinc-400 mt-1">For ${Vault.escapeHtml(o.partner.teamName)}: <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.tier]}">${t.label}</span></div>`; })()}
+      ${(() => { const t = improvementOf(coachJudged(coachMe(), o.partner, o.give, o.get).an, 'B'); return `<div class="text-[12px] text-zinc-400 mt-1">For ${Vault.escapeHtml(o.partner.teamName)}: <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.tier]}">${t.label}</span></div>`; })()}
       <div class="flex items-center justify-end gap-2 mt-auto pt-3">
         <button onclick="coachLoad(${i}${near ? ', true' : ''})" class="shrink-0 whitespace-nowrap text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder</button>
       </div>
