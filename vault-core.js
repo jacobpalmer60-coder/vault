@@ -80,6 +80,13 @@ const VAULT_CONFIG = {
   // on KTC and market prices; completed trades (Trade Grades) stay KTC-only.
   VERDICT_BLEND_WEIGHT: 0.35,
   AGE_CLIFF_PCT: -5,
+  // Rebuilding and flexible teams (2026-10-24, VaultValues age-tune.js): at −10 the
+  // verdict tracked value later better in both seasons (rank corr 2025 41.0 → 41.3,
+  // 2024 32.8 → 33.8, rebuilders 49.8 → 50.6). Contenders stay at −5: a stronger cut
+  // there hurt how well their verdict tracked playoffs (vets do help this season).
+  // The long view backs it for RBs and WRs: 2021-2023 player trades at an even price,
+  // RB/WR 27-28 lost 15-17% over four years (TEs that age held up).
+  AGE_CLIFF_PCT_LONG: -10,
   AGE_CLIFF_AT: 27,
   WR_DRIFT_PCT: -3,
   FAIR_CURVE: {
@@ -1514,7 +1521,7 @@ const Vault = {
     const valuePct = side === 'A' ? -g.signedPctDiff : g.signedPctDiff; // signedPctDiff > 0: A gave more
     const outOfRace = !!g['outOfRace' + side];
     const ptsPerWeek = outOfRace ? 0 : (g['dOpt' + side] || 0) + (dep.perWeek || 0);
-    const tilt = side === 'A' ? Vault.verdictValueTilt(g.toA, g.toB) : Vault.verdictValueTilt(g.toB, g.toA);
+    const tilt = side === 'A' ? Vault.verdictValueTilt(g.toA, g.toB, tl?.mode || 'flexible') : Vault.verdictValueTilt(g.toB, g.toA, tl?.mode || 'flexible');
     return { ...Vault.tradeImprovement({ valuePct, rosterFit, timelineFit, mode: tl?.mode || 'flexible', ptsPerWeek, valueTilt: tilt.pct }), outOfRace };
   },
   /* Playoff odds as of a week of this season (2026-10-23, for Trade Grades' out-of-race
@@ -2948,7 +2955,8 @@ const Vault = {
     const R = Vault.tradeValueRatio(got.map(Vault.verdictPieceValue), gave.map(Vault.verdictPieceValue));
     return Number.isFinite(R) ? 200 * (R - 1) / (R + 1) : null;
   },
-  verdictValueTilt(got, gave) {
+  // mode: the side's timeline; the age cliff counts double for teams not contending (AGE_CLIFF_PCT_LONG).
+  verdictValueTilt(got, gave, mode = 'contend') {
     const C = VAULT_CONFIG;
     if (!got || !gave || !got.length || !gave.length) return { pct: 0, why: null };
     const share = l => l.filter(a => a.type === 'pick').length / l.length;
@@ -2962,7 +2970,7 @@ const Vault = {
     const tg = top(got), tv = top(gave);
     const old = a => (a && a.type !== 'pick' && ['RB', 'WR', 'TE'].includes(a.pos) && (a.age || 0) >= C.AGE_CLIFF_AT ? 1 : 0);
     const isWr = a => (a && a.type !== 'pick' && a.pos === 'WR' ? 1 : 0);
-    const age = C.AGE_CLIFF_PCT * (old(tg) - old(tv)), wr = C.WR_DRIFT_PCT * (isWr(tg) - isWr(tv));
+    const age = (mode === 'contend' ? C.AGE_CLIFF_PCT : C.AGE_CLIFF_PCT_LONG) * (old(tg) - old(tv)), wr = C.WR_DRIFT_PCT * (isWr(tg) - isWr(tv));
     const pct = pick + cons + age + wr;
     const parts = { picks: pick, cheap: cons, age, wr };
     const why = !pct ? null : Object.entries(parts).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0][0];

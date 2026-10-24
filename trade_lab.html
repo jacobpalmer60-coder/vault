@@ -94,7 +94,7 @@
 
 <div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
 
-<script src="vault-core.js?v=b8f53c95"></script>
+<script src="vault-core.js?v=46b0bd9f"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
@@ -164,7 +164,7 @@ function renderHow(d, ins) {
   const ages = panel('How old the players are', 'When a player was the best piece a side got, his age. The last bar is 34 and older.',
     `<div class="grid grid-cols-2 md:grid-cols-4 gap-4">${d.ages.map(a => `<div><div class="flex items-center justify-between mb-2"><span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[11px] text-zinc-500">typical ${a.median}</span></div>
       ${columns(a.hist.filter(x => x.age <= 34).map(x => ({ v: x.share, label: x.age, tip: `${a.pos} aged ${x.age === 34 ? '34+' : x.age}: ${pc(x.share, 1)}` })), { h: 'h-20', every: 3, fill: 'bg-amber-400/60' })}</div>`).join('')}</div>`,
-    'RBs and WRs move young (typically 24). The verdict counts RBs, WRs and TEs 27 and older 5% below their KTC price: that age is a cliff.');
+    'RBs and WRs move young (typically 24). The verdict counts RBs, WRs and TEs 27 and older 10% below their KTC price for rebuilding and flexible teams, 5% for contenders (vets help this season): that age is a cliff.');
   const MODE = { contend: 'Contender', rebuild: 'Rebuilder', flexible: 'Flexible' };
   const tp = ins?.timelinePairs || [];
   const who = tp.length ? panel('Who trades with whom', 'Each pairing\'s share of trades, against what you\'d expect from how many teams of each kind trade.',
@@ -269,7 +269,7 @@ function renderDeep(f) {
     table(['Position', ...TIERS], L.byTier.map(r => [r.pos, ...r.tiers.map(t => (t.median == null ? '—' : pc(t.median, 1)))])) +
     `<div class="grid sm:grid-cols-2 gap-4 mt-4 text-[12px]"><div><div class="text-zinc-400 mb-1">Most traded in 2025 (worth 2,500+)</div>${L.most.slice(0, 8).map(r => `<div class="flex justify-between gap-3 py-0.5"><span class="text-zinc-200 truncate">${esc(r.name)} <span class="text-zinc-500">${r.pos}</span></span><span class="mono text-zinc-300">${pc(r.share, 1)}</span></div>`).join('')}</div>
       <div><div class="text-zinc-400 mb-1">Least traded in 2025 (worth 6,000+)</div>${L.least.slice(0, 8).map(r => `<div class="flex justify-between gap-3 py-0.5"><span class="text-zinc-200 truncate">${esc(r.name)} <span class="text-zinc-500">${r.pos}</span></span><span class="mono text-zinc-300">${pc(r.share, 1)}</span></div>`).join('')}</div></div>`,
-    'Starters worth 2,500-6,000 move most, in about 1 league in 5 a season. The biggest stars (Bijan Robinson, Ja\'Marr Chase, Josh Allen) changed hands in only about 1 league in 8 or 9: if you want one, expect to pay up and wait.');
+    'Starters worth 2,500-6,000 move most, in about 1 league in 5 a season. The biggest stars (Bijan Robinson, Ja\'Marr Chase, Josh Allen) changed hands in only about 1 league in 8 or 9. Fewer chances, not a higher price: at the same value, the least-traded players cost no more to get than the most traded (2024-2025 trades).');
   const M = f.timing.byMonth, MON = M[0].months.map(m => m.month);
   const timing = panel('When to buy and sell', 'KTC value over the next 3 months, starting each month (median, players worth 1,000+, 2020-2026). KTC\'s scale is relative, so most players drift down as new ones arrive; compare months and positions with each other.',
     table(['Position', ...MON], M.map(r => [r.pos, ...r.months.map(m => sp(m.median))])) +
