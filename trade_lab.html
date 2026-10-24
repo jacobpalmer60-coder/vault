@@ -9,7 +9,7 @@
 <title>Trade Lab — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=311dcc85">
+<link rel="stylesheet" href="tailwind.css?v=85fc71e9">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -23,10 +23,19 @@
   </div>
   <p class="text-[13px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
     Every two-team trade in 2024 and 2025 Sleeper dynasty leagues where every piece had a KTC price, each judged as its league stood that day, then followed for up to two years. Only totals are shown: no league, team or manager.
+    <span id="crawled"></span>
     <a href="how_we_grade.html#facts" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How we use it</a>
   </p>
 
   <div id="tiles" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+
+  <!-- What it adds up to (2026-10-24): one line per finding, each linking to its chart below. -->
+  <section id="summary" class="mb-6 scroll-mt-24 hidden">
+    <div class="card rounded-vault-sm p-4">
+      <div class="text-[14px] font-medium text-zinc-100">What it adds up to</div>
+      <ul id="summaryList" class="grid lg:grid-cols-2 gap-x-8 gap-y-2.5 mt-3 text-[13px] text-zinc-300 leading-relaxed"></ul>
+    </div>
+  </section>
 
   <nav aria-label="Sections" class="flex flex-wrap gap-2 mb-6 text-[12px]">
     <a href="#how" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">How managers trade</a>
@@ -206,7 +215,64 @@ function renderAfter(d, ins) {
     ins.verdictPairs.rows.map(r => barRow(PAIR[r.pair] || r.pair, r.share, 40, pc(r.share), `${PAIR[r.pair] || r.pair}: ${pc(r.share, 1)} of trades`, r.pair === 'good+good' ? 'bg-emerald-400/70' : 'bg-sky-400/70')).join(''),
     'A trade that\'s good for one side is rarely good for the other (2%). The calculator shows both verdicts for that reason.') : '';
   document.getElementById('afterBody').innerHTML = `${verdicts}<div class="grid lg:grid-cols-2 gap-4">${holds}${titles}</div><div class="grid lg:grid-cols-2 gap-4">${shape}${picks}</div>${ages}
-    <div class="grid lg:grid-cols-2 gap-4">${swaps}${deadline}</div>${pairs}`;
+    <div class="grid lg:grid-cols-2 gap-4">${swaps}${deadline}</div>${pairs}${FINDINGS ? findingsPanels(FINDINGS) : ''}`;
+}
+
+/* ---------- From the research reports (data/market-history/findings.json) ----------
+   VaultValues build-findings.js (2026-10-24): what the nightly insights don't cover. */
+let FINDINGS = null;
+function findingsPanels(f) {
+  const sign = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}`;
+  const paying = panel('Paying extra to win now', 'Contenders whose trade added 2+ points a week to their lineup, by what they paid: how much better they did than their playoff odds that day, and how often they were still ahead on value later.',
+    f.overpay.map(r => barRow(r.label.replace(/^./, c => c.toUpperCase()), r.playoffs, 8, `${sign(r.playoffs)} pts <span class="text-zinc-500">· ${r.ahead}% ahead later</span>`, `${r.label}: ${sign(r.playoffs)} playoffs and ${sign(r.title)} title vs odds, ${r.ahead}% ahead on value later (${fmtInt(r.n)} sides)`, r.label.startsWith('kept') ? 'bg-emerald-400/70' : 'bg-orange-400/70')).join(''),
+    'Overpaying didn\'t buy more playoff odds: the ones who kept their value did best this season and later. These are trades that happened, so a small premium can still be what lands a specific player.');
+  const skillRows = [['Price, same season', f.skill.priceSame], ['Price, next season', f.skill.priceNext], ['Outcome, same season', f.skill.laterSame], ['Outcome, next season', f.skill.laterNext]];
+  const skill = panel('Skill or luck?', `How much an owner's trades resemble each other: correlation between odd and even trades in a season, and from one season to the next (${fmtInt(f.skill.owners)} owners with 6+ trades).`,
+    skillRows.map(([l, v], i) => barRow(l, v, 0.2, v.toFixed(2), `${l}: correlation ${v.toFixed(2)}`, i < 2 ? 'bg-sky-400/70' : 'bg-white/20')).join(''),
+    'Price is the value at the trade; outcome is how the trade aged afterward. Getting a good price is a skill: owners who win the price keep winning it, a little. How a trade ages barely repeats, so that part is mostly luck.');
+  const REC = ['losing', 'middle', 'winning'], RL = { losing: 'Losing', middle: 'Middle', winning: 'Winning' };
+  const buckets = [...new Set(f.activity.map(r => r.trades))];
+  const activity = panel('Trading more', 'Made the playoffs, by how many trades a team made this season, grouped by last season\'s record.',
+    table(['Trades this season', ...REC.map(r => `${RL[r]} last year`)], buckets.map(b => [`${b} trades`, ...REC.map(rec => { const r = f.activity.find(x => x.trades === b && x.record === rec); return r ? pc(r.playoffs) : '—'; })])),
+    'Teams that traded more made the playoffs more often, most clearly after a losing season. Active owners may also just be better owners, so it\'s a pattern, not proof that trading caused it.');
+  const paths = [...new Set(f.paths.map(r => r.path))], RECP = ['Losing', 'Middle', 'Winning'];
+  const pathTable = panel('Rebuild or push?', 'Next season\'s playoffs, by what a team\'s trades did this season: Push now added 3+ points a week, Rebuild cost 3+, Reload stayed about even but got younger or added picks, Stay is neither.',
+    table(['This season\'s path', ...RECP.map(r => `${r} record`)], paths.map(p => [p, ...RECP.map(rec => { const r = f.paths.find(x => x.path === p && x.record === rec); return r ? pc(r.playoffs) : '—'; })])),
+    'Even coming off a losing season, teams that pushed made the playoffs more the next year than teams that tore it down.');
+  return `<div class="grid lg:grid-cols-2 gap-4"><div id="paying" class="scroll-mt-24">${paying}</div><div id="skill" class="scroll-mt-24">${skill}</div></div>
+    <div class="grid lg:grid-cols-2 gap-4"><div id="trading-more" class="scroll-mt-24">${activity}</div><div id="rebuild-or-push" class="scroll-mt-24">${pathTable}</div></div>`;
+}
+// What the player taken at each rookie-draft slot scored (findings.rookiePpg).
+function rookiePpgPanel(f) {
+  if (!f?.rookiePpg?.length) return '';
+  return panel('What each pick turned into', `PPR points a game for the player taken at each slot (0 if he never played), in his first three seasons: ${fmtInt(f.rookieDrafts)} rookie drafts of the 2023-2025 classes, slots as in a 12-team draft.`,
+    table(['Pick', 'Year 1', 'Year 2', 'Year 3'], f.rookiePpg.map(r => { const [round, tier] = r.slot.split('.'); return [`${ORD(+round)} <span class="text-zinc-500">${tier}</span>`, `<span class="text-zinc-100">${r.y1.toFixed(1)}</span>`, r.y2.toFixed(1), r.y3.toFixed(1)]; })),
+    'Only early 1sts start like a regular starter right away; mid 1sts get there in year 2. The Trade Calculator counts arriving picks this way when it looks a few years out.');
+}
+function renderSummary(d, ins, f) {
+  const items = [];
+  const add = (html, href) => items.push(`<li class="flex gap-2"><span class="text-amber-300/70 shrink-0">•</span><span>${html} <a href="#${href}" class="text-zinc-500 hover:text-zinc-200 whitespace-nowrap">See it</a></span></li>`);
+  const b = v => `<span class="text-zinc-100 font-medium mono">${v}</span>`;
+  const gg = ins?.verdictPairs?.rows.find(r => r.pair === 'good+good');
+  add(`Trades are close, rarely even: the typical gap between the sides is ${b(pc(d.gaps.median))}${gg ? `, and only ${b(pc(gg.share))} leave both teams with a good verdict` : ''}.`, 'how');
+  const hold = d.priceHolds.find(r => r.label === '10-20% ahead');
+  if (hold) add(`Winning the price holds: sides that got 10-20% more value were still ahead ${b(pc(hold.ahead))} of the time a year or more later.`, 'after');
+  const pv = ins?.picksVsPlayers;
+  if (pv?.length === 2) add(`Picks gain on players: bought at an even price, picks were ahead ${b(pc(pv[0].ahead))} of the time a year later and ${b(pc(pv[1].ahead))} two years on.`, 'picks');
+  const wr = ins?.ageByPosition?.find(r => r.pos === 'WR' && r.age === '27-28');
+  if (wr && wr.drift1 < 0) add(`27 is a cliff: at an even price, a 27-28-year-old WR lost ${b(Math.abs(wr.drift1).toFixed(0) + '%')} of his value in a year; RBs and TEs did too.`, 'after');
+  if (ins?.contenderPaid?.length) add(`No deadline premium: contenders paid within ${b(Math.max(...ins.contenderPaid.map(r => Math.abs(r.median))).toFixed(1) + '%')} of even in every month.`, 'after');
+  if (f) {
+    const kept = f.overpay.find(r => r.label.startsWith('kept')), over = f.overpay[0];
+    add(`Paying extra to win now didn't buy playoff odds: contenders who kept their value beat their odds by ${b('+' + kept.playoffs.toFixed(1))} points, those who paid 10%+ over by ${b('+' + over.playoffs.toFixed(1))}.`, 'paying');
+    add(`Getting a good price is a skill; how a trade ages is mostly luck (it repeats at ${b(f.skill.laterSame.toFixed(2))} from one trade to the next).`, 'skill');
+  }
+  const cr = ins?.timelinePairs?.find(r => r.pair === 'contend+rebuild');
+  if (cr) add(`Contenders and rebuilders find each other: ${b(cr.lift.toFixed(2) + '×')} as often as chance would pair them.`, 'how');
+  const mid1 = f?.rookiePpg?.find(r => r.slot === '1.mid');
+  if (mid1) add(`A pick isn't an instant starter: a mid 1st scored ${b(mid1.y1.toFixed(1))} PPR points a game as a rookie and ${b(mid1.y2.toFixed(1))} the next year.`, 'picks');
+  document.getElementById('summaryList').innerHTML = items.join('');
+  document.getElementById('summary').classList.toggle('hidden', !items.length);
 }
 
 /* ---------- Your league vs everyone ---------- */
@@ -353,7 +419,7 @@ function renderPickMarket(ins) {
   box.innerHTML = `<div class="grid lg:grid-cols-2 gap-4">
       ${panel('Early, mid and late: KTC against real trades', 'Each tier\'s price against the mid pick of the same round. Real trades: picks split by where their original team was projected to finish when traded.', table, 'Managers pay far less for an early pick than KTC does: projected finishes hold only so often (projected-early 1sts landed early about half the time).')}
       ${panel('Picks gain on players', 'Trades of only picks for only players at an even price: how often the side that got the picks was ahead on value later, by how long ago the trade was.', bars, 'New rookie classes push existing players down KTC\'s scale, so picks bought at a fair price kept gaining.')}
-    </div>`;
+    </div>${FINDINGS ? `<div class="mt-4">${rookiePpgPanel(FINDINGS)}</div>` : ''}`;
 }
 /* data/market-history/rookies-<sf|oneQB>.json (scripts/summarize-sleeper-trades.js):
    per rookie class, each rookie's typical draft position in rounds from the first
@@ -410,11 +476,17 @@ let LAB_DATA = null;
 async function init() {
   const status = document.getElementById('status');
   try {
-    const [d, ins] = await Promise.all([
+    const [d, ins, f] = await Promise.all([
       fetch('data/market-history/trade-lab.json').then(r => { if (!r.ok) throw new Error('Trade data unavailable'); return r.json(); }),
       fetch('data/market-history/insights.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('data/market-history/findings.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     LAB_DATA = d;
+    FINDINGS = f;
+    if (f?.crawled?.length) {
+      const total = f.crawled.reduce((t, s) => t + s.trades, 0), first = f.crawled[0].season, last = f.crawled[f.crawled.length - 1].season;
+      document.getElementById('crawled').textContent = `Our crawl holds ${fmtInt(total)} trades from ${first} to ${last}; the ${d.seasons.join('-')} ones here are those we could judge and follow up (${last} is still being played).`;
+    }
     status.textContent = `${fmtInt(d.trades)} trades · ${fmtInt(d.leagues)} leagues · ${d.seasons.join(' and ')} · updated ${d.updated}`;
     document.getElementById('tiles').innerHTML = [
       tile(`${(d.trades / 1e6).toFixed(2)}M`, 'Trades', `${fmtInt(d.sides)} team-sides`),
@@ -422,6 +494,7 @@ async function init() {
       tile(pc(d.gaps.median), 'Typical gap between sides', 'trade value at KTC that day'),
       tile(pc(d.verdicts.find(v => v.tier === 'Toss-up') ? 100 * d.verdicts.find(v => v.tier === 'Toss-up').n / d.sides : null), 'Sides that were a Toss-up', 'by the Trade Calculator\'s verdict'),
     ].join('');
+    renderSummary(d, ins, f);
     renderHow(d, ins);
     renderAfter(d, ins);
     renderExplore(d);

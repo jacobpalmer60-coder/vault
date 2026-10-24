@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=311dcc85">
+<link rel="stylesheet" href="tailwind.css?v=85fc71e9">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-24', items: [
+    { kind: 'new', page: 'Trade Lab', text: "What it adds up to: Trade Lab now opens with the findings in one list, each with its number and a link to the chart (trades are close but rarely even, winning the price holds, picks gain on players, 27 is a cliff, no deadline premium, and more). New charts: paying extra to win now (contenders who kept their value beat their playoff odds by 6.4 points, those who paid 10%+ over by 4.7), skill or luck (getting a good price repeats; how a trade ages barely does), trading more, rebuild or push, and what each rookie-draft pick turned into in points a game. The header now says how many trades the crawl holds in all: 3.8 million from 2021 to 2026, of which the 2024-2025 ones are judged and followed up." },
     { kind: 'fixed', page: 'Trade Calculator', text: "Draft picks no longer count as instant starters. When the verdict and the Teams page look a few years out, a pick used to become a player worth its trade value in points, so a late 1st counted as a 13.6-point starter in its first season. Across 61,730 rookie drafts of the 2023-2025 classes, the player taken there averaged 9.9. Picks now play like the rookies taken at their slot really did, years 1, 2 and 3, scaled to each league's scoring. Trades for picks read a little less rosy for your future, and a few pick-heavy teams' contention windows got shorter (in The League of Gold, Bye Week's 2028-2029 window came only from its picks)." },
     { kind: 'improved', page: 'Trade Calculator', text: "Cleaner on phones: the verdict, both teams' tiles, the reason and the four numbers (title odds, trade value, KTC's calculator, usual price) now fit on one screen, the numbers two by two. Team names in the tiles stay on one line, the other team's out-of-the-race note moved under the tiles, and your timeline menu has its own line so it isn't cut off." },
     { kind: 'improved', page: 'Trade Calculator', text: "Easier to tap and to hear: on touch screens every button, menu and show/hide row in the calculator and Trade Coach is at least 32px tall (Why and More like this were 15-18px), and each Open button tells screen readers which trade it opens." },
