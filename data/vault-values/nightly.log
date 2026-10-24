@@ -407,3 +407,27 @@
 2026-10-23T13:50:15 oneQB_tepp: 13,423 trades through 2026-10-23, 469 rated, rank agreement 0.898 [15s]
 2026-10-23T13:50:15 site values: 498 players (457 of KTC's rated by us, 34 added), 36 picks
 2026-10-23T13:50:15 done
+2026-10-24T12:50:43 start (sf_tep, sf, sf_tepp, oneQB, oneQB_tep, oneQB_tepp)
+2026-10-24T12:50:43 data from ../../data
+2026-10-24T12:50:43 pricing: extra pieces 0.45, lean {"2-1":0.09,"3-1":0.035,"3-2":0.04}, pick spread {"1":{"early":1.05,"late":0.96},"2":{"early":1.02,"late":0.98},"3":{"early":1.01,"late":0.98},"4":{"early":1,"late":0.99}}
+2026-10-24T12:50:43 curve: p 4.00/4.00/2.91/2.13/2.20/2.01/1.70/1.59/1.47
+2026-10-24T12:50:56 sf_tep: picks anchored to the 2026 rookie drafts (13,241)
+2026-10-24T12:51:04 sf_tep: 4 new trades since 2026-10-23, not scored yet
+2026-10-24T12:52:30 sf_tep: 649,541 trades through 2026-10-24, 710 rated, rank agreement 0.975 [108s]
+2026-10-24T12:52:45 sf: picks anchored to the 2026 rookie drafts (15,896)
+2026-10-24T12:52:54 sf: 12 new trades since 2026-10-23, not scored yet
+2026-10-24T12:54:21 sf: 703,375 trades through 2026-10-24, 696 rated, rank agreement 0.980 [110s]
+2026-10-24T12:54:33 sf_tepp: picks anchored to the 2026 rookie drafts (7,171)
+2026-10-24T12:54:37 sf_tepp: 9 new trades since 2026-10-23, not scored yet
+2026-10-24T12:55:19 sf_tepp: 349,935 trades through 2026-10-24, 680 rated, rank agreement 0.966 [59s]
+2026-10-24T12:55:32 oneQB: picks anchored to the 2026 rookie drafts (10,172)
+2026-10-24T12:55:38 oneQB: 11 new trades since 2026-10-23, not scored yet
+2026-10-24T12:56:38 oneQB: 463,874 trades through 2026-10-24, 660 rated, rank agreement 0.977 [79s]
+2026-10-24T12:56:50 oneQB_tep: picks anchored to the 2026 rookie drafts (1,151)
+2026-10-24T12:56:51 oneQB_tep: 0 new trades since 2026-10-23, not scored yet
+2026-10-24T12:56:57 oneQB_tep: 55,952 trades through 2026-10-23, 551 rated, rank agreement 0.957 [19s]
+2026-10-24T12:57:09 oneQB_tepp: picks anchored to the 2026 rookie drafts (299)
+2026-10-24T12:57:09 oneQB_tepp: 0 new trades since 2026-10-23, not scored yet
+2026-10-24T12:57:11 oneQB_tepp: 14,127 trades through 2026-10-23, 487 rated, rank agreement 0.800 [13s]
+2026-10-24T12:57:11 site values: 500 players (457 of KTC's rated by us, 36 added), 36 picks
+2026-10-24T12:57:11 done
