@@ -280,8 +280,11 @@ const coachValuePct = o => { const tv = Vault.tradeSideValues(o.give, o.get); re
 // Get a player and Fix a position may pay a little over value for the player or the
 // help you're after (user, 2026-10-24: "if you're wanting to fix aren't you expecting
 // to pay over a little?"); the card shows how much.
+// Trades with one team too when you're the buyer, getting the best piece in the deal
+// (user, 2026-10-24: "The buyer doesn't set the price. Seller does").
 const COACH_PREMIUM_OK = new Set(['target', 'position']), COACH_TARGET_PREMIUM = 6;
-const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) >= -(COACH_PREMIUM_OK.has(option) ? COACH_TARGET_PREMIUM : COACH_VALUE_FLOOR);
+const coachBuyer = o => Math.max(...o.get.map(a => a.value)) > Math.max(...o.give.map(a => a.value));
+const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) >= -(COACH_PREMIUM_OK.has(option) || (option === 'team' && coachBuyer(o)) ? COACH_TARGET_PREMIUM : COACH_VALUE_FLOOR);
 // Lists where you picked the player, the team or the position (user, 2026-10-24): a
 // fair price there usually reads Toss-up for you (two contenders rarely both win a
 // trade), so Toss-ups show too, after the better trades and labeled. Get a player
