@@ -715,7 +715,7 @@ async function coachBest(me, progress) {
     && coachPiecesOK(c.giveA, c.giveB) && noFiller(c.giveA) && noFiller(c.giveB) && coachKtcFair(c.giveA, c.giveB) && !coachAsksCornerstone(c.partner, c.giveB) && coachMarketOK(c.giveA, c.giveB));
   progress('Checking which of those their managers would take…');
   await coachTick();
-  const perPartner = new Map(), list = [], sides = new Set(), uses = new Map();
+  const perPartner = new Map(), list = [], sides = new Set(), uses = new Map(), held = [];
   // Pick-for-pick trades go last (they price almost even by construction), and a
   // swap of picks worth the same (same year, round and tier) is dropped: it
   // changes nothing. Otherwise best for you first: the grade's lean, plus how
@@ -748,11 +748,13 @@ async function coachBest(me, progress) {
   [...ranked.filter(x => !x.c.wide), ...ranked.filter(x => x.c.wide)]
     .forEach(({ c, j, mk, rank }) => {
       const n = perPartner.get(c.partner.rosterId) || 0;
-      if (n >= 2 || list.length >= 10) return;
+      // Held back for variety (2 per team, each of your pieces in 2): kept as other ways on the closest card.
+      const hold = () => held.push({ partner: c.partner, give: c.giveA, get: c.giveB, edge: j.edge, score: coachScore(j), id: negKeys(c.giveA).join() + '>' + negKeys(c.giveB).join(), rank });
+      if (n >= 2 || list.length >= 10) return hold();
       // The same deal with a different add-on (a 1st where a 2nd does the same
       // job) is one suggestion: the better one for you comes first.
       const give = c.partner.rosterId + '>' + negKeys(c.giveA).join(), get = c.partner.rosterId + '<' + negKeys(c.giveB).join();
-      if (sides.has(give) || sides.has(get) || c.giveA.some(a => (uses.get(a.key) || 0) >= 2)) return;
+      if (sides.has(give) || sides.has(get) || c.giveA.some(a => (uses.get(a.key) || 0) >= 2)) return hold();
       sides.add(give); sides.add(get);
       c.giveA.forEach(a => uses.set(a.key, (uses.get(a.key) || 0) + 1));
       perPartner.set(c.partner.rosterId, n + 1);
@@ -763,8 +765,26 @@ async function coachBest(me, progress) {
       list.push({ partner: c.partner, give: c.giveA, get: c.giveB, edge: j.edge, score: coachScore(j), id: negKeys(c.giveA).join() + '>' + negKeys(c.giveB).join(), why: [fit, mkt].filter(Boolean).join(' '), rank });
     });
   list.sort((x, y) => x.rank - y.rank);
+  coachAttachOthers(list, held.sort((x, y) => x.rank - y.rank));
   if (!list.length) return { empty: `No trade across the league clearly helps ${Vault.escapeHtml(me.teamName)} while also working for the other team right now. Try Get a player or Fix a position.` };
   return { title: 'Best trades for you', list };
+}
+
+// Other ways (2026-10-23, user: "Other ways on each card"): Best trades finds far
+// more trades than its varied list shows (81 for Skat Happens Chase Love, 6
+// shown). Each one held back goes on the card it's most like: the same team and a
+// shared piece, else the same team, else one of your same pieces; best first, up
+// to COACH_OTHERS a card.
+const COACH_OTHERS = 3;
+function coachAttachOthers(list, held) {
+  const keys = l => new Set(negKeys(l)), shown = new Set(list.map(o => o.id)); // the same trade can come from two searches
+  held.forEach(h => {
+    if (shown.has(h.id)) return;
+    const hk = new Set([...negKeys(h.give), ...negKeys(h.get)]), mine = keys(h.give);
+    const shares = (o, set) => [...o.give, ...o.get].some(a => set.has(a.key));
+    const card = list.find(o => o.partner === h.partner && shares(o, hk)) || list.find(o => o.partner === h.partner) || list.find(o => o.give.some(a => mine.has(a.key)));
+    if (card && (card.others ||= []).length < COACH_OTHERS) { card.others.push(h); shown.add(h.id); }
+  });
 }
 
 // Trades with one team: the league search (suggestionPool) narrowed to them,
@@ -1069,6 +1089,7 @@ async function coachFind() {
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
       res.list = res.list.filter(o => coachListOK(o, option)).map(o => { const n = coachSwapNote(o); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      res.list.forEach(o => { if (o.others) o.others = o.others.filter(x => coachListOK(x, option)); });
       if (res.list.length) { progress('Working out what each trade does for you…'); await coachTick(); res.list = coachShape(me, res.list, option); }
       if (!res.list.length) { progress('Looking for the closest deals…'); res.near = coachNearMisses(me, raw, option); }
       if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} without giving up value right now. Try another trade type, or Go all-in to spend future value on this season.`; }
@@ -1189,8 +1210,16 @@ function coachDefaultPos() {
 }
 
 // Load a suggestion into the calculator (your team as Team A).
+// An other way on card i (coachAttachOthers).
+function coachLoadOther(i, k) {
+  const r = Coach.results[Coach.option], card = r && (r.list || [])[i];
+  coachLoadTrade(card && card.others && card.others[k]);
+}
 function coachLoad(i, near = false) {
-  const r = Coach.results[Coach.option], o = r && (near ? r.near : r.list || [])[i];
+  const r = Coach.results[Coach.option];
+  coachLoadTrade(r && (near ? r.near : r.list || [])[i]);
+}
+function coachLoadTrade(o) {
   if (!o) return;
   const selB = document.getElementById('teamB');
   if (selB.value !== String(o.partner.rosterId)) { selB.value = String(o.partner.rosterId); selB.onchange(); }
@@ -1497,12 +1526,30 @@ function coachCardHtml(o, i, near = false, hero = false) {
       ${coachWhyHtml(o)}
       ${o.why ? `<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">${o.why}</div>` : ''}
       ${o.alts && o.alts.length ? `<div class="text-[12px] text-zinc-400 mt-2">Or pay with ${o.alts.map(a => `<span class="text-zinc-200">${a.give.map(x => Vault.escapeHtml(x.name)).join(' + ')}</span>`).join(', or ')}.</div>` : ''}
+      ${!near && o.others && o.others.length ? coachOthersHtml(o, i) : ''}
       ${typeof marketAcceptHtml === 'function' ? marketAcceptHtml(marketAcceptable(league, o.give, o.get), coachMe().teamName, o.partner.teamName, 'mt-2.5', true) : ''}
       ${(() => { const t = improvementOf(coachJudged(coachMe(), o.partner, o.give, o.get).an, 'B'); return `<div class="text-[12px] text-zinc-400 mt-1">For ${Vault.escapeHtml(o.partner.teamName)}: <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.tier]}">${t.label}</span></div>`; })()}
       <div class="flex items-center justify-end gap-2 mt-auto pt-3">
         <button onclick="coachLoad(${i}${near ? ', true' : ''})" class="shrink-0 whitespace-nowrap text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder</button>
       </div>
     </div>`;
+}
+
+// A card's other ways, folded: each with its verdict for you and Open in builder.
+function coachOthersHtml(o, i) {
+  const names = l => l.map(a => Vault.escapeHtml(a.name)).join(' + ');
+  const rows = o.others.map((x, k) => {
+    const tier = Vault.verdictTier(coachScore(x));
+    return `<div class="flex items-center justify-between gap-3 py-1.5 border-t border-white/[0.06]">
+        <span class="min-w-0 text-zinc-300">${x.partner !== o.partner ? `<span class="text-zinc-500">With ${Vault.escapeHtml(x.partner.teamName)}:</span> ` : ''}<span class="text-zinc-100">${names(x.give)}</span> <span class="text-zinc-500">for</span> <span class="text-zinc-100">${names(x.get)}</span> <span class="text-zinc-500">·</span> <span class="font-medium ${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span></span>
+        <button onclick="coachLoadOther(${i}, ${k})" class="shrink-0 text-[11px] px-2 py-1 rounded-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Open</button>
+      </div>`;
+  }).join('');
+  const n = o.others.length;
+  return `<details class="group/ow mt-2.5 text-[12px]">
+      <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-zinc-400 hover:text-zinc-200">${n} more like this <span class="group-open/ow:hidden">▾</span><span class="hidden group-open/ow:inline">▴</span></summary>
+      <div class="mt-1.5">${rows}</div>
+    </details>`;
 }
 
 function coachResultsHtml(r) {
