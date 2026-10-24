@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=bf444ba5">
+<link rel="stylesheet" href="tailwind.css?v=d99c8d71">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -830,7 +830,9 @@ function bestPairFor(single, pool, singleIsMine) {
 // Every fair-looking trade between your team and each other team, deduped and
 // sorted most-even first (pick-for-pick last). Trade Coach's Best trades then
 // keeps the ones the other manager would actually accept.
-function suggestionPool(myTeam, onlyPartner) {
+// analyze (optional): how to get a trade's analysis; Trade Coach passes its
+// cache (coachJudged), so trades it grades later aren't analyzed twice.
+function suggestionPool(myTeam, onlyPartner, analyze) {
   const partners = onlyPartner ? [onlyPartner] : teams.filter(t => t.rosterId !== myTeam.rosterId);
   const myAnchors = tradeableAssets(myTeam);
   const candidates = [];
@@ -840,8 +842,9 @@ function suggestionPool(myTeam, onlyPartner) {
   const myProfile = Vault.positionalProfile(myTeam, teams);
 
   const consider = (partner, giveA, giveB) => {
-    const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB);
-    const result = computeTradeAnalysis(myTeam, partner, giveA, giveB, aValAdj, bValAdj);
+    let result;
+    if (analyze) result = analyze(partner, giveA, giveB);
+    else { const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB); result = computeTradeAnalysis(myTeam, partner, giveA, giveB, aValAdj, bValAdj); }
     if (result.verdict.tone !== 'bad') candidates.push({ partner, giveA, giveB, result });
   };
 
@@ -1444,7 +1447,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
     return `<div><div class="num text-[24px] text-zinc-100">${pc(s.before.championshipPct)} → ${pc(s.after.championshipPct)}</div><div class="text-[12px] text-zinc-400 mt-0.5">your title odds${d ? ` · <span class="${d > 0 ? 'text-emerald-400' : 'text-rose-400'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>` : ''}</div></div>`; })() : '';
   // Why: what moved the verdict, and how trades scored like this turned out.
   const why = document.getElementById('whyVerdict');
-  if (why) why.innerHTML = `${tiltNote(imp)}<div class="text-[12px] text-zinc-500 mt-1">${Vault.verdictRecordText(imp)}</div>`;
+  if (why) why.innerHTML = `${pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp)}${tiltNote(imp)}<div class="text-[12px] text-zinc-500 mt-1">${Vault.verdictRecordText(imp)}</div>`;
   // Even it out: when either team would see it as a bad trade.
   const wb = document.getElementById('workBoth');
   const fixFor = them && them.level === 'bad' ? 'them' : imp.level === 'bad' ? 'you' : null;
@@ -1519,6 +1522,43 @@ function tiltNote(imp) {
   const part = (list, head) => (list.length ? `${head}: ${list.join('; ')}.` : '');
   const text = [part(against, 'Counts against you'), part(favor, 'Counts in your favor')].filter(Boolean).join(' ');
   return `<div class="text-[12px] text-zinc-400 mt-1 max-w-[640px]">${cap(text)}</div>`;
+}
+
+// What each piece does to your lineup this season (2026-10-23): each player's own
+// effect (the season lineup with him minus without him: who you get, on the roster
+// after the trade; who you send, on the roster before), how often he starts, then
+// the lineup change, depth, and the two together, the verdict's points number.
+function pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp) {
+  const bef = analysis.before.A, aft = analysis.after.A;
+  if (!bef || !aft || !bef.plist || !aft.plist) return '';
+  const esc = Vault.escapeHtml, team = esc(teamA.teamName);
+  const dB = Vault.seasonLineupDetail(bef.plist, slots), dA = Vault.seasonLineupDetail(aft.plist, slots);
+  const weeks = dA.weeks || 0;
+  const without = (plist, id) => Vault.seasonLineupDetail(plist.filter(p => p.id !== id), slots).total;
+  const pts = v => (Math.abs(v) < 0.05 ? 'no change' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(1)} a week`);
+  const tone = v => (Math.abs(v) < 0.05 ? 'text-zinc-500' : v > 0 ? 'text-emerald-300' : 'text-orange-300');
+  const startsText = (d, id, gets) => {
+    const n = d.starts ? d.starts.get(id) || 0 : (d.starters.some(s => s.id === id) ? weeks || 1 : 0);
+    if (!n) return gets ? `wouldn't start for ${team}` : 'was on the bench';
+    return weeks ? `${gets ? 'starts' : 'started'} ${n} of ${weeks} weeks left` : (gets ? 'starts' : 'was a starter');
+  };
+  const row = (a, gets) => {
+    let effect = 0, detail = 'a pick: no effect on this season';
+    if (a.type === 'player') {
+      effect = gets ? dA.total - without(aft.plist, a.id) : -(dB.total - without(bef.plist, a.id));
+      detail = startsText(gets ? dA : dB, a.id, gets);
+    }
+    return `<div class="flex items-baseline justify-between gap-3"><span class="min-w-0"><span class="text-zinc-500">${gets ? 'Gets' : 'Sends'}</span> <span class="text-zinc-200">${esc(a.name)}</span>${a.type === 'player' ? ` <span class="text-zinc-500">${a.pos}</span>` : ''} <span class="text-zinc-500">· ${detail}</span></span><span class="shrink-0 mono ${a.type === 'player' ? tone(effect) : 'text-zinc-500'}">${a.type === 'player' ? pts(effect) : '—'}</span></div>`;
+  };
+  const lineup = aft.opt - bef.opt, depth = Vault.depthShift('contend', bef, aft, slots).perWeek;
+  const total = (label, v, strong) => `<div class="flex items-baseline justify-between gap-3 ${strong ? 'pt-1 border-t border-white/5 text-zinc-200' : 'text-zinc-400'}"><span>${label}</span><span class="shrink-0 mono ${tone(v)}">${pts(v)}</span></div>`;
+  return `<div class="text-[12px] max-w-[640px] mt-1 mb-2 space-y-1">
+      <div class="text-[11px] uppercase tracking-wider text-zinc-500">What each piece does to ${team}'s lineup this season</div>
+      ${bAssets.map(a => row(a, true)).join('')}${aAssets.map(a => row(a, false)).join('')}
+      <div class="text-[11px] text-zinc-500">Each on its own, so they don't add up exactly. Together:</div>
+      ${total('Starting lineup', lineup)}${total('Depth (bye and injury weeks)', depth)}${total('This season, in all', lineup + depth, true)}
+      ${imp.outOfRace ? `<div class="text-[11px] text-zinc-500">${team} is out of the playoff race, so the verdict doesn't count these points.</div>` : ''}
+    </div>`;
 }
 
 // The season re-run with a trade: both teams' lineup and depth change, and the odds
@@ -2158,6 +2198,6 @@ init();
 <script src="negotiation.js?v=7d597d52"></script>
 <script src="market-data.js?v=07632230"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=2c2d3b5d"></script>
+<script src="coach.js?v=f3385142"></script>
 </body>
 </html>

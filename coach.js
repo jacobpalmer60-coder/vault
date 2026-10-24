@@ -178,10 +178,15 @@ function coachNeedSwaps(me) {
       });
     });
   });
-  return raw.sort((x, y) => x.gap - y.gap).slice(0, COACH_NEED_SWAPS).map(({ p, A, B }) => {
-    const { valueA, valueB } = Vault.tradeSideValues(A, B);
-    return { partner: p, giveA: A, giveB: B, result: computeTradeAnalysis(me, p, A, B, valueA, valueB) };
-  });
+  return raw.sort((x, y) => x.gap - y.gap).slice(0, COACH_NEED_SWAPS).map(({ p, A, B }) => coachCand(me, p, A, B));
+}
+// A candidate trade whose analysis is the grade's own (coachJudged), worked out
+// only if something reads it: Best trades' quick checks drop about a third
+// first, and the rest were being analyzed twice (2026-10-23, faster first search).
+const coachAnalyze = me => (partner, giveA, giveB) => coachJudged(me, partner, giveA, giveB).an;
+// wide: from the wider search (2-for-2s), which only fills room the others leave.
+function coachCand(me, partner, giveA, giveB, wide = false) {
+  return { partner, giveA, giveB, wide, get result() { return coachJudged(me, partner, giveA, giveB).an; } };
 }
 // Trades where both teams come out ahead (2026-10-09). The league search
 // (suggestionPool) keeps only the closest-to-even package per piece, which
@@ -200,6 +205,7 @@ function coachNeedSwaps(me) {
 // up to 15% is still a realistic ask). (It was -2 to +18 aimed at +8 for
 // everyone: contenders' offers priced past what managers usually accept.)
 const WIN_WIN_BAND = [-2, 15], WIN_WIN_TARGET = { contend: 2, flexible: 5, rebuild: 9 }, WIN_WIN_PER_PARTNER = 120, WIN_WIN_TOP = 14;
+const WIN_WIN_2X2_TOP = 10, WIN_WIN_2X2_PER_PARTNER = 60;
 function coachWinWins(me) {
   const pct = (A, B) => { const { valueA, valueB } = Vault.tradeSideValues(A, B); return (valueB - valueA) / (((valueA + valueB) / 2) || 1) * 100; };
   const mine = tradeableAssets(me).slice(0, WIN_WIN_TOP), out = [], aim = WIN_WIN_TARGET[Vault.teamMode(me)] ?? WIN_WIN_TARGET.flexible;
@@ -212,10 +218,13 @@ function coachWinWins(me) {
     mine.forEach(a => theirs.forEach(b => add([a], [b])));
     mine.forEach((a, i) => mine.slice(i + 1).forEach(a2 => theirs.forEach(b => add([a, a2], [b]))));
     theirs.forEach((b, i) => theirs.slice(i + 1).forEach(b2 => mine.forEach(a => add([a], [b, b2]))));
-    cands.sort((x, y) => Math.abs(x.v - aim) - Math.abs(y.v - aim)).slice(0, WIN_WIN_PER_PARTNER).forEach(({ A, B }) => {
-      const { valueA, valueB } = Vault.tradeSideValues(A, B);
-      out.push({ partner: p, giveA: A, giveB: B, result: computeTradeAnalysis(me, p, A, B, valueA, valueB) });
-    });
+    cands.sort((x, y) => Math.abs(x.v - aim) - Math.abs(y.v - aim)).slice(0, WIN_WIN_PER_PARTNER).forEach(({ A, B }) => out.push(coachCand(me, p, A, B)));
+    // 2-for-2s (2026-10-23, "search wider"): a group of their own so they don't
+    // crowd out the simpler trades above, from each team's top WIN_WIN_2X2_TOP.
+    const two = list => list.slice(0, WIN_WIN_2X2_TOP).flatMap((a, i, l) => l.slice(i + 1).map(b => [a, b]));
+    const pairs = [];
+    two(mine).forEach(A => two(theirs).forEach(B => { const v = pct(A, B); if (v >= WIN_WIN_BAND[0] && v <= WIN_WIN_BAND[1] && Math.abs(coachKtcPct(A, B)) < VAULT_CONFIG.FAIR_PCT) pairs.push({ A, B, v }); }));
+    pairs.sort((x, y) => Math.abs(x.v - aim) - Math.abs(y.v - aim)).slice(0, WIN_WIN_2X2_PER_PARTNER).forEach(({ A, B }) => out.push(coachCand(me, p, A, B, true)));
   });
   return out;
 }
@@ -253,10 +262,7 @@ function coachBundles(me) {
         const yours = (valueB - valueA) / (((valueA + valueB) / 2) || 1) * 100; // % more trade value to you
         if (yours <= Vault.acceptTolerance(A, get) && yours >= -COACH_VALUE_FLOOR && Math.abs(coachKtcPct(A, get)) < VAULT_CONFIG.FAIR_PCT) cands.push({ A, gap: Math.abs(yours - aim) });
       });
-      cands.sort((x, y) => x.gap - y.gap).slice(0, BUNDLE_PER_PAIR).forEach(({ A }) => {
-        const { valueA, valueB } = Vault.tradeSideValues(A, get);
-        out.push({ partner: p, giveA: A, giveB: get, result: computeTradeAnalysis(me, p, A, get, valueA, valueB) });
-      });
+      cands.sort((x, y) => x.gap - y.gap).slice(0, BUNDLE_PER_PAIR).forEach(({ A }) => out.push(coachCand(me, p, A, get)));
     }));
   });
   return out;
@@ -370,7 +376,22 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
     packs.push([...must, a]);
     pool.slice(i + 1).forEach(b => { const s = mustVal + a.value + b.value; if (s >= want * 0.7 && s <= want * 1.7) packs.push([...must, a, b]); });
   });
-  const judge = list => list.map(give => ({ give, j: coachJudged(me, partner, give, get) })).filter(x => coachMarketOK(x.give, get));
+  // A package's edge is never closer to even than its plain value gap (Vault.
+  // blendedFairness; with the factor cap at 60 a fit can't flip its sign either),
+  // so one that overpays by the ceiling or more can't be taken as is. Those are
+  // only graded below if they could be among the closest overpays to balance
+  // back (2026-10-23, faster first search: same offers, far fewer gradings).
+  const valueEdge = give => {
+    const { valueA, valueB } = Vault.tradeSideValues(give, get), avg = (valueA + valueB) / 2 || 1;
+    return Math.sign((valueA - valueB) || 1) * (Math.abs(valueA - valueB) / avg * 100);
+  };
+  const deferred = [];
+  let seq = 0; // each package's place in the original order, for ties
+  const judge = list => list.filter(give => coachMarketOK(give, get)).flatMap(give => {
+    const i = seq++, v = valueEdge(give);
+    if (v >= ceiling) { deferred.push({ give, v, i }); return []; }
+    return [{ give, j: coachJudged(me, partner, give, get), i }];
+  });
   const offer = x => ({ partner, give: x.give, get, edge: x.j.edge, score: coachScore(x.j) });
   let taken = judge(packs);
   let found = taken.filter(x => x.j.edge < ceiling).map(offer);
@@ -386,7 +407,14 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
   }
   // Balance it back: the closest overpays, each with the one piece of theirs
   // that brings it to Fair while leaving you best off.
-  const over = taken.filter(x => x.j.edge >= VAULT_CONFIG.FAIR_PCT).sort((x, y) => x.j.edge - y.j.edge).slice(0, 12);
+  const closest = () => taken.filter(x => x.j.edge >= VAULT_CONFIG.FAIR_PCT).sort((x, y) => x.j.edge - y.j.edge || x.i - y.i).slice(0, 12);
+  let over = closest();
+  // Overpays set aside above, smallest gap first, until none left can beat the 12th.
+  for (const d of deferred.sort((x, y) => x.v - y.v)) {
+    if (over.length >= 12 && d.v > over[11].j.edge) break;
+    taken.push({ give: d.give, j: coachJudged(me, partner, d.give, get), i: d.i });
+    over = closest();
+  }
   if (over.length) {
     const inGet = new Set(negKeys(get));
     const fillers = partner.assets.filter(a => !inGet.has(a.key) && !coachTheirOff(a) && a.value >= want * 0.05 && a.value <= want * 0.6)
@@ -663,7 +691,7 @@ function coachCacheFor(me) {
 // they're built fresh each time (~0.2 seconds); the rest only read the rosters.
 function coachCandidates(me) {
   const c = coachCacheFor(me);
-  if (!c.pool) c.pool = [...suggestionPool(me), ...coachNeedSwaps(me), ...coachWinWins(me)];
+  if (!c.pool) c.pool = [...suggestionPool(me, null, coachAnalyze(me)), ...coachNeedSwaps(me), ...coachWinWins(me)];
   return [...c.pool, ...coachBundles(me)];
 }
 function coachJudged(me, partner, give, get) {
@@ -711,10 +739,14 @@ async function coachBest(me, progress) {
   }
   // Good trade or better first (the sort below), then Slight edges to fill the list (2026-10-23, user: "doesn't give many options": when
   // 3+ had real upside only those showed, 4 in The League of Gold).
-  scored
-    .map(x => ({ ...x, mk: market(x.c) }))
+  // 2-for-2s (c.wide) only fill room the other trades leave, so widening the
+  // search never pushes one out (2026-10-23: ranked together, they took partner
+  // and piece slots and two contenders' lists got shorter); then one order for all.
+  const ranked = scored.map(x => ({ ...x, mk: market(x.c) }))
     .sort((x, y) => picksOnly(x.c) - picksOnly(y.c) || y.mine.score - x.mine.score || sumValue(x.c.giveA) - sumValue(y.c.giveA))
-    .forEach(({ c, j, mk }) => {
+    .map((x, rank) => ({ ...x, rank }));
+  [...ranked.filter(x => !x.c.wide), ...ranked.filter(x => x.c.wide)]
+    .forEach(({ c, j, mk, rank }) => {
       const n = perPartner.get(c.partner.rosterId) || 0;
       if (n >= 2 || list.length >= 10) return;
       // The same deal with a different add-on (a 1st where a 2nd does the same
@@ -728,8 +760,9 @@ async function coachBest(me, progress) {
       // The piece behind a market edge for you: one you get that goes for more, or send that goes for less.
       const edgeBy = mk && mk.delta >= 3 && mk.movers.find(m => (m.gets ? m.adj : -m.adj) > 0);
       const mkt = edgeBy ? `${marketMoverText(edgeBy)}.` : '';
-      list.push({ partner: c.partner, give: c.giveA, get: c.giveB, edge: j.edge, score: coachScore(j), id: negKeys(c.giveA).join() + '>' + negKeys(c.giveB).join(), why: [fit, mkt].filter(Boolean).join(' ') });
+      list.push({ partner: c.partner, give: c.giveA, get: c.giveB, edge: j.edge, score: coachScore(j), id: negKeys(c.giveA).join() + '>' + negKeys(c.giveB).join(), why: [fit, mkt].filter(Boolean).join(' '), rank });
     });
+  list.sort((x, y) => x.rank - y.rank);
   if (!list.length) return { empty: `No trade across the league clearly helps ${Vault.escapeHtml(me.teamName)} while also working for the other team right now. Try Get a player or Fix a position.` };
   return { title: 'Best trades for you', list };
 }
@@ -753,7 +786,7 @@ async function coachTeam(me, progress) {
     seen.add(id);
     found.push({ partner, give, get, edge, id, why });
   };
-  suggestionPool(me, partner).filter(c =>
+  suggestionPool(me, partner, coachAnalyze(me)).filter(c =>
     must.every(m => c.giveA.includes(m)) && !c.giveA.some(a => off.has(a.key))
     && !c.giveB.some(coachTheirOff) && coachTheirMust(partner).every(m => c.giveB.includes(m)))
     .forEach(c => {

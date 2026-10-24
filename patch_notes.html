@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=bf444ba5">
+<link rel="stylesheet" href="tailwind.css?v=d99c8d71">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-23', items: [
+    { kind: 'new', page: 'Trade Calculator', text: "Why now shows what each piece does to your lineup this season: each player you get or send, how many of the weeks left he'd start, and what he adds or costs a week on his own (\"Kyren Williams RB · starts 10 of 11 weeks left · +5.2 a week\"), then the starting lineup, depth and the total, the same points number the verdict uses." },
+    { kind: 'improved', page: 'Trade Calculator', text: "Trade Coach is faster again: Best trades about 35% and the other trade types about 30%, by skipping packages that couldn't pass before grading them and grading each trade once instead of twice. Same trades, same verdicts. Best trades also tries 2-for-2 trades now; they only fill room the other trades leave, so no trade you'd have seen is pushed out." },
     { kind: 'improved', page: 'Trade Calculator', text: "Trade Coach searches take about half as long, even on a first click: Go all-in about 5 seconds instead of 9, Fix a position about 2.5 instead of 4.5. The math that judges each trade (lineups for every week left, depth, how long each team's window lasts) no longer redoes the parts that are the same for every trade. Same trades, same verdicts, just faster, and the calculator's own verdict updates quicker as you add players." },
     { kind: 'new', page: 'Trade Calculator', text: "The verdict stays on screen: when it's out of view (below the fold on a phone, or while you pick players from the rosters), a bar at the bottom shows both teams' verdicts. Tap it to jump back to the trade." },
     { kind: 'improved', page: 'Trade Calculator', text: "The verdict card now says whether the price is usual for the trade's main player in real trades (\"Usual price\", \"Under usual\" or \"Over usual\", next to trade value and KTC's calculator). Tap it to see those trades: every price as a dot, and the three most like yours." },
