@@ -110,7 +110,7 @@ const coachImproves = o => Vault.verdictTier(coachScore(o)).level === 'good';
 // - it doesn't hurt either roster (roster fit not meaningfully negative, -1 or better, for either side);
 // - no throw-ins: every piece is worth at least COACH_MIN_PIECE of its side's best;
 // - you don't give up value (COACH_VALUE_FLOOR);
-// - it reads Fair on KTC's calculator too (coachKtcFair).
+// - the price is Fair on trade value and not Unfair on KTC's calculator (coachPriceFair).
 // Best trades then lists them best for you first (Good trade or better at the
 // top), down to Slight edge.
 const COACH_THEIR_MIN = -6, COACH_MIN_PIECE = 0.2;
@@ -121,17 +121,22 @@ const COACH_THEIR_MIN = -6, COACH_MIN_PIECE = 0.2;
 // points a week in 2.2% of their trades, and not for extra value (same median
 // price as their other trades); Bad or worse for them in 5%, Terrible in 0.5%.
 const COACH_UPGRADE_THEIR_MIN = -15;
-// Fair on KTC's own calculator too (user, 2026-10-09: "they'd never accept",
-// "doesn't match KTC"). Most managers check an offer on KTC, and KTC shrinks its
-// biggest-piece bonus to almost nothing when a piece coming back is close in
-// value, so a 2-for-1 that's even on trade value can read 35-45% off there: an
-// offer the other manager turns down, or one that looks like an overpay to you.
-// Neither side may be short by FAIR_PCT or more on KTC; Go all-in may still
-// overpay (that's its point), but not short the other team. Sell high, Buy low and
-// Shop a player are exempt: their point is the gap between KTC and what players
-// actually trade for (cheap players often go 20% over KTC), priced at market.
+// A price both managers would take: Fair on trade value (under FAIR_PCT off either way),
+// and not Unfair on KTC's own calculator (under LOPSIDED_PCT), since most managers check
+// an offer there. Go all-in may still overpay (that's its point), but not short the
+// other team. Sell high, Buy low and Shop a player are exempt: their point is the gap
+// between KTC and what players actually trade for, priced at market.
+// History: from 2026-10-09 (user: "they'd never accept", "doesn't match KTC") this was
+// Fair on KTC (under 14%). KTC's consolidation adjustment is so steep that only 25% of
+// real accepted trades read Fair there (12-17% of 2-for-1s and 3-for-1s), so with the
+// other team's verdict it let through 18% of trades managers actually made. This rule
+// lets through 40% (2026-10-24, user's choice; VaultValues acceptance-check.js).
 const coachKtcPct = (give, get) => { const k = Vault.ktcSideValues(give, get); return (k.valueB - k.valueA) / (((k.valueA + k.valueB) / 2) || 1) * 100; };
-const coachKtcFair = (give, get, option) => { const p = coachKtcPct(give, get); return p < VAULT_CONFIG.FAIR_PCT && (option === 'contend' || p > -VAULT_CONFIG.FAIR_PCT); };
+const coachTvPct = (give, get) => { const v = Vault.tradeSideValues(give, get); return (v.valueB - v.valueA) / (((v.valueA + v.valueB) / 2) || 1) * 100; };
+const coachPriceFair = (give, get, option) => {
+  const within = (p, lim) => p < lim && (option === 'contend' || p > -lim);
+  return within(coachTvPct(give, get), VAULT_CONFIG.FAIR_PCT) && within(coachKtcPct(give, get), VAULT_CONFIG.LOPSIDED_PCT);
+};
 // Not asking for the other team's cornerstone (Vault.cornerstone: its best
 // player, or a contender's top 3): managers rarely trade them at any fair price.
 // Get a player (you name the target) and the price plays you start from your
@@ -143,7 +148,7 @@ function coachSensible({ c, mine, theirs }) {
   // …and the other team isn't further behind on value than managers in their spot
   // typically accept (Vault.acceptTolerance, by the trade's shape from their side).
   return theirs.score >= COACH_THEIR_MIN && (theirs.pricePct ?? theirs.valuePct) >= -Vault.acceptTolerance(c.giveA, c.giveB) && Vault.verdictTier(mine.score).level === 'good' && mine.rosterFit >= -1 && theirs.rosterFit >= -1
-    && (mine.pricePct ?? mine.valuePct) >= -COACH_VALUE_FLOOR && noFiller(c.giveA) && noFiller(c.giveB) && coachKtcFair(c.giveA, c.giveB) && !coachAsksCornerstone(c.partner, c.giveB);
+    && (mine.pricePct ?? mine.valuePct) >= -COACH_VALUE_FLOOR && noFiller(c.giveA) && noFiller(c.giveB) && coachPriceFair(c.giveA, c.giveB) && !coachAsksCornerstone(c.partner, c.giveB);
 }
 // Swaps that fill both teams' needs (user, 2026-10-09): the value-matched search
 // (suggestionPool) rarely pairs your depth at one position with a partner's
@@ -192,7 +197,7 @@ function coachCand(me, partner, giveA, giveB, wide = false) {
 // (suggestionPool) keeps only the closest-to-even package per piece, which
 // rarely is the one that also fits both teams. This builds every 1-for-1,
 // 2-for-1 and 1-for-2 from both teams' top pieces priced WIN_WIN_BAND on trade
-// value (your way +) and Fair on KTC's calculator, keeps the
+// value (your way +) and not Unfair on KTC's calculator, keeps the
 // WIN_WIN_PER_PARTNER closest to WIN_WIN_TARGET per team, and lets the checks
 // for both teams (coachSensible) decide. The band is where real trades balance:
 // every kind of team trades at about the market price (contenders paid no
@@ -213,7 +218,7 @@ function coachWinWins(me) {
     const theirs = tradeableAssets(p).slice(0, WIN_WIN_TOP), cands = [];
     const add = (A, B) => {
       const v = pct(A, B);
-      if (v >= WIN_WIN_BAND[0] && v <= WIN_WIN_BAND[1] && Math.abs(coachKtcPct(A, B)) < VAULT_CONFIG.FAIR_PCT) cands.push({ A, B, v });
+      if (v >= WIN_WIN_BAND[0] && v <= WIN_WIN_BAND[1] && Math.abs(coachKtcPct(A, B)) < VAULT_CONFIG.LOPSIDED_PCT) cands.push({ A, B, v });
     };
     mine.forEach(a => theirs.forEach(b => add([a], [b])));
     mine.forEach((a, i) => mine.slice(i + 1).forEach(a2 => theirs.forEach(b => add([a, a2], [b]))));
@@ -223,7 +228,7 @@ function coachWinWins(me) {
     // crowd out the simpler trades above, from each team's top WIN_WIN_2X2_TOP.
     const two = list => list.slice(0, WIN_WIN_2X2_TOP).flatMap((a, i, l) => l.slice(i + 1).map(b => [a, b]));
     const pairs = [];
-    two(mine).forEach(A => two(theirs).forEach(B => { const v = pct(A, B); if (v >= WIN_WIN_BAND[0] && v <= WIN_WIN_BAND[1] && Math.abs(coachKtcPct(A, B)) < VAULT_CONFIG.FAIR_PCT) pairs.push({ A, B, v }); }));
+    two(mine).forEach(A => two(theirs).forEach(B => { const v = pct(A, B); if (v >= WIN_WIN_BAND[0] && v <= WIN_WIN_BAND[1] && Math.abs(coachKtcPct(A, B)) < VAULT_CONFIG.LOPSIDED_PCT) pairs.push({ A, B, v }); }));
     pairs.sort((x, y) => Math.abs(x.v - aim) - Math.abs(y.v - aim)).slice(0, WIN_WIN_2X2_PER_PARTNER).forEach(({ A, B }) => out.push(coachCand(me, p, A, B, true)));
   });
   return out;
@@ -236,7 +241,7 @@ function coachWinWins(me) {
 // paid with up to BUNDLE_MAX of your bench players and picks, the BUNDLE_PER_PAIR
 // packages priced closest to your timeline's aim (WIN_WIN_TARGET), no further
 // your way than managers in their spot accept (Vault.acceptTolerance), you no
-// more than COACH_VALUE_FLOOR behind, and Fair on KTC's calculator. A win-now
+// more than COACH_VALUE_FLOOR behind, and not Unfair on KTC's calculator. A win-now
 // search, so not for rebuilding teams; the usual checks for both teams decide
 // what's listed.
 const BUNDLE_TARGETS = 5, BUNDLE_PAY = 10, BUNDLE_MAX = 4, BUNDLE_PER_PAIR = 3;
@@ -260,7 +265,7 @@ function coachBundles(me) {
         if (s < want * 0.8 || s > want * 1.6) return;
         const { valueA, valueB } = Vault.tradeSideValues(A, get);
         const yours = (valueB - valueA) / (((valueA + valueB) / 2) || 1) * 100; // % more trade value to you
-        if (yours <= Vault.acceptTolerance(A, get) && yours >= -COACH_VALUE_FLOOR && Math.abs(coachKtcPct(A, get)) < VAULT_CONFIG.FAIR_PCT) cands.push({ A, gap: Math.abs(yours - aim) });
+        if (yours <= Vault.acceptTolerance(A, get) && yours >= -COACH_VALUE_FLOOR && Math.abs(coachKtcPct(A, get)) < VAULT_CONFIG.LOPSIDED_PCT) cands.push({ A, gap: Math.abs(yours - aim) });
       });
       cands.sort((x, y) => x.gap - y.gap).slice(0, BUNDLE_PER_PAIR).forEach(({ A }) => out.push(coachCand(me, p, A, get)));
     }));
@@ -525,7 +530,7 @@ async function coachUpgrades(me, positions, protect, progress, pay, valueMode = 
         const lead = [...cand.give].sort((x, y) => y.value - x.value)[0].key;
         if (leads.has(lead)) continue;
         // The cheap parts of coachListOK first, before the lineup math (2026-10-23, "Faster Coach").
-        if (!coachPiecesOK(cand.give, cand.get) || !coachKtcFair(cand.give, cand.get, option) || coachAsksCornerstone(t, cand.get)) continue;
+        if (!coachPiecesOK(cand.give, cand.get) || !coachPriceFair(cand.give, cand.get, option) || coachAsksCornerstone(t, cand.get)) continue;
         // Net lineup gain: the healthy best lineup, minus any depth it costs
         // (what bye and injury weeks cost the lineup, Vault.depthShift), with
         // depth counted at the grade's weight.
@@ -792,14 +797,14 @@ async function coachBest(me, progress) {
   await coachTick();
   const must = coachMust(me), off = coachOffLimits(me);
   // Quick checks before the slow ones (2026-10-23, "Faster Coach"): your rules, then
-  // no filler, Fair on KTC, no cornerstone (all part of coachSensible below, cheap
+  // no filler, a fair price (coachPriceFair), no cornerstone (all part of coachSensible below, cheap
   // here), so only about two thirds get graded; the depth check, ~1ms a trade,
   // runs after grading on the few that pass (52 of 1,380 in The League of Gold).
   const noFiller = side => { const top = Math.max(...side.map(a => a.value)); return side.every(a => a.value >= top * COACH_MIN_PIECE); };
   const pool = coachCandidates(me).filter(c =>
     coachPartnerOK(c.partner) && must.every(m => c.giveA.includes(m)) && !c.giveA.some(a => off.has(a.key))
     && !c.giveB.some(coachTheirOff) && coachTheirMust(c.partner).every(m => c.giveB.includes(m)) && coachGroupsOK(c.giveA, c.giveB)
-    && coachPiecesOK(c.giveA, c.giveB) && noFiller(c.giveA) && noFiller(c.giveB) && coachKtcFair(c.giveA, c.giveB) && !coachAsksCornerstone(c.partner, c.giveB) && coachMarketOK(c.giveA, c.giveB));
+    && coachPiecesOK(c.giveA, c.giveB) && noFiller(c.giveA) && noFiller(c.giveB) && coachPriceFair(c.giveA, c.giveB) && !coachAsksCornerstone(c.partner, c.giveB) && coachMarketOK(c.giveA, c.giveB));
   progress('Checking which of those their managers would take…');
   await coachTick();
   const perPartner = new Map(), list = [], sides = new Set(), uses = new Map(), held = [];
@@ -982,16 +987,16 @@ const COACH_RUN = { downtier: coachDowntier, team: coachTeam, best: coachBest, s
 
 // Every list's last check: good enough for you (price plays: anything but a
 // losing trade), no value given up, not bad for them (Fix a position and Go
-// all-in: COACH_UPGRADE_THEIR_MIN, as their search uses), Fair on KTC's
-// calculator, no cornerstone, no same-spot swap. coachUpgrades runs it while
+// all-in: COACH_UPGRADE_THEIR_MIN, as their search uses), a fair price
+// (coachPriceFair), no cornerstone, no same-spot swap. coachUpgrades runs it while
 // picking each target's offers (2026-10-23: it kept the first offer per target
 // and only then filtered, so James Cook was dropped for a package KTC calls
 // off while his third package passed everything).
 // The other team's side of coachListOK: their verdict at least the list's minimum,
-// and Fair on KTC's calculator where that applies. coachOffers checks it too.
+// and a fair price (coachPriceFair) where that applies. coachOffers checks it too.
 function coachTheyTake(o, option) {
   const theirMin = option === 'position' || option === 'contend' ? COACH_UPGRADE_THEIR_MIN : COACH_THEIR_MIN;
-  return coachTheirScore(o) >= theirMin && (COACH_PRICE_PLAYS.has(option) || option === 'downtier' || coachKtcFair(o.give, o.get, option));
+  return coachTheirScore(o) >= theirMin && (COACH_PRICE_PLAYS.has(option) || option === 'downtier' || coachPriceFair(o.give, o.get, option));
 }
 function coachListOK(o, option) {
   if (!coachPiecesOK(o.give, o.get)) return false;
@@ -1108,7 +1113,10 @@ function coachMissReasons(o, option) {
   if (COACH_PRICE_PLAYS.has(option) ? mine.level === 'bad' : mine.level !== 'good') out.push({ key: 'you', text: `it's a ${mine.label} for you` });
   if (coachTheirScore(o) < theirMin) out.push({ key: 'them', text: `it's a ${them.label} for ${name}, so they'd likely say no` });
   if (!coachKeepsValue(o, option)) out.push({ key: 'value', text: `you'd pay ${Math.abs(Math.round(coachValuePct(o)))}% over in trade value` });
-  if (!COACH_PRICE_PLAYS.has(option) && option !== 'downtier' && !coachKtcFair(o.give, o.get, option)) out.push({ key: 'ktc', text: `it reads ${Math.abs(Math.round(coachKtcPct(o.give, o.get)))}% off on KTC's calculator` });
+  if (!COACH_PRICE_PLAYS.has(option) && option !== 'downtier' && !coachPriceFair(o.give, o.get, option)) {
+    const tvOff = Math.abs(coachTvPct(o.give, o.get)) >= VAULT_CONFIG.FAIR_PCT;
+    out.push({ key: 'ktc', text: tvOff ? `it's ${Math.abs(Math.round(coachTvPct(o.give, o.get)))}% off on trade value` : `KTC's calculator calls it Unfair (${Math.abs(Math.round(coachKtcPct(o.give, o.get)))}% off)` });
+  }
   if (!COACH_CORNERSTONE_OK.has(option) && coachAsksCornerstone(o.partner, o.get)) out.push({ key: 'star', text: `it asks for one of ${name}'s cornerstones` });
   if (coachSameSpotSwap(o)) out.push({ key: 'same', text: 'it swaps players who fill the same spot' });
   return out;
