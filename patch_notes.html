@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=0ad7a7e3"></script>
+<script src="vault-core.js?v=56c6f0f1"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-23', items: [
+    { kind: 'improved', page: 'Trade Calculator', text: "Trade Coach searches take about half as long, even on a first click: Go all-in about 5 seconds instead of 9, Fix a position about 2.5 instead of 4.5. The math that judges each trade (lineups for every week left, depth, how long each team's window lasts) no longer redoes the parts that are the same for every trade. Same trades, same verdicts, just faster, and the calculator's own verdict updates quicker as you add players." },
     { kind: 'new', page: 'Trade Calculator', text: "The verdict stays on screen: when it's out of view (below the fold on a phone, or while you pick players from the rosters), a bar at the bottom shows both teams' verdicts. Tap it to jump back to the trade." },
     { kind: 'improved', page: 'Trade Calculator', text: "The verdict card now says whether the price is usual for the trade's main player in real trades (\"Usual price\", \"Under usual\" or \"Over usual\", next to trade value and KTC's calculator). Tap it to see those trades: every price as a dot, and the three most like yours." },
     { kind: 'improved', page: 'Trade Calculator', text: "Trade Coach's first search is faster. It starts on Best trades and Go all-in as soon as you open it, while you pick a trade type, so by the time you click Find trades most of the work is done. Every search also reuses the trades it already graded instead of grading them again, and Fix a position stops once it has enough upgrades to show." },

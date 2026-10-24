@@ -1673,6 +1673,9 @@ const Vault = {
      the starters list, to show "the best lineup" on League Overview), simulateTrade
      (which only needs the total, re-run on a hypothetical post-trade roster), and
      anywhere else that only cares about the number. */
+  slotAllows(slot) {
+    return { FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'] }[slot] || [slot];
+  },
   optimalLineupDetail(plist, slots) {
     const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
     const used = new Set();
@@ -1680,11 +1683,7 @@ const Vault = {
     let total = 0;
     let vorpTotal = 0;
     for (const slot of slots) {
-      let allowed = [slot];
-      if (slot === 'FLEX') allowed = ['RB', 'WR', 'TE'];
-      if (slot === 'SUPER_FLEX') allowed = ['QB', 'RB', 'WR', 'TE'];
-      if (slot === 'WRRB_FLEX') allowed = ['RB', 'WR'];
-      if (slot === 'REC_FLEX') allowed = ['WR', 'TE'];
+      const allowed = Vault.slotAllows(slot);
       const i = pool.findIndex(p => !used.has(p.id) && allowed.includes(p.pos));
       if (i >= 0) {
         const p = pool[i];
@@ -1742,7 +1741,9 @@ const Vault = {
   // Share of the weeks left he's projected to play (1 with no weekly data).
   availShare(p, weeks = Vault._lineupWeeks) {
     if (!p.avail || !weeks.length) return 1;
-    return weeks.filter(w => Vault.availableIn(p, w)).length / weeks.length;
+    let n = 0;
+    for (const v of Vault.weekPpgs(p, weeks)) if (v != null) n++; // null: a week he's out
+    return n / weeks.length;
   },
   // Players who'll play at least half the weeks left: the "typical week" pool
   // for the lineup shown on the page and for depth.
@@ -1766,17 +1767,43 @@ const Vault = {
   // byWeek is each week's total (Vault.simulateSeason plays each week at it);
   // starters is the typical week's lineup, each with `starts` (weeks he'd
   // start of `weeks`), at his plain PPG.
+  // Each player's points in each of `weeks` (0 when he's out), kept per player:
+  // Trade Coach rebuilds the same rosters' lineups for thousands of trades
+  // (2026-10-23, faster first search).
+  _weekPpgCache: new WeakMap(),
+  weekPpgs(p, weeks) {
+    const hit = Vault._weekPpgCache.get(p);
+    if (hit && hit.weeks === weeks && hit.ppg === p.ppg) return hit.out;
+    const f = Vault.matchupFactors(p, weeks);
+    const out = weeks.map((w, i) => (Vault.availableIn(p, w) ? (f ? p.ppg * f[i] : p.ppg) : null));
+    Vault._weekPpgCache.set(p, { weeks, ppg: p.ppg, out });
+    return out;
+  },
   seasonLineupDetail(plist, slots, weeks = Vault._lineupWeeks) {
     if (!weeks.length || !plist.some(p => p.avail)) return { ...Vault.optimalLineupDetail(plist, slots), starts: null, weeks: 0, byWeek: null };
     let total = 0, vorpTotal = 0;
     const starts = new Map(), byWeek = new Map();
-    const factors = plist.map(p => Vault.matchupFactors(p, weeks));
+    // The same greedy lineup as optimalLineupDetail (best available player for
+    // each slot in order, ties in roster order), on index arrays instead of
+    // copying every player every week.
+    const wp = plist.map(p => Vault.weekPpgs(p, weeks));
+    const allows = slots.map(s => Vault.slotAllows(s));
     weeks.forEach((w, i) => {
-      const pool = [];
-      plist.forEach((p, k) => { if (Vault.availableIn(p, w)) pool.push(factors[k] ? { ...p, ppg: p.ppg * factors[k][i] } : p); });
-      const d = Vault.optimalLineupDetail(pool, slots);
-      total += d.total; vorpTotal += d.vorpTotal; byWeek.set(w, d.total);
-      d.starters.forEach(s => { if (s.id) starts.set(s.id, (starts.get(s.id) || 0) + 1); });
+      const order = [];
+      for (let k = 0; k < plist.length; k++) if (wp[k][i] != null) order.push(k);
+      order.sort((a, b) => wp[b][i] - wp[a][i]);
+      const used = new Set();
+      let wTotal = 0, wVorp = 0;
+      for (const allowed of allows) {
+        const k = order.find(k => !used.has(plist[k].id) && allowed.includes(plist[k].pos));
+        if (k === undefined) continue;
+        const p = plist[k];
+        wTotal += wp[k][i];
+        if (Number.isFinite(p.vorp)) wVorp += p.vorp;
+        used.add(p.id);
+        if (p.id) starts.set(p.id, (starts.get(p.id) || 0) + 1);
+      }
+      total += wTotal; vorpTotal += wVorp; byWeek.set(w, wTotal);
     });
     const typical = Vault.optimalLineupDetail(Vault.typicalPool(plist, weeks), slots);
     return { total: total / weeks.length, vorpTotal: vorpTotal / weeks.length, starters: typical.starters.map(s => ({ ...s, starts: starts.get(s.id) || 0 })), starts, weeks: weeks.length, byWeek };
@@ -2242,6 +2269,8 @@ const Vault = {
      estimates which of those years clear the league's playoff-line PPG. Shared by
      Team Analyzer and the Trade Calculator (to show how a trade shifts a team's
      window, not just its current value). */
+  _cwRate: new WeakMap(),
+  _cwProj: new WeakMap(),
   contentionWindow(t, all) {
     const startYear = new Date().getFullYear();
     const years = 5;
@@ -2263,12 +2292,27 @@ const Vault = {
     // pick's dollar value into an estimated PPG contribution — built from every
     // rostered player in the league with real value AND real production, so it
     // reflects the market rate rather than one roster's own mix.
-    let sumValue = 0, sumPpg = 0;
-    all.forEach(team => team.plist.forEach(p => {
-      if (p.value > 0 && p.ppg > 0) { sumValue += p.value; sumPpg += p.ppg; }
-    }));
-    const dollarsPerPpg = sumPpg ? sumValue / sumPpg : 1;
+    // A trade only moves players between teams, so this is the same for every
+    // trade in a league; computed once per list of teams.
+    const rateKey = all.reduce((s, team) => s + team.total, 0) + '|' + all.length;
+    const rateMemo = Vault._cwRate.get(all);
+    let dollarsPerPpg = rateMemo && rateMemo.key === rateKey ? rateMemo.rate : null;
+    if (dollarsPerPpg == null) {
+      let sumValue = 0, sumPpg = 0;
+      all.forEach(team => team.plist.forEach(p => {
+        if (p.value > 0 && p.ppg > 0) { sumValue += p.value; sumPpg += p.ppg; }
+      }));
+      dollarsPerPpg = sumPpg ? sumValue / sumPpg : 1;
+      Vault._cwRate.set(all, { key: rateKey, rate: dollarsPerPpg });
+    }
 
+    // The projection depends only on this team (and the rate above), so it's kept
+    // per team object: a Trade Coach search re-ranks the same untouched teams
+    // against every trade (2026-10-23, faster first search). The key catches any
+    // change to the roster, picks or lineup.
+    const projKey = `${t.total}|${t.picksValue}|${t.opt}|${dollarsPerPpg.toPrecision(10)}`;
+    const memo = Vault._cwProj.get(t);
+    const { proj, projPPG } = memo && memo.key === projKey ? memo : (() => {
     // Age lookup for the current starters — t.lineup carries slot/pos/ppg but not
     // age, so cross-reference back to t.plist by id.
     const ageById = new Map(t.plist.map(p => [p.id, p.age]));
@@ -2303,6 +2347,9 @@ const Vault = {
       });
       projPPG.push(starterPpgs.reduce((s, v) => s + v, 0));
     }
+    Vault._cwProj.set(t, { key: projKey, proj, projPPG });
+    return { proj, projPPG };
+    })();
     const peak = Math.max(...proj);
     const year = startYear + proj.indexOf(peak);
 
@@ -3515,10 +3562,22 @@ const Vault = {
     if (hit && hit.slots === slots) return hit.out;
     const plist = Vault.depthPool(team), games = Vault.depthMissedGames(team);
     const base = Vault.optimalLineupDetail(plist, slots);
+    // The lineup without each starter: optimalLineupDetail's greedy on the roster
+    // sorted once, skipping him (the same order a fresh sort of the rest gives).
+    const sorted = [...plist].sort((a, b) => b.ppg - a.ppg), allows = slots.map(s => Vault.slotAllows(s));
+    const totalWithout = id => {
+      const used = new Set();
+      let total = 0;
+      for (const allowed of allows) {
+        const p = sorted.find(p => p.id !== id && !used.has(p.id) && allowed.includes(p.pos));
+        if (p) { total += p.ppg; used.add(p.id); }
+      }
+      return total;
+    };
     let perSeason = 0, hardest = null;
     const drops = new Map(); // each starter's cost when out, for depthShift's note
     base.starters.filter(s => s.id).forEach(s => {
-      const drop = base.total - Vault.optimalLineupDetail(plist.filter(p => p.id !== s.id), slots).total;
+      const drop = base.total - totalWithout(s.id);
       perSeason += drop * games;
       if (!hardest || drop > hardest.drop) hardest = { name: s.name, pos: s.pos, drop };
       drops.set(s.id, { name: s.name, pos: s.pos, drop });
