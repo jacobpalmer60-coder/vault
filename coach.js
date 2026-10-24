@@ -554,6 +554,32 @@ async function coachPosition(me, progress) {
   return { title: depth.length ? `Upgrades and depth at ${P}` : `Upgrades at ${P}`, list };
 }
 
+// Which spot a Fix a position trade fills (2026-10-24, user: "it could be make my
+// number 1 better my number 2 or upgrade some of my depth pieces"): where the best
+// player you get at P would rank among your players there by points a game (minus
+// any you send), and who he'd pass. group 0: a new #1, 1: a better starter, 2: depth.
+function coachSlotFor(me, o, P) {
+  const a = o.get.filter(x => x.type === 'player' && x.pos === P).sort((x, y) => (y.ppg || 0) - (x.ppg || 0))[0];
+  if (!a) return null;
+  const sent = new Set(o.give.map(x => x.key));
+  const room = me.assets.filter(x => x.type === 'player' && x.pos === P && !sent.has(x.key)).sort((x, y) => (y.ppg || 0) - (x.ppg || 0));
+  const rank = 1 + room.filter(x => (x.ppg || 0) > (a.ppg || 0)).length, over = room[rank - 1];
+  const passes = over ? `, ahead of ${Vault.escapeHtml(over.name)} (${(over.ppg || 0).toFixed(1)})` : '';
+  if (o.depth) return { group: 2, label: `Depth at ${P}` };
+  return { group: rank === 1 ? 0 : 1, label: `New ${P}${rank}${passes}` };
+}
+const COACH_SLOT_FIRST = 3; // new #1s kept ahead of the 10-card cut
+function coachSlotGroupsHtml(list) {
+  const P = Coach.pos, titles = [`A new ${P}1`, `Better ${P} starters`, `Depth at ${P}`];
+  const notes = ['Better than your best there', 'Better than your weakest starter there', 'Backups who cover bye and injury weeks'];
+  return [0, 1, 2].map(g => {
+    const cards = list.map((o, i) => ({ o, i })).filter(x => (x.o.slot ? x.o.slot.group : 1) === g);
+    if (!cards.length) return '';
+    return `<div class="mt-4 mb-2 flex items-baseline justify-between gap-3 flex-wrap"><div class="text-[13px] font-medium text-zinc-100">${titles[g]}</div><div class="text-[12px] text-zinc-500">${notes[g]}</div></div>
+      <div class="grid gap-3 md:grid-cols-2">${cards.map(({ o, i }) => coachCardHtml(o, i, false, !!o.best && !!o.ctx)).join('')}</div>`;
+  }).join('');
+}
+
 // Depth at a position (2026-10-24, user: "doesn't have to be main starter. Could be
 // a little lesser potentially for depth"): players who wouldn't beat your weakest
 // starter there by COACH.UPGRADE_BY but out-score your best backup by DEPTH_OVER_BENCH,
@@ -1020,8 +1046,11 @@ function coachShape(me, list, option) {
   if (option === 'contend' || option === 'position') {
     const first = new Map();
     list = list.filter(o => { const k = o.partner.rosterId + '<' + negKeys(o.get).join(); const f = first.get(k); if (f) { (f.alts ||= []).push(o); return false; } first.set(k, o); return true; });
-    // Up to 10 players, then Fix a position's depth adds after them (coachDepthAdds).
-    list = [...list.filter(o => !o.depth).slice(0, 10), ...list.filter(o => o.depth)];
+    // Up to 10 players, then Fix a position's depth adds after them (coachDepthAdds);
+    // the first COACH_SLOT_FIRST new #1s always make the 10 (coachSlotFor).
+    if (option === 'position') list.forEach(o => { o.slot = coachSlotFor(me, o, Coach.pos); });
+    const nd = list.filter(o => !o.depth), ones = nd.filter(o => o.slot && o.slot.group === 0).slice(0, COACH_SLOT_FIRST);
+    list = [...ones, ...nd.filter(o => !ones.includes(o)).slice(0, 10 - ones.length), ...list.filter(o => o.depth)];
   }
   list.forEach(o => { o.ctx = coachExplain(me, o); });
   if (!coachContending(me) || !['best', 'team', 'contend', 'position'].includes(option)) return list;
@@ -1153,6 +1182,8 @@ async function coachFind() {
       res.list = res.list.filter(o => coachListOK(o, option)).map(o => { const n = [coachSwapNote(o), coachTossupNote(o, option)].filter(Boolean).join(' '); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => (x.depth ? 1 : 0) - (y.depth ? 1 : 0) || coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
       res.list.forEach(o => { if (o.others) o.others = o.others.filter(x => coachListOK(x, option)); });
       if (res.list.length) { progress('Working out what each trade does for you…'); await coachTick(); res.list = coachShape(me, res.list, option); }
+      // Fix a position: grouped by the spot each trade fills, a new #1, better starters, then depth.
+      if (option === 'position' && res.list.length) { res.list[0].best = true; res.list = res.list.map((o, i) => ({ o, i })).sort((x, y) => (x.o.slot ? x.o.slot.group : 1) - (y.o.slot ? y.o.slot.group : 1) || x.i - y.i).map(x => x.o); }
       if (!res.list.length) { progress('Looking for the closest deals…'); res.near = coachNearMisses(me, raw, option); }
       if (!res.list.length) { delete res.list; res.empty = COACH_PRICE_PLAYS.has(option) ? `No trade found at a good price that isn't a losing trade for ${Vault.escapeHtml(me.teamName)} right now. Try another trade type, or switch your timeline.` : `No trade found that's at least a Slight edge for ${Vault.escapeHtml(me.teamName)} without giving up value right now. Try another trade type, or Go all-in to spend future value on this season.`; }
     }
@@ -1576,6 +1607,7 @@ function coachCardHtml(o, i, near = false, hero = false) {
   const titleLine = title ? `<div class="text-[12px] text-zinc-400 mt-2.5">Title odds <span class="mono text-zinc-100">${pc(title.before)} → ${pc(title.after)}</span>${Math.round(title.after) !== Math.round(title.before) ? ` <span class="font-semibold ${title.after > title.before ? 'text-emerald-400' : 'text-rose-400'}">${title.after > title.before ? '+' : '−'}${Math.abs(Math.round(title.after) - Math.round(title.before))}</span>` : ''}</div>` : '';
   return `<div class="p-4 rounded-xl border ${hero ? 'md:col-span-2 border-amber-400/30 bg-amber-400/[0.04] p-5' : `${lop ? 'border-orange-500/25' : 'border-white/[0.07]'} bg-white/[0.02]`} flex flex-col">
       ${hero ? coachHeroHeadHtml(o) : ''}
+      ${o.slot && !near ? `<div class="text-[11px] uppercase tracking-wider text-amber-300/80 mb-1.5">${o.slot.label}</div>` : ''}
       <div class="flex items-baseline justify-between gap-2">
         <span class="text-[12px] text-zinc-400 min-w-0 truncate">Trade with <span class="text-zinc-100 font-medium">${Vault.escapeHtml(o.partner.teamName)}</span></span>
         <span class="text-[12px] font-semibold text-right ${verdict.cls}" title="Price: ${forYou ? `${forYou}, in your favor` : lop ? 'Lopsided against you' : 'Fair'}">${verdict.label}</span>
@@ -1629,7 +1661,7 @@ function coachResultsHtml(r) {
     </div>
     ${r.planNote ? `<div class="text-[12px] text-zinc-300 mb-2">${r.planNote}</div>` : ''}
     ${over ? '<div class="text-[12px] text-orange-300 mb-2">Some of these pay a premium: nobody would take a Fair offer for them. Those are marked Lopsided. Nothing here is Unfair.</div>' : ''}
-    <div class="grid gap-3 md:grid-cols-2">${r.list.map((o, i) => coachCardHtml(o, i, false, i === 0 && !!o.ctx)).join('')}</div>`;
+    ${Coach.option === 'position' && r.list.some(o => o.slot) ? coachSlotGroupsHtml(r.list) : `<div class="grid gap-3 md:grid-cols-2">${r.list.map((o, i) => coachCardHtml(o, i, false, i === 0 && !!o.ctx)).join('')}</div>`}`;
 }
 
 // Negotiate option: a prompt to offer the loaded trade. Once rounds exist
