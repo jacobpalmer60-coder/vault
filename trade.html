@@ -1425,15 +1425,15 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   // question is whether to take it.
   const offered = offeredBy === 'B';
   const yourLabel = offered ? { good: 'Worth accepting', tossup: 'Worth a counter', bad: 'Decline' }[imp.level] : imp.label;
-  const tile = (who, label, cls, sub) => `<div class="rounded-xl bg-black/25 border border-white/5 px-4 py-3 min-w-0">
+  const tile = (who, label, cls, sub, close = '') => `<div class="rounded-xl bg-black/25 border border-white/5 px-4 py-3 min-w-0">
       <div class="text-[11px] uppercase tracking-wider text-zinc-500 leading-snug break-words">${who}</div>
-      <div class="num text-[26px] leading-tight mt-0.5 ${cls}">${label}</div>${sub ? `<div class="text-[12px] text-zinc-400 mt-1">${sub}</div>` : ''}</div>`;
+      <div class="num text-[26px] leading-tight mt-0.5 ${cls}">${label}</div>${close}${sub ? `<div class="text-[12px] text-zinc-400 mt-1">${sub}</div>` : ''}</div>`;
   const yourSub = `${offered ? `<span class="${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span> · ` : ''}<label class="inline-flex items-baseline gap-1" title="Judged on your timeline: contending weighs this season's lineup heavily, rebuilding weighs long-term value.">as <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}</select></label>`;
   const theirSub = them && them.outOfRace ? 'out of the playoff race, so this season\'s points don\'t count' : '';
   el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? 'One-sided: expect a no or a counter' : 'Works for both'}</span></div>` : ''}
     <div class="grid grid-cols-2 gap-3 max-w-[640px]">
-      ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub)}
-      ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub) : ''}
+      ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp))}
+      ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
     </div>
     <div class="text-[14px] text-zinc-200 mt-3 max-w-[640px]">${improvementReason(imp, null)}${imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : ''}</div>`;
   const dockSide = (who, label, cls) => `<div class="min-w-0"><div class="text-[10px] uppercase tracking-wider text-zinc-500 truncate">${who}</div><div class="num text-[17px] leading-tight ${cls}">${label}</div></div>`;
@@ -1447,7 +1447,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
     return `<div><div class="num text-[24px] text-zinc-100">${pc(s.before.championshipPct)} → ${pc(s.after.championshipPct)}</div><div class="text-[12px] text-zinc-400 mt-0.5">your title odds${d ? ` · <span class="${d > 0 ? 'text-emerald-400' : 'text-rose-400'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>` : ''}</div></div>`; })() : '';
   // Why: what moved the verdict, and how trades scored like this turned out.
   const why = document.getElementById('whyVerdict');
-  if (why) why.innerHTML = `${pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp)}${tiltNote(imp)}<div class="text-[12px] text-zinc-500 mt-1">${Vault.verdictRecordText(imp)}</div>`;
+  if (why) why.innerHTML = `${pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp)}${teamB ? pieceLinesHtml(teamB, bAssets, aAssets, analysis, them, 'B') : ''}${tiltNote(imp)}<div class="text-[12px] text-zinc-500 mt-1">${Vault.verdictRecordText(imp)}</div>`;
   // Even it out: when either team would see it as a bad trade.
   const wb = document.getElementById('workBoth');
   const fixFor = them && them.level === 'bad' ? 'them' : imp.level === 'bad' ? 'you' : null;
@@ -1504,6 +1504,16 @@ function theirsOf(analysis) {
   if (!them || !analysis || !analysis.heads || !analysis.heads.B) return null;
   return improvementOf(analysis, 'B');
 }
+// Close call (2026-10-24): the tier a 2% change in price would move the verdict to,
+// 2% being about the noise in a trade's price (COACH_VALUE_FLOOR), or '' when it holds.
+function closeCallHtml(imp) {
+  if (!imp) return '';
+  for (const d of [2, -2]) {
+    const t = Vault.verdictTier(Vault.tradeImprovement({ ...imp, valuePct: imp.valuePct + d }).score);
+    if (t.key !== imp.tier) return `<div class="text-[11px] text-zinc-500 mt-0.5" title="A 2% ${d > 0 ? 'better' : 'worse'} price would make this a ${t.label}: 2% is about the noise in a trade's price, so this one could go either way.">close to ${t.label}</div>`;
+  }
+  return '';
+}
 // Why the verdict reads a little better or worse than the price alone (Vault.verdictValueTilt).
 function tiltNote(imp) {
   const t = imp.tilt;
@@ -1528,9 +1538,10 @@ function tiltNote(imp) {
 // effect (the season lineup with him minus without him: who you get, on the roster
 // after the trade; who you send, on the roster before), how often he starts, then
 // the lineup change, depth, and the two together, the verdict's points number.
-function pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp) {
-  const bef = analysis.before.A, aft = analysis.after.A;
-  if (!bef || !aft || !bef.plist || !aft.plist) return '';
+// side 'B' (2026-10-24): the same for the other team, sends and gets from their side.
+function pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp, side = 'A') {
+  const bef = analysis.before[side], aft = analysis.after[side];
+  if (!bef || !aft || !bef.plist || !aft.plist || !imp) return '';
   const esc = Vault.escapeHtml, team = esc(teamA.teamName);
   const dB = Vault.seasonLineupDetail(bef.plist, slots), dA = Vault.seasonLineupDetail(aft.plist, slots);
   const weeks = dA.weeks || 0;
@@ -2198,6 +2209,6 @@ init();
 <script src="negotiation.js?v=7d597d52"></script>
 <script src="market-data.js?v=07632230"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=37a488fb"></script>
+<script src="coach.js?v=46f55fe2"></script>
 </body>
 </html>

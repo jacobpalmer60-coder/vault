@@ -1508,7 +1508,9 @@ function coachHeroHeadHtml(o) {
   const ahead = edge != null && edge >= 1 ? `<div><div class="num text-[30px] text-emerald-300">+${Math.round(edge)}%</div><div class="text-[12px] text-zinc-400">ahead on KTC value, at prices managers pay</div></div>` : '';
   const pts = c.gain >= 0.5 ? `<div><div class="num text-[30px] text-emerald-300">+${c.gain.toFixed(1)}</div><div class="text-[12px] text-zinc-400">points a week to your best lineup</div></div>` : '';
   const odds = c.title && Math.round(c.title.after) !== Math.round(c.title.before) ? `<div><div class="num text-[30px] text-zinc-100">${pc(c.title.before)} → <span class="${c.title.after > c.title.before ? 'text-emerald-300' : 'text-zinc-100'}">${pc(c.title.after)}</span></div><div class="text-[12px] text-zinc-400">your title odds</div></div>` : '';
-  return ahead || pts || odds ? `<div class="text-[11px] uppercase tracking-widest text-amber-300/80 mb-2">Your best move</div><div class="flex flex-wrap gap-x-8 gap-y-2 mb-3">${ahead}${pts}${odds}</div>` : `<div class="text-[11px] uppercase tracking-widest text-amber-300/80 mb-2">Your best move</div>`;
+  // A Toss-up on top (Get a player, Trades with one team) is the best offer, not a move that wins you the trade.
+  const head = Vault.verdictTier(coachScore(o)).level === 'tossup' ? 'Best offer' : 'Your best move';
+  return ahead || pts || odds ? `<div class="text-[11px] uppercase tracking-widest text-amber-300/80 mb-2">${head}</div><div class="flex flex-wrap gap-x-8 gap-y-2 mb-3">${ahead}${pts}${odds}</div>` : `<div class="text-[11px] uppercase tracking-widest text-amber-300/80 mb-2">${head}</div>`;
 }
 function coachCardHtml(o, i, near = false, hero = false) {
   // The price line is trade value alone, as labeled (Vault.tradeSideValues on
