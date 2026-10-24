@@ -544,9 +544,47 @@ async function coachPosition(me, progress) {
   // position can be part of the deal, as long as the trade really upgrades
   // your lineup (COACH.MIN_GAIN), not a sidegrade like one WR1 for another.
   const protect = new Set(me.lineup.filter(s => s.id && s.pos !== P).map(s => 'p_' + s.id));
-  const list = await coachUpgrades(me, [P], protect, progress, '', true);
-  if (!list.length) return { empty: `No upgrade at ${P} found: nobody who'd out-score your weakest ${P} starter by ${COACH.UPGRADE_BY}+ pts/week is gettable without giving up your other starters.` };
-  return { title: `Upgrades at ${P}`, list };
+  const up = await coachUpgrades(me, [P], protect, progress, '', true);
+  const depth = await coachDepthAdds(me, P, progress, new Set(up.map(o => o.id.split('|')[0])));
+  const list = [...up, ...depth];
+  if (!list.length) return { empty: `No upgrade at ${P} found: nobody who'd out-score your weakest ${P} starter by ${COACH.UPGRADE_BY}+ pts/week, or back them up better than your bench does, is gettable without giving up your other starters.` };
+  return { title: depth.length ? `Upgrades and depth at ${P}` : `Upgrades at ${P}`, list };
+}
+
+// Depth at a position (2026-10-24, user: "doesn't have to be main starter. Could be
+// a little lesser potentially for depth"): players who wouldn't beat your weakest
+// starter there by COACH.UPGRADE_BY but out-score your best backup by DEPTH_OVER_BENCH,
+// paid with bench players and picks only (never a starter), that make bye and injury
+// weeks cost your lineup at least DEPTH_MIN_PTS less a week (Vault.depthShift) and
+// don't lower it. Listed after the starter upgrades, one trade per player; the
+// usual checks for both teams decide. In The League of Gold: 6 at QB, 8 at WR, 5 at TE.
+const DEPTH_TARGETS = 15, DEPTH_SHOW = 3, DEPTH_OVER_BENCH = 1, DEPTH_MIN_PTS = 0.3;
+async function coachDepthAdds(me, P, progress, skip = new Set()) {
+  const starters = me.lineup.filter(s => s.id), startKeys = new Set(starters.map(s => 'p_' + s.id));
+  const at = starters.filter(s => s.pos === P), floor = at.length ? Math.min(...at.map(s => s.ppg)) : 0;
+  const bench = me.assets.filter(a => a.type === 'player' && a.pos === P && !startKeys.has(a.key)).map(a => a.ppg || 0);
+  const backup = bench.length ? Math.max(...bench) : 0;
+  const cands = teams.filter(t => t !== me && coachPartnerOK(t))
+    .flatMap(t => t.assets.filter(a => a.type === 'player' && a.pos === P && !skip.has(a.key) && !coachTheirOff(a) && (a.ppg || 0) < floor + COACH.UPGRADE_BY && (a.ppg || 0) > backup + DEPTH_OVER_BENCH).map(a => ({ a, t })))
+    .sort((x, y) => y.a.ppg - x.a.ppg).slice(0, DEPTH_TARGETS);
+  const out = [];
+  for (const { a, t } of cands) {
+    if (out.length >= DEPTH_SHOW) break;
+    progress(`Pricing ${a.name} for depth…`);
+    await coachTick();
+    for (const cand of coachOffers(me, t, [a], { protect: startKeys, limit: 6, perLead: 1, option: 'position' })) {
+      const aft = coachAfter(me.rosterId, t.rosterId, cand.give, cand.get);
+      const lineup = aft.opt - me.opt, depth = Vault.depthShift('contend', me, aft, slots).perWeek;
+      if (depth < DEPTH_MIN_PTS || lineup < -0.1 || !coachListOK(cand, 'position')) continue;
+      const name = Vault.escapeHtml(a.name);
+      const why = lineup >= 0.5
+        ? `${name} starts for you some weeks (about +${lineup.toFixed(1)} a week) and backs up your ${P}s: bye and injury weeks would cost your lineup about ${depth.toFixed(1)} fewer points a week.`
+        : `Depth: ${name} backs up your ${P}s, starting when one is out. Bye and injury weeks would cost your lineup about ${depth.toFixed(1)} fewer points a week.`;
+      out.push({ ...cand, id: a.key + '|' + negKeys(cand.give).join(), gain: lineup + depth * VAULT_CONFIG.DEPTH_FIT_WEIGHT, depth: true, why: [why, cand.note].filter(Boolean).join(' ') });
+      break;
+    }
+  }
+  return out.sort((x, y) => y.gain - x.gain);
 }
 
 async function coachContend(me, progress) {
@@ -978,14 +1016,16 @@ function coachShape(me, list, option) {
   // each): one card, the second way to pay shown on it, so more players fit the list.
   if (option === 'contend' || option === 'position') {
     const first = new Map();
-    list = list.filter(o => { const k = o.partner.rosterId + '<' + negKeys(o.get).join(); const f = first.get(k); if (f) { (f.alts ||= []).push(o); return false; } first.set(k, o); return true; }).slice(0, 10);
+    list = list.filter(o => { const k = o.partner.rosterId + '<' + negKeys(o.get).join(); const f = first.get(k); if (f) { (f.alts ||= []).push(o); return false; } first.set(k, o); return true; });
+    // Up to 10 players, then Fix a position's depth adds after them (coachDepthAdds).
+    list = [...list.filter(o => !o.depth).slice(0, 10), ...list.filter(o => o.depth)];
   }
   list.forEach(o => { o.ctx = coachExplain(me, o); });
   if (!coachContending(me) || !['best', 'team', 'contend', 'position'].includes(option)) return list;
   const tGain = o => (o.ctx.title ? o.ctx.title.after - o.ctx.title.before : 0);
-  const real = list.filter(o => o.ctx.gain >= COACH_FILLER_PTS || tGain(o) >= COACH_FILLER_TITLE);
+  const real = list.filter(o => o.depth || o.ctx.gain >= COACH_FILLER_PTS || tGain(o) >= COACH_FILLER_TITLE);
   const kept = real.length >= 3 ? real : list;
-  return kept.sort((x, y) => (x.ctx.manager?.never ? 1 : 0) - (y.ctx.manager?.never ? 1 : 0) || tGain(y) - tGain(x) || y.ctx.gain - x.ctx.gain);
+  return kept.sort((x, y) => (x.depth ? 1 : 0) - (y.depth ? 1 : 0) || (x.ctx.manager?.never ? 1 : 0) - (y.ctx.manager?.never ? 1 : 0) || tGain(y) - tGain(x) || y.ctx.gain - x.ctx.gain);
 }
 function coachWhyHtml(o) {
   const c = o.ctx;
@@ -1107,7 +1147,7 @@ async function coachFind() {
       // Price plays (shopping a player you've decided to move, selling high,
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
-      res.list = res.list.filter(o => coachListOK(o, option)).map(o => { const n = [coachSwapNote(o), coachTossupNote(o, option)].filter(Boolean).join(' '); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      res.list = res.list.filter(o => coachListOK(o, option)).map(o => { const n = [coachSwapNote(o), coachTossupNote(o, option)].filter(Boolean).join(' '); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => (x.depth ? 1 : 0) - (y.depth ? 1 : 0) || coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
       res.list.forEach(o => { if (o.others) o.others = o.others.filter(x => coachListOK(x, option)); });
       if (res.list.length) { progress('Working out what each trade does for you…'); await coachTick(); res.list = coachShape(me, res.list, option); }
       if (!res.list.length) { progress('Looking for the closest deals…'); res.near = coachNearMisses(me, raw, option); }
@@ -1509,7 +1549,7 @@ function coachHeroHeadHtml(o) {
   const pts = c.gain >= 0.5 ? `<div><div class="num text-[30px] text-emerald-300">+${c.gain.toFixed(1)}</div><div class="text-[12px] text-zinc-400">points a week to your best lineup</div></div>` : '';
   const odds = c.title && Math.round(c.title.after) !== Math.round(c.title.before) ? `<div><div class="num text-[30px] text-zinc-100">${pc(c.title.before)} → <span class="${c.title.after > c.title.before ? 'text-emerald-300' : 'text-zinc-100'}">${pc(c.title.after)}</span></div><div class="text-[12px] text-zinc-400">your title odds</div></div>` : '';
   // A Toss-up on top (Get a player, Trades with one team) is the best offer, not a move that wins you the trade.
-  const head = Vault.verdictTier(coachScore(o)).level === 'tossup' ? 'Best offer' : 'Your best move';
+  const head = o.depth ? 'Best depth add' : Vault.verdictTier(coachScore(o)).level === 'tossup' ? 'Best offer' : 'Your best move';
   return ahead || pts || odds ? `<div class="text-[11px] uppercase tracking-widest text-amber-300/80 mb-2">${head}</div><div class="flex flex-wrap gap-x-8 gap-y-2 mb-3">${ahead}${pts}${odds}</div>` : `<div class="text-[11px] uppercase tracking-widest text-amber-300/80 mb-2">${head}</div>`;
 }
 function coachCardHtml(o, i, near = false, hero = false) {
