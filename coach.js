@@ -1553,7 +1553,7 @@ function renderCoach() {
       ${coachSummaryHtml(me)}
       <button onclick="coachFind()" ${Coach.busy ? 'disabled' : ''} class="shrink-0 text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid ${Coach.busy ? 'opacity-60' : ''}">${fresh ? 'Search again' : 'Find trades'}</button>
     </div>
-    <div class="text-[12px] text-zinc-500 mb-1">Trades that make your team better, at prices managers actually pay for every player in them. Predictions, not promises. <a href="how_we_grade.html#coach" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How this works</a></div>
+    <div class="text-[12px] text-zinc-500 mb-1">Trades that make your team better, at prices managers actually pay for every player in them. Predictions, not promises. <a href="how_we_grade.html#coach" class="tap text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How this works</a></div>
     ${Coach.option === 'negotiate' ? '' : coachQuickFiltersHtml()}
     <div id="coachStatus" role="status" class="text-[12px] text-zinc-400 min-h-[18px] ${Coach.busy ? '' : 'hidden'}">Searching…</div>
     ${Coach.busy || !fresh ? '' : coachResultsHtml(r)}`;
@@ -1629,7 +1629,7 @@ function coachCardHtml(o, i, near = false, hero = false) {
       ${typeof marketAcceptHtml === 'function' ? marketAcceptHtml(marketAcceptable(league, o.give, o.get), coachMe().teamName, o.partner.teamName, 'mt-2.5', true) : ''}
       ${(() => { const t = improvementOf(coachJudged(coachMe(), o.partner, o.give, o.get).an, 'B'); return `<div class="text-[12px] text-zinc-400 mt-1">For ${Vault.escapeHtml(o.partner.teamName)}: <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.tier]}">${t.label}</span></div>`; })()}
       <div class="flex items-center justify-end gap-2 mt-auto pt-3">
-        <button onclick="coachLoad(${i}${near ? ', true' : ''})" class="shrink-0 whitespace-nowrap text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder</button>
+        <button onclick="coachLoad(${i}${near ? ', true' : ''})" aria-label="Open ${o.give.map(x => Vault.escapeHtml(x.name)).join(' + ')} for ${o.get.map(x => Vault.escapeHtml(x.name)).join(' + ')} in the builder" class="shrink-0 whitespace-nowrap text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder</button>
       </div>
     </div>`;
 }
@@ -1641,7 +1641,7 @@ function coachOthersHtml(o, i) {
     const tier = Vault.verdictTier(coachScore(x));
     return `<div class="flex items-center justify-between gap-3 py-1.5 border-t border-white/[0.06]">
         <span class="min-w-0 text-zinc-300">${x.partner !== o.partner ? `<span class="text-zinc-500">With ${Vault.escapeHtml(x.partner.teamName)}:</span> ` : ''}<span class="text-zinc-100">${names(x.give)}</span> <span class="text-zinc-500">for</span> <span class="text-zinc-100">${names(x.get)}</span> <span class="text-zinc-500">·</span> <span class="font-medium ${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span></span>
-        <button onclick="coachLoadOther(${i}, ${k})" class="shrink-0 text-[11px] px-2 py-1 rounded-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Open</button>
+        <button onclick="coachLoadOther(${i}, ${k})" aria-label="Open ${names(x.give)} for ${names(x.get)} in the builder" class="shrink-0 text-[11px] px-2 py-1 rounded-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Open</button>
       </div>`;
   }).join('');
   const n = o.others.length;

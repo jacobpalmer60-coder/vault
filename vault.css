@@ -200,3 +200,14 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
 
 /* .mono pins table numbers to Inter; a tile's lead number and .num stay condensed even when also marked .mono. */
 .stat-tile .stat-value.mono, .num.mono { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif !important; }
+
+/* Trade Calculator on touch screens (2026-10-24): every button, menu and
+   show/hide row at least 32px tall, so "Why", "3 more like this" and the like
+   aren't 15-18px thumb targets. Desktop keeps its compact sizes. */
+@media (pointer: coarse) {
+  #coach :is(button, select, summary), #builder :is(button, select, summary) { min-height: 32px; }
+  #coach summary, #builder summary { display: flex; align-items: center; }
+  #coach a.tap, #builder a.tap { display: inline-block; padding: 7px 0; }
+}
+/* Show/Hide on the Trade Calculator's sections stays on one line next to the title. */
+#builder details > summary > span:last-child { white-space: nowrap; flex-shrink: 0; }

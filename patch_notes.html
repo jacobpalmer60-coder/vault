@@ -8,8 +8,8 @@
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=6fa662b5">
+<link rel="stylesheet" href="vault.css?v=3aeabd20">
+<link rel="stylesheet" href="tailwind.css?v=311dcc85">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-10-24', items: [
+    { kind: 'improved', page: 'Trade Calculator', text: "Cleaner on phones: the verdict, both teams' tiles, the reason and the four numbers (title odds, trade value, KTC's calculator, usual price) now fit on one screen, the numbers two by two. Team names in the tiles stay on one line, the other team's out-of-the-race note moved under the tiles, and your timeline menu has its own line so it isn't cut off." },
+    { kind: 'improved', page: 'Trade Calculator', text: "Easier to tap and to hear: on touch screens every button, menu and show/hide row in the calculator and Trade Coach is at least 32px tall (Why and More like this were 15-18px), and each Open button tells screen readers which trade it opens." },
     { kind: 'changed', page: 'Trade Calculator', text: "Trades with one team may now pay up to 6% over trade value when you're the buyer (you get the best piece in the deal): the seller sets the price. The card shows how much you pay. In The League of Gold that adds 10 trades across 8 teams, like Rome Odunze + Cam Skattebo for Kyren Williams at 5% over, still a Good trade for Skat Happens Chase Love." },
     { kind: 'improved', page: 'Trade Calculator', text: "Fix a position now groups its trades by the spot they fill: a new #1 (better than your best there), better starters (your #2 or lower starters) and depth. Each card says which, for example \"New RB2, ahead of Jeremiyah Love (10.2)\" by points a game. Up to three new-#1 trades always make the list, and the Your best move banner stays on the best trade wherever it lands." },
     { kind: 'changed', page: 'Trade Calculator', text: "Fix a position follows the same rules as Get a player: when you're fixing a position you expect to pay a fair price or a little over, so Toss-ups show too (after the better trades, labeled \"Toss-up: a fair price for the help at RB, about even for you\") and offers may pay up to 6% over trade value (the card shows how much). In The League of Gold, RB keeps its 10 starter upgrades and adds three depth options: Tony Pollard, Quinshon Judkins and Rhamondre Stevenson." },

@@ -8,8 +8,8 @@
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=6987592c">
-<link rel="stylesheet" href="tailwind.css?v=6fa662b5">
+<link rel="stylesheet" href="vault.css?v=3aeabd20">
+<link rel="stylesheet" href="tailwind.css?v=311dcc85">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -1425,17 +1425,22 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   // question is whether to take it.
   const offered = offeredBy === 'B';
   const yourLabel = offered ? { good: 'Worth accepting', tossup: 'Worth a counter', bad: 'Decline' }[imp.level] : imp.label;
-  const tile = (who, label, cls, sub, close = '') => `<div class="rounded-xl bg-black/25 border border-white/5 px-4 py-3 min-w-0">
-      <div class="text-[11px] uppercase tracking-wider text-zinc-500 leading-snug break-words">${who}</div>
+  // The team name on one line (2026-10-24 phone pass: long names took three).
+  const tile = (who, label, cls, sub, close = '') => `<div class="rounded-xl bg-black/25 border border-white/5 px-3 sm:px-4 py-3 min-w-0">
+      <div class="text-[11px] uppercase tracking-wider text-zinc-500 truncate" title="${who}">${who}</div>
       <div class="num text-[26px] leading-tight mt-0.5 ${cls}">${label}</div>${close}${sub ? `<div class="text-[12px] text-zinc-400 mt-1">${sub}</div>` : ''}</div>`;
-  const yourSub = `${offered ? `<span class="${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span> · ` : ''}<label class="inline-flex items-baseline gap-1" title="Judged on your timeline: contending weighs this season's lineup heavily, rebuilding weighs long-term value.">as <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}</select></label>`;
-  const theirSub = them && them.outOfRace ? 'out of the playoff race, so this season\'s points don\'t count' : '';
+  const yourSub = offered ? `<span class="${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span>` : '';
+  // Your timeline under the tiles, on its own line (2026-10-24: in the tile it was cut off on phones).
+  const timelineRow = `<div class="mt-2 text-[12px] text-zinc-400"><label class="flex flex-wrap items-center gap-x-2 gap-y-1" title="Judged on your timeline: contending weighs this season's lineup heavily, rebuilding weighs long-term value.">${Vault.possessive(Vault.escapeHtml(teamA.teamName))} timeline <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="shrink-0 bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}</select></label></div>`;
+  // Their out-of-race note reads under the tiles, with yours, instead of stretching their tile.
+  const theirSub = '';
   el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? 'One-sided: expect a no or a counter' : 'Works for both'}</span></div>` : ''}
     <div class="grid grid-cols-2 gap-3 max-w-[640px]">
       ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
     </div>
-    <div class="text-[14px] text-zinc-200 mt-3 max-w-[640px]">${improvementReason(imp, null)}${imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : ''}</div>`;
+    ${timelineRow}
+    <div class="text-[14px] text-zinc-200 mt-3 max-w-[640px]">${improvementReason(imp, null)}${imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : ''}${them && them.outOfRace ? ` <span class="text-zinc-400">${Vault.escapeHtml(teamB.teamName)} is out of the playoff race, so this season's points don't count in their verdict.</span>` : ''}</div>`;
   const dockSide = (who, label, cls) => `<div class="min-w-0"><div class="text-[10px] uppercase tracking-wider text-zinc-500 truncate">${who}</div><div class="num text-[17px] leading-tight ${cls}">${label}</div></div>`;
   renderVerdictDock(`<div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3">
       ${dockSide(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier])}
@@ -1804,9 +1809,10 @@ function updateTrade() {
   // trades like it. Fairness for both teams and the market's trades are in Details.
   // One card (user, 2026-10-20): both verdicts, then title odds and the price in one
   // row; everything that explains them sits under Why.
-  const cardNumbers = aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 flex flex-wrap gap-x-10 gap-y-3">
-      <div id="titleStat"></div>
-      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · trade value`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, ktcSameCall(tradeEdge, ktcEdge) ? "KTC's calculator · same call" : "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}<div id="marketStat"></div></div>` : '';
+  // Two by two on phones (2026-10-24: four rows took a whole screen), one row from sm up.
+  const cardNumbers = aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 grid grid-cols-2 gap-x-4 sm:flex sm:flex-wrap sm:gap-x-10 gap-y-3">
+      <div id="titleStat" class="empty:hidden"></div>
+      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · trade value`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, ktcSameCall(tradeEdge, ktcEdge) ? "KTC's calculator · same call" : "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}<div id="marketStat" class="empty:hidden"></div></div>` : '';
   diffLabelEl.innerHTML = `<div id="forYou"></div>${cardNumbers}<div id="workBoth"></div>
     ${aAssets.length && bAssets.length ? `<details class="group mt-3 max-w-[640px]" id="whyBox"><summary class="inline-flex items-center gap-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200"><span>Why</span><span class="group-open:hidden">▾</span><span class="hidden group-open:inline">▴</span></summary><div class="mt-2 space-y-1.5"><div id="whyVerdict"></div>
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
@@ -2209,6 +2215,6 @@ init();
 <script src="negotiation.js?v=7d597d52"></script>
 <script src="market-data.js?v=07632230"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=7d35f316"></script>
+<script src="coach.js?v=19a6e30c"></script>
 </body>
 </html>
