@@ -277,16 +277,19 @@ const COACH_PRICE_PLAYS = new Set(['shop', 'sellhigh', 'buylow']);
 // behind, about the noise in a trade's price.
 const COACH_VALUE_FLOOR = 2;
 const coachValuePct = o => { const tv = Vault.tradeSideValues(o.give, o.get); return (tv.valueB - tv.valueA) / (((tv.valueA + tv.valueB) / 2) || 1) * 100; };
-// Get a player may pay a little over value for the player you picked (user, 2026-10-24); the card shows how much.
-const COACH_TARGET_PREMIUM = 6;
-const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) >= -(option === 'target' ? COACH_TARGET_PREMIUM : COACH_VALUE_FLOOR);
-// Lists where you picked the player or the team (user, 2026-10-24): a fair price
-// there usually reads Toss-up for you (two contenders rarely both win a trade), so
-// Toss-ups show too, after the better trades and labeled. Get a player listed
-// nothing for Josh Allen, Puka Nacua or Fernando Mendoza, and three teams had no trades.
-const COACH_TOSSUP_OK = new Set(['target', 'team']);
+// Get a player and Fix a position may pay a little over value for the player or the
+// help you're after (user, 2026-10-24: "if you're wanting to fix aren't you expecting
+// to pay over a little?"); the card shows how much.
+const COACH_PREMIUM_OK = new Set(['target', 'position']), COACH_TARGET_PREMIUM = 6;
+const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) >= -(COACH_PREMIUM_OK.has(option) ? COACH_TARGET_PREMIUM : COACH_VALUE_FLOOR);
+// Lists where you picked the player, the team or the position (user, 2026-10-24): a
+// fair price there usually reads Toss-up for you (two contenders rarely both win a
+// trade), so Toss-ups show too, after the better trades and labeled. Get a player
+// listed nothing for Josh Allen, Puka Nacua or Fernando Mendoza, three teams had no
+// trades, and every RB depth add was a Toss-up.
+const COACH_TOSSUP_OK = new Set(['target', 'team', 'position']);
 const coachTossupNote = (o, option) => (COACH_TOSSUP_OK.has(option) && Vault.verdictTier(coachScore(o)).level === 'tossup'
-  ? `Toss-up: a fair price for ${option === 'target' ? 'the player you picked' : 'both teams'}, about even for you.` : '');
+  ? `Toss-up: a fair price for ${option === 'target' ? 'the player you picked' : option === 'position' ? `the help at ${Coach.pos}` : 'both teams'}, about even for you.` : '');
 // The other team's verdict score for the same trade (memoized like coachScore).
 function coachTheirScore(o) {
   const id = `them:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
