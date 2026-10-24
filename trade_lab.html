@@ -9,7 +9,7 @@
 <title>Trade Lab — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=85fc71e9">
+<link rel="stylesheet" href="tailwind.css?v=a6740d1d">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -41,6 +41,7 @@
     <a href="#how" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">How managers trade</a>
     <a href="#after" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">What happened after</a>
     <a href="#picks" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Picks and rookie drafts</a>
+    <a href="#deep" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Deep dives</a>
     <a href="#league" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Your league vs everyone</a>
     <a href="#explore" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Explore it yourself</a>
   </nav>
@@ -70,6 +71,12 @@
       </div>
       <div id="rookiesBody" class="mt-3"><div class="text-[12px] text-zinc-500">Loading…</div></div>
     </div>
+  </section>
+
+  <!-- Deep dives (2026-10-24): accuracy, liquidity, timing, the long view, production vs value. -->
+  <section id="deep" class="mb-10 scroll-mt-24 hidden">
+    <h2 class="text-[18px] font-semibold text-zinc-100 mb-3">Deep dives</h2>
+    <div id="deepBody" class="space-y-4"></div>
   </section>
 
   <section id="league" class="mb-10 scroll-mt-24">
@@ -242,6 +249,48 @@ function findingsPanels(f) {
   return `<div class="grid lg:grid-cols-2 gap-4"><div id="paying" class="scroll-mt-24">${paying}</div><div id="skill" class="scroll-mt-24">${skill}</div></div>
     <div class="grid lg:grid-cols-2 gap-4"><div id="trading-more" class="scroll-mt-24">${activity}</div><div id="rebuild-or-push" class="scroll-mt-24">${pathTable}</div></div>`;
 }
+/* ---------- Deep dives (findings.json, VaultValues deep-*.js) ---------- */
+function renderDeep(f) {
+  if (!f?.accuracy) return;
+  const A = f.accuracy, sp = v => (v == null ? '—' : `<span class="${tone(v)}">${signed(v, 0)}</span>`);
+  // Sentences, not numbers: left-aligned and wrapping, one row per claim.
+  const textTable = (head, rows) => `<div class="divide-y divide-white/5 text-[12px]"><div class="hidden md:grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] gap-4 pb-2 text-[11px] uppercase tracking-wider text-zinc-500">${head.map(h => `<div>${h}</div>`).join('')}</div>
+    ${rows.map(r => `<div class="grid md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] gap-x-4 gap-y-0.5 py-2"><div class="text-zinc-100">${r[0]}</div><div class="text-zinc-500">${r[1]}</div><div class="text-zinc-300">${r[2]}</div></div>`).join('')}</div>`;
+  const accuracy = panel('How accurate is the Trade Calculator?', 'Each thing it tells you, how we checked it against real trades, and how it did.',
+    textTable(['It tells you', 'Checked against', 'Result'], [
+      ['Whether managers accept a price', 'Accepted 2024-2025 trades', `Calls ${A.fairAll.ours}% Fair (KTC's calculator: ${A.fairAll.ktc}%); with the two best pieces close in value, ${A.fairClose.ours}% (KTC: ${A.fairClose.ktc}%)`],
+      ['Good or bad for your team', '2.7 million team-sides, followed up', `Great trades: contenders +${A.greatContend.toFixed(1)} pts vs playoff odds, rebuilders ${A.greatRebuild}% ahead later. Terrible: ${A.terribleContend.toFixed(1)} pts, ${A.terribleRebuild}% ahead`],
+      ['Points a week a trade adds', 'What teams actually scored after', `${A.pointsRealized}% of the predicted change showed up (Superflex)`],
+      ['Playoff and title odds', 'How seasons ended', `When it says ${A.oddsSaid}%, it happened ${A.oddsHappened}% of the time`],
+      ['What a player goes for', 'His next real trades', `Inside his usual range ${A.marketMiddle}% of the time, his wider range ${A.marketOuter}%`]
+    ]), 'Where our trade value and KTC\'s calculator disagree, each looks right on its own scale later, so that comparison doesn\'t settle it. We use trade value because it matches what managers actually accept.');
+  const L = f.liquidity, TIERS = L.byTier[0].tiers.map(t => t.tier);
+  const liq = panel('How often players change hands', 'Share of leagues where a player was traded at least once in a season (the typical player), 2024-2025, by position and KTC value.',
+    table(['Position', ...TIERS], L.byTier.map(r => [r.pos, ...r.tiers.map(t => (t.median == null ? '—' : pc(t.median, 1)))])) +
+    `<div class="grid sm:grid-cols-2 gap-4 mt-4 text-[12px]"><div><div class="text-zinc-400 mb-1">Most traded in 2025 (worth 2,500+)</div>${L.most.slice(0, 8).map(r => `<div class="flex justify-between gap-3 py-0.5"><span class="text-zinc-200 truncate">${esc(r.name)} <span class="text-zinc-500">${r.pos}</span></span><span class="mono text-zinc-300">${pc(r.share, 1)}</span></div>`).join('')}</div>
+      <div><div class="text-zinc-400 mb-1">Least traded in 2025 (worth 6,000+)</div>${L.least.slice(0, 8).map(r => `<div class="flex justify-between gap-3 py-0.5"><span class="text-zinc-200 truncate">${esc(r.name)} <span class="text-zinc-500">${r.pos}</span></span><span class="mono text-zinc-300">${pc(r.share, 1)}</span></div>`).join('')}</div></div>`,
+    'Starters worth 2,500-6,000 move most, in about 1 league in 5 a season. The biggest stars (Bijan Robinson, Ja\'Marr Chase, Josh Allen) changed hands in only about 1 league in 8 or 9: if you want one, expect to pay up and wait.');
+  const M = f.timing.byMonth, MON = M[0].months.map(m => m.month);
+  const timing = panel('When to buy and sell', 'KTC value over the next 3 months, starting each month (median, players worth 1,000+, 2020-2026). KTC\'s scale is relative, so most players drift down as new ones arrive; compare months and positions with each other.',
+    table(['Position', ...MON], M.map(r => [r.pos, ...r.months.map(m => sp(m.median))])) +
+    `<div class="text-[12px] text-zinc-400 mt-4 mb-1">Rookies: value against May 1 of their rookie year (median)</div>` +
+    table(['Position', ...f.timing.rookies[0].months.map(m => (m.k ? `+${m.k} mo` : 'May'))], f.timing.rookies.map(r => [r.pos, ...r.months.map(m => (m.k ? sp(m.median) : '—'))])),
+    'QBs and TEs gain through the winter and lose through spring and summer: cheapest around October-November, priciest around February-March. Rookie TEs climb about a third in their first season; rookie RBs peak early in the fall; rookie QBs sag.');
+  const LV = f.longView, H = ['1 yr', '2 yrs', '3 yrs', '4 yrs'];
+  const long = panel('The long view: 2021-2023 trades, 4 years on', `${fmtInt(LV.trades)} player-for-player trades from before 2023-09 (when KTC's pick history starts), each side followed 1 to 4 years. Share of sides still ahead on value.`,
+    table(['At the trade', ...H], LV.edge.map(r => [r.label, ...r.ahead.map(v => (v == null ? '—' : pc(v)))])) +
+    `<div class="text-[12px] text-zinc-400 mt-4 mb-1">At an even price: younger or older (ahead later / typical change)</div>` +
+    table(['Side', ...H], LV.ageGap.map(r => [r.label.replace(/^got/, 'Got'), ...H.map((_, h) => (r.ahead[h] == null ? '—' : `${pc(r.ahead[h])} <span class="text-zinc-500">/</span> ${sp(r.drift[h])}`))])),
+    'Winning the price lasts: 10-20% ahead at the trade was still ahead 63% of the time four years on. Getting younger compounds: 3+ years younger at an even price was ahead 68% of the time after three and four years, getting older behind just as often.');
+  const P = f.predict, FIF = ['Bottom fifth', '2nd', '3rd', '4th', 'Top fifth'];
+  const predict = panel('Does production predict value gains?', `Players worth 1,000+ after the 2023 and 2024 seasons (${fmtInt(P.players)}), split by how many points a game they scored beyond what their February price implies, and their value a year later (median change).`,
+    table(['Position', ...FIF], P.byPos.map(r => [r.pos, ...r.points.map(sp)])),
+    'No: players who outscored their price didn\'t gain more the next year, if anything less. By February the price has caught up with what a player did. The edge is in the price you trade at, not in predicting who\'ll pop.');
+  document.getElementById('deepBody').innerHTML = `<div id="accuracy" class="scroll-mt-24">${accuracy}</div>
+    <div class="grid lg:grid-cols-2 gap-4"><div id="liquidity" class="scroll-mt-24">${liq}</div><div id="production" class="scroll-mt-24">${predict}</div></div>
+    <div id="timing" class="scroll-mt-24">${timing}</div><div id="long-view" class="scroll-mt-24">${long}</div>`;
+  document.getElementById('deep').classList.remove('hidden');
+}
 // What the player taken at each rookie-draft slot scored (findings.rookiePpg).
 function rookiePpgPanel(f) {
   if (!f?.rookiePpg?.length) return '';
@@ -266,6 +315,11 @@ function renderSummary(d, ins, f) {
     const kept = f.overpay.find(r => r.label.startsWith('kept')), over = f.overpay[0];
     add(`Paying extra to win now didn't buy playoff odds: contenders who kept their value beat their odds by ${b('+' + kept.playoffs.toFixed(1))} points, those who paid 10%+ over by ${b('+' + over.playoffs.toFixed(1))}.`, 'paying');
     add(`Getting a good price is a skill; how a trade ages is mostly luck (it repeats at ${b(f.skill.laterSame.toFixed(2))} from one trade to the next).`, 'skill');
+    const young = f.longView?.ageGap?.find(r => r.label === 'got 3+ years younger');
+    if (young?.ahead?.[3] != null) add(`Getting younger compounds: in 2021-2023 trades at an even price, the side that got 3+ years younger was ahead ${b(pc(young.ahead[3]))} of the time four years later.`, 'long-view');
+    const star = f.liquidity?.least?.find(r => r.name === 'Bijan Robinson');
+    if (star) add(`Stars rarely move: Bijan Robinson changed hands in ${b(pc(star.share, 1))} of leagues in 2025; starters worth 2,500-6,000 in about 1 in 5.`, 'liquidity');
+    add(`Production doesn't predict gains: players who outscored their price didn't gain more the next year; by February the price has caught up.`, 'production');
   }
   const cr = ins?.timelinePairs?.find(r => r.pair === 'contend+rebuild');
   if (cr) add(`Contenders and rebuilders find each other: ${b(cr.lift.toFixed(2) + '×')} as often as chance would pair them.`, 'how');
@@ -497,6 +551,7 @@ async function init() {
     renderSummary(d, ins, f);
     renderHow(d, ins);
     renderAfter(d, ins);
+    renderDeep(f);
     renderExplore(d);
     renderPicksRookies(ins).catch(e => { console.error(e); document.getElementById('picksBody').innerHTML = '<div class="text-[12px] text-zinc-500">Couldn\'t load picks.</div>'; });
     renderLeague(d, ins);
