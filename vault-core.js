@@ -2612,8 +2612,12 @@ const Vault = {
   ktcSideValues(assetsA, assetsB) {
     const valsA = assetsA.map(a => a.value), valsB = assetsB.map(a => a.value);
     const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
+    // A bonus KTC hides (under ~3.3% of the trade, or an invalid solve) is left out
+    // of its totals too: checked live 2026-10-24, Goff + Hubbard for Jordan Love
+    // reads 9,752 vs 5,690 on KTC with no adjustment, where adding it gave +178.
     const { adjust1, adjust2, display } = Vault.consolidationAdjustment(valsA, valsB);
-    return { rawA, rawB, valueA: rawA + adjust1, valueB: rawB + adjust2, bonusA: adjust1, bonusB: adjust2, display };
+    const bonusA = display ? adjust1 : 0, bonusB = display ? adjust2 : 0;
+    return { rawA, rawB, valueA: rawA + bonusA, valueB: rawB + bonusB, bonusA, bonusB, display };
   },
 
   /* Trade value: what each side is worth the way managers actually trade, the
