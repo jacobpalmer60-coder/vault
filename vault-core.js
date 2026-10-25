@@ -94,6 +94,13 @@ const VAULT_CONFIG = {
   // 50.6 → 52.7); contenders stay at 0: consolidating helps this season's lineup, and
   // a cut there hurt how their verdict tracked playoffs. Getting more pieces is +6.
   CONSOLIDATION_PCT_LONG: -6,
+  // Flexible teams get the value tilts (picks, cheap consolidation, age cliff, WR,
+  // consolidation) at half strength (2026-10-24, user chose 50%; VaultValues
+  // verdict-tilt-flex.js, 313,576 flexible 2025 team-sides): at full strength their
+  // verdict tracked value later best (49.2) but playoffs vs odds barely (3.1, against
+  // 11.2 without tilts) and weekly points 7.6 (17.7). At half: 43.6 / 7.4 / 13.1.
+  // Contenders (playoffs 10.8 → 10.1 with tilts) and rebuilders keep full strength.
+  FLEX_TILT_SCALE: 0.5,
   AGE_CLIFF_AT: 27,
   WR_DRIFT_PCT: -3,
   FAIR_CURVE: {
@@ -2972,18 +2979,21 @@ const Vault = {
     if (!got || !gave || !got.length || !gave.length) return { pct: 0, why: null };
     const share = l => l.filter(a => a.type === 'pick').length / l.length;
     const best = l => Math.max(0, ...l.map(a => a.value || 0));
-    const pick = C.PICK_DRIFT_PCT * (share(got) - share(gave));
+    const pick0 = C.PICK_DRIFT_PCT * (share(got) - share(gave));
     const bg = best(got), bv = best(gave);
-    const cons = got.length < gave.length && bg > bv && bg < C.CHEAP_CONSOLIDATION_BELOW ? C.CHEAP_CONSOLIDATION_PCT
+    const cons0 = got.length < gave.length && bg > bv && bg < C.CHEAP_CONSOLIDATION_BELOW ? C.CHEAP_CONSOLIDATION_PCT
       : gave.length < got.length && bv > bg && bv < C.CHEAP_CONSOLIDATION_BELOW ? -C.CHEAP_CONSOLIDATION_PCT : 0;
     // Each side's best piece: a RB/WR/TE past the age cliff, and WRs.
     const top = l => l.reduce((b, a) => ((a.value || 0) > (b.value || 0) ? a : b), l[0]);
     const tg = top(got), tv = top(gave);
     const old = a => (a && a.type !== 'pick' && ['RB', 'WR', 'TE'].includes(a.pos) && (a.age || 0) >= C.AGE_CLIFF_AT ? 1 : 0);
     const isWr = a => (a && a.type !== 'pick' && a.pos === 'WR' ? 1 : 0);
-    const age = (mode === 'contend' ? C.AGE_CLIFF_PCT : C.AGE_CLIFF_PCT_LONG) * (old(tg) - old(tv)), wr = C.WR_DRIFT_PCT * (isWr(tg) - isWr(tv));
+    const age0 = (mode === 'contend' ? C.AGE_CLIFF_PCT : C.AGE_CLIFF_PCT_LONG) * (old(tg) - old(tv)), wr0 = C.WR_DRIFT_PCT * (isWr(tg) - isWr(tv));
     // Consolidating at any price, for teams not contending (CONSOLIDATION_PCT_LONG).
-    const fewer = mode === 'contend' ? 0 : C.CONSOLIDATION_PCT_LONG * (got.length < gave.length ? 1 : got.length > gave.length ? -1 : 0);
+    const fewer0 = mode === 'contend' ? 0 : C.CONSOLIDATION_PCT_LONG * (got.length < gave.length ? 1 : got.length > gave.length ? -1 : 0);
+    // Flexible teams: every tilt at FLEX_TILT_SCALE.
+    const k = mode === 'flexible' ? C.FLEX_TILT_SCALE : 1;
+    const pick = k * pick0, cons = k * cons0, age = k * age0, wr = k * wr0, fewer = k * fewer0;
     const pct = pick + cons + age + wr + fewer;
     const parts = { picks: pick, cheap: cons, age, wr, fewer };
     const why = !pct ? null : Object.entries(parts).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0][0];
