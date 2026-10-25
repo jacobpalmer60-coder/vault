@@ -1453,7 +1453,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   // Why: what moved the verdict, and how trades scored like this turned out.
   const why = document.getElementById('whyVerdict');
   loadTradeFacts();
-  if (why) why.innerHTML = `${pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp)}${agedHtml(aAssets, bAssets)}${teamB ? pieceLinesHtml(teamB, bAssets, aAssets, analysis, them, 'B') : ''}${tiltNote(imp)}<div class="text-[12px] text-zinc-500 mt-1">${Vault.verdictRecordText(imp)}</div>`;
+  if (why) why.innerHTML = `${blendNote(imp, teamA, bAssets, aAssets)}${pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp)}${agedHtml(aAssets, bAssets)}${teamB ? pieceLinesHtml(teamB, bAssets, aAssets, analysis, them, 'B') : ''}${tiltNote(imp)}<div class="text-[12px] text-zinc-500 mt-1">${Vault.verdictRecordText(imp)}</div>`;
   // Even it out: when either team would see it as a bad trade.
   const wb = document.getElementById('workBoth');
   const fixFor = them && them.level === 'bad' ? 'them' : imp.level === 'bad' ? 'you' : null;
@@ -1601,6 +1601,25 @@ function tiltNote(imp) {
   const part = (list, head) => (list.length ? `${head}: ${list.join('; ')}.` : '');
   const text = [part(against, 'Counts against you'), part(favor, 'Counts in your favor')].filter(Boolean).join(' ');
   return `<div class="text-[12px] text-zinc-400 mt-1 max-w-[640px]">${cap(text)}</div>`;
+}
+
+// Why the verdict's value read differs from the price (2026-10-24): the verdict prices
+// pieces on the blend with our real-trade values (Vault.verdictPieceValue,
+// VERDICT_BLEND_WEIGHT), which can point the other way from the price shown (Josh
+// Allen 10,637 for the verdict vs a market price of 8,544). Said when the two are 5+
+// points apart, naming the pieces that move it most. Kept over a capped or
+// rank-matched scale: VaultValues verdict-blend-cap.js, 1.58M 2025 team-sides.
+function blendNote(imp, team, gets, sends) {
+  if (!imp || imp.pricePct == null || Math.abs(imp.valuePct - imp.pricePct) < 5) return '';
+  const esc = Vault.escapeHtml, fmt = v => Math.round(v).toLocaleString(), name = esc(team.teamName);
+  const moved = [...gets, ...sends].map(a => ({ a, base: Vault.gradeValue(a), v: Vault.verdictPieceValue(a) }))
+    .filter(x => x.base > 0 && Math.abs(x.v - x.base) >= 200).sort((x, y) => Math.abs(y.v - y.base) - Math.abs(x.v - x.base)).slice(0, 2);
+  if (!moved.length) return '';
+  const items = moved.map(x => `${esc(x.a.name)} at ${fmt(x.v)} against a market price of ${fmt(x.base)}`).join(', and ');
+  const v = imp.valuePct, p = imp.pricePct, abs = x => Math.round(Math.abs(x));
+  const read = v >= 1 ? `getting ${abs(v)}% more value than it sends` : v <= -1 ? `sending ${abs(v)}% more value than it gets` : 'about even on value';
+  const price = p <= -1 ? `pays ${abs(p)}% over` : p >= 1 ? `pays ${abs(p)}% under` : 'pays about even';
+  return `<div class="text-[12px] text-zinc-400 mt-1 mb-2 max-w-[640px]" title="The verdict prices each piece partly on our values learned from real trades (35%). On 2025 trades that tracked playoffs and weekly points better than the price alone, and for trades with a top player, value later too.">Why the verdict and the price differ: our values from real trades put ${items}. So the verdict counts ${name} as ${read}, though the price says ${name} ${price}.</div>`;
 }
 
 // What each piece does to your lineup this season (2026-10-23): each player's own
