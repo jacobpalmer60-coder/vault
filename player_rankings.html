@@ -26,14 +26,14 @@
   <header class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Player Rankings</h1>
-      <p class="text-zinc-400 max-w-xl mt-2 text-[14px]">Every player's KeepTradeCut value next to his projected points, scored with your league's own settings. Sort any column or open a player for his card.</p>
+      <p class="text-zinc-400 max-w-xl mt-2 text-[14px]">Every player's KeepTradeCut value next to his projected points, scored with your league's own settings, with draft picks ranked among them. Sort any column or open a player or pick for its card.</p>
     </div>
     <!-- League is picked once, via the nav's Switch League. -->
     <div id="leagueInfo" class="text-[12px] text-zinc-400 lg:text-right">Loading league…</div>
   </header>
 
   <!-- Format line -->
-  <p class="text-[13px] text-zinc-400 -mt-4 mb-6 [overflow-wrap:anywhere]"><span id="statPlayers" class="mono text-zinc-200">—</span> players · <span id="statFormat" class="text-zinc-200">—</span> · <span id="statFormatDetail"></span></p>
+  <p class="text-[13px] text-zinc-400 -mt-4 mb-6 [overflow-wrap:anywhere]"><span id="statPlayers" class="mono text-zinc-200">—</span> players · <span id="statPicks" class="mono text-zinc-200">—</span> picks ·<span id="statFormat" class="text-zinc-200">—</span> · <span id="statFormatDetail"></span></p>
 
   <!-- Controls -->
   <div class="glass p-4 mb-4">
@@ -50,6 +50,7 @@
           <button data-pos="WR" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">WR</button>
           <button data-pos="TE" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">TE</button>
           <button data-pos="FLEX" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">FLEX</button>
+          <button data-pos="PICK" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">Picks</button>
         </div>
         <div class="flex items-center gap-1.5">
           <span class="text-xs text-zinc-400">Trend:</span>
@@ -98,7 +99,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=512fa71b"></script>
+<script src="vault-core.js?v=3163f84e"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script src="market-data.js?v=07632230"></script>
 <script>
@@ -511,11 +512,35 @@
     });
   }
 
+  // A draft pick's card (2026-10-25): its price, its rank among picks and overall, and
+  // its price over time (pick-value-history, same pricing as today).
+  function renderPickCard(r) {
+    const chart = r.windowedSeries.length >= 1 ? playerChart(r.windowedSeries, 'value', 0) : '<div class="text-[12px] text-zinc-400 py-6 text-center">No price history yet for this pick.</div>';
+    const spread = r.ktcRaw != null && r.ktcRaw !== r.value;
+    return `
+      <div class="flex items-start justify-between gap-3 mb-4 pr-6">
+        <div class="min-w-0">
+          <div class="text-[20px] font-bold text-zinc-100">${Vault.escapeHtml(r.player)}</div>
+          <div class="text-[12px] text-zinc-400 mt-1">Rookie draft pick · ${isSF ? 'Superflex' : '1QB'}</div>
+        </div>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 ${posColor(r.pos)}">PICK</span>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center py-3 border-y border-white/10 mb-4">
+        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Value</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">#${r.posRank} of ${r.posCount}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Among picks</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">#${r.overallRank}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Overall</div></div>
+      </div>
+      ${spread ? `<p class="text-[12px] text-zinc-400 mb-4 leading-relaxed">KTC lists this pick at ${fmtInt(r.ktcRaw)}. The Vault prices early and late picks as the mid pick times what managers really pay for the difference (projected draft spots hold only so often), the same price the Trade Calculator uses.</p>` : ''}
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time</div>
+      ${chart}
+    `;
+  }
+
   function openPlayerModal(norm) {
     const r = allRows.find(x => x.norm === norm);
     if (!r) return;
-    document.getElementById('playerModalBody').innerHTML = renderPlayerCard(r);
-    renderPlayerMarket(r);
+    document.getElementById('playerModalBody').innerHTML = r.isPick ? renderPickCard(r) : renderPlayerCard(r);
+    if (!r.isPick) renderPlayerMarket(r);
     document.getElementById('playerModal').classList.remove('hidden');
     // Focus moves into the card, and back to the row it came from on close.
     modalReturn = document.activeElement;
@@ -549,12 +574,13 @@
       const tep = tePremiumLabel(scoringSettings?.bonus_rec_te);
       statFormatDetail.textContent = [ppr, tep, startersLabel(rosterPositions)].filter(Boolean).join(' • ');
       log('Fetching KTC values…');
-      const [ktcData, projData, valueHistory, sleeperPlayers, playerHistory] = await Promise.all([
+      const [ktcData, projData, valueHistory, sleeperPlayers, playerHistory, pickHistory] = await Promise.all([
         Vault.fetchKtcValues(),
         Vault.fetchProjections(),
         Vault.fetchPlayerValueHistory(isSF, scoringSettings?.bonus_rec_te, { withStats: true }),
         Vault.fetchSleeperPlayers(),
-        Vault.fetchPlayerHistory()
+        Vault.fetchPlayerHistory(),
+        Vault.fetchPickValueHistory()
       ]);
       log(`KTC values: ${ktcData.count.toLocaleString()} players (updated ${new Date(ktcData.updated).toLocaleDateString()})`);
 
@@ -633,7 +659,22 @@
         return { player: p.name, norm, pos: p.pos, team: TEAM_ALIAS[p.team] || p.team, age: p.age, value, ppg, vorp, trendSeries, yearsExp, seasonHistory, pid };
       });
 
-      allRows = rows.filter(r => r.value != null);
+      // Draft picks, ranked among the players (2026-10-25, user: "i want picks to be
+      // included in rankings"): every year, round and early/mid/late KTC prices, at the
+      // price the Trade Calculator uses (Vault.buildKtcPickMap: early and late are the
+      // mid pick times the spread managers really pay), with that price's history.
+      const tepBonus = scoringSettings?.bonus_rec_te;
+      const pickYears = [...new Set((ktcData.picks || []).map(p => p.season))].sort();
+      const pickMap = Vault.buildKtcPickMap(ktcData, isSF, pickYears, tepBonus);
+      const ordinal = n => n + (['th', 'st', 'nd', 'rd'][n] || 'th');
+      const pickRows = [...pickMap].map(([key, value]) => {
+        const [season, round, tier] = key.split('-'), raw = (ktcData.picks || []).find(p => `${p.season}-${p.round}-${p.slot}` === key);
+        const trendSeries = (pickHistory.snapshots || []).map(s => ({ date: s.date, value: Vault.pickValueFromRow(s.picks, +season, +round, tier, isSF, tepBonus), ppg: null, estimated: !!s.estimated })).filter(p => Number.isFinite(p.value));
+        return { player: `${season} ${tier[0].toUpperCase() + tier.slice(1)} ${ordinal(+round)}`, norm: `pick-${key}`, pos: 'PICK', team: '', age: null, value, ppg: null, vorp: null, trendSeries, isPick: true, ktcRaw: raw ? raw[valueField] : null };
+      });
+
+      allRows = [...rows.filter(r => r.value != null), ...pickRows];
+      [...allRows].sort((a, b) => b.value - a.value).forEach((r, i) => { r.overallRank = i + 1; });
       applyTrendWindow();
       log(`Merged rows: ${allRows.length.toLocaleString()}`);
 
@@ -648,12 +689,13 @@
         scored.forEach((r, i) => { r.ppgRank = i + 1; r.ppgCount = scored.length; });
       });
 
-      statPlayers.textContent = allRows.length.toLocaleString();
+      statPlayers.textContent = allRows.filter(r => !r.isPick).length.toLocaleString();
+      document.getElementById('statPicks').textContent = pickRows.length.toLocaleString();
 
       applyFiltersAndRender();
       if (leagueObj) marketLoad(leagueObj).then(() => {
         if (!Market.data || Market.data.failed) return;
-        allRows.forEach(r => { const m = marketPlayer(leagueObj, r.player, r.pos); r.marketAdj = m.read ? m.adj : null; r.marketPrice = m.read ? Math.round(r.value * (1 + m.adj / 100)) : null; r.marketPeer = m.read ? marketPeerPct(m) : null; r.marketText = m.read ? marketAdjText(m) : null; r.marketPeerText = m.read ? marketPeerPhrase(m) : null; });
+        allRows.forEach(r => { if (r.isPick) return; const m = marketPlayer(leagueObj, r.player, r.pos); r.marketAdj = m.read ? m.adj : null; r.marketPrice = m.read ? Math.round(r.value * (1 + m.adj / 100)) : null; r.marketPeer = m.read ? marketPeerPct(m) : null; r.marketText = m.read ? marketAdjText(m) : null; r.marketPeerText = m.read ? marketPeerPhrase(m) : null; });
         applyFiltersAndRender();
       }).catch(() => {});
     } catch (e) {
@@ -711,14 +753,14 @@
     filteredRows.forEach((r, i) => {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-white/[0.03] transition cursor-pointer';
-      tr.title = 'View player card';
+      tr.title = r.isPick ? 'View pick card' : 'View player card';
       tr.dataset.kbd = ''; // Tab + Enter opens it too (vault-nav.js)
-      tr.setAttribute('aria-label', `${r.player}: open player card`);
+      tr.setAttribute('aria-label', `${r.player}: open ${r.isPick ? 'pick' : 'player'} card`);
       tr.addEventListener('click', () => openPlayerModal(r.norm));
       tr.innerHTML = `
         <td class="hidden sm:table-cell px-4 py-3 text-zinc-400 mono text-xs">${i + 1}</td>
         <td class="px-4 py-2.5"><div class="font-medium text-zinc-100">${Vault.escapeHtml(r.player)}</div>
-          <div class="mt-0.5 flex items-center gap-1.5"><span class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold border ${posColor(r.pos)}">${r.pos || '—'}</span><span class="text-zinc-500 mono text-[11px]">${Vault.escapeHtml(r.team) || 'FA'}</span></div></td>
+          <div class="mt-0.5 flex items-center gap-1.5"><span class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold border ${posColor(r.pos)}">${r.pos || '—'}</span>${r.isPick ? '' : `<span class="text-zinc-500 mono text-[11px]">${Vault.escapeHtml(r.team) || 'FA'}</span>`}</div></td>
         <td class="hidden sm:table-cell px-4 py-3 text-right mono text-xs text-zinc-400">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
         <td class="px-4 py-3 text-right mono font-medium text-zinc-100">${fmtInt(r.value)}</td>
         <td class="px-4 py-3 text-right whitespace-nowrap" title="${r.marketAdj == null ? 'Not enough completed trades yet' : 'Market price ' + fmtInt(r.marketPrice) + ', ' + (r.marketText === 'even' ? 'right at' : r.marketText) + ' his KTC value' + (r.marketPeerText ? '; ' + r.marketPeerText : '') + '.'}">${r.marketPrice == null ? '<span class="text-zinc-500 text-xs">—</span>'

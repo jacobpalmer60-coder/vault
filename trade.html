@@ -234,7 +234,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=512fa71b"></script>
+<script src="vault-core.js?v=3163f84e"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1589,8 +1589,9 @@ function tiltNote(imp) {
   // Every adjustment that applies, each with what real trades showed (Vault.verdictValueTilt).
   if (t.pick < 0) against.push('you pay in picks for players (at the same KTC price, the side getting the picks came out ahead on value 59% of the time a year later, 77% two years on)');
   if (t.pick > 0) favor.push('you get picks for players (at the same KTC price, the side getting the picks came out ahead on value 59% of the time a year later, 77% two years on)');
-  if (t.cons < 0) against.push('you turn several pieces into one player worth under 3,000 (at the same price, those trades came out ahead only 39% of the time)');
-  if (t.cons > 0) favor.push('you get several pieces for their cheaper best player (consolidating into a player worth under 3,000 came out ahead only 39% of the time)');
+  // Shown when it moves the verdict 1%+ (a best piece under about 6,500; it fades with his value, VAULT_CONFIG.CHEAP_CONSOLIDATION_HALF).
+  if (t.cons <= -1) against.push(`you turn several pieces into one player who isn't a star (counted ${Math.round(-t.cons)}% below the price; the cheaper he is, the more: at a Fair price, upgrades into a best piece under 4,000 came out ahead later only 28% of the time)`);
+  if (t.cons >= 1) favor.push(`you get several pieces for their best player, who isn't a star (counted ${Math.round(t.cons)}% in your favor: at a Fair price, upgrades into a best piece under 4,000 came out ahead later only 28% of the time)`);
   if (t.age < 0) against.push(`${esc(t.oldGot || 'your best piece back')} is 27 or older (at the same KTC price, RBs, WRs and TEs that age lost value afterward, in both seasons we checked)`);
   if (t.age > 0) favor.push(`you send ${esc(t.oldGave || 'a player 27 or older')}, who's 27 or older (RBs, WRs and TEs that age lost value afterward)`);
   if (t.fewer < 0) against.push('you get fewer pieces than you send, and you\'re not contending (for teams not contending, the side that consolidated came out behind on value more often later, at every price)');

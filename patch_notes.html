@@ -31,13 +31,17 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=512fa71b"></script>
+<script src="vault-core.js?v=3163f84e"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-25', items: [
+    { kind: 'new', page: 'Player Rankings', text: "Draft picks are in the rankings: every 2027-2029 pick, rounds 1-4, early, mid and late, ranked among the players by value (a 2027 Early 1st is #36 overall in a Superflex TE+ league), with a Picks button to see only them. Open one for its rank and its price over time. Picks are priced the way the Trade Calculator prices them, so a 2027 Late 1st reads 5,033 here and in a trade; its card notes that KTC lists it at 4,772." },
+    { kind: 'changed', page: 'Trade Calculator', text: "Upgrading into a cheaper player now counts against you on a smooth curve instead of a cutoff. Turning several pieces into one player used to count 10% below the price only when he was worth under 3,000, so a 2,999 player cost 10% and a 3,001 player nothing. Now it fades with his value: about the full 10% under 2,500, 5% at 4,000, under 2% past 6,000. Tested on 2.7 million team-sides from 2024 and 2025: the verdict got better at predicting value later in both seasons (and on uneven trades especially). At a Fair price, upgrades into a best piece under 4,000 came out ahead later only 28% of the time." },
+  ] },
   { date: '2026-10-24', items: [
     { kind: 'changed', page: 'Trade Calculator', text: "Flexible teams' verdicts count the long-term value adjustments (picks, the age-27 cliff, consolidating, WRs) at half strength. At full strength their verdict was best at predicting value later but barely tracked whether the team beat its playoff odds or gained points; at half it does much better on both and keeps most of the value-later read. Contending and rebuilding verdicts don't change. This also changes Trade Coach for flexible teams." },
     { kind: 'improved', page: 'Trade Calculator', text: "When the verdict and the price point different ways, Why now says so up top and names the players behind it. The verdict prices each piece partly on our values learned from real trades, which can rate a star well above his market price: \"our values from real trades put Josh Allen at 10,637 against a market price of 8,544... so the verdict counts Skat Happens Chase Love as getting 7% more value than it sends, though the price says Skat Happens Chase Love pays 10% over.\" Checked on 2025 trades: counting real-trade values this way tracked playoffs and weekly points better than the price alone, and for trades with a top player, value later too." },

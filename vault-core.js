@@ -45,7 +45,15 @@ const VAULT_CONFIG = {
   // Unfair) stays on KTC: these move only "is it good for you".
   PICK_DRIFT_PCT: 5,
   CHEAP_CONSOLIDATION_PCT: -10,
-  CHEAP_CONSOLIDATION_BELOW: 3000,
+  // Since 2026-10-25 (user picked the S-curve) it fades with the best piece's value v
+  // instead of stopping at 3,000: CHEAP_CONSOLIDATION_PCT / (1 + (v / HALF)^4), about
+  // full under 2,500, half at 4,000, −2.9 at 5,000, −1.6 at 6,000. VaultValues
+  // uneven-taper-test.js (2.68M team-sides): value later 41.1 → 41.8 (2025) and
+  // 33.7 → 34.8 (2024), uneven trades 42.1 → 43.3 / 35.9 → 37.9, as good as a cliff
+  // at 4,000 without a 3,999 player costing 10% and a 4,001 nothing; contenders'
+  // playoffs read 9.3 → 9.1 / 10.4 → 10.2. At a Fair price, upgrades into a best
+  // piece under 4,000 came out ahead later only 28% of the time.
+  CHEAP_CONSOLIDATION_HALF: 4000,
   // Added 2026-10-19 on the full pool (2.68M team-sides, VaultValues
   // research-batch.js / drift-tune2.js), each held in 2024 and in 2025: at the
   // same price, a side whose best piece was a RB, WR or TE aged 27+ came out
@@ -2981,8 +2989,9 @@ const Vault = {
     const best = l => Math.max(0, ...l.map(a => a.value || 0));
     const pick0 = C.PICK_DRIFT_PCT * (share(got) - share(gave));
     const bg = best(got), bv = best(gave);
-    const cons0 = got.length < gave.length && bg > bv && bg < C.CHEAP_CONSOLIDATION_BELOW ? C.CHEAP_CONSOLIDATION_PCT
-      : gave.length < got.length && bv > bg && bv < C.CHEAP_CONSOLIDATION_BELOW ? -C.CHEAP_CONSOLIDATION_PCT : 0;
+    // Cheap consolidation, fading with the best piece's value (CHEAP_CONSOLIDATION_HALF).
+    const cheapAt = v => C.CHEAP_CONSOLIDATION_PCT / (1 + (v / C.CHEAP_CONSOLIDATION_HALF) ** 4);
+    const cons0 = got.length < gave.length && bg > bv ? cheapAt(bg) : gave.length < got.length && bv > bg ? -cheapAt(bv) : 0;
     // Each side's best piece: a RB/WR/TE past the age cliff, and WRs.
     const top = l => l.reduce((b, a) => ((a.value || 0) > (b.value || 0) ? a : b), l[0]);
     const tg = top(got), tv = top(gave);
