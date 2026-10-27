@@ -78,7 +78,8 @@ jobs:
 
       # Price everything at each trade's own date and publish the small summaries
       # the site reads (data/market-history/), so new trades show up within the hour.
-      # The only job that writes these files.
+      # The only job that writes these files, apart from player-history.json and
+      # seasonal.json (market-history.yml, weekly).
       - name: Price and publish
         run: |
           git config user.name "github-actions[bot]"
