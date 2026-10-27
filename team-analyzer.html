@@ -9,7 +9,7 @@
 <title>Team Analyzer — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=a6740d1d">
+<link rel="stylesheet" href="tailwind.css?v=488f688e">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -37,7 +37,7 @@
   <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=75e55f05"></script>
+<script src="vault-core.js?v=a3131232"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script src="season-report.js?v=837c7cb0"></script>
 <script src="market-data.js?v=07632230"></script>
@@ -155,7 +155,7 @@ function renderSingle(t) {
   shownTeam = t; suggestion = null;
   if (season) renderSeason(t.rosterId);
   const all = window._allTeams || [];
-  Timeline.render($('#timelineCard'), t, { extraHtml: windowChart(t, all) });
+  Timeline.render($('#timelineCard'), t, { extraHtml: windowChart(t, all) + leagueMap(t, all) });
   // The suggested path for the Overview line, after the page has painted (a few season simulations).
   setTimeout(() => { if (shownTeam !== t) return; suggestion = Timeline.suggestFor(t); renderGlance(); }, 0);
   const leagueAvg = {
@@ -241,6 +241,67 @@ function partnerLines(t, p) {
     if (mine.length) lines.push(`Would start for ${p.teamName}: ${mine.map(pts).join(', ')}`);
   }
   return lines;
+}
+
+/* Contend or rebuild, league-wide (moved here from League Overview 2026-10-27, user: it
+   "makes league overview cluttered"): each team by its projected lineup this season
+   against its total dynasty value, lines at the league averages, this team in gold.
+   Labels placed so they don't collide (this team first; right, left, above, below; a
+   label with no free spot is left off, the dot and its tooltip stay; this team's may
+   sit over a corner caption). */
+function leagueMap(t, all) {
+  if (all.length < 2) return '';
+  const narrow = window.innerWidth < 640, W = narrow ? 360 : 760, H = narrow ? 340 : 360, L = narrow ? 56 : 64, R = 16, T = 20, B = 46;
+  const kFmt = v => (Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v)));
+  const xs = all.map(x => x.opt), ys = all.map(x => x.overall);
+  const pad = (lo, hi) => { const d = (hi - lo) || 1; return [lo - d * 0.08, hi + d * 0.08]; };
+  const [x0, x1] = pad(Math.min(...xs), Math.max(...xs)), [y0, y1] = pad(Math.min(...ys), Math.max(...ys));
+  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  const avg = a => a.reduce((s, v) => s + v, 0) / a.length, mx = X(avg(xs)), my = Y(avg(ys));
+  const ticks = (lo, hi, n) => [...Array(n)].map((_, i) => lo + (hi - lo) * (i + 0.5) / n);
+  const xt = ticks(x0, x1, narrow ? 3 : 4).map(v => `<text x="${X(v)}" y="${H - B + 18}" text-anchor="middle" class="fill-zinc-500" font-size="11">${v.toFixed(0)}</text>`).join('');
+  const yt = ticks(y0, y1, 4).map(v => `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" class="fill-zinc-500" font-size="11">${kFmt(v)}</text>`).join('');
+  const quad = (x, y, anchor, text) => `<text x="${x}" y="${y}" text-anchor="${anchor}" class="fill-zinc-500" font-size="11" letter-spacing="0.08em">${text}</text>`;
+  const pts = all.map(x => ({ t: x, cx: X(x.opt), cy: Y(x.overall), me: x.rosterId === t.rosterId, short: x.teamName.length > (narrow ? 11 : 18) ? x.teamName.slice(0, narrow ? 10 : 17) + '…' : x.teamName }));
+  const cap = (x, y, anchor, text) => { const w = text.length * 8.5; return anchor === 'end' ? { x0: x - w, x1: x, y0: y - 11, y1: y + 2, cap: 1 } : { x0: x, x1: x + w, y0: y - 11, y1: y + 2, cap: 1 }; };
+  const boxes = [...pts.map(p => ({ x0: p.cx - 8, x1: p.cx + 8, y0: p.cy - 8, y1: p.cy + 8 })),
+    cap(W - R - 4, T + 12, 'end', narrow ? 'NOW + LATER' : 'STRONG NOW AND LATER'), cap(W - R - 4, H - B - 8, 'end', 'WIN NOW'), cap(L + 6, T + 12, 'start', 'BUILT FOR LATER'), cap(L + 6, H - B - 8, 'start', 'REBUILD')];
+  const hits = (b, list) => list.some(o => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0);
+  const labels = new Map();
+  [...pts].sort((a, b) => b.me - a.me).forEach(p => {
+    const w = p.short.length * 6.6, h = 14, mid = Math.max(L, Math.min(W - R - w, p.cx - w / 2));
+    const spots = [[p.cx + 11, p.cy + 4, 'start', p.cx + 11, p.cx + 11 + w], [p.cx - 11, p.cy + 4, 'end', p.cx - 11 - w, p.cx - 11], [mid, p.cy - 12, 'start', mid, mid + w], [mid, p.cy + 21, 'start', mid, mid + w]];
+    for (const [x, y, anchor, lx0, lx1] of spots) {
+      const b = { x0: lx0 - 3, x1: lx1 + 3, y0: y - h + 2, y1: y + 4 };
+      if (lx0 < L || lx1 > W - R || b.y0 < 0 || b.y1 > H - B + 4 || hits(b, p.me ? boxes.filter(o => !o.cap) : boxes)) continue;
+      boxes.push(b); labels.set(p, { x, y, anchor });
+      break;
+    }
+  });
+  const link = x => `${Vault.linkTo('team-analyzer.html')}&team=${x.rosterId}${location.hash}`;
+  const dots = [...pts].sort((a, b) => a.me - b.me).map(p => {
+    const x = p.t, lab = labels.get(p);
+    const tip = `${x.teamName}: ${x.opt.toFixed(1)} projected lineup points a week, ${Math.round(x.overall).toLocaleString()} dynasty value`;
+    return `<a href="${link(x)}"><g class="cursor-pointer"><title>${Vault.escapeHtml(tip)}</title>
+      <circle cx="${p.cx}" cy="${p.cy}" r="${p.me ? 8 : 6.5}" class="${p.me ? 'fill-amber-400' : 'fill-zinc-300'}" stroke="#14161b" stroke-width="2"></circle>
+      ${lab ? `<text x="${lab.x}" y="${lab.y}" text-anchor="${lab.anchor}" font-size="12" class="${p.me ? 'fill-amber-200' : 'fill-zinc-400'}">${Vault.escapeHtml(p.short)}</text>` : ''}</g></a>`;
+  }).join('');
+  return `<div class="mt-3 rounded-2xl bg-black/30 border border-white/5 p-4">
+      <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+        <div class="text-[11px] uppercase tracking-widest text-zinc-400">Where every team stands</div>
+        <div class="text-[12px] text-zinc-400">Projected lineup for the rest of the season against dynasty value. Lines are the league average. Click a team to open it.</div>
+      </div>
+      <div class="overflow-x-auto"><svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="Every team: lineup strength against dynasty value">
+        <line x1="${mx}" y1="${T}" x2="${mx}" y2="${H - B}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4 4"></line>
+        <line x1="${L}" y1="${my}" x2="${W - R}" y2="${my}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4 4"></line>
+        <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="rgba(255,255,255,0.15)"></line>
+        ${quad(W - R - 4, T + 12, 'end', narrow ? 'NOW + LATER' : 'STRONG NOW AND LATER')}${quad(W - R - 4, H - B - 8, 'end', 'WIN NOW')}${quad(L + 6, T + 12, 'start', 'BUILT FOR LATER')}${quad(L + 6, H - B - 8, 'start', 'REBUILD')}
+        ${xt}${yt}
+        <text x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle" class="fill-zinc-400" font-size="12">${narrow ? 'Projected points a week →' : 'Projected lineup points a week, rest of season →'}</text>
+        <text transform="translate(${narrow ? 11 : 14} ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle" class="fill-zinc-400" font-size="12">Dynasty value →</text>
+        ${dots}
+      </svg></div>
+    </div>`;
 }
 
 // The five-year contention window, under Contend or rebuild?'s tiles: projected

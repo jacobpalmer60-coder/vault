@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=a6740d1d">
+<link rel="stylesheet" href="tailwind.css?v=488f688e">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=75e55f05"></script>
+<script src="vault-core.js?v=a3131232"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -40,6 +40,13 @@
 const NOTES = [
   { date: '2026-10-27', items: [
     { kind: 'changed', page: 'Trade Calculator', text: "The verdict (Good trade, Toss-up and so on) runs on KTC values only now. It used to blend in our own values learned from real trades; now it reads each piece at its price with two simple adjustments: stars count for more and small pieces for less (a 9,000 player counts as about 10,400, a 2,000 one as about 1,590), and QBs count 6% more, RBs 2%, TEs 7% less and picks 5% less, with a small nudge for age. Tested on 3.2 million team-sides of 2025 and 2026 trades, it was better than the old blend at picking the teams that went on to beat their playoff odds and gain points a week, and much better for rebuilding teams' value since the trade in 2026. The price (Fair / Lopsided / Unfair) and Trade Grades don't change. When the verdict and the price point different ways, Why still says so and names the players." },
+    { kind: 'new', page: 'Player Market', text: "What it takes to get him: on a player's lookup, the packages managers actually sent for him in recent trades, grouped (one player straight up, a player plus picks, players and picks, and so on) with how often each happened, what it added up to against his KTC value and the latest example. Ja'Marr Chase: usually 3 pieces, the best about 71% of his value, a 1st in 56% of deals." },
+    { kind: 'new', page: 'Player Market', text: "Trade history: every Sleeper dynasty trade a player was in since 2024 across every league we crawled, month by month (hover for what was paid against KTC), and how the teams that got him did a year later." },
+    { kind: 'new', page: 'Player Market', text: "Best time to buy or sell: each lookup shows when players like him (same position and age) are usually cheapest and dearest in the year, from KTC's history since 2020 with the long-term drift taken out. QBs bottom out in November-December (about 5% below their yearly average) and peak in the spring; young TEs swing most (about 9% low in October); RBs and WRs barely move, and the page says so." },
+    { kind: 'new', page: 'Player Market', text: "A Picks tab: every 2027-2029 pick, rounds 1-4, at what it goes for in completed trades next to KTC, with early and late on hover and when 1sts and 2nds are cheapest in the year. Click a pick for its trades and price over time." },
+    { kind: 'changed', page: 'Trade Lab', text: "Now 2.15 million trades from 111,690 leagues, with 2026 added (was 1.34 million from 2024-2025). How managers trade includes 2026; how trades turned out still uses 2024 and 2025, since 2026 trades are only months old. Each verdict's follow-up is re-scored with today's verdict." },
+    { kind: 'changed', page: 'Trade Calculator', text: "The record under each verdict (\"In real trades scored like this...\") is re-measured with the new KTC-only verdict on 2.7 million team-sides of 2024-2025 trades. Every tier came out within about a point of before: Great trades for contenders +7.0 against their playoff odds, Good +3.6, and 85% of rebuilders with a Great trade still ahead later." },
+    { kind: 'changed', page: 'Team Analyzer', text: "The Contend or rebuild chart (every team's projected lineup against its dynasty value) moved from League Overview to Team Analyzer's Contend or rebuild? tab, under the contention window, with the team you're looking at in gold. League Overview is just the standings table now. Click any dot to open that team." },
     { kind: 'removed', page: 'Everywhere', text: "The hidden switch to show our own values instead of KTC (?values=vault) is gone, along with the nightly job that built them. Every page runs on KTC values." },
   ] },
   { date: '2026-10-25', items: [

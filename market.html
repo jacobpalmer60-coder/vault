@@ -9,7 +9,7 @@
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=a6740d1d">
+<link rel="stylesheet" href="tailwind.css?v=488f688e">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -69,6 +69,13 @@
     <div id="moversBody"></div>
   </section>
 
+  <!-- Pick market (2026-10-27): what each pick goes for in completed trades against KTC, by year and round, and when picks are cheapest. -->
+  <section data-tab="picks" role="tabpanel" class="hidden card rounded-vault-sm mb-6 p-5">
+    <h2 class="text-[16px] font-semibold text-zinc-100">Pick market</h2>
+    <p class="text-[12px] text-zinc-400 mt-0.5 mb-3">What each pick goes for in completed trades in leagues like yours, next to its KTC value. Click a pick for its trades and price over time.</p>
+    <div id="picksBody"><div class="text-[12px] text-zinc-500">Loading…</div></div>
+  </section>
+
   <!-- Every player KTC prices, ranked by market value (what managers pay), sortable. -->
   <section data-tab="all" role="tabpanel" class="hidden card rounded-vault-sm mb-6 p-5">
     <h2 class="text-[16px] font-semibold text-zinc-100">All players by market</h2>
@@ -88,7 +95,7 @@
 
 <div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
 
-<script src="vault-core.js?v=75e55f05"></script>
+<script src="vault-core.js?v=a3131232"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script src="market-data.js?v=07632230"></script>
 <script>
@@ -139,7 +146,7 @@ function valueFilterHtml() {
     </div>`;
 }
 // A price against KTC value, said the way people talk about prices: "13% over", "8% under", "even".
-const signed = v => (Math.abs(v) < 0.5 ? 'even' : `${Math.abs(Math.round(v))}% ${v > 0 ? 'over' : 'under'}`);
+const signed = v => (Math.abs(v) < 0.5 ? 'even' : `${Math.round(Math.abs(v))}% ${v > 0 ? 'over' : 'under'}`);
 const esc = s => Vault.escapeHtml(s);
 let league = null, sig = null, isSF = true, bonusTe = 0, valueField = 'sf';
 let byNorm = new Map();         // normalized name -> { name, pos, value } from KTC today
@@ -158,6 +165,67 @@ function outlookHtml(who) {
   const verb = !same ? 'had mixed results' : Math.abs(avg) < 2 ? 'held their value about even' : avg > 0 ? 'gained value' : 'lost value';
   const cls = !same || Math.abs(avg) < 2 ? 'text-zinc-300' : avg > 0 ? 'text-emerald-300' : 'text-orange-300';
   return `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">Outlook: at the same KTC price, ${who.pos}s aged ${r.age} have <span class="${cls}">${verb}</span> afterward: ${sg(r.drift1)} a year on, ${sg(r.drift2)} two years on (median, ${(r.n1 + r.n2).toLocaleString()} real trades).</div>`;
+}
+/* Best time to buy or sell (2026-10-27, user picked it): when players like him (position
+   and age band; picks by round) are cheapest and dearest in the year, from KTC's history
+   since 2020 with the long drift taken out (VaultValues build-seasonal.js ->
+   data/market-history/seasonal.json: % above or below the group's yearly average at the
+   start of each month). A small bar a month, this month outlined; a group whose prices
+   swing under 3% says so instead. */
+let SEASONAL = null;
+fetch('data/market-history/seasonal.json').then(r => (r.ok ? r.json() : null)).then(d => { SEASONAL = d; if (lookupNorm) lookUp(lookupNorm); if (byNorm.size) renderPicks().catch(() => {}); }).catch(() => {});
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function seasonalHtml(who) {
+  const F = SEASONAL?.formats?.[isSF ? 'sf' : 'oneQB']; if (!F || !who) return '';
+  const pick = who.pos === 'Pick';
+  const band = a => (a < 24 ? ['young', 'under 24'] : a < 27 ? ['prime', '24-26'] : a < 30 ? ['vet', '27-29'] : ['old', '30+']);
+  let g, label;
+  if (pick) { g = F[`PICK|${Math.min(2, who.round)}`]; label = `${who.round === 1 ? '1st' : '2nd'}-round picks${who.round > 2 ? ' (2nds shown)' : ''}`; }
+  else if (['QB', 'RB', 'WR', 'TE'].includes(who.pos)) { const [k, txt] = who.age > 0 ? band(who.age) : [null]; g = (k && F[`${who.pos}|${k}`]) || F[`${who.pos}|all`]; label = k && F[`${who.pos}|${k}`] ? `${who.pos}s aged ${txt}` : `${who.pos}s`; }
+  if (!g) return '';
+  const p = g.pct, lo = Math.min(...p), hi = Math.max(...p), now = new Date().getMonth();
+  const sg = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(0)}%`;
+  // The cheapest and dearest stretches: the two-month window lowest and highest on average.
+  const win = dir => { let best = 0; for (let i = 1; i < 12; i++) if (dir * (p[i] + p[(i + 1) % 12]) > dir * (p[best] + p[(best + 1) % 12])) best = i; return best; };
+  const buy = win(-1), sell = win(1), span = i => `${MON[i]}-${MON[(i + 1) % 12]}`, two = i => (p[i] + p[(i + 1) % 12]) / 2;
+  if (two(sell) - two(buy) < 4) return `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">Timing: ${label} barely move with the calendar (${Math.max(1, Math.round(hi - lo))}% from their low month to their high), so there's no season to wait for.</div>`;
+  const bars = p.map((v, i) => { const h = Math.max(3, 14 + v * 2.2); return `<div class="flex-1 flex flex-col items-center gap-0.5" title="${MON[i]} 1: ${sg(v)} against the yearly average"><div class="w-full flex items-end h-[30px]"><div class="w-full rounded-sm ${i === now ? 'ring-1 ring-amber-300' : ''} ${v < 0 ? 'bg-emerald-400/60' : 'bg-orange-400/60'}" style="height:${Math.min(30, h)}px"></div></div><span class="text-[9px] ${i === now ? 'text-amber-200' : 'text-zinc-500'}">${MON[i][0]}</span></div>`; }).join('');
+  return `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">
+      <div>Timing: ${label} usually cost the least in <span class="text-emerald-300">${span(buy)}</span> (${sg((p[buy] + p[(buy + 1) % 12]) / 2)} against their yearly average) and the most in <span class="text-orange-300">${span(sell)}</span> (${sg((p[sell] + p[(sell + 1) % 12]) / 2)}). This month: ${sg(p[now])}.${pick ? ' Only three years of pick prices behind this.' : ''}</div>
+      <div class="flex gap-1 mt-1 max-w-[320px]" aria-label="Price against the yearly average, by month">${bars}</div>
+    </div>`;
+}
+/* Trade history (2026-10-27, user picked "Player trade history"): every crawled Sleeper
+   trade he was in since 2024, all leagues, by month, and how the teams that got him as
+   the headliner did a year on (VaultValues build-player-history.js ->
+   data/market-history/player-history.json, aggregates only). Bars: trades a month, the
+   ones he headlined solid; the tooltip has what those paid against KTC. */
+let PLAYER_HISTORY = null;
+fetch('data/market-history/player-history.json').then(r => (r.ok ? r.json() : null)).then(d => { PLAYER_HISTORY = d; if (lookupNorm) lookUp(lookupNorm); }).catch(() => {});
+function tradeHistoryHtml(norm, who) {
+  const h = PLAYER_HISTORY?.players?.[norm];
+  if (!h || !h.m?.length || who.pos === 'Pick') return '';
+  const months = h.m, total = months.reduce((t, m) => t + m[1], 0), heads = months.reduce((t, m) => t + m[2], 0);
+  const peak = months.reduce((b, m) => (m[1] > b[1] ? m : b)), max = peak[1] || 1;
+  const label = ym => { const [y, mo] = ym.split('-'); return `${MON[+mo - 1]} ${y}`; };
+  const W = 720, H = 110, ML = 4, MR = 4, MT = 6, MB = 18, bw = (W - ML - MR) / months.length;
+  const bars = months.map(([ym, n, hd, paid], i) => {
+    const x = ML + i * bw, hN = (H - MT - MB) * n / max, hH = (H - MT - MB) * hd / max;
+    const tip = `${label(ym)}: in ${n} trade${n === 1 ? '' : 's'}, headlined ${hd}${paid != null ? `; those paid ${signed(paid)} KTC (median)` : ''}`;
+    return `<g><title>${esc(tip)}</title><rect x="${(x + 1).toFixed(1)}" y="${(H - MB - hN).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${hN.toFixed(1)}" rx="1.5" fill="rgba(161,161,170,0.25)"></rect><rect x="${(x + 1).toFixed(1)}" y="${(H - MB - hH).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${hH.toFixed(1)}" rx="1.5" fill="rgba(251,191,36,0.6)"></rect></g>`;
+  }).join('');
+  const years = months.map(([ym], i) => (ym.endsWith('-01') || i === 0 ? `<text x="${(ML + i * bw + 2).toFixed(1)}" y="${H - 4}" font-size="11" class="fill-zinc-500">${ym.slice(0, 4)}</text>` : '')).join('');
+  const b = h.buy, sg = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}%`;
+  const buyLine = b ? `Teams that got him as the headliner were <span class="${b[1] >= 55 ? 'text-emerald-300' : b[1] <= 45 ? 'text-orange-300' : 'text-zinc-200'}">ahead a year later ${b[1]}% of the time</span> (${b[0].toLocaleString()} trades with a year since)${b[2] != null ? `; his own KTC value moved ${sg(b[2])} over that year (median)` : ''}.` : 'Not enough of his trades are a year old yet to say how buyers did.';
+  return `<div class="mt-5 rounded-xl bg-black/25 border border-white/5 p-4">
+      <div class="flex items-baseline justify-between gap-3 flex-wrap">
+        <h3 class="text-[13px] font-medium text-zinc-200">Trade history</h3>
+        <span class="text-[11px] text-zinc-500">every Sleeper dynasty league we crawled, since ${label(months[0][0])}</span>
+      </div>
+      <p class="text-[12px] text-zinc-400 mt-0.5">In <span class="text-zinc-200">${total.toLocaleString()}</span> completed trades, the headliner in ${heads.toLocaleString()}; busiest in ${label(peak[0])}. ${buyLine}</p>
+      <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto mt-2" role="img" aria-label="Trades a month">${bars}${years}</svg>
+      <div class="flex gap-4 text-[11px] text-zinc-500 mt-1"><span><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle mr-1" style="background:rgba(251,191,36,0.6)"></span>Headlined</span><span><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle mr-1" style="background:rgba(161,161,170,0.25)"></span>In the trade</span><span>Hover a month for what was paid</span></div>
+    </div>`;
 }
 let daily = null;               // { from, players: { norm: [[day, pct, n]] } }
 let history = null, historyLoading = null; // KTC value history, loaded on first lookup
@@ -328,7 +396,7 @@ async function lookUp(norm) {
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(who.pos)}">${who.pos || '—'}</span>
       <span class="text-[15px] font-semibold text-zinc-100">${esc(who.name)}</span>
       <span class="text-[12px] text-zinc-400 basis-full flex flex-wrap items-end gap-x-8 gap-y-2 mt-1"><span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value)}</span>KTC value</span>${read ? `<span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}${(Math.abs(read.premium) > MARKET_ADJ_CAP ? '+' : '')}</span>market price, <span title="${MARKET_PEER_TIP}" class="cursor-help ${Math.abs(marketPeerPct(mp) ?? 0) < 3 ? 'text-zinc-300' : marketPeerPct(mp) > 0 ? 'text-emerald-300' : 'text-orange-300'}">${marketPeerPhrase(mp)}</span></span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
-    </div>${liq ? `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">${liq}</div>` : ''}${outlookHtml(who)}`;
+    </div>${liq ? `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">${liq}</div>` : ''}${outlookHtml(who)}${seasonalHtml(who)}`;
   if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
   const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
   const all = [...series.map(p => p.value), ...market.map(m => m.value), ...trend.filter(Boolean).map(t => t.value)];
@@ -374,10 +442,46 @@ const tradeFormatLabel = f => {
   const tiers = Vault.tradeFormatTiers({ teams: f.teams, qbs: f.qbs, ppr: f.ppr, tep: f.tep });
   return (f.teams && f.ppr ? tiers[0] : f.ppr ? tiers[1] : f.tep != null ? tiers[2] : tiers[3]).label;
 };
+/* What it takes to get him (2026-10-27, user picked it): the packages sent for him in the
+   same trades, grouped by kind (one player straight up, a player plus picks, players
+   only, players and picks, picks only), with what they added up to and the latest one.
+   Only trades where he was most of what came back (anything with him under 20% of his
+   value), so a package buys him and not a second starter; all of them when fewer than 4
+   qualify. Exact shapes ("WR + 1st") split 16 trades into 1s and 2s. */
+const PACKAGE_KINDS = [['one', 'One player straight up'], ['playerPicks', 'A player plus picks'], ['players', 'Two or more players'], ['mixed', 'Players and picks'], ['picks', 'Picks only']];
+function packagesHtml(who, pool) {
+  const pick = who.pos === 'Pick', it = pick ? 'it' : 'him';
+  const alone = pool.filter(c => c.ps.every(a => a === c.him || a.value < 0.2 * c.him.value));
+  const use = alone.length >= 4 ? alone : pool;
+  if (use.length < 3) return '';
+  const kindOf = os => { const np = os.filter(a => a.type !== 'pick').length, nk = os.length - np; return np === 0 ? 'picks' : np === 1 ? (nk ? 'playerPicks' : 'one') : nk ? 'mixed' : 'players'; };
+  const groups = new Map();
+  for (const c of use) {
+    const sent = [...c.os].sort((x, y) => y.value - x.value), k = kindOf(sent);
+    const g = groups.get(k) || groups.set(k, { sig: PACKAGE_KINDS.find(x => x[0] === k)[1], n: 0, ratios: [], ex: null }).get(k);
+    g.n++; g.ratios.push(sent.reduce((s, a) => s + a.value, 0) / (c.him.value || 1));
+    if (!g.ex || c.t.date > g.ex.t.date) g.ex = c;
+  }
+  const med = a => { const b = [...a].sort((x, y) => x - y); return b[(b.length - 1) >> 1]; };
+  const top = [...groups.values()].sort((a, b) => b.n - a.n || a.sig.localeCompare(b.sig)).slice(0, 5);
+  const n = use.length, pieces = med(use.map(c => c.os.length)), withFirst = use.filter(c => c.os.some(a => a.type === 'pick' && a.round === 1)).length;
+  const bestBack = med(use.map(c => Math.max(...c.os.map(a => a.value)) / (c.him.value || 1)));
+  const name = a => esc(a.type === 'pick' ? `${a.season} ${ORD(a.round)}` : a.name);
+  const rows = top.map(g => `<div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-2 border-t border-white/5">
+      <div class="min-w-0"><div class="text-[13px] text-zinc-100">${esc(g.sig)}</div>
+        <div class="text-[11px] text-zinc-500 truncate" title="${esc([...g.ex.os].sort((x, y) => y.value - x.value).map(a => `${a.type === 'pick' ? `${a.season} ${ORD(a.round)}` : a.name} ${Vault.fmtInt(a.value)}`).join(', '))}">Latest: ${[...g.ex.os].sort((x, y) => y.value - x.value).map(name).join(', ')}</div></div>
+      <div class="text-right"><div class="mono text-[13px] text-zinc-200">${Math.round(100 * g.n / n)}%</div><div class="text-[11px] text-zinc-500">${g.n} trade${g.n === 1 ? '' : 's'} · ${Math.round(100 * med(g.ratios))}% of ${pick ? 'its' : 'his'} KTC</div></div>
+    </div>`).join('');
+  return `<div class="mt-5 rounded-xl bg-black/25 border border-white/5 p-4">
+      <h3 class="text-[13px] font-medium text-zinc-200">What it takes to get ${it}</h3>
+      <p class="text-[12px] text-zinc-400 mt-0.5 mb-1">Typically <span class="text-zinc-200">${pieces} piece${pieces === 1 ? '' : 's'}</span>, the best one about <span class="text-zinc-200">${Math.round(100 * bestBack)}%</span> of ${pick ? 'its' : 'his'} value${withFirst ? `; a 1st was in <span class="text-zinc-200">${Math.round(100 * withFirst / n)}%</span> of deals` : ''}. The packages sent for ${it} in ${n} completed trade${n === 1 ? '' : 's'}, most common first (% of ${pick ? 'its' : 'his'} KTC: what was sent, added up plainly).</p>
+      ${rows}
+    </div>`;
+}
 function renderComps(who) {
   const box = document.getElementById('lookupComps');
   const { like, pool } = marketPool(league, who.key || who.name);
-  if (!like) { box.innerHTML = ''; return; }
+  if (!like) { box.innerHTML = tradeHistoryHtml(lookupNorm, who); return; }
   const list = [...pool].sort((a, b) => b.t.date.localeCompare(a.t.date));
   // The most extreme tenth at each end (lopsided or partly recorded trades) are faded: a median barely moves for them.
   const sorted = pool.map(marketPremium).sort((x, y) => x - y), lo = marketQuantile(sorted, 0.1), hi = marketQuantile(sorted, 0.9);
@@ -398,7 +502,7 @@ function renderComps(who) {
         </div>
       </div>`;
   }).join('');
-  box.innerHTML = `<div class="mt-5">
+  box.innerHTML = `${packagesHtml(who, pool)}${tradeHistoryHtml(lookupNorm, who)}<div class="mt-5">
       <div class="flex items-baseline justify-between gap-3 flex-wrap">
         <h3 class="text-[13px] font-medium text-zinc-200">The trades behind it</h3>
         <span class="text-[11px] text-zinc-500">${pool.length} completed trade${pool.length === 1 ? '' : 's'} ${who.pos === 'Pick' ? 'it' : 'he'} headlined · leagues like yours (${esc(like)})</span>
@@ -594,10 +698,45 @@ function openLookup(enc) {
    One section at a time. The open tab is in the address (#all, #movers…) so
    it can be shared or bookmarked, and remembered in this browser for next time;
    a ?p= link (a player to chart) always opens Look up. */
-const MARKET_TABS = [['lookup', 'Look up a player'], ['all', 'All players'], ['movers', 'Movers'], ['positions', 'By position']];
+const MARKET_TABS = [['lookup', 'Look up a player'], ['all', 'All players'], ['movers', 'Movers'], ['positions', 'By position'], ['picks', 'Picks']];
+
+/* ---------- Pick market (2026-10-27, user picked it) ----------
+   Rookie picks by year (columns) and round (rows): KTC value, the market price trade
+   value uses (marketPlayer, as for players) and how far it is from KTC, with early and
+   late at the calculator's spread (Vault.pickTierSpread) in the tooltip. Under it, when
+   1sts and 2nds are cheapest in the year (seasonalHtml), and a link to Trade Lab's
+   picks and rookie drafts for what picks turned into. */
+async function renderPicks() {
+  const box = document.getElementById('picksBody');
+  if (!league) return;
+  await marketLoad(league);
+  const picks = [...byNorm.values()].filter(p => p.pos === 'Pick' && p.round <= 4);
+  if (!picks.length) { box.innerHTML = '<div class="text-[12px] text-zinc-500">No pick values loaded.</div>'; return; }
+  const years = [...new Set(picks.map(p => p.season))].sort(), rounds = [1, 2, 3, 4];
+  const cell = p => {
+    if (!p) return '<td class="px-2 py-2 text-center text-zinc-600">—</td>';
+    const mp = marketPlayer(league, p.key, 'Pick'), read = mp.read, price = Math.round(p.value * (1 + mp.adj / 100));
+    const sp = Vault.pickTierSpread(p.round) || { early: 1, late: 1 };
+    const tip = `${p.name}: KTC ${Vault.fmtInt(p.value)} (early ${Vault.fmtInt(p.value * sp.early)}, late ${Vault.fmtInt(p.value * sp.late)})${read ? `; goes for ${Vault.fmtInt(price)} in ${read.n} trades, leagues like yours` : '; not enough trades for a market price yet'}`;
+    const cls = !read || Math.abs(read.premium) < 3 ? 'text-zinc-300' : read.premium > 0 ? 'text-emerald-300' : 'text-orange-300';
+    return `<td class="px-2 py-2 text-center"><button onclick="showTab('lookup'); lookUp('${p.key}')" title="${esc(tip)}" class="w-full rounded-lg px-2 py-1.5 hover:bg-white/[0.04] transition-colors">
+        <div class="num text-[15px] text-zinc-100">${Vault.fmtInt(read ? price : p.value)}</div>
+        <div class="text-[11px] ${cls}">${read ? signed(read.premium) + ' KTC' : 'KTC only'}</div>
+        <div class="text-[10px] text-zinc-500 mono">KTC ${Vault.fmtInt(p.value)}${read ? ` · ${read.n}` : ''}</div></button></td>`;
+  };
+  const at = (y, r) => picks.find(p => p.season === y && p.round === r);
+  const timing = [1, 2].map(r => seasonalHtml({ pos: 'Pick', round: r })).join('');
+  box.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-[12px] min-w-[420px]">
+      <thead><tr><th class="px-2 py-1.5 text-left text-zinc-500 font-normal">Round</th>${years.map(y => `<th class="px-2 py-1.5 text-center text-zinc-300 font-medium">${y}</th>`).join('')}</tr></thead>
+      <tbody>${rounds.map(r => `<tr class="border-t border-white/5"><td class="px-2 py-2 text-zinc-300">${ORD(r)}</td>${years.map(y => cell(at(y, r))).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+    <p class="text-[11px] text-zinc-500 mt-2">Big number: what the pick goes for (its market price, the median of completed trades it headlined in the last 45 days, capped the way trade value caps it), then how far that is from KTC and the number of trades. Mid-round picks; hover for early and late.</p>
+    <div class="mt-4 space-y-2">${timing}</div>
+    <p class="text-[12px] text-zinc-400 mt-3">What picks turned into, picks against players later, and where each rookie went: <a href="${Vault.linkTo('trade_lab.html')}#picks" class="text-zinc-200 underline underline-offset-2 decoration-white/20 hover:text-white">Trade Lab's picks and rookie drafts</a>.</p>`;
+}
 function showTab(key) {
   if (key === 'moves' || key === 'highs') key = 'movers';
-  if (key === 'picks' || key === 'rookies') { location.replace(Vault.linkTo('trade_lab.html') + '#picks'); return; }
+  if (key === 'rookies') { location.replace(Vault.linkTo('trade_lab.html') + '#picks'); return; } // rookie drafts live on Trade Lab; picks are a tab here again (2026-10-27)
   if (!MARKET_TABS.some(([k]) => k === key)) key = 'lookup';
   document.querySelectorAll('[data-tab]').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== key));
   document.getElementById('marketTabs').innerHTML = MARKET_TABS.map(([k, label]) => `<button role="tab" aria-selected="${k === key}" onclick="showTab('${k}')" class="whitespace-nowrap text-[13px] px-3 sm:px-3.5 py-2 rounded-lg border transition-colors ${k === key ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`).join('');
@@ -651,6 +790,7 @@ async function init() {
     if (want && byNorm.has(want)) lookUp(want);
     renderMarketNudge().catch(e => console.error(e)); // needs your roster; loads alongside the rest
     renderPositions();
+    renderPicks().catch(e => console.error(e));
     // KTC's value history first: Rising & cooling leaves out players whose KTC value moved a lot.
     historyLoading ||= Vault.fetchPlayerValueHistory(isSF, bonusTe);
     history = await historyLoading.catch(() => null);

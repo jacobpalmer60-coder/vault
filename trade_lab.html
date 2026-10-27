@@ -9,7 +9,7 @@
 <title>Trade Lab — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=a6740d1d">
+<link rel="stylesheet" href="tailwind.css?v=488f688e">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -19,10 +19,10 @@
 <main id="main" class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Trade Lab</h1>
-    <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading 1.3 million trades…</p>
+    <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading 2.15 million trades…</p>
   </div>
   <p class="text-[13px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
-    Every two-team trade in 2024 and 2025 Sleeper dynasty leagues where every piece had a KTC price, each judged as its league stood that day, then followed for up to two years. Only totals are shown: no league, team or manager.
+    Every two-team trade in 2024, 2025 and 2026 Sleeper dynasty leagues where every piece had a KTC price, each judged as its league stood that day. How trades turned out (value later, playoffs, titles) uses 2024 and 2025, followed for up to two years; 2026 trades are only months old. Only totals are shown: no league, team or manager.
     <span id="crawled"></span>
     <a href="how_we_grade.html#facts" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How we use it</a>
   </p>
@@ -94,7 +94,7 @@
 
 <div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
 
-<script src="vault-core.js?v=75e55f05"></script>
+<script src="vault-core.js?v=a3131232"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
@@ -188,7 +188,7 @@ function renderHow(d, ins) {
 /* ---------- What happened after ---------- */
 function renderAfter(d, ins) {
   const VT = { 'Great trade': 'text-emerald-300', 'Good trade': 'text-emerald-300', 'Slight edge': 'text-emerald-200', 'Toss-up': 'text-amber-300', 'Leans bad': 'text-orange-300', 'Bad trade': 'text-orange-300', 'Terrible trade': 'text-rose-300' };
-  const verdicts = panel('Each verdict, followed up', 'The Trade Calculator\'s verdict for each side, and how those sides did: ahead on value a year or more later, 10%+ behind, and contenders against their playoff odds (versus the average contender that traded).',
+  const verdicts = panel('Each verdict, followed up', 'The Trade Calculator\'s verdict for each side (as it scores trades today), and how those sides did: ahead on value a year or more later, 10%+ behind, and contenders against their playoff odds (versus the average contender that traded). 2024 and 2025 trades.',
     table(['Verdict', 'Sides', 'Ahead later', 'Lost 10%+', 'Contenders vs odds'], d.verdicts.map(v => [`<span class="font-medium ${VT[v.tier]}">${v.tier}</span>`, fmtInt(v.n), pc(v.ahead), pc(v.lost), v.playoffs == null ? '—' : `<span class="${tone(v.playoffs)}">${v.playoffs > 0 ? '+' : v.playoffs < 0 ? '−' : ''}${Math.abs(v.playoffs).toFixed(1)} pts</span>`])),
     'Every step down the ladder turned out worse, in both seasons and every format. Toss-up really is a coin flip.');
   const holds = panel('Does the price hold?', 'The side\'s price at the trade, and how often it was still ahead on value a year or more later.',
@@ -355,7 +355,7 @@ async function renderLeague(d, ins) {
   const busiest = Math.max(...byTeam.values()), busiestShare = 100 * busiest / n, traders = byTeam.size;
   const inSeason = 100 * G.filter(g => { const m = new Date(g.tx.status_updated || g.tx.created).getMonth(); return m >= 8 && m <= 11; }).length / n;
   const evIn = d.calendar.months.filter(m => m.m >= 9).reduce((s, m) => s + m.share, 0);
-  sub.textContent = `${n} completed trade${n === 1 ? '' : 's'} in ${league.name} (${size} teams, ${isSF ? 'Superflex' : '1QB'}), on the same definitions as the 1.3 million.`;
+  sub.textContent = `${n} completed trade${n === 1 ? '' : 's'} in ${league.name} (${size} teams, ${isSF ? 'Superflex' : '1QB'}), on the same definitions as the ${fmtInt(LAB_DATA.trades)}.`;
   const cmp = (label, mine, theirs, note = '') => [label + (note ? `<div class="text-[11px] text-zinc-500">${note}</div>` : ''), `<span class="text-zinc-100">${mine}</span>`, theirs];
   const rows = [
     cmp('Trades per season', perSeason.toFixed(0), `${pl.median} <span class="text-zinc-500">(${pl.teams}-team leagues)</span>`, `${seasons.size} season${seasons.size === 1 ? '' : 's'} on Sleeper`),
@@ -372,7 +372,7 @@ async function renderLeague(d, ins) {
   ];
   const fair = med < d.gaps.median - 1 ? `Your league trades closer to even than most (typical gap ${pc(med, 1)} against ${pc(d.gaps.median, 1)}).` : med > d.gaps.median + 1 ? `Your league's trades run further apart than most (typical gap ${pc(med, 1)} against ${pc(d.gaps.median, 1)}).` : 'Your league prices trades about like everyone else.';
   const busy = perSeason > pl.p75 ? ` It's busier than 3 in 4 leagues its size.` : perSeason < pl.p25 ? ` It's quieter than 3 in 4 leagues its size.` : '';
-  body.innerHTML = panel('Side by side', `${league.name} next to every ${pl.teams}-team league in the data where it matters (sizes), and all 1.3 million trades otherwise.`,
+  body.innerHTML = panel('Side by side', `${league.name} next to every ${pl.teams}-team league in the data where it matters (sizes), and all ${fmtInt(LAB_DATA.trades)} trades otherwise.`,
     table(['', 'Your league', 'Everyone'], rows), fair + busy + ` <a href="${Vault.linkTo('trade_grades.html', leagueId)}" class="text-zinc-300 underline underline-offset-2 decoration-white/20 hover:text-white">See every trade graded</a>`);
 }
 
@@ -537,16 +537,17 @@ async function init() {
     ]);
     LAB_DATA = d;
     FINDINGS = f;
+    const yrs = l => (l.length < 3 ? l.join(' and ') : `${l.slice(0, -1).join(', ')} and ${l[l.length - 1]}`);
     if (f?.crawled?.length) {
       const total = f.crawled.reduce((t, s) => t + s.trades, 0), first = f.crawled[0].season, last = f.crawled[f.crawled.length - 1].season;
-      document.getElementById('crawled').textContent = `Our crawl holds ${fmtInt(total)} trades from ${first} to ${last}; the ${d.seasons.join('-')} ones here are those we could judge and follow up (${last} is still being played).`;
+      document.getElementById('crawled').textContent = `Our crawl holds ${fmtInt(total)} trades from ${first} to ${last}; the ${yrs(d.seasons)} ones here are those we could judge (${last} is still being played, so how trades turned out uses ${yrs(d.outcomeSeasons || d.seasons)}).`;
     }
-    status.textContent = `${fmtInt(d.trades)} trades · ${fmtInt(d.leagues)} leagues · ${d.seasons.join(' and ')} · updated ${d.updated}`;
+    status.textContent = `${fmtInt(d.trades)} trades · ${fmtInt(d.leagues)} leagues · ${yrs(d.seasons)} · updated ${d.updated}`;
     document.getElementById('tiles').innerHTML = [
       tile(`${(d.trades / 1e6).toFixed(2)}M`, 'Trades', `${fmtInt(d.sides)} team-sides`),
-      tile(fmtInt(d.leagues), 'Leagues', `${d.seasons.join(' and ')} seasons`),
+      tile(fmtInt(d.leagues), 'Leagues', `${yrs(d.seasons)} seasons`),
       tile(pc(d.gaps.median), 'Typical gap between sides', 'trade value at KTC that day'),
-      tile(pc(d.verdicts.find(v => v.tier === 'Toss-up') ? 100 * d.verdicts.find(v => v.tier === 'Toss-up').n / d.sides : null), 'Sides that were a Toss-up', 'by the Trade Calculator\'s verdict'),
+      tile(pc(d.verdicts.find(v => v.tier === 'Toss-up') ? 100 * d.verdicts.find(v => v.tier === 'Toss-up').n / d.verdicts.reduce((t, v) => t + v.n, 0) : null), 'Sides that were a Toss-up', 'by the Trade Calculator\'s verdict, 2024-2025'),
     ].join('');
     renderSummary(d, ins, f);
     renderHow(d, ins);

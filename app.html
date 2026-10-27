@@ -9,7 +9,7 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=a6740d1d">
+<link rel="stylesheet" href="tailwind.css?v=488f688e">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -27,9 +27,6 @@
     </div>
     <button id="refresh" class="self-start sm:self-auto shrink-0 btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
   </div>
-
-  <!-- Contend or rebuild at a glance: strength this season against dynasty value. -->
-  <div id="leagueMap" class="card rounded-vault p-5 mb-6"></div>
 
   <!-- Right now (title odds) or Dynasty (total value): which ranking the table shows. -->
   <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -118,7 +115,7 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=75e55f05"></script>
+<script src="vault-core.js?v=a3131232"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 };
@@ -518,72 +515,6 @@ const kFmt = v => (Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Ma
 function rankMap(f) { const m = new Map(); [...teams].sort((a, b) => f(b) - f(a)).forEach((t, i) => m.set(t.rosterId, i + 1)); return m; }
 const teamLink = t => `${Vault.linkTo('team-analyzer.html')}&team=${t.rosterId}`;
 
-/* ---------- The league map ----------
-   Each team placed by how good its lineup is this season (best-lineup points a
-   week, league scoring) against its total dynasty value. Lines at the league
-   averages split it into four: strong now and later, win now, built for later,
-   and rebuild. Your team in gold. */
-function renderMap() {
-  const box = document.getElementById('leagueMap');
-  if (!teams.length) { box.innerHTML = ''; return; }
-  // Drawn to the card's width, so it fits a phone without scrolling sideways.
-  const W = Math.max(320, Math.min(820, (box.clientWidth || 860) - 40)), narrow = W < 560, H = narrow ? 360 : 380, L = narrow ? 62 : 64, R = 16, T = 20, B = 46;
-  const xs = teams.map(t => t.opt), ys = teams.map(t => t.overall);
-  const pad = (lo, hi) => { const d = (hi - lo) || 1; return [lo - d * 0.08, hi + d * 0.08]; };
-  const [x0, x1] = pad(Math.min(...xs), Math.max(...xs)), [y0, y1] = pad(Math.min(...ys), Math.max(...ys));
-  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
-  const avg = a => a.reduce((s, v) => s + v, 0) / a.length, mx = X(avg(xs)), my = Y(avg(ys));
-  const mine = Vault.myTeam(teams);
-  const ticks = (lo, hi, n) => [...Array(n)].map((_, i) => lo + (hi - lo) * (i + 0.5) / n);
-  const xt = ticks(x0, x1, narrow ? 3 : 4).map(v => `<text x="${X(v)}" y="${H - B + 18}" text-anchor="middle" class="fill-zinc-500" font-size="11">${v.toFixed(0)}</text>`).join('');
-  const yt = ticks(y0, y1, 4).map(v => `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" class="fill-zinc-500" font-size="11">${kFmt(v)}</text>`).join('');
-  const quad = (x, y, anchor, text) => `<text x="${x}" y="${y}" text-anchor="${anchor}" class="fill-zinc-500" font-size="11" letter-spacing="0.08em">${text}</text>`;
-  // Labels placed so they don't collide (2026-10-23: on a phone "Allen's Cr…" sat
-  // on "Skat Happe…"): your team first, then the rest, each trying right, left,
-  // above and below its dot; a label with no free spot is left off (the dot and
-  // its tooltip stay). Widths are estimated at 6.6px a character (12px text).
-  const pts = teams.map(t => ({ t, cx: X(t.opt), cy: Y(t.overall), me: t === mine, short: t.teamName.length > (narrow ? 11 : 18) ? t.teamName.slice(0, narrow ? 10 : 17) + '…' : t.teamName }));
-  // The four corner captions are in the way too (about 8.5px a letter: 11px caps, spaced out).
-  const cap = (x, y, anchor, text) => { const w = text.length * 8.5; return anchor === 'end' ? { x0: x - w, x1: x, y0: y - 11, y1: y + 2 } : { x0: x, x1: x + w, y0: y - 11, y1: y + 2 }; };
-  const boxes = [...pts.map(p => ({ x0: p.cx - 8, x1: p.cx + 8, y0: p.cy - 8, y1: p.cy + 8 })),
-    cap(W - R - 4, T + 12, 'end', narrow ? 'NOW + LATER' : 'STRONG NOW AND LATER'), cap(W - R - 4, H - B - 8, 'end', 'WIN NOW'), cap(L + 6, T + 12, 'start', 'BUILT FOR LATER'), cap(L + 6, H - B - 8, 'start', 'REBUILD')];
-  const hits = (b, list) => list.some(o => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0);
-  const labels = new Map();
-  [...pts].sort((a, b) => b.me - a.me).forEach(p => {
-    const w = p.short.length * 6.6, h = 14;
-    // Above and below: centered on the dot, slid back inside the plot near an edge.
-    const mid = Math.max(L, Math.min(W - R - w, p.cx - w / 2));
-    const spots = [[p.cx + 11, p.cy + 4, 'start', p.cx + 11, p.cx + 11 + w], [p.cx - 11, p.cy + 4, 'end', p.cx - 11 - w, p.cx - 11], [mid, p.cy - 12, 'start', mid, mid + w], [mid, p.cy + 21, 'start', mid, mid + w]];
-    for (const [x, y, anchor, x0, x1] of spots) {
-      const b = { x0: x0 - 3, x1: x1 + 3, y0: y - h + 2, y1: y + 4 }; // a little room around each label
-      if (x0 < L || x1 > W - R || b.y0 < 0 || b.y1 > H - B + 4 || hits(b, boxes)) continue;
-      boxes.push(b); labels.set(p, { x, y, anchor });
-      break;
-    }
-  });
-  const dots = [...pts].sort((a, b) => a.me - b.me).map(p => {
-    const t = p.t, lab = labels.get(p);
-    const tip = `${t.teamName}: ${t.opt.toFixed(1)} projected lineup points a week${t.actualPpg != null ? ` (${t.actualPpg.toFixed(1)} scored so far)` : ''}, ${Math.round(t.overall).toLocaleString()} dynasty value${t.projected ? `, ${t.projected.championshipPct.toFixed(1)}% title odds` : ''}`;
-    return `<a href="${teamLink(t)}"><g class="cursor-pointer"><title>${Vault.escapeHtml(tip)}</title>
-      <circle cx="${p.cx}" cy="${p.cy}" r="${p.me ? 8 : 6.5}" class="${p.me ? 'fill-amber-400' : 'fill-zinc-300'}" stroke="#14161b" stroke-width="2"></circle>
-      ${lab ? `<text x="${lab.x}" y="${lab.y}" text-anchor="${lab.anchor}" font-size="12" class="${p.me ? 'fill-amber-200' : 'fill-zinc-400'}">${Vault.escapeHtml(p.short)}</text>` : ''}</g></a>`;
-  }).join('');
-  box.innerHTML = `<div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
-      <h2 class="text-[16px] font-semibold text-zinc-100">Contend or rebuild</h2>
-      <span class="text-[12px] text-zinc-400">Projected lineup for the rest of the season against dynasty value. Lines are the league average. Click a team to open it.</span>
-    </div>
-    <div class="overflow-x-auto"><svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="League map: lineup strength against dynasty value">
-      <line x1="${mx}" y1="${T}" x2="${mx}" y2="${H - B}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4 4"></line>
-      <line x1="${L}" y1="${my}" x2="${W - R}" y2="${my}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4 4"></line>
-      <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="rgba(255,255,255,0.15)"></line>
-      ${quad(W - R - 4, T + 12, 'end', narrow ? 'NOW + LATER' : 'STRONG NOW AND LATER')}${quad(W - R - 4, H - B - 8, 'end', 'WIN NOW')}${quad(L + 6, T + 12, 'start', 'BUILT FOR LATER')}${quad(L + 6, H - B - 8, 'start', 'REBUILD')}
-      ${xt}${yt}
-      <text x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle" class="fill-zinc-400" font-size="12">${narrow ? 'Projected points a week →' : 'Projected lineup points a week, rest of season →'}</text>
-      <text transform="translate(${narrow ? 11 : 14} ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle" class="fill-zinc-400" font-size="12">Dynasty value →</text>
-      ${dots}
-    </svg></div>`;
-}
-
 /* ---------- Position strength, in the table ----------
    Each team's rank at QB, RB, WR, TE (by the value of its players there) and picks,
    1 = best in the league: green the strongest, yellow the middle, red a need. */
@@ -680,7 +611,6 @@ function render() {
   });
   renderMobileCards(data, minOverall, maxOverall);
   renderViewToggle();
-  renderMap();
   updateScrollHint();
 }
 document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.sort; if (sort.key === k) { sort.dir *= -1; } else { sort.key = k; sort.dir = -1; } render(); });
@@ -699,8 +629,6 @@ function updateScrollHint() {
   hint.classList.toggle('hidden', !hasMore);
 }
 document.getElementById('tableScroll')?.addEventListener('scroll', updateScrollHint);
-let mapResize = null;
-window.addEventListener('resize', () => { clearTimeout(mapResize); mapResize = setTimeout(renderMap, 150); });
 window.addEventListener('resize', updateScrollHint);
 
 load();
