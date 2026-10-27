@@ -479,3 +479,24 @@
 2026-10-26T15:31:02 oneQB_tepp: 15,506 trades through 2026-10-25, 490 rated, rank agreement 0.864 [17s]
 2026-10-26T15:31:02 site values: 502 players (455 of KTC's rated by us, 38 added), 36 picks
 2026-10-26T15:31:02 done
+2026-10-27T14:47:37 start (sf_tep, sf, sf_tepp, oneQB, oneQB_tep, oneQB_tepp)
+2026-10-27T14:47:37 data from ../../data
+2026-10-27T14:47:37 pricing: extra pieces 0.45, lean {"2-1":0.09,"3-1":0.035,"3-2":0.04}, pick spread {"1":{"early":1.05,"late":0.96},"2":{"early":1.02,"late":0.98},"3":{"early":1.01,"late":0.98},"4":{"early":1,"late":0.99}}
+2026-10-27T14:47:37 curve: p 4.00/4.00/2.91/2.13/2.20/2.01/1.70/1.59/1.47
+2026-10-27T14:47:59 sf_tep: picks anchored to the 2026 rookie drafts (15,002)
+2026-10-27T14:50:31 sf_tep: 721,777 trades through 2026-10-27, 719 rated, rank agreement 0.972 [174s]
+2026-10-27T14:50:53 sf: picks anchored to the 2026 rookie drafts (18,152)
+2026-10-27T14:53:31 sf: 783,540 trades through 2026-10-27, 700 rated, rank agreement 0.969 [180s]
+2026-10-27T14:53:51 sf_tepp: picks anchored to the 2026 rookie drafts (8,098)
+2026-10-27T14:53:58 sf_tepp: 61 new trades since 2026-10-26, not scored yet
+2026-10-27T14:55:04 sf_tepp: 389,697 trades through 2026-10-27, 685 rated, rank agreement 0.966 [93s]
+2026-10-27T14:55:24 oneQB: picks anchored to the 2026 rookie drafts (11,733)
+2026-10-27T14:57:07 oneQB: 519,106 trades through 2026-10-27, 666 rated, rank agreement 0.975 [122s]
+2026-10-27T14:57:24 oneQB_tep: picks anchored to the 2026 rookie drafts (1,316)
+2026-10-27T14:57:26 oneQB_tep: 21 new trades since 2026-10-26, not scored yet
+2026-10-27T14:57:35 oneQB_tep: 62,727 trades through 2026-10-27, 565 rated, rank agreement 0.953 [28s]
+2026-10-27T14:57:52 oneQB_tepp: picks anchored to the 2026 rookie drafts (351)
+2026-10-27T14:57:52 oneQB_tepp: 12 new trades since 2026-10-25, not scored yet
+2026-10-27T14:57:55 oneQB_tepp: 16,007 trades through 2026-10-27, 491 rated, rank agreement 0.858 [20s]
+2026-10-27T14:57:55 site values: 501 players (457 of KTC's rated by us, 37 added), 36 picks
+2026-10-27T14:57:55 done
