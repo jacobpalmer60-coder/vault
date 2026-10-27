@@ -4,7 +4,6 @@
    ============================================================ */
 const VAULT_CONFIG = {
   KTC_URL: 'data/ktc-values.json',
-  VAULT_VALUES_URL: 'data/vault-values/values.json',
   // What each player and pick actually trades for, per league format, built
   // daily (scripts/build-grade-values.js); the grade's values (Vault.gradeValue).
   GRADE_VALUES_URL: 'data/grade-values.json',
@@ -78,15 +77,19 @@ const VAULT_CONFIG = {
   // later worse (0.46 -> 0.36); teams that far out sold 5+ points a week in 24% of
   // their trades, playoff-bound contenders in 2%.
   OUT_OF_RACE_PCT: 5,
-  // The verdict's value read on blended player values (2026-10-20, VaultValues
-  // verdict-blend-test.js on 1.58M team-sides of 2025 trades, every week priced by
-  // values fitted only on earlier trades): each piece's price times its Vault value
-  // (learned from real trades, mapped onto the same scale) at this weight, geometric.
-  // Against KTC alone the verdict tracked playoffs vs odds 51% better (rank corr 10.4
-  // vs 6.9) and weekly points gained 30% better (13.0 vs 10.0); value later on KTC's
-  // own scale slipped 7% (33.5 vs 36.0). The price (Fair / Lopsided / Unfair) stays
-  // on KTC and market prices; completed trades (Trade Grades) stay KTC-only.
-  VERDICT_BLEND_WEIGHT: 0.35,
+  // The verdict's value read on KTC prices only (2026-10-27, user: "forget about our
+  // values"; replaces the 35% blend with Vault values). Each piece's price is stretched
+  // around 5,000 (price x (price / 5,000)^(VERDICT_STRETCH - 1): stars count more, small
+  // pieces less) and moved by position and age (VERDICT_PIECE_ADJUST, in logs: the
+  // pattern the Vault-values blend had, fitted on every priced piece of 2025 trades).
+  // VaultValues verdict-ktc-formula.js, 1.58M 2025 and 1.62M 2026 team-sides, rank corr
+  // against the blend: 2025 playoffs vs odds 5.2 vs 4.3, weekly points 8.6 vs 7.4, value
+  // later 39.0 vs 40.6; 2026 weekly points 6.3 vs 6.0, value since 63.8 vs 59.7
+  // (rebuilders 70.4 vs 62.2). 1.25 led for contenders and flexible teams; 1.5 and 1.75
+  // helped rebuilders' 2026 value a little more and contenders less. The price (Fair /
+  // Lopsided / Unfair) stays on KTC and market prices; Trade Grades stay KTC-only.
+  VERDICT_STRETCH: 1.25,
+  VERDICT_PIECE_ADJUST: { QB: 0.060, RB: 0.022, TE: -0.068, pick: -0.049, perYearOver25: 0.007, vet27: 0.016, qb32: -0.019 },
   AGE_CLIFF_PCT: -5,
   // Rebuilding and flexible teams (2026-10-24, VaultValues age-tune.js): at −10 the
   // verdict tracked value later better in both seasons (rank corr 2025 41.0 → 41.3,
@@ -126,25 +129,6 @@ const VAULT_CONFIG = {
       [1.4,1.65,1.75,1.75,1.85,2.15]
     ]
   },
-  // The trade value curve's strength Vault values are fitted with (SET.curve in
-  // scripts/vault-values/nightly.js; keep the two the same).
-  VAULT_VALUES_CURVE: 0.6,
-  // With Vault values showing (2026-10-19, VaultValues pile-predict-test.js and
-  // shape-bias.js, weeks held out from each fit): pieces past one more than the other
-  // side sends count at VAULT_VALUES_EXTRA_WEIGHT (0.45 won every week; fitting it
-  // into the values instead broke 2-for-1s), and the side getting fewer pieces gets
-  // VAULT_VALUES_LEAN (log) on top: our values priced the side with more pieces
-  // about 9% high in 2-for-1s, 4% in 3-for-2s and 3.5% in 3-for-1s, every week. With
-  // both, our values beat KTC's within every common trade shape (2-for-1s 0.26 vs
-  // 0.39). KTC's numbers keep EXTRA_PIECE_WEIGHT and the fair curve.
-  VAULT_VALUES_EXTRA_WEIGHT: 0.45,
-  VAULT_VALUES_LEAN: { '2-1': 0.09, '3-1': 0.035, '3-2': 0.04 },
-  // Early / late picks against mid with Vault values: priced by real trades on our
-  // own values, picks split by their tier at the time (VaultValues pick-tier-fit.js,
-  // 2026-10-19, 2024-2025 trades: Superflex TE+ and 1QB agree within 0.01). Managers
-  // pay much less spread than KTC (an early 1st 1.17x mid there): projected tiers
-  // hold only so often.
-  VAULT_PICK_TIER_SPREAD: { 1: { early: 1.05, late: 0.96 }, 2: { early: 1.02, late: 0.98 }, 3: { early: 1.01, late: 0.98 }, 4: { early: 1.00, late: 0.99 } },
   // Playoff and title odds, corrected by how often teams really made it
   // (Vault.calibrateOdds). Fitted 2026-10-08 on 9,464 in-season team-weeks of
   // real 2025 leagues (VaultValues odds-calibration.js, held-out half checked):
@@ -218,15 +202,6 @@ const VAULT_CONFIG = {
   // same 0-9999 scale, so the same constant applies without needing to look it up
   // fresh from our own dataset every time.
   CONSOLIDATION_GLOBAL_MAX: 10099,
-  // The curve before the fair curve (FAIR_CURVE), still used for Vault values
-  // (Vault.legacyTradeValueP, at VAULT_VALUES_CURVE strength):
-  // (sum of value^p)^(1/p), p set by the trade's best piece: [KTC value, p]
-  // points, straight lines between them in ln(value). Calibrated on 1.5 million
-  // completed Sleeper dynasty trades so the median accepted trade of each value
-  // range comes out even (VaultValues' calibrate.js, 2026-10-07): in cheaper
-  // trades the best piece counts for more. KTC's own adjustment is still shown
-  // next to it (Vault.ktcSideValues).
-  TRADE_VALUE_CURVE: [[750,6],[2000,6],[3000,4.18],[4000,2.89],[5000,3],[6000,2.68],[7000,2.16],[8000,1.99],[9000,1.79]],
   // How lopsided accepted trades get, for the "acceptable" read
   // (Vault.acceptability): % off on trade value at each percentile (pcts), by
   // kind (1-for-1, uneven piece counts, even with 2+ each) and the best piece's
@@ -874,39 +849,12 @@ const Vault = {
     return { ...full, trades: (full.trades || []).filter(t => t.qbs === qbs) };
   },
 
-  /* Which values the pages use: KTC (the default) or Vault values, our own,
-     learned from real trades (data/vault-values/values.json, built nightly by
-     scripts/vault-values/, same shape as ktc-values.json). Side by side
-     (user, 2026-10-08): a hidden switch, ?values=vault to turn it on and
-     ?values=ktc to turn it off, remembered on this device. A pill in the corner
-     says when Vault values are showing. raw: always KTC (the market data prices
-     real trades at KTC values, so its premiums stay on one scale). */
-  valueSource() {
-    if (Vault._valueSource) return Vault._valueSource; // read once per page (tradeValueP asks thousands of times)
-    let v = null;
-    try { v = new URLSearchParams(location.search).get('values'); } catch {}
-    if (v === 'vault' || v === 'ktc') { try { localStorage.setItem('vault_value_source', v); } catch {} return (Vault._valueSource = v); }
-    try { Vault._valueSource = localStorage.getItem('vault_value_source') === 'vault' ? 'vault' : 'ktc'; } catch { Vault._valueSource = 'ktc'; }
-    return Vault._valueSource;
-  },
-  async fetchKtcValues({ raw = false } = {}) {
-    if (!raw && Vault.valueSource() === 'vault') {
-      try { const r = await fetch(VAULT_CONFIG.VAULT_VALUES_URL); if (r.ok) return r.json(); } catch {}
-    }
+  // KTC values (data/ktc-values.json). The site used to offer our own values behind a
+  // hidden ?values=vault switch; removed 2026-10-27 (user: "forget about our values").
+  async fetchKtcValues() {
     const res = await fetch(VAULT_CONFIG.KTC_URL);
     if (!res.ok) throw new Error('KTC values fetch failed: ' + res.status);
     return res.json();
-  },
-  showValueSourcePill() {
-    if (Vault.valueSource() !== 'vault' || !document.body || document.getElementById('valueSourcePill')) return;
-    const a = document.createElement('a');
-    a.id = 'valueSourcePill';
-    a.href = '?values=ktc';
-    a.title = 'Showing Vault values, learned from real trades, instead of KTC. Tap to switch back to KTC.';
-    a.textContent = 'Vault values (beta) · back to KTC';
-    a.setAttribute('style', 'position:fixed;left:12px;bottom:12px;z-index:60;padding:6px 10px;border-radius:999px;font-size:12px;background:#111827;color:#fcd34d;border:1px solid rgba(252,211,77,.4);text-decoration:none');
-    a.addEventListener('click', e => { e.preventDefault(); try { localStorage.setItem('vault_value_source', 'ktc'); } catch {} const u = new URL(location.href); u.searchParams.delete('values'); location.href = u.toString(); });
-    document.body.appendChild(a);
   },
 
   // KTC only prices Tight End Premium at two discrete bonus tiers — 0.5 ("TEP") and
@@ -1478,11 +1426,11 @@ const Vault = {
      77.2% called Fair against 75.0% on KTC values alone, 1-for-1s 57.0% against
      53.9% (RosterAudit's idea, values from real trades, on our curve). Players'
      numbers on the page stay KTC's, and KTC's own calculator stays beside every
-     grade. No file, no league loaded, or Vault values showing: KTC values. */
+     grade. No file or no league loaded: KTC values. */
   setGradeMarket(gradeData, isSF, bonusRecTe) {
     const key = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
     const table = gradeData?.formats?.[key];
-    Vault._gradeMarket = table && Vault.valueSource() !== 'vault' ? new Map(Object.entries(table)) : null;
+    Vault._gradeMarket = table ? new Map(Object.entries(table)) : null;
     Vault._gradeMarketUpdated = table ? gradeData.updated : null;
   },
   // The market prices in force at a past moment (ms), for grading a trade at
@@ -1501,7 +1449,7 @@ const Vault = {
     const key = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
     try {
       const r = await fetch(`data/grade-values-history/${key}.json`);
-      if (!r.ok || Vault.valueSource() === 'vault') return (Vault._gradeHistory = null);
+      if (!r.ok) return (Vault._gradeHistory = null);
       const j = await r.json();
       Vault._gradeHistory = { dates: j.dates, tables: j.tables.map(t => new Map(Object.entries(t))) };
     } catch { Vault._gradeHistory = null; }
@@ -2651,13 +2599,9 @@ const Vault = {
      the side whose pieces are more spread out keeps its raw total, and the
      other side (the one getting the bigger single pieces) gets a consolidation
      bonus bringing it to the same ratio as the curve. A 1-for-1 has no bonus. */
-  // The curve's strength for a trade whose best piece is worth `top` (VAULT_CONFIG.TRADE_VALUE_CURVE).
   // "TURBONUTZ's", "Scrooge McDucks'" (pass an already-escaped name for HTML).
   possessive(name) { return `${name}${/s$/i.test(name) ? "'" : "'s"}`; },
 
-  // With Vault values showing (Vault.valueSource), the curve at the strength those
-  // values were fitted with (VAULT_CONFIG.VAULT_VALUES_CURVE), so the site adds
-  // pieces up the way the values assume; KTC's numbers use it at full strength.
   /* How much side A is worth against side B (a ratio), from piece values:
      - the fair curve: (sum of value^p)^(1/p), p by the trade's best piece and
        how close the other side's best piece is (tradeValueP);
@@ -2673,16 +2617,12 @@ const Vault = {
        75.0% Fair against 74.8% (VaultValues monotone-check.js, robust-eval.js).
        Sides of more than NEVER_LESS_MAX pieces use the rules as they are. */
   tradeValueRatio(valsA, valsB, { neverLess = true } = {}) {
-    const vault = Vault.valueSource() === 'vault';
-    const W = vault ? VAULT_CONFIG.VAULT_VALUES_EXTRA_WEIGHT : VAULT_CONFIG.EXTRA_PIECE_WEIGHT, desc = l => [...l].sort((x, y) => y - x);
-    const LEAN = vault ? VAULT_CONFIG.VAULT_VALUES_LEAN : null;
+    const W = VAULT_CONFIG.EXTRA_PIECE_WEIGHT, desc = l => [...l].sort((x, y) => y - x);
     const edge = (a, b) => { // % A over B, a and b sorted high to low
       if (a.length === 1 && b.length === 1) return (a[0] - b[0]) / (((a[0] + b[0]) / 2) || 1) * 100;
       const top = Math.max(a[0], b[0]), p = Vault.tradeValueP(top, Math.min(a[0], b[0]) / (top || 1));
       const side = (l, n) => Math.pow(l.reduce((s, v, i) => s + Math.pow(Math.max(v, 0) * (i < n + 1 ? 1 : W), p), 0), 1 / p);
-      let va = side(a, b.length), vb = side(b, a.length);
-      // Vault values: the side getting fewer pieces gets the measured lean (VAULT_VALUES_LEAN).
-      if (LEAN && a.length !== b.length) { const L = LEAN[`${Math.max(a.length, b.length)}-${Math.min(a.length, b.length)}`] || 0; if (a.length < b.length) va *= Math.exp(L); else vb *= Math.exp(L); }
+      const va = side(a, b.length), vb = side(b, a.length);
       return (va - vb) / (((va + vb) / 2) || 1) * 100;
     };
     const A = desc(valsA), B = desc(valsB);
@@ -2698,29 +2638,15 @@ const Vault = {
     return (200 + e) / (200 - e);
   },
   NEVER_LESS_MAX: 6,
-  // KTC values: the fair curve (VAULT_CONFIG.FAIR_CURVE) at the trade's best
-  // piece `top` and closeness `r` (the other side's best piece / top).
+  // The fair curve (VAULT_CONFIG.FAIR_CURVE) at the trade's best piece `top` and
+  // closeness `r` (the other side's best piece / top).
   tradeValueP(top, r) {
-    if (Vault.valueSource() === 'vault') return Vault.legacyTradeValueP(top);
     const C = VAULT_CONFIG.FAIR_CURVE, lt = C.values.map(Math.log);
     const seg = (xs, x) => { if (x <= xs[0]) return [0, 0, 0]; if (x >= xs[xs.length - 1]) return [xs.length - 1, xs.length - 1, 0]; let i = 0; while (x > xs[i + 1]) i++; return [i, i + 1, (x - xs[i]) / (xs[i + 1] - xs[i])]; };
     const [i0, i1, u] = seg(lt, Math.log(Math.max(top || 0, 1))), [j0, j1, v] = seg(C.closeness, Number.isFinite(r) ? r : 1);
     const a = C.p[i0][j0] * (1 - v) + C.p[i0][j1] * v, b = C.p[i1][j0] * (1 - v) + C.p[i1][j1] * v;
     return a * (1 - u) + b * u;
   },
-  // The curve before 2026-10-09 (best piece only), kept for Vault values, which
-  // were fitted with it at VAULT_CONFIG.VAULT_VALUES_CURVE strength.
-  legacyTradeValueP(top) {
-    const k = VAULT_CONFIG.TRADE_VALUE_CURVE, x = Math.log(Math.max(top || 0, 500));
-    const s = VAULT_CONFIG.VAULT_VALUES_CURVE, at = p => 1 + s * (p - 1);
-    if (x <= Math.log(k[0][0])) return at(k[0][1]);
-    for (let i = 1; i < k.length; i++) {
-      const x1 = Math.log(k[i][0]);
-      if (x <= x1) { const x0 = Math.log(k[i - 1][0]); return at(k[i - 1][1] + (k[i][1] - k[i - 1][1]) * (x - x0) / (x1 - x0)); }
-    }
-    return at(k[k.length - 1][1]);
-  },
-
   /* Acceptable is not the same as fair: managers accept unfair trades, and that
      doesn't make them fair. How often accepted trades of the same kind (1-for-1,
      uneven piece counts, even with 2+ each) and value range are at least this
@@ -2941,43 +2867,19 @@ const Vault = {
      minus the share given (−1..1) times the pick drift, and the cheap-consolidation
      cost when this side gets fewer pieces and a bigger best piece worth under
      CHEAP_CONSOLIDATION_BELOW (its partner gets the mirror). why: the bigger of the two. */
-  // Load Vault values for the verdict blend (VERDICT_BLEND_WEIGHT) and fit the line
-  // that puts them on KTC's scale for this format (log KTC ≈ a + b log ours, players
-  // both rate at 500+). With Vault values already showing, there's nothing to blend.
-  async loadVerdictBlend(isSF, bonusRecTe) {
-    Vault._verdictBlend = null;
-    if (Vault.valueSource() === 'vault') return null;
-    try {
-      const [ours, ktcData] = await Promise.all([fetch(VAULT_CONFIG.VAULT_VALUES_URL).then(r => (r.ok ? r.json() : null)), Vault.fetchKtcValues({ raw: true })]);
-      if (!ours || !ktcData) return null;
-      const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
-      const ktcMap = Vault.buildKtcValueMap(ktcData, isSF, bonusRecTe);
-      const byName = new Map(), picks = new Map(), xs = [], ys = [];
-      for (const p of ours.players || []) {
-        if (p.vsrc !== 'vault' || !(p[field] > 0)) continue;
-        const n = Vault.normalizeName(p.name); byName.set(n, p[field]);
-        const k = ktcMap.get(n); if (k >= 500) { xs.push(Math.log(p[field])); ys.push(Math.log(k)); }
-      }
-      for (const p of ours.picks || []) if (p.vsrc === 'vault' && p[field] > 0) picks.set(`${p.season}-${p.round}-${p.slot}`, p[field]);
-      if (xs.length < 50) return null;
-      const mx = xs.reduce((t, x) => t + x, 0) / xs.length, my = ys.reduce((t, y) => t + y, 0) / ys.length;
-      let sxy = 0, sxx = 0; xs.forEach((x, i) => { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) ** 2; });
-      const b = sxy / sxx;
-      Vault._verdictBlend = { byName, picks, a: my - b * mx, b, w: VAULT_CONFIG.VERDICT_BLEND_WEIGHT };
-    } catch { Vault._verdictBlend = null; }
-    return Vault._verdictBlend;
-  },
-  // A piece's value for the verdict: its price, blended with its Vault value (on KTC's scale).
+  // A piece's value for the verdict: its price, stretched (VERDICT_STRETCH) and moved by
+  // position and age (VERDICT_PIECE_ADJUST). Age unknown counts as 25.
   verdictPieceValue(a) {
-    const base = Vault.gradeValue(a), B = Vault._verdictBlend;
-    if (!B || !(base > 0)) return base;
-    const ours = a.type === 'pick' ? B.picks.get(`${a.season}-${a.round}-${a.tier || 'mid'}`) : B.byName.get(Vault.normalizeName(a.name || ''));
-    if (!(ours > 0)) return base;
-    return Math.exp((1 - B.w) * Math.log(base) + B.w * (B.a + B.b * Math.log(ours)));
+    const base = Vault.gradeValue(a);
+    if (!(base > 0)) return base;
+    const C = VAULT_CONFIG, J = C.VERDICT_PIECE_ADJUST, pick = a.type === 'pick', age = a.age > 0 ? a.age : 25;
+    const adj = pick ? J.pick
+      : (J[a.pos] || 0) + J.perYearOver25 * Math.max(-4, Math.min(8, age - 25)) + (a.pos !== 'QB' && age >= 27 ? J.vet27 : 0) + (a.pos === 'QB' && age >= 32 ? J.qb32 : 0);
+    return base * Math.pow(base / 5000, C.VERDICT_STRETCH - 1) * Math.exp(adj);
   },
-  // The verdict's value %, for the side that gets `got`, on blended values; null without the blend.
+  // The verdict's value %, for the side that gets `got`, on verdict piece values; null for an empty side.
   verdictValuePct(got, gave) {
-    if (!Vault._verdictBlend || !got || !gave || !got.length || !gave.length) return null;
+    if (!got || !gave || !got.length || !gave.length) return null;
     const R = Vault.tradeValueRatio(got.map(Vault.verdictPieceValue), gave.map(Vault.verdictPieceValue));
     return Number.isFinite(R) ? 200 * (R - 1) / (R + 1) : null;
   },
@@ -3196,7 +3098,7 @@ const Vault = {
     return first;
   },
   // Early/late against mid for a round: Vault values' own spread when they're showing.
-  pickTierSpread(round) { return Vault.valueSource() === 'vault' ? VAULT_CONFIG.VAULT_PICK_TIER_SPREAD[round] : VAULT_CONFIG.PICK_TIER_SPREAD[round]; },
+  pickTierSpread(round) { return VAULT_CONFIG.PICK_TIER_SPREAD[round]; },
   pickValueFromRow(row, season, round, tier, isSF, bonusRecTe, first) {
     if (!row) return null;
     // Early and late 1sts and 2nds: that day's mid price times the spread
@@ -5137,7 +5039,3 @@ const Vault = {
   document.addEventListener('DOMContentLoaded', run);
   Vault.enhanceSearchSelects = run;
 })();
-
-// Say so when the pages are showing Vault values instead of KTC (Vault.valueSource).
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => Vault.showValueSourcePill());
-else Vault.showValueSourcePill();

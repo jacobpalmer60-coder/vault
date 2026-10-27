@@ -31,13 +31,17 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=3163f84e"></script>
+<script src="vault-core.js?v=75e55f05"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-27', items: [
+    { kind: 'changed', page: 'Trade Calculator', text: "The verdict (Good trade, Toss-up and so on) runs on KTC values only now. It used to blend in our own values learned from real trades; now it reads each piece at its price with two simple adjustments: stars count for more and small pieces for less (a 9,000 player counts as about 10,400, a 2,000 one as about 1,590), and QBs count 6% more, RBs 2%, TEs 7% less and picks 5% less, with a small nudge for age. Tested on 3.2 million team-sides of 2025 and 2026 trades, it was better than the old blend at picking the teams that went on to beat their playoff odds and gain points a week, and much better for rebuilding teams' value since the trade in 2026. The price (Fair / Lopsided / Unfair) and Trade Grades don't change. When the verdict and the price point different ways, Why still says so and names the players." },
+    { kind: 'removed', page: 'Everywhere', text: "The hidden switch to show our own values instead of KTC (?values=vault) is gone, along with the nightly job that built them. Every page runs on KTC values." },
+  ] },
   { date: '2026-10-25', items: [
     { kind: 'new', page: 'Player Rankings', text: "Draft picks are in the rankings: every 2027-2029 pick, rounds 1-4, early, mid and late, ranked among the players by value (a 2027 Early 1st is #36 overall in a Superflex TE+ league), with a Picks button to see only them. Open one for its rank and its price over time. Picks are priced the way the Trade Calculator prices them, so a 2027 Late 1st reads 5,033 here and in a trade; its card notes that KTC lists it at 4,772." },
     { kind: 'changed', page: 'Trade Calculator', text: "Upgrading into a cheaper player now counts against you on a smooth curve instead of a cutoff. Turning several pieces into one player used to count 10% below the price only when he was worth under 3,000, so a 2,999 player cost 10% and a 3,001 player nothing. Now it fades with his value: about the full 10% under 2,500, 5% at 4,000, under 2% past 6,000. Tested on 2.7 million team-sides from 2024 and 2025: the verdict got better at predicting value later in both seasons (and on uneven trades especially). At a Fair price, upgrades into a best piece under 4,000 came out ahead later only 28% of the time." },

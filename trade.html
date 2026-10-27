@@ -234,7 +234,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=3163f84e"></script>
+<script src="vault-core.js?v=75e55f05"></script>
 <script src="vault-nav.js?v=786ac780"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -394,8 +394,6 @@ async function init() {
   try {
     const built = await Vault.buildLeagueTeams(Vault.getLeagueId());
     league = built.league; slots = built.slots;
-    // Vault values for the verdict blend (VAULT_CONFIG.VERDICT_BLEND_WEIGHT); the price stays KTC.
-    await Vault.loadVerdictBlend(built.isSF, league.scoring_settings?.bonus_rec_te);
     remainingWeeks = built.remainingWeeks || [];
     // The ACTIVE roster cap — taxi and IR are separate pools Sleeper tracks (see
     // team.taxiIds/reserveIds), but they're not generic overflow capacity a newly
@@ -1604,23 +1602,22 @@ function tiltNote(imp) {
   return `<div class="text-[12px] text-zinc-400 mt-1 max-w-[640px]">${cap(text)}</div>`;
 }
 
-// Why the verdict's value read differs from the price (2026-10-24): the verdict prices
-// pieces on the blend with our real-trade values (Vault.verdictPieceValue,
-// VERDICT_BLEND_WEIGHT), which can point the other way from the price shown (Josh
-// Allen 10,637 for the verdict vs a market price of 8,544). Said when the two are 5+
-// points apart, naming the pieces that move it most. Kept over a capped or
-// rank-matched scale: VaultValues verdict-blend-cap.js, 1.58M 2025 team-sides.
+// Why the verdict's value read differs from the price (2026-10-24; since 2026-10-27 on
+// KTC prices only): the verdict counts each piece stretched around 5,000 and moved by
+// position and age (Vault.verdictPieceValue, VERDICT_STRETCH, VERDICT_PIECE_ADJUST),
+// which can point the other way from the price shown. Said when the two are 5+ points
+// apart, naming the pieces that move it most.
 function blendNote(imp, team, gets, sends) {
   if (!imp || imp.pricePct == null || Math.abs(imp.valuePct - imp.pricePct) < 5) return '';
   const esc = Vault.escapeHtml, fmt = v => Math.round(v).toLocaleString(), name = esc(team.teamName);
   const moved = [...gets, ...sends].map(a => ({ a, base: Vault.gradeValue(a), v: Vault.verdictPieceValue(a) }))
     .filter(x => x.base > 0 && Math.abs(x.v - x.base) >= 200).sort((x, y) => Math.abs(y.v - y.base) - Math.abs(x.v - x.base)).slice(0, 2);
   if (!moved.length) return '';
-  const items = moved.map(x => `${esc(x.a.name)} at ${fmt(x.v)} against a market price of ${fmt(x.base)}`).join(', and ');
+  const items = moved.map(x => `${esc(x.a.name)} at ${fmt(x.v)} against a price of ${fmt(x.base)}`).join(', and ');
   const v = imp.valuePct, p = imp.pricePct, abs = x => Math.round(Math.abs(x));
   const read = v >= 1 ? `getting ${abs(v)}% more value than it sends` : v <= -1 ? `sending ${abs(v)}% more value than it gets` : 'about even on value';
   const price = p <= -1 ? `pays ${abs(p)}% over` : p >= 1 ? `pays ${abs(p)}% under` : 'pays about even';
-  return `<div class="text-[12px] text-zinc-400 mt-1 mb-2 max-w-[640px]" title="The verdict prices each piece partly on our values learned from real trades (35%). On 2025 trades that tracked playoffs and weekly points better than the price alone, and for trades with a top player, value later too.">Why the verdict and the price differ: our values from real trades put ${items}. So the verdict counts ${name} as ${read}, though the price says ${name} ${price}.</div>`;
+  return `<div class="text-[12px] text-zinc-400 mt-1 mb-2 max-w-[640px]" title="The verdict counts bigger pieces for more than their price and smaller ones for less, QBs and RBs a little more, TEs and picks a little less. On 3.2 million team-sides of 2025 and 2026 trades that picked the teams that went on to beat their playoff odds and gain points a week better than the price alone.">Why the verdict and the price differ: the verdict counts bigger pieces for more than their price and adjusts for position and age, putting ${items}. So the verdict counts ${name} as ${read}, though the price says ${name} ${price}.</div>`;
 }
 
 // What each piece does to your lineup this season (2026-10-23): each player's own
@@ -2227,7 +2224,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
 
   // The verdict's value read beyond the price (Vault.verdictValueTilt): A gets giveB, B gets giveA.
   const tilt = { A: Vault.verdictValueTilt(giveB, giveA, resA.mode), B: Vault.verdictValueTilt(giveA, giveB, resB.mode) };
-  // The verdict's value read on blended player values (Vault.verdictValuePct); null falls back to the price.
+  // The verdict's value read on verdict piece values (Vault.verdictValuePct); null falls back to the price.
   const vpct = { A: Vault.verdictValuePct(giveB, giveA), B: Vault.verdictValuePct(giveA, giveB) };
   return { before, after, pool, resA, resB, trade, heads, wins, rosterFit, timelineFit, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, overallPct, verdict, bucket, tilt, vpct };
 }
