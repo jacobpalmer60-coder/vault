@@ -983,7 +983,11 @@ function coachRecBuild(i) {
 }
 function coachRecsHtml(me, spec) {
   const f = coachFlow(), n = v => Math.round(v).toLocaleString(), pc = v => `${Math.round(Math.abs(v))}%`;
-  if (!spec.cands.length) return '<div class="text-[12px] text-zinc-500 py-2">Nobody on another team fits that. Try ticking different players.</div>';
+  if (!spec.cands.length) {
+    // Upgrading someone nobody out-scores: say that, not just "nobody fits".
+    const top = spec.goal === 'upgrade' ? [...spec.give].sort((x, y) => (y.ppg || 0) - (x.ppg || 0))[0] : null;
+    return `<div class="text-[12px] text-zinc-500 py-2">${top && top.ppg ? `No ${coachEsc(top.pos)} on another team scores more than ${coachEsc(top.name)} (${top.ppg.toFixed(1)} pts/game) within reach of what you'd send. He's already the upgrade.` : 'Nobody on another team fits that. Try ticking different players.'}</div>`;
+  }
   if (!f.recs || f.recs.key !== spec.key) { coachRecsRun(spec); return '<div class="text-[12px] text-zinc-400 py-2">Checking the best fits…</div>'; }
   if (!f.recs.list) return '<div class="text-[12px] text-zinc-400 py-2">Checking the best fits…</div>';
   const best = Math.max(...spec.give.map(x => x.ppg || 0));
