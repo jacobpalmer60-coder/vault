@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=b5b09121">
+<link rel="stylesheet" href="tailwind.css?v=38636712">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -42,35 +42,19 @@
   </div>
 
   <div id="workspace" class="hidden">
-  <!-- Start: pick a tool. Nothing else shows until you do. -->
-  <div id="launcher" class="max-w-3xl mx-auto py-4">
-    <div class="text-center mb-6">
-      <div class="text-[12px] text-zinc-400">Trading as <span id="launcherTeam" class="text-zinc-100 font-medium"></span> · <button onclick="backToSetup()" class="py-1.5 text-amber-400/80 hover:text-amber-300">Change team</button></div>
-      <h2 class="display text-[24px] gold-text mt-2">What do you want to do?</h2>
-    </div>
-    <div class="grid sm:grid-cols-2 gap-4">
-      <!-- One tile for every way to find trades (2026-10-27, user: "combine all the buttons into one so coach is our trade finding tool"): Shop a player and Get a player are options inside it. -->
-      <button onclick="openCoach('best')" class="card card-hover rounded-2xl p-5 text-left flex gap-4 items-start hover:bg-white/[0.02] transition-colors">
-        <span class="size-10 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg></span>
-        <span class="min-w-0"><span class="block text-[16px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-1 leading-relaxed">Every way to find a trade: the best for your team, a position or player you want, an upgrade, a player to sell, a team to deal with, a rebuild or an all-in push. Then work any of them out step by step.</span></span>
-      </button>
-      <button onclick="setView('builder')" class="card card-hover rounded-2xl p-5 text-left flex gap-4 items-start hover:bg-white/[0.02] transition-colors">
-        <span class="size-10 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13l-4-4"/><path d="M17 17H4l4 4"/></svg></span>
-        <span class="min-w-0"><span class="block text-[16px] font-semibold text-zinc-100">Trade Builder</span><span class="block text-[13px] text-zinc-400 mt-1 leading-relaxed">Build any trade yourself and get the grade, the fairness bar, and how it changes both teams.</span></span>
-      </button>
-    </div>
+  <div id="tools">
+  <!-- Top (2026-10-27, user: "just put trade coach as a big button on the trade builder with a
+       small description"): the calculator opens on the Trade Builder; Trade Coach, every way
+       to find trades, is the big button above it. In the Coach, a link back to the builder. -->
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-[12px] text-zinc-400">
+    <span>Trading as <span id="launcherTeam" class="text-zinc-100 font-medium"></span> · <button onclick="backToSetup()" class="py-1.5 text-amber-400/80 hover:text-amber-300">Change team</button></span>
+    <button id="backToBuilder" onclick="setView('builder')" class="hidden py-1.5 text-zinc-400 hover:text-white transition-colors">← Back to Trade Builder</button>
   </div>
-
-  <div id="tools" class="hidden">
-  <!-- Top row: back to the tools (left), switch between Coach and Builder (center). -->
-  <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mb-4">
-    <button onclick="setView('launcher')" class="justify-self-start py-1.5 text-[12px] text-zinc-400 hover:text-white transition-colors">← All tools</button>
-    <div class="inline-flex p-1 rounded-xl bg-black/40 border border-white/10" role="tablist">
-      <button id="viewCoach" onclick="openCoach()" role="tab" class="text-[13px] font-medium px-4 h-8 rounded-lg transition-colors">Trade Coach</button>
-      <button id="viewBuilder" onclick="setView('builder')" role="tab" class="text-[13px] font-medium px-4 h-8 rounded-lg transition-colors">Trade Builder</button>
-    </div>
-    <span></span>
-  </div>
+  <button id="coachLauncher" onclick="openCoach('best')" class="w-full mb-4 card card-hover rounded-2xl p-4 sm:p-5 text-left flex gap-4 items-center hover:bg-white/[0.02] transition-colors border border-amber-400/20">
+    <span class="size-11 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg></span>
+    <span class="min-w-0 flex-1"><span class="block text-[17px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-0.5">Find trades for your team: the best ones, a position or player you want, an upgrade, a player to sell, and more.</span></span>
+    <span class="shrink-0 text-[13px] px-4 py-2 rounded-lg btn-gold-solid hidden sm:inline-block">Open</span>
+  </button>
 
   <!-- Trade Coach: best trades for your team, goals, negotiation (coach.js). -->
   <div id="coach" class="mb-4 p-4 sm:p-5 rounded-2xl card">
@@ -236,24 +220,20 @@ let remainingWeeks = [];
 let playerTrend = new Map(), pickTrend = new Map(), playerVolatility = new Map();
 let selectedA = new Set();
 let selectedB = new Set();
-// Which screen is showing: 'launcher' (pick a tool), 'coach' (Trade Coach, with the
-// builder below once a trade has pieces), or 'builder' (Trade Builder only).
-let view = 'launcher';
+// Which screen is showing: 'coach' (Trade Coach, with the builder below once a trade
+// has pieces) or 'builder' (Trade Builder, with the Trade Coach button on top). The
+// start screen that picked between them is gone (2026-10-27).
+let view = 'builder';
 function setView(v) {
+  if (v !== 'coach') v = 'builder';
   view = v;
   const hasTrade = selectedA.size + selectedB.size > 0;
-  document.getElementById('launcher').classList.toggle('hidden', v !== 'launcher');
-  document.getElementById('tools').classList.toggle('hidden', v === 'launcher');
   document.getElementById('coach').classList.toggle('hidden', v !== 'coach');
-  document.getElementById('builder').classList.toggle('hidden', v === 'launcher' || (v === 'coach' && !hasTrade));
-  [['viewCoach', 'coach'], ['viewBuilder', 'builder']].forEach(([id, which]) => {
-    const on = v === which, b = document.getElementById(id);
-    b.setAttribute('aria-selected', String(on));
-    b.className = `text-[13px] font-medium px-4 h-8 rounded-lg transition-colors ${on ? 'bg-white/[0.1] text-white' : 'text-zinc-400 hover:text-white'}`;
-  });
+  document.getElementById('builder').classList.toggle('hidden', v === 'coach' && !hasTrade);
+  document.getElementById('coachLauncher').classList.toggle('hidden', v === 'coach');
+  document.getElementById('backToBuilder').classList.toggle('hidden', v !== 'coach');
   const me = teamOf('A');
   document.getElementById('launcherTeam').textContent = me ? me.teamName : '';
-  if (v === 'launcher') window.scrollTo({ top: 0 });
 }
 // Roster sections (QB, RB, WR, TE, Picks, All) open on each side; all start closed.
 const openSections = { A: new Set(), B: new Set() };
@@ -462,7 +442,7 @@ async function init() {
       document.getElementById('setup').classList.add('hidden');
       document.getElementById('workspace').classList.remove('hidden');
       render('A'); render('B');
-      setView('launcher');
+      setView('builder');
       if (typeof coachStart === 'function') coachStart(); // fresh Trade Coach results for your team
     };
     // A shared link opens that trade; otherwise, if we know your team, skip setup.
