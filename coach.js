@@ -33,6 +33,8 @@ const COACH_OPTIONS = {
   buylow: { label: 'Buy low', blurb: 'Players and picks on other teams that sell for less than KTC in completed trades, with offers that get them for less than their KTC value. Only deals the other manager would likely take, most ahead for you first.' },
   negotiate: { label: 'Negotiate a trade', blurb: 'Offer the trade loaded in the calculator. Their manager answers in their own words, and you can steer what you ask for next.' },
   shop: { label: 'Shop a player', blurb: 'Pick one of your players or picks and see the best offer from every team, any return.' },
+  want: { label: 'Get a position', blurb: 'Pick a position and what kind (a starter, young, a star, cheap depth). See the players at it you could get and what it takes for each, from what you left available.' },
+  upgrade: { label: 'Upgrade a player', blurb: 'Pick one of your players. See trades that send him (plus what you left available) for a better player at his position, that their manager would likely take.' },
   target: { label: 'Get a player', blurb: 'Build around a target: pick any player on another team, then mark what you\'d give for him. Offers their manager would likely take, made only from those pieces, cheapest first.' },
   downtier: { label: 'Down-tier a player', blurb: 'Pick one of your players. See trades where you get back a lesser player plus extra pieces, so you gain total value, that their manager would likely take.' },
   team: { label: 'Trade with a team', blurb: 'Pick a team and see the trades their manager would likely take that make your team better, best first.' },
@@ -40,7 +42,7 @@ const COACH_OPTIONS = {
   rebuild: { label: 'Rebuild', blurb: 'Throw in the towel on this season: trades that turn your aging players into picks and players 24 or under while they still hold value.' },
   contend: { label: 'Go all-in', blurb: 'Win now: trades that spend picks, prospects, and bench players on starters for this season. Your starters stay put.' }
 };
-const Coach = { option: 'best', step: 'type', shopKey: null, targetKey: null, teamId: null, downKey: null, downSame: false, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [], groups: [] }, theirs: { must: [], keep: [], never: [], groups: [] }, benchOnly: false, maxPieces: 0, picker: { open: false, q: '', pos: 'ALL' } };
+const Coach = { option: 'best', step: 'type', shopKey: null, targetKey: null, wantPos: null, wantKind: 'starter', upKey: null, teamId: null, downKey: null, downSame: false, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [], groups: [] }, theirs: { must: [], keep: [], never: [], groups: [] }, benchOnly: false, maxPieces: 0, picker: { open: false, q: '', pos: 'ALL' } };
 
 // A breather between steps of a search, so the page stays responsive. A message,
 // not setTimeout: browsers stretch timers to a second or more in a background tab,
@@ -287,7 +289,7 @@ const coachValuePct = o => { const tv = Vault.tradeSideValues(o.give, o.get); re
 // to pay over a little?"); the card shows how much.
 // Trades with one team too when you're the buyer, getting the best piece in the deal
 // (user, 2026-10-24: "The buyer doesn't set the price. Seller does").
-const COACH_PREMIUM_OK = new Set(['target', 'position']), COACH_TARGET_PREMIUM = 6;
+const COACH_PREMIUM_OK = new Set(['target', 'position', 'want', 'upgrade']), COACH_TARGET_PREMIUM = 6;
 const coachBuyer = o => Math.max(...o.get.map(a => a.value)) > Math.max(...o.give.map(a => a.value));
 // Only when the trade is still Slight edge or better for you (2026-10-24, user, after the
 // backtest: Toss-ups that also paid 2-6% over were the weakest group, 38% ahead later).
@@ -298,9 +300,9 @@ const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) 
 // trade), so Toss-ups show too, after the better trades and labeled. Get a player
 // listed nothing for Josh Allen, Puka Nacua or Fernando Mendoza, three teams had no
 // trades, and every RB depth add was a Toss-up.
-const COACH_TOSSUP_OK = new Set(['target', 'team', 'position']);
+const COACH_TOSSUP_OK = new Set(['target', 'team', 'position', 'want', 'upgrade']);
 const coachTossupNote = (o, option) => (COACH_TOSSUP_OK.has(option) && Vault.verdictTier(coachScore(o)).level === 'tossup'
-  ? `Toss-up: a fair price for ${option === 'target' ? 'the player you picked' : option === 'position' ? `the help at ${Coach.pos}` : 'both teams'}, about even for you.` : '');
+  ? `Toss-up: a fair price for ${option === 'target' ? 'the player you picked' : option === 'position' ? `the help at ${Coach.pos}` : option === 'want' ? `the ${Coach.wantPos} you asked for` : option === 'upgrade' ? 'the upgrade you asked for' : 'both teams'}, about even for you.` : '');
 // The other team's verdict score for the same trade (memoized like coachScore).
 function coachTheirScore(o) {
   const id = `them:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
@@ -983,7 +985,83 @@ async function coachDowntier(me, progress) {
   return { title: `Down-tier ${Vault.escapeHtml(v.name)}`, list };
 }
 
-const COACH_RUN = { downtier: coachDowntier, team: coachTeam, best: coachBest, sellhigh: coachSellHigh, buylow: coachBuyLow, shop: coachShop, target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
+/* ---------- Get a position, Upgrade a player ----------
+   (2026-10-27, user: "not just specific players but hey, I would like a running back or
+   a wide receiver or I'd like to upgrade X wide receiver ... find me some trades".)
+   Get a position: players at that position on other teams of the kind asked for, each
+   priced with the same offer search as Get a player (coachOffers), best for you first,
+   one card per player. Upgrade a player: one of yours, always in the deal, for a better
+   player at his position (more KTC value, and not fewer points a game by more than one).
+   Both build only from the pieces left Available on You give, and list Toss-ups too,
+   labeled, since you named what you want (COACH_TOSSUP_OK). */
+const COACH_WANT_KINDS = [['starter', 'A starter'], ['young', 'Young (24 and under)'], ['star', 'A star'], ['depth', 'Cheap depth'], ['any', 'Any']];
+const COACH_WANT_TARGETS = 24, COACH_WANT_STOP = 12;
+// What you could put in: must-go pieces plus your three biggest available ones.
+function coachBudget(me) {
+  const must = coachMust(me), off = coachOffLimits(me);
+  return sumValue(must) + me.assets.filter(a => !off.has(a.key) && !must.includes(a)).map(a => a.value).sort((x, y) => y - x).slice(0, 3).reduce((t, v) => t + v, 0);
+}
+// One card per target: the first of its offers that passes the list's checks.
+async function coachForTargets(me, cands, option, progress, why) {
+  const run = async ceiling => {
+    const out = [];
+    for (const { a, t } of cands) {
+      if (out.length >= COACH_WANT_STOP) break;
+      progress(`Pricing ${a.name}${ceiling > VAULT_CONFIG.FAIR_PCT ? ' with a premium' : ''}…`);
+      await coachTick();
+      const o = coachOffers(me, t, [a], { ceiling, limit: 4, perLead: 1, option }).find(x => coachListOK(x, option));
+      if (o) out.push({ ...o, id: a.key + '|' + negKeys(o.give).join(), why: [why(a, o), o.note].filter(Boolean).join(' ') });
+    }
+    return out;
+  };
+  return (await coachPriced(run, 3)).sort((x, y) => coachFairFirst(x, y) || coachRankScore(y) - coachRankScore(x));
+}
+// Points a week the trade adds to your best lineup (depth at the grade's weight), as Fix a position counts it.
+function coachLineupGain(me, o) {
+  const aft = coachAfter(me.rosterId, o.partner.rosterId, o.give, o.get);
+  return aft.opt - me.opt + Vault.depthShift('contend', me, aft, slots).perWeek * VAULT_CONFIG.DEPTH_FIT_WEIGHT;
+}
+async function coachWant(me, progress) {
+  const P = Coach.wantPos, kind = Coach.wantKind || 'starter', label = COACH_WANT_KINDS.find(k => k[0] === kind)[1].toLowerCase();
+  const mine = me.lineup.filter(s => s.id && s.pos === P), floor = mine.length ? Math.min(...mine.map(s => s.ppg)) : 0;
+  const atP = teams.flatMap(t => t.assets.filter(a => a.type === 'player' && a.pos === P)).sort((x, y) => y.value - x.value);
+  const starCut = atP.length ? atP[Math.min(11, atP.length - 1)].value : Infinity; // the top 12 at the position
+  const fits = a => (kind === 'starter' ? (a.ppg || 0) >= floor + 1 : kind === 'young' ? a.age > 0 && a.age <= 24 : kind === 'star' ? a.value >= starCut : kind === 'depth' ? a.value <= 2500 && (a.ppg || 0) > 0 : true);
+  const budget = coachBudget(me);
+  const cands = teams.filter(t => t !== me && coachPartnerOK(t))
+    .flatMap(t => t.assets.filter(a => a.type === 'player' && a.pos === P && a.value >= 500 && a.value <= budget && !coachTheirOff(a) && fits(a)).map(a => ({ a, t })))
+    .sort(kind === 'starter' ? (x, y) => (y.a.ppg || 0) - (x.a.ppg || 0) : (x, y) => y.a.value - x.a.value).slice(0, COACH_WANT_TARGETS);
+  if (!cands.length) return { empty: `No ${label === 'any' ? '' : label + ' '}${P} on another team fits what you left available.` };
+  const list = await coachForTargets(me, cands, 'want', progress, (a, o) => {
+    const g = coachLineupGain(me, o), bits = [a.age > 0 ? `${Math.round(a.age)} years old` : '', a.ppg ? `${a.ppg.toFixed(1)} pts/game projected` : ''].filter(Boolean).join(', ');
+    return `${Vault.escapeHtml(a.name)}${bits ? ` (${bits})` : ''}${g >= 0.5 ? `: about +${g.toFixed(1)} pts/week to your lineup, depth included` : ''}.`;
+  });
+  if (!list.length) return { empty: `No ${P} like that is gettable at a price their manager would take right now. Try another kind, or leave more pieces Available.` };
+  return { title: `${label === 'any' ? '' : COACH_WANT_KINDS.find(k => k[0] === kind)[1] + ': '}${P}s you could get`, list };
+}
+async function coachUpgrade(me, progress) {
+  const v = me.assets.find(a => a.key === Coach.upKey);
+  if (!v) return { empty: 'Pick one of your players to upgrade.' };
+  const budget = v.value + coachBudget(me);
+  const cands = teams.filter(t => t !== me && coachPartnerOK(t))
+    .flatMap(t => t.assets.filter(a => a.type === 'player' && a.pos === v.pos && a.value > v.value * 1.05 && a.value <= Math.min(budget, v.value * 2.2) && (a.ppg || 0) >= (v.ppg || 0) - 1 && !coachTheirOff(a)).map(a => ({ a, t })))
+    .sort((x, y) => y.a.value - x.a.value).slice(0, COACH_WANT_TARGETS);
+  if (!cands.length) return { empty: `No better ${v.pos} than ${Vault.escapeHtml(v.name)} is within reach of what you left available.` };
+  // He's in every trade: a Must go for this search only.
+  const saved = Coach.mine.must;
+  Coach.mine.must = [...new Set([v.key, ...saved])];
+  try {
+    const n = x => Math.round(x).toLocaleString();
+    const list = await coachForTargets(me, cands, 'upgrade', progress, (a, o) => {
+      const g = coachLineupGain(me, o), add = o.give.filter(x => x !== v);
+      return `Up from ${Vault.escapeHtml(v.name)} (${n(v.value)}) to ${Vault.escapeHtml(a.name)} (${n(a.value)})${add.length ? `, adding ${negNames(add)}` : ''}${g >= 0.5 ? `: about +${g.toFixed(1)} pts/week to your lineup` : ''}.`;
+    });
+    if (!list.length) return { empty: `No team would take ${Vault.escapeHtml(v.name)} plus what you left available for a better ${v.pos} right now.` };
+    return { title: `Upgrades for ${Vault.escapeHtml(v.name)}`, list };
+  } finally { Coach.mine.must = saved; }
+}
+
+const COACH_RUN = { want: coachWant, upgrade: coachUpgrade, downtier: coachDowntier, team: coachTeam, best: coachBest, sellhigh: coachSellHigh, buylow: coachBuyLow, shop: coachShop, target: coachTarget, position: coachPosition, rebuild: coachRebuild, contend: coachContend };
 
 // Every list's last check: good enough for you (price plays: anything but a
 // losing trade), no value given up, not bad for them (Fix a position and Go
@@ -1213,7 +1291,7 @@ async function coachFind() {
 }
 
 // Results belong to the inputs they were found for.
-const coachInputKey = () => ({ shop: Coach.shopKey, target: Coach.targetKey, team: Coach.teamId, downtier: Coach.downKey + (Coach.downSame ? ':same' : ''), position: Coach.pos }[Coach.option] || '') + '|' + JSON.stringify([Coach.mine, Coach.theirs, Vault.planOverride[coachMe().rosterId] || 'auto', !!Coach.benchOnly, Coach.maxPieces || 0]);
+const coachInputKey = () => ({ want: `${Coach.wantPos}:${Coach.wantKind}`, upgrade: Coach.upKey, shop: Coach.shopKey, target: Coach.targetKey, team: Coach.teamId, downtier: Coach.downKey + (Coach.downSame ? ':same' : ''), position: Coach.pos }[Coach.option] || '') + '|' + JSON.stringify([Coach.mine, Coach.theirs, Vault.planOverride[coachMe().rosterId] || 'auto', !!Coach.benchOnly, Coach.maxPieces || 0]);
 
 /* ---------- Panel ---------- */
 
@@ -1262,7 +1340,7 @@ function openCoach(option) {
   if (!wasOpen) document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 // The option's own input is filled in (a player, team, or position).
-const coachReady = () => ({ shop: !!Coach.shopKey, target: !!Coach.targetKey, team: !!Coach.teamId, downtier: !!Coach.downKey }[Coach.option] ?? true);
+const coachReady = () => ({ want: !!Coach.wantPos, upgrade: !!Coach.upKey, shop: !!Coach.shopKey, target: !!Coach.targetKey, team: !!Coach.teamId, downtier: !!Coach.downKey }[Coach.option] ?? true);
 // Anything set on a rule step.
 function coachStepHas(step) {
   const n = list => Coach.mine[list].length + Coach.theirs[list].length;
@@ -1283,6 +1361,8 @@ function coachStart() {
   Coach.targetKey = null;
   Coach.teamId = null;
   Coach.downKey = null;
+  Coach.upKey = null;
+  Coach.wantPos = Coach.pos;
   Coach.work = null;
   if (Coach.option !== 'negotiate') { Coach.option = 'best'; Coach.step = 'type'; }
   negPreloadStyles();
@@ -1304,6 +1384,9 @@ function coachSetDownSame(same) { Coach.downSame = same; renderCoach(); }
 function coachSetTeam(id) { Coach.teamId = id || null; renderCoach(); }
 function coachSetPos(p) { Coach.pos = p; renderCoach(); }
 function coachSetShop(key) { Coach.shopKey = key || null; renderCoach(); }
+function coachSetWant(p) { Coach.wantPos = p; renderCoach(); }
+function coachSetWantKind(k) { Coach.wantKind = k; renderCoach(); }
+function coachSetUp(key) { Coach.upKey = key || null; renderCoach(); }
 // From a roster row: Shop (your piece) or Get (their player), then search.
 function coachShopFor(key) { Coach.option = 'shop'; Coach.shopKey = key; coachJump(); }
 function coachGetFor(key) { Coach.option = 'target'; Coach.targetKey = key; Coach.picker.open = false; coachJump(); }
@@ -1478,7 +1561,12 @@ function coachGiveHtml(me) {
   }).join('');
   const avail = me.assets.filter(a => coachGiveState(a.key) !== 'keep' && a.value >= 100);
   const quick = (mode, label) => `<button onclick="coachGiveAll('${mode}')" class="text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">${label}</button>`;
-  return `<div class="text-[13px] text-zinc-300 mb-1">${target ? `Build around ${esc(target.name)}: mark what you'd give for him. Every offer is made only from the pieces left Available or Must go.` : 'Mark what you\'re willing to give. Untouchable pieces never go out; Must go pieces are in every trade.'}</div>
+  const up = Coach.option === 'upgrade' ? me.assets.find(a => a.key === Coach.upKey) : null;
+  const intro = target ? `Build around ${esc(target.name)}: mark what you'd give for him. Every offer is made only from the pieces left Available or Must go.`
+    : up ? `Upgrading ${esc(up.name)}: he's in every trade. Mark what else you'd add to get a better ${up.pos}.`
+    : Coach.option === 'want' ? `Getting ${Coach.wantPos === 'any' ? 'a player' : `a ${Coach.wantPos}`}: mark what you'd give. Every offer is made only from the pieces left Available or Must go.`
+    : 'Mark what you\'re willing to give. Untouchable pieces never go out; Must go pieces are in every trade.';
+  return `<div class="text-[13px] text-zinc-300 mb-1">${intro}</div>
     <div class="text-[12px] text-zinc-500 mb-3">${avail.length} of ${me.assets.filter(a => a.value >= 100).length} pieces in play, worth ${Math.round(sumValue(avail)).toLocaleString()} together.</div>
     <div class="flex flex-wrap gap-1.5 mb-3">${quick('all', 'Everything available')}${quick('starters', 'Starters untouchable')}${quick('picks', 'Only picks available')}</div>
     <div class="grid gap-2 lg:grid-cols-2">${groups}</div>
@@ -1525,20 +1613,22 @@ async function coachWorkTweaks() {
   const seq = ++w.seq; w.tweaks = null;
   const base = coachWorkRead(me, w), off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
   const getVal = sumValue(w.get), giveVal = sumValue(w.give);
+  // Never suggest dropping a Must go piece, or the player an Upgrade a player trade is upgrading.
+  const locked = new Set([...Coach.mine.must, ...(w.option === 'upgrade' && Coach.upKey ? [Coach.upKey] : [])]);
   const mine = me.assets.filter(a => !inGive.has(a.key) && !off.has(a.key) && a.value >= 150);
   const cands = [];
   // Ask for one more of theirs.
   w.partner.assets.filter(a => !inGet.has(a.key) && !coachTheirOff(a) && a.value >= 150 && a.value <= Math.max(1500, 0.7 * getVal)).sort((x, y) => y.value - x.value).slice(0, 14)
     .forEach(a => cands.push({ kind: 'more', text: `Ask for their ${Vault.escapeHtml(a.name)} too`, give: w.give, get: [...w.get, a] }));
   // Send less: drop one of yours (not a Must go piece), or swap one for something cheaper.
-  if (w.give.length > 1) w.give.filter(a => !Coach.mine.must.includes(a.key)).forEach(a => cands.push({ kind: 'less', text: `Keep your ${Vault.escapeHtml(a.name)}`, give: w.give.filter(x => x !== a), get: w.get }));
-  w.give.filter(a => !Coach.mine.must.includes(a.key)).forEach(g => mine.filter(a => a.value < g.value * 0.97 && a.value >= g.value * 0.35).sort((x, y) => y.value - x.value).slice(0, 5)
+  if (w.give.length > 1) w.give.filter(a => !locked.has(a.key)).forEach(a => cands.push({ kind: 'less', text: `Keep your ${Vault.escapeHtml(a.name)}`, give: w.give.filter(x => x !== a), get: w.get }));
+  w.give.filter(a => !locked.has(a.key)).forEach(g => mine.filter(a => a.value < g.value * 0.97 && a.value >= g.value * 0.35).sort((x, y) => y.value - x.value).slice(0, 5)
     .forEach(a => cands.push({ kind: 'less', text: `Send your ${Vault.escapeHtml(a.name)} instead of ${Vault.escapeHtml(g.name)}`, give: w.give.map(x => (x === g ? a : x)), get: w.get })));
   // At a no: add one of yours, swap one up, or ask for one less of theirs.
   if (!base.yes) {
     mine.filter(a => a.value <= Math.max(1500, 0.6 * giveVal)).sort((x, y) => y.value - x.value).slice(0, 14)
       .forEach(a => cands.push({ kind: 'yes', text: `Add your ${Vault.escapeHtml(a.name)}`, give: [...w.give, a], get: w.get }));
-    w.give.filter(a => !Coach.mine.must.includes(a.key)).forEach(g => mine.filter(a => a.value > g.value * 1.03 && a.value <= g.value * 1.6).sort((x, y) => x.value - y.value).slice(0, 4)
+    w.give.filter(a => !locked.has(a.key)).forEach(g => mine.filter(a => a.value > g.value * 1.03 && a.value <= g.value * 1.6).sort((x, y) => x.value - y.value).slice(0, 4)
       .forEach(a => cands.push({ kind: 'yes', text: `Send your ${Vault.escapeHtml(a.name)} instead of ${Vault.escapeHtml(g.name)}`, give: w.give.map(x => (x === g ? a : x)), get: w.get })));
     if (w.get.length > 1) w.get.filter(a => !Coach.theirs.must.includes(a.key) && a.key !== Coach.targetKey).forEach(a => cands.push({ kind: 'yes', text: `Don't ask for ${Vault.escapeHtml(a.name)}`, give: w.give, get: w.get.filter(x => x !== a) }));
   }
@@ -1587,7 +1677,7 @@ function coachWorkHtml(me) {
   const off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
   const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${esc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${Math.round(a.value).toLocaleString()}</option>`).join('')}</select>`;
   const status = r.yes
-    ? `<div class="text-[14px] text-emerald-300 font-medium">${esc(w.partner.teamName)} would likely say yes.</div><div class="text-[12px] text-zinc-400 mt-0.5">${r.room >= 2 ? `You likely have room to ask for about ${pc(r.room)} more value.` : 'That\'s about as far as they\'d go.'}</div>`
+    ? `<div class="text-[14px] text-emerald-300 font-medium">${esc(w.partner.teamName)} would likely say yes.</div><div class="text-[12px] text-zinc-400 mt-0.5">${r.room >= 2 && !(w.tweaks && !w.tweaks.more.length && !w.tweaks.less.length) ? `You likely have room to ask for about ${pc(r.room)} more value.` : 'That\'s about as far as they\'d go.'}</div>`
     : `<div class="text-[14px] text-orange-300 font-medium">${esc(w.partner.teamName)} would likely say no.</div><div class="text-[12px] text-zinc-400 mt-0.5">${(() => {
         // How far off: their will against what they ask, or the price past Fair in your favor.
         const need = Math.max(-r.room, r.you - VAULT_CONFIG.FAIR_PCT + 0.5), worry = r.j.concerns.filter(c => c.w < 0).sort((a, b) => a.w - b.w)[0];
@@ -1633,6 +1723,8 @@ function coachSummaryHtml(me) {
   const detail = {
     shop: () => find('mine', Coach.shopKey)?.name,
     target: () => find('theirs', Coach.targetKey)?.name,
+    want: () => `${Coach.wantKind === 'any' ? '' : COACH_WANT_KINDS.find(k => k[0] === Coach.wantKind)[1].toLowerCase() + ' '}${Coach.wantPos}`,
+    upgrade: () => find('mine', Coach.upKey)?.name,
     team: () => teams.find(t => String(t.rosterId) === String(Coach.teamId))?.teamName,
     downtier: () => { const a = find('mine', Coach.downKey); return a && a.name + (Coach.downSame ? `, same position` : ''); },
     position: () => Coach.pos
@@ -1671,7 +1763,7 @@ function coachNavHtml() {
   const i = COACH_STEPS.findIndex(([s]) => s === Coach.step), prev = COACH_STEPS[i - 1], next = COACH_STEPS[i + 1];
   const ready = coachReady(), last = next[0] === 'results';
   const back = prev ? `<button onclick="coachGo('${prev[0]}')" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white">← Back</button>` : '<span></span>';
-  const hint = ready ? '' : `<div class="text-[12px] text-zinc-500 mt-2 text-right">${{ shop: 'Pick a player or pick to shop first.', target: 'Pick a player to get first.', team: 'Pick a team first.', downtier: 'Pick a player to down-tier first.' }[Coach.option]}</div>`;
+  const hint = ready ? '' : `<div class="text-[12px] text-zinc-500 mt-2 text-right">${{ want: 'Pick a position first.', upgrade: 'Pick a player to upgrade first.', shop: 'Pick a player or pick to shop first.', target: 'Pick a player to get first.', team: 'Pick a team first.', downtier: 'Pick a player to down-tier first.' }[Coach.option]}</div>`;
   // Step 1: most searches need no rules, so Find trades is the main button and
   // the rule steps are an optional detour.
   if (Coach.step === 'type') {
@@ -1772,6 +1864,12 @@ function renderCoach() {
         ${teams.filter(t => t !== me).map(t => `<option value="${t.rosterId}" ${String(t.rosterId) === String(Coach.teamId) ? 'selected' : ''}>${Vault.escapeHtml(t.teamName)}</option>`).join('')}
       </select>`,
     position: `<div class="flex gap-1.5 flex-wrap">${['QB', 'RB', 'WR', 'TE'].map(p => chip(Coach.pos === p, p, `coachSetPos('${p}')`, needs.includes(p.toLowerCase()) ? ' <span class="text-[11px] text-rose-300/80">need</span>' : '')).join('')}</div>`,
+    want: `<div class="flex flex-col gap-2"><div class="flex gap-1.5 flex-wrap">${['QB', 'RB', 'WR', 'TE'].map(p => chip(Coach.wantPos === p, p, `coachSetWant('${p}')`, needs.includes(p.toLowerCase()) ? ' <span class="text-[11px] text-rose-300/80">need</span>' : '')).join('')}</div>
+        <div class="flex gap-1.5 flex-wrap">${COACH_WANT_KINDS.map(([k, l]) => chip(Coach.wantKind === k, l, `coachSetWantKind('${k}')`)).join('')}</div></div>`,
+    upgrade: `<select data-search="Type one of your players…" onchange="coachSetUp(this.value)" aria-label="Player to upgrade" class="w-full sm:w-[380px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
+        <option value="">Pick one of your players…</option>
+        ${me.assets.filter(a => a.type === 'player' && a.value >= 500).map(a => `<option value="${a.key}" ${a.key === Coach.upKey ? 'selected' : ''}>${Vault.escapeHtml(a.name)} (${a.pos}) · ${Math.round(a.value).toLocaleString()}</option>`).join('')}
+      </select>`,
     rebuild: '', contend: ''
   }[Coach.option];
   if (Coach.step === 'type') {
