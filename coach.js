@@ -42,6 +42,12 @@ const COACH_OPTIONS = {
   rebuild: { label: 'Rebuild', blurb: 'Throw in the towel on this season: trades that turn your aging players into picks and players 24 or under while they still hold value.' },
   contend: { label: 'Go all-in', blurb: 'Win now: trades that spend picks, prospects, and bench players on starters for this season. Your starters stay put.' }
 };
+const COACH_OPTION_GROUPS = [
+  ['Best for you', ['best', 'team']],
+  ['Get someone', ['want', 'target', 'upgrade', 'position', 'buylow']],
+  ['Move someone', ['shop', 'sellhigh', 'downtier']],
+  ['Change course', ['rebuild', 'contend']]
+];
 const Coach = { option: 'best', step: 'type', shopKey: null, targetKey: null, wantPos: null, wantKind: 'starter', upKey: null, teamId: null, downKey: null, downSame: false, pos: null, results: {}, busy: false, mine: { must: [], keep: [], never: [], groups: [] }, theirs: { must: [], keep: [], never: [], groups: [] }, benchOnly: false, maxPieces: 0, picker: { open: false, q: '', pos: 'ALL' } };
 
 // A breather between steps of a search, so the page stays responsive. A message,
@@ -1836,8 +1842,11 @@ function renderCoach() {
     </div>`;
   coachSync();
 
+  // Every way to find a trade, grouped by what you're after (2026-10-27, user: the Coach is
+  // the one trade-finding tool; Shop a player and Get a player were separate tiles).
+  const groups = COACH_OPTION_GROUPS.map(([label, opts]) => `<div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] uppercase tracking-wider text-zinc-500 w-full sm:w-[118px] shrink-0">${label}</span>${opts.map(o => chip(Coach.option === o, COACH_OPTIONS[o].label, `coachSetOption('${o}')`)).join('')}</div>`).join('');
   const typeChips = `${coachPlanHtml(me, chip)}
-    <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(COACH_OPTIONS).filter(([o]) => o !== 'negotiate').map(([o, d]) => chip(Coach.option === o, d.label, `coachSetOption('${o}')`)).join('')}</div>
+    <div class="flex flex-col gap-2 mb-2">${groups}</div>
     <div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS[Coach.option].blurb}</div>`;
   if (neg) { box.innerHTML = `<div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS.negotiate.blurb}</div>${coachNegotiateHtml()}`; return; }
   if (Coach.step === 'give' || Coach.step === 'get') {

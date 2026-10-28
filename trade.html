@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=efaddc3e">
+<link rel="stylesheet" href="tailwind.css?v=b5b09121">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -49,17 +49,10 @@
       <h2 class="display text-[24px] gold-text mt-2">What do you want to do?</h2>
     </div>
     <div class="grid sm:grid-cols-2 gap-4">
+      <!-- One tile for every way to find trades (2026-10-27, user: "combine all the buttons into one so coach is our trade finding tool"): Shop a player and Get a player are options inside it. -->
       <button onclick="openCoach('best')" class="card card-hover rounded-2xl p-5 text-left flex gap-4 items-start hover:bg-white/[0.02] transition-colors">
         <span class="size-10 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg></span>
-        <span class="min-w-0"><span class="block text-[16px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-1 leading-relaxed">The best trades for your team right now, trades with a certain team, or a goal: down-tier a player, fix a position, rebuild, or go all-in.</span></span>
-      </button>
-      <button onclick="openCoach('shop')" class="card card-hover rounded-2xl p-5 text-left flex gap-4 items-start hover:bg-white/[0.02] transition-colors">
-        <span class="size-10 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span>
-        <span class="min-w-0"><span class="block text-[16px] font-semibold text-zinc-100">Shop a player</span><span class="block text-[13px] text-zinc-400 mt-1 leading-relaxed">Pick one of your players or picks and see the best offer from every team.</span></span>
-      </button>
-      <button onclick="openCoach('target')" class="card card-hover rounded-2xl p-5 text-left flex gap-4 items-start hover:bg-white/[0.02] transition-colors">
-        <span class="size-10 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span>
-        <span class="min-w-0"><span class="block text-[16px] font-semibold text-zinc-100">Get a player</span><span class="block text-[13px] text-zinc-400 mt-1 leading-relaxed">Pick a player on another team and see offers their manager would likely take.</span></span>
+        <span class="min-w-0"><span class="block text-[16px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-1 leading-relaxed">Every way to find a trade: the best for your team, a position or player you want, an upgrade, a player to sell, a team to deal with, a rebuild or an all-in push. Then work any of them out step by step.</span></span>
       </button>
       <button onclick="setView('builder')" class="card card-hover rounded-2xl p-5 text-left flex gap-4 items-start hover:bg-white/[0.02] transition-colors">
         <span class="size-10 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13l-4-4"/><path d="M17 17H4l4 4"/></svg></span>
@@ -2296,6 +2289,6 @@ init();
 <script src="negotiation.js?v=7d597d52"></script>
 <script src="market-data.js?v=07632230"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=cd4ac22a"></script>
+<script src="coach.js?v=3f02eaf3"></script>
 </body>
 </html>
