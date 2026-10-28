@@ -33,7 +33,7 @@ const COACH_OPTIONS = {
   buylow: { label: 'Buy low', blurb: 'Players and picks on other teams that sell for less than KTC in completed trades, with offers that get them for less than their KTC value. Only deals the other manager would likely take, most ahead for you first.' },
   negotiate: { label: 'Negotiate a trade', blurb: 'Offer the trade loaded in the calculator. Their manager answers in their own words, and you can steer what you ask for next.' },
   shop: { label: 'Shop a player', blurb: 'Pick one of your players or picks and see the best offer from every team, any return.' },
-  target: { label: 'Get a player', blurb: 'Pick any player on another team and see offers their manager would likely take for them.' },
+  target: { label: 'Get a player', blurb: 'Build around a target: pick any player on another team, then mark what you\'d give for him. Offers their manager would likely take, made only from those pieces, cheapest first.' },
   downtier: { label: 'Down-tier a player', blurb: 'Pick one of your players. See trades where you get back a lesser player plus extra pieces, so you gain total value, that their manager would likely take.' },
   team: { label: 'Trade with a team', blurb: 'Pick a team and see the trades their manager would likely take that make your team better, best first.' },
   position: { label: 'Fix a position', blurb: 'Pick a position. These trades upgrade your weakest starter there without giving up your other starters.' },
@@ -1193,7 +1193,8 @@ async function coachFind() {
       // Price plays (shopping a player you've decided to move, selling high,
       // buying low): Toss-ups count too, labeled as such, since the point is the
       // price (user, 2026-10-08). Every other list needs Slight edge or better.
-      res.list = res.list.filter(o => coachListOK(o, option)).map(o => { const n = [coachSwapNote(o), coachTossupNote(o, option)].filter(Boolean).join(' '); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => (x.depth ? 1 : 0) - (y.depth ? 1 : 0) || coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || coachRankScore(y) - coachRankScore(x));
+      res.list = res.list.filter(o => coachListOK(o, option)).map(o => { const n = [coachSwapNote(o), coachTossupNote(o, option)].filter(Boolean).join(' '); return n ? { ...o, why: [o.why, n].filter(Boolean).join(' ') } : o; }).sort((x, y) => (x.depth ? 1 : 0) - (y.depth ? 1 : 0) || coachFairFirst(x, y) || coachBadForThem(x) - coachBadForThem(y) || (option === 'target' ? Math.round(coachValuePct(y)) - Math.round(coachValuePct(x)) : 0) || coachRankScore(y) - coachRankScore(x));
+      // Get a player (Build around a target): the cheapest package first, to the nearest point of trade value.
       res.list.forEach(o => { if (o.others) o.others = o.others.filter(x => coachListOK(x, option)); });
       if (res.list.length) { progress('Working out what each trade does for you…'); await coachTick(); res.list = coachShape(me, res.list, option); }
       // Fix a position: grouped by the spot each trade fills, a new #1, better starters, then depth.
@@ -1217,10 +1218,12 @@ const coachInputKey = () => ({ shop: Coach.shopKey, target: Coach.targetKey, tea
 /* ---------- Panel ---------- */
 
 // The coach is one of the tools on the Trade Calculator's start screen (and
-// the Trade Coach tab). It's set up one step at a time: the trade type (and
-// its player, team, or position), then what every trade must include, what to
-// leave out, and position rules, each skippable, then the trades.
-const COACH_STEPS = [['type', 'Trade type'], ['include', 'Must include'], ['exclude', 'Leave out'], ['positions', 'Positions'], ['results', 'Trades']];
+// the Trade Coach tab). It's set up one step at a time (2026-10-27, user: "more on
+// the step by step" and "build around a target"): the goal (a read of your team, a
+// suggested trade type, and its player, team or position), what you'll give (your
+// roster as a checklist: Untouchable / Available / Must go), what you want back,
+// then the trades, and Work it out on any one of them until it's a deal to send.
+const COACH_STEPS = [['type', 'Goal'], ['give', 'You give'], ['get', 'You get'], ['results', 'Trades'], ['work', 'Work it out']];
 // Head start (2026-10-23, user: "make the first search faster"): opening Trade
 // Coach starts Best trades in the background, filling coachCandidates and
 // coachJudged, while the options are being picked. Find trades waits for it (the
@@ -1263,7 +1266,7 @@ const coachReady = () => ({ shop: !!Coach.shopKey, target: !!Coach.targetKey, te
 // Anything set on a rule step.
 function coachStepHas(step) {
   const n = list => Coach.mine[list].length + Coach.theirs[list].length;
-  return step === 'include' ? n('must') > 0 : step === 'exclude' ? n('keep') > 0 : step === 'positions' ? n('groups') + n('never') > 0 : false;
+  return step === 'give' ? coachHasRules('mine') || !!Coach.benchOnly : step === 'get' ? coachHasRules('theirs') : false;
 }
 function coachGo(step) {
   if (step === 'results') {
@@ -1280,6 +1283,7 @@ function coachStart() {
   Coach.targetKey = null;
   Coach.teamId = null;
   Coach.downKey = null;
+  Coach.work = null;
   if (Coach.option !== 'negotiate') { Coach.option = 'best'; Coach.step = 'type'; }
   negPreloadStyles();
   renderCoach();
@@ -1396,14 +1400,231 @@ function coachSideHtml(side, me, step) {
       ${rows}
     </div>`;
 }
-const COACH_STEP_HELP = {
-  include: 'Players or picks every trade has to include. Skip if anything goes.',
-  exclude: 'Players or picks to leave out of every trade. Skip if nothing is off limits.',
-  positions: 'Positions every trade has to include, or can never include. Skip to allow any.'
-};
-function coachRulesHtml(me, step) {
-  return `<div class="text-[13px] text-zinc-300 mb-3">${COACH_STEP_HELP[step]}</div>
-    <div class="grid gap-2 lg:grid-cols-2">${coachSideHtml('mine', me, step)}${coachSideHtml('theirs', me, step)}</div>`;
+/* ---------- Step 1: a read of your team, and a suggested goal ---------- */
+// What the coach would start with: rebuilding (or out of the race) -> Rebuild;
+// a position you're thin at -> Fix a position there; otherwise Best trades.
+function coachSuggest(me) {
+  const { needs } = Vault.positionalProfile(me, teams), mode = Vault.teamMode(me);
+  if (mode === 'rebuild' || (remainingWeeks.length && Number.isFinite(me.playoffPct) && me.playoffPct < VAULT_CONFIG.OUT_OF_RACE_PCT)) return { option: 'rebuild' };
+  const need = ['te', 'qb', 'rb', 'wr'].find(p => needs.includes(p));
+  if (need) return { option: 'position', pos: need.toUpperCase() };
+  return { option: 'best' };
+}
+function coachTeamReadHtml(me) {
+  const esc = Vault.escapeHtml, { needs, surpluses } = Vault.positionalProfile(me, teams), mode = Vault.teamMode(me);
+  const rec = me.record && (me.record.wins + me.record.losses) ? `${me.record.wins}-${me.record.losses}${me.record.ties ? '-' + me.record.ties : ''}` : '';
+  const title = seasonBase?.get(me.rosterId)?.championshipPct, pc = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
+  const odds = remainingWeeks.length && Number.isFinite(me.playoffPct) ? `${pc(me.playoffPct)} playoff odds${title != null ? `, ${pc(title)} title odds` : ''}` : '';
+  const P = l => l.map(x => x.toUpperCase()).join(', ');
+  const s = coachSuggest(me), label = COACH_OPTIONS[s.option].label + (s.pos ? `: ${s.pos}` : '');
+  const why = s.option === 'rebuild' ? 'your team reads as rebuilding, so turn aging players into picks and youth while they still hold value'
+    : s.option === 'position' ? `you're thinnest at ${s.pos}, so upgrade it without giving up your other starters`
+    : 'no position stands out as a need, so look across the league for the trades that help most';
+  const on = Coach.option === s.option && (!s.pos || Coach.pos === s.pos);
+  return `<div class="mb-4 p-3.5 rounded-xl bg-black/30 border border-white/5">
+      <div class="text-[13px] text-zinc-100"><span class="font-medium">${esc(me.teamName)}</span> <span class="text-zinc-400">· ${Vault.MODE_LABEL[mode] || mode}${rec ? ` · ${rec}` : ''}${odds ? ` · ${odds}` : ''}</span></div>
+      <div class="text-[12px] text-zinc-400 mt-1">${needs.length ? `Thin at <span class="text-rose-300">${P(needs)}</span>` : 'No thin spot'}${surpluses.length ? ` · deep at <span class="text-emerald-300">${P(surpluses)}</span>` : ''}</div>
+      <div class="flex flex-wrap items-center gap-2 mt-2.5">
+        <span class="text-[12px] text-zinc-300">Suggested: <span class="text-zinc-100 font-medium">${esc(label)}</span>, because ${why}.</span>
+        ${on ? '<span class="text-[11px] text-emerald-300">Selected</span>' : `<button onclick="coachUseSuggestion()" class="text-[12px] px-3 py-1 rounded-lg border border-amber-400/30 text-amber-200 hover:bg-amber-400/10">Use this</button>`}
+      </div>
+    </div>`;
+}
+function coachUseSuggestion() {
+  const s = coachSuggest(coachMe());
+  Coach.option = s.option;
+  if (s.pos) Coach.pos = s.pos;
+  renderCoach();
+}
+
+/* ---------- Step 2: what you'll give ----------
+   Your roster as a checklist, each piece Untouchable (Coach.mine.keep), Available
+   (the default) or Must go (Coach.mine.must). With Get a player this is Build around
+   a target: every offer is made only from the pieces left Available. Then position
+   rules for your side (must send a / never trade any). */
+const COACH_GIVE_ORDER = ['QB', 'RB', 'WR', 'TE', 'PICK'];
+function coachGiveState(key) { return Coach.mine.must.includes(key) ? 'must' : Coach.mine.keep.includes(key) ? 'keep' : 'avail'; }
+function coachSetGive(key, state) {
+  const m = Coach.mine;
+  m.must = m.must.filter(k => k !== key); m.keep = m.keep.filter(k => k !== key);
+  if (state === 'must') m.must.push(key); else if (state === 'keep') m.keep.push(key);
+  renderCoach();
+}
+// Quick picks: everything available, starters untouchable, or only picks available.
+function coachGiveAll(mode) {
+  const me = coachMe(), m = Coach.mine, starters = new Set((me.lineup || []).filter(s => s.id).map(s => 'p_' + s.id));
+  m.keep = []; Coach.benchOnly = false;
+  if (mode === 'starters') m.keep = me.assets.filter(a => starters.has(a.key) && !m.must.includes(a.key)).map(a => a.key);
+  if (mode === 'picks') m.keep = me.assets.filter(a => a.type !== 'pick' && !m.must.includes(a.key)).map(a => a.key);
+  renderCoach();
+}
+function coachGiveHtml(me) {
+  const esc = Vault.escapeHtml, starters = new Set((me.lineup || []).filter(s => s.id).map(s => 'p_' + s.id));
+  const target = Coach.option === 'target' ? teams.flatMap(t => t.assets).find(a => a.key === Coach.targetKey) : null;
+  const seg = (a, st, label, on) => `<button onclick="coachSetGive('${a.key}', '${st}')" aria-pressed="${on}" class="px-2 py-0.5 text-[11px] transition-colors ${on ? (st === 'keep' ? 'bg-rose-500/15 text-rose-200' : st === 'must' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-white/[0.08] text-white') : 'text-zinc-500 hover:text-zinc-200'}">${label}</button>`;
+  const row = a => {
+    const st = coachGiveState(a.key);
+    // On a phone the three buttons drop under the name rather than cut it short.
+    return `<div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1.5 border-t border-white/[0.05] first:border-t-0">
+        <span class="min-w-[150px] flex-1 truncate text-[13px] ${st === 'keep' ? 'text-zinc-500' : 'text-zinc-100'}">${esc(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? '' : a.pos}${starters.has(a.key) ? ' · starter' : ''}</span></span>
+        <span class="flex items-center gap-2 shrink-0 ml-auto"><span class="text-[11px] mono text-zinc-500">${Math.round(a.value).toLocaleString()}</span>
+          <span class="inline-flex rounded-md border border-white/10 overflow-hidden" role="group" aria-label="${esc(a.name)}">${seg(a, 'keep', 'Untouchable', st === 'keep')}${seg(a, 'avail', 'Available', st === 'avail')}${seg(a, 'must', Coach.option === 'rebuild' ? 'Sell' : 'Must go', st === 'must')}</span></span>
+      </div>`;
+  };
+  const groups = COACH_GIVE_ORDER.map(g => {
+    const list = me.assets.filter(a => coachGroup(a) === g && a.value >= 100).sort((x, y) => y.value - x.value);
+    if (!list.length) return '';
+    return `<div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${g === 'PICK' ? 'Picks' : g}</div>${list.map(row).join('')}</div>`;
+  }).join('');
+  const avail = me.assets.filter(a => coachGiveState(a.key) !== 'keep' && a.value >= 100);
+  const quick = (mode, label) => `<button onclick="coachGiveAll('${mode}')" class="text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">${label}</button>`;
+  return `<div class="text-[13px] text-zinc-300 mb-1">${target ? `Build around ${esc(target.name)}: mark what you'd give for him. Every offer is made only from the pieces left Available or Must go.` : 'Mark what you\'re willing to give. Untouchable pieces never go out; Must go pieces are in every trade.'}</div>
+    <div class="text-[12px] text-zinc-500 mb-3">${avail.length} of ${me.assets.filter(a => a.value >= 100).length} pieces in play, worth ${Math.round(sumValue(avail)).toLocaleString()} together.</div>
+    <div class="flex flex-wrap gap-1.5 mb-3">${quick('all', 'Everything available')}${quick('starters', 'Starters untouchable')}${quick('picks', 'Only picks available')}</div>
+    <div class="grid gap-2 lg:grid-cols-2">${groups}</div>
+    <div class="mt-3">${coachSideHtml('mine', me, 'positions')}</div>`;
+}
+
+/* ---------- Step 3: what you want back ---------- */
+function coachGetHtml(me) {
+  return `<div class="text-[13px] text-zinc-300 mb-3">What you want back. Skip to take whatever helps most.</div>
+    <div class="grid gap-2">${['include', 'exclude', 'positions'].map(step => coachSideHtml('theirs', me, step)).join('')}</div>`;
+}
+
+/* ---------- Step 5: Work it out ----------
+   One trade from the list, refined until it's one to send: how it reads for both
+   teams, whether their manager would take it and how much room is left (negJudgeFor:
+   will against what they ask, about % of trade value), then one-step changes that keep
+   them at yes and help you (ask for one more of their pieces, send less, swap a piece
+   for a cheaper one) or, at a no, the changes that get to yes, best for you first.
+   Any piece can be added or taken off by hand. Then negotiate it, open it in the
+   builder, or copy the offer link. Only pieces you left Available or Must go, and
+   nothing you said you don't want, are suggested. */
+function coachWork(i, near = false) {
+  const r = Coach.results[Coach.option], o = r && (near ? r.near : r.list || [])[i];
+  if (!o) return;
+  Coach.work = { partner: o.partner, give: [...o.give], get: [...o.get], option: Coach.option, tweaks: null, seq: 0 };
+  Coach.step = 'work';
+  renderCoach();
+  document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  coachWorkTweaks();
+}
+// Yes is the list's own test (coachTheyTake: their verdict, a Fair price on trade value,
+// not Unfair on KTC) and their manager's (negJudgeFor accepts), so Work it out never
+// says yes to something the list wouldn't show. Room: how much more you could ask
+// before either one turns, about % of trade value (their will over what they ask, and
+// the price's distance to Lopsided).
+function coachWorkRead(me, w, give = w.give, get = w.get) {
+  const j = coachJudged(me, w.partner, give, get), o = { partner: w.partner, give, get }, you = coachValuePct(o);
+  const yes = j.accepts && coachTheyTake(o, w.option);
+  const room = yes ? Math.min(j.will - j.ask, VAULT_CONFIG.FAIR_PCT - you) : j.will - j.ask;
+  return { j, o, score: coachScore(o), yes, room, you, them: improvementOf(j.an, 'B') };
+}
+async function coachWorkTweaks() {
+  const w = Coach.work, me = coachMe(); if (!w) return;
+  const seq = ++w.seq; w.tweaks = null;
+  const base = coachWorkRead(me, w), off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
+  const getVal = sumValue(w.get), giveVal = sumValue(w.give);
+  const mine = me.assets.filter(a => !inGive.has(a.key) && !off.has(a.key) && a.value >= 150);
+  const cands = [];
+  // Ask for one more of theirs.
+  w.partner.assets.filter(a => !inGet.has(a.key) && !coachTheirOff(a) && a.value >= 150 && a.value <= Math.max(1500, 0.7 * getVal)).sort((x, y) => y.value - x.value).slice(0, 14)
+    .forEach(a => cands.push({ kind: 'more', text: `Ask for their ${Vault.escapeHtml(a.name)} too`, give: w.give, get: [...w.get, a] }));
+  // Send less: drop one of yours (not a Must go piece), or swap one for something cheaper.
+  if (w.give.length > 1) w.give.filter(a => !Coach.mine.must.includes(a.key)).forEach(a => cands.push({ kind: 'less', text: `Keep your ${Vault.escapeHtml(a.name)}`, give: w.give.filter(x => x !== a), get: w.get }));
+  w.give.filter(a => !Coach.mine.must.includes(a.key)).forEach(g => mine.filter(a => a.value < g.value * 0.97 && a.value >= g.value * 0.35).sort((x, y) => y.value - x.value).slice(0, 5)
+    .forEach(a => cands.push({ kind: 'less', text: `Send your ${Vault.escapeHtml(a.name)} instead of ${Vault.escapeHtml(g.name)}`, give: w.give.map(x => (x === g ? a : x)), get: w.get })));
+  // At a no: add one of yours, swap one up, or ask for one less of theirs.
+  if (!base.yes) {
+    mine.filter(a => a.value <= Math.max(1500, 0.6 * giveVal)).sort((x, y) => y.value - x.value).slice(0, 14)
+      .forEach(a => cands.push({ kind: 'yes', text: `Add your ${Vault.escapeHtml(a.name)}`, give: [...w.give, a], get: w.get }));
+    w.give.filter(a => !Coach.mine.must.includes(a.key)).forEach(g => mine.filter(a => a.value > g.value * 1.03 && a.value <= g.value * 1.6).sort((x, y) => x.value - y.value).slice(0, 4)
+      .forEach(a => cands.push({ kind: 'yes', text: `Send your ${Vault.escapeHtml(a.name)} instead of ${Vault.escapeHtml(g.name)}`, give: w.give.map(x => (x === g ? a : x)), get: w.get })));
+    if (w.get.length > 1) w.get.filter(a => !Coach.theirs.must.includes(a.key) && a.key !== Coach.targetKey).forEach(a => cands.push({ kind: 'yes', text: `Don't ask for ${Vault.escapeHtml(a.name)}`, give: w.give, get: w.get.filter(x => x !== a) }));
+  }
+  const out = [];
+  for (let k = 0; k < cands.length; k++) {
+    if (k % 6 === 5) { await coachTick(); if (Coach.work !== w || w.seq !== seq) return; }
+    const c = cands[k], r = coachWorkRead(me, w, c.give, c.get);
+    if (!r.yes || !coachPiecesOK(c.give, c.get)) continue;
+    if (c.kind !== 'yes' && r.score <= base.score + 0.5) continue; // only changes that help you
+    out.push({ ...c, r });
+  }
+  const top = kind => out.filter(c => c.kind === kind).sort((x, y) => y.r.score - x.r.score).slice(0, 4);
+  w.tweaks = { more: top('more'), less: top('less'), yes: top('yes') };
+  if (Coach.step === 'work' && coachOpen()) renderCoach();
+}
+function coachWorkApply(kind, k) {
+  const w = Coach.work, c = w && w.tweaks && w.tweaks[kind][k];
+  if (!c) return;
+  w.give = [...c.give]; w.get = [...c.get];
+  renderCoach(); coachWorkTweaks();
+}
+function coachWorkEdit(side, key, add) {
+  const w = Coach.work, me = coachMe(); if (!w) return;
+  const pool = side === 'give' ? me.assets : w.partner.assets, a = pool.find(x => x.key === key);
+  if (!a) return;
+  if (add) { if (!w[side].includes(a)) w[side] = [...w[side], a]; }
+  else if (w[side].length > 1) w[side] = w[side].filter(x => x !== a);
+  renderCoach(); coachWorkTweaks();
+}
+// The trade as it stands, loaded into the builder (your team as Team A).
+function coachWorkLoad() { const w = Coach.work; if (w) coachLoadTrade({ partner: w.partner, give: w.give, get: w.get }); }
+function coachWorkNegotiate(btn) {
+  coachWorkLoad();
+  Coach.option = 'negotiate'; Coach.collapsed = false;
+  renderCoach();
+  negOffer(btn);
+}
+function coachWorkShare(btn) { coachWorkLoad(); shareTrade(btn); }
+function coachWorkHtml(me) {
+  const w = Coach.work, esc = Vault.escapeHtml, r = coachWorkRead(me, w);
+  const tier = Vault.verdictTier(r.score), pc = v => `${Math.round(Math.abs(v))}%`;
+  const piece = (a, side) => `<div class="flex items-center justify-between gap-2 py-1.5 border-t border-white/[0.05] first:border-t-0">
+      <span class="min-w-0 truncate text-[13px] text-zinc-100">${esc(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span></span>
+      <span class="flex items-center gap-2 shrink-0"><span class="text-[11px] mono text-zinc-500">${Math.round(a.value).toLocaleString()}</span>${w[side].length > 1 ? `<button onclick="coachWorkEdit('${side}', '${a.key}', false)" aria-label="Take ${esc(a.name)} off" class="px-1 text-zinc-500 hover:text-white">×</button>` : ''}</span>
+    </div>`;
+  const off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
+  const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${esc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${Math.round(a.value).toLocaleString()}</option>`).join('')}</select>`;
+  const status = r.yes
+    ? `<div class="text-[14px] text-emerald-300 font-medium">${esc(w.partner.teamName)} would likely say yes.</div><div class="text-[12px] text-zinc-400 mt-0.5">${r.room >= 2 ? `You likely have room to ask for about ${pc(r.room)} more value.` : 'That\'s about as far as they\'d go.'}</div>`
+    : `<div class="text-[14px] text-orange-300 font-medium">${esc(w.partner.teamName)} would likely say no.</div><div class="text-[12px] text-zinc-400 mt-0.5">${(() => {
+        // How far off: their will against what they ask, or the price past Fair in your favor.
+        const need = Math.max(-r.room, r.you - VAULT_CONFIG.FAIR_PCT + 0.5), worry = r.j.concerns.filter(c => c.w < 0).sort((a, b) => a.w - b.w)[0];
+        const why = worry ? `: ${esc(worry.text.replace(/<[^>]+>/g, '').replace(/\.$/, ''))}` : '';
+        return need > 0 ? `They'd want about ${pc(need)} more value, or less to worry about${why}.` : `The value works, but it reads as a bad trade for their team or too lopsided on KTC's calculator${why}.`;
+      })()}</div>`;
+  const tweakRows = (kind, title) => {
+    const list = w.tweaks ? w.tweaks[kind] : [];
+    if (!list.length) return '';
+    return `<div class="mt-3"><div class="text-[12px] text-zinc-400 mb-1">${title}</div>${list.map((c, k) => { const t = Vault.verdictTier(c.r.score); return `<div class="flex items-center justify-between gap-3 py-2 border-t border-white/[0.06]">
+        <span class="min-w-0 text-[13px] text-zinc-200">${c.text} <span class="text-[12px] text-zinc-500">· for you <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.key]}">${t.label}</span>, ${esc(coachMe().teamName)} pays ${pc(c.r.you)} ${c.r.you >= 0 ? 'under' : 'over'} trade value${kind === 'yes' ? '' : `, room left ${c.r.room >= 2 ? `about ${pc(c.r.room)}` : 'about none'}`}</span></span>
+        <button onclick="coachWorkApply('${kind}', ${k})" class="shrink-0 text-[12px] px-3 py-1 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Apply</button>
+      </div>`; }).join('')}</div>`;
+  };
+  const tweaks = w.tweaks == null ? '<div class="text-[12px] text-zinc-500 mt-3">Looking for ways to make it better…</div>'
+    : (r.yes ? tweakRows('more', 'Ask for more (they\'d still say yes)') + tweakRows('less', 'Send less (they\'d still say yes)') : tweakRows('yes', 'Ways to get to yes, best for you first'))
+      || `<div class="text-[12px] text-zinc-500 mt-3">${r.yes ? 'No one-step change helps you and keeps them at yes: this one is as good as it gets.' : 'No single change gets them to yes. Try adding pieces by hand, or go back to the list.'}</div>`;
+  return `<div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+      <div class="text-[13px] text-zinc-300">Work it out with <span class="text-zinc-100 font-medium">${esc(w.partner.teamName)}</span>: change it one step at a time until it's a deal you'd send.</div>
+      <button onclick="coachGo('results')" class="text-[12px] text-zinc-400 hover:text-white">← Back to the trades</button>
+    </div>
+    <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${esc(me.teamName)} gives</div>${w.give.map(a => piece(a, 'give')).join('')}${addSel('give', me.assets.filter(a => !inGive.has(a.key) && !off.has(a.key) && a.value >= 100), '+ Add one of yours…')}</div>
+      <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${esc(me.teamName)} gets</div>${w.get.map(a => piece(a, 'get')).join('')}${addSel('get', w.partner.assets.filter(a => !inGet.has(a.key) && !coachTheirOff(a) && a.value >= 100), '+ Ask for one of theirs…')}</div>
+    </div>
+    <div class="grid gap-3 sm:grid-cols-3 mt-3">
+      <div><div class="text-[11px] text-zinc-500">For ${esc(me.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</div></div>
+      <div><div class="text-[11px] text-zinc-500">For ${esc(w.partner.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</div></div>
+      <div><div class="text-[11px] text-zinc-500">${esc(me.teamName)} pays</div><div class="text-[18px] font-semibold text-zinc-100">${Math.abs(r.you) < 1 ? 'even' : `${pc(r.you)} ${r.you > 0 ? 'under' : 'over'}`} <span class="text-[12px] font-normal text-zinc-500">trade value</span></div></div>
+    </div>
+    <div class="mt-3 p-3 rounded-lg ${r.yes ? 'bg-emerald-500/[0.06] border border-emerald-500/20' : 'bg-orange-500/[0.06] border border-orange-500/20'}">${status}</div>
+    ${tweaks}
+    <div class="flex flex-wrap items-center justify-end gap-2 mt-4 pt-3 border-t border-white/5">
+      <button onclick="coachWorkShare(this)" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Copy offer link</button>
+      <button onclick="coachWorkLoad()" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Open in builder</button>
+      <button onclick="coachWorkNegotiate(this)" class="text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid">Negotiate it</button>
+    </div>`;
 }
 
 // Everything chosen so far, as chips that jump back to their step.
@@ -1421,14 +1642,14 @@ function coachSummaryHtml(me) {
   const names = (side, list) => Coach[side][list].map(k => find(side, k)).filter(Boolean).map(a => esc(a.name)).join(', ');
   const grp = g => (g === 'PICK' ? 'Pick' : g);
   const add = (label, text, step) => { if (text) chips.push([`${label}: ${text}`, step]); };
-  add(Coach.option === 'rebuild' ? 'Sell' : 'You send', names('mine', 'must'), 'include');
-  add('You get', names('theirs', 'must'), 'include');
-  add('Don\'t trade', names('mine', 'keep'), 'exclude');
-  add('Don\'t want', names('theirs', 'keep'), 'exclude');
-  add('Must send a', Coach.mine.groups.map(grp).join(', '), 'positions');
-  add('Must get a', Coach.theirs.groups.map(grp).join(', '), 'positions');
-  add('Never trade any', Coach.mine.never.map(grp).join(', '), 'positions');
-  add('Never take any', Coach.theirs.never.map(grp).join(', '), 'positions');
+  add(Coach.option === 'rebuild' ? 'Sell' : 'Must go', names('mine', 'must'), 'give');
+  add('Untouchable', names('mine', 'keep'), 'give');
+  add('Must send a', Coach.mine.groups.map(grp).join(', '), 'give');
+  add('Never trade any', Coach.mine.never.map(grp).join(', '), 'give');
+  add('You get', names('theirs', 'must'), 'get');
+  add('Don\'t want', names('theirs', 'keep'), 'get');
+  add('Must get a', Coach.theirs.groups.map(grp).join(', '), 'get');
+  add('Never take any', Coach.theirs.never.map(grp).join(', '), 'get');
   return `<div class="flex flex-wrap items-center gap-1.5">${chips.map(([html, step]) => `<button onclick="coachGo('${step}')" title="Change this" class="text-[12px] text-zinc-300 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/20 hover:text-white">${html}</button>`).join('')}
     ${coachHasMine() ? `<button onclick="coachSideClear('mine'); coachSideClear('theirs')" class="text-[12px] text-zinc-500 hover:text-white px-1">Clear rules</button>` : ''}</div>`;
 }
@@ -1437,11 +1658,11 @@ function coachSummaryHtml(me) {
 function coachStepperHtml() {
   const at = COACH_STEPS.findIndex(([s]) => s === Coach.step);
   return `<ol class="flex flex-wrap items-center gap-1.5 text-[12px]">${COACH_STEPS.map(([s, label], i) => {
-    const cur = i === at, done = i < at || (s !== 'results' && s !== 'type' && coachStepHas(s));
-    const blocked = s !== 'type' && !coachReady();
+    const cur = i === at, done = i < at || (s !== 'results' && s !== 'type' && s !== 'work' && coachStepHas(s));
+    const blocked = (s !== 'type' && !coachReady()) || (s === 'work' && !Coach.work);
     return `<li class="flex items-center gap-1.5">${i ? '<span class="text-zinc-600" aria-hidden="true">›</span>' : ''}<button onclick="coachGo('${s}')" ${blocked ? 'disabled' : ''} ${cur ? 'aria-current="step"' : ''}
       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${cur ? 'bg-white/[0.08] border-white/25 text-white' : blocked ? 'border-transparent text-zinc-600 cursor-default' : 'border-transparent text-zinc-400 hover:text-white'}">
-      <span class="size-[18px] rounded-full text-[11px] font-semibold flex items-center justify-center ${cur ? 'bg-white text-black' : done ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-zinc-400'}">${s === 'results' ? '✓' : i + 1}</span>${label}</button></li>`;
+      <span class="size-[18px] rounded-full text-[11px] font-semibold flex items-center justify-center ${cur ? 'bg-white text-black' : done ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-zinc-400'}">${i + 1}</span>${label}</button></li>`;
   }).join('')}</ol>`;
 }
 
@@ -1455,7 +1676,7 @@ function coachNavHtml() {
   // the rule steps are an optional detour.
   if (Coach.step === 'type') {
     return `<div class="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-white/5">
-        <button onclick="coachGo('include')" ${ready ? '' : 'disabled'} class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 ${ready ? '' : 'opacity-50 cursor-default'}">Add rules (optional) →</button>
+        <button onclick="coachGo('give')" ${ready ? '' : 'disabled'} class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 ${ready ? '' : 'opacity-50 cursor-default'}">Next: what you'll give →</button>
         <button onclick="coachFind()" ${ready ? '' : 'disabled'} class="text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid">Find trades</button>
       </div>${hint}`;
   }
@@ -1527,10 +1748,11 @@ function renderCoach() {
     <div class="flex gap-1.5 flex-wrap mb-2">${Object.entries(COACH_OPTIONS).filter(([o]) => o !== 'negotiate').map(([o, d]) => chip(Coach.option === o, d.label, `coachSetOption('${o}')`)).join('')}</div>
     <div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS[Coach.option].blurb}</div>`;
   if (neg) { box.innerHTML = `<div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">${COACH_OPTIONS.negotiate.blurb}</div>${coachNegotiateHtml()}`; return; }
-  if (Coach.step === 'include' || Coach.step === 'exclude' || Coach.step === 'positions') {
-    box.innerHTML = coachRulesHtml(me, Coach.step) + coachNavHtml();
+  if (Coach.step === 'give' || Coach.step === 'get') {
+    box.innerHTML = (Coach.step === 'give' ? coachGiveHtml(me) : coachGetHtml(me)) + coachNavHtml();
     return;
   }
+  if (Coach.step === 'work' && Coach.work) { box.innerHTML = coachWorkHtml(me); return; }
   const needs = Vault.positionalProfile(me, teams).needs;
   const input = {
     target: coachTargetHtml(chip),
@@ -1553,7 +1775,7 @@ function renderCoach() {
     rebuild: '', contend: ''
   }[Coach.option];
   if (Coach.step === 'type') {
-    box.innerHTML = typeChips + (input ? `<div class="mt-1">${input}</div>` : '') + coachNavHtml();
+    box.innerHTML = coachTeamReadHtml(me) + typeChips + (input ? `<div class="mt-1">${input}</div>` : '') + coachNavHtml();
     renderCoachTargetList();
     return;
   }
@@ -1640,6 +1862,7 @@ function coachCardHtml(o, i, near = false, hero = false) {
       ${typeof marketAcceptHtml === 'function' ? marketAcceptHtml(marketAcceptable(league, o.give, o.get), coachMe().teamName, o.partner.teamName, 'mt-2.5', true) : ''}
       ${(() => { const t = improvementOf(coachJudged(coachMe(), o.partner, o.give, o.get).an, 'B'); return `<div class="text-[12px] text-zinc-400 mt-1">For ${Vault.escapeHtml(o.partner.teamName)}: <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.tier]}">${t.label}</span></div>`; })()}
       <div class="flex items-center justify-end gap-2 mt-auto pt-3">
+        <button onclick="coachWork(${i}${near ? ', true' : ''})" class="shrink-0 whitespace-nowrap text-[12px] px-3 py-1.5 rounded-lg btn-gold-solid">Work it out</button>
         <button onclick="coachLoad(${i}${near ? ', true' : ''})" aria-label="Open ${o.give.map(x => Vault.escapeHtml(x.name)).join(' + ')} for ${o.get.map(x => Vault.escapeHtml(x.name)).join(' + ')} in the builder" class="shrink-0 whitespace-nowrap text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Open in builder</button>
       </div>
     </div>`;
