@@ -9,7 +9,7 @@
 <title>How We Grade — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=38636712">
+<link rel="stylesheet" href="tailwind.css?v=facc4720">
 <style>
   .hwg h2 { font-size: 16px; font-weight: 600; color: #f4f4f5; margin-bottom: 8px; }
   .hwg p, .hwg li { font-size: 13px; line-height: 1.7; color: #d4d4d8; }
@@ -43,7 +43,7 @@
     <a class="hover:text-amber-300" href="#facts">What 2.7 million trades say</a>
     <a class="hover:text-amber-300" href="#playerstats">Player stats on Compare Players</a>
     <a class="hover:text-amber-300" href="#negotiation">Trade Coach: negotiating</a>
-    <a class="hover:text-amber-300" href="#coach">Trade Coach: finding trades</a>
+    <a class="hover:text-amber-300" href="#coach">Trade Coach: building a trade</a>
   </nav>
 
   <div class="space-y-5">
@@ -196,25 +196,14 @@
     </section>
 
     <section id="coach" class="card rounded-vault-sm p-5">
-      <h2>Trade Coach: finding trades</h2>
-      <p>Every Trade Coach option lists single trades to choose from, best for you first. Every one has to pass the same test as a Negotiate offer: the other manager would likely accept it, and it's Fair for you on the overall grade. If nobody would take a Fair offer (contenders rarely sell starters at even value), you'll see the cheapest deals they would take, flagged as Lopsided against you so the premium is visible. It never suggests an Unfair trade.</p>
+      <h2>Trade Coach: building a trade</h2>
+      <p>Trade Coach doesn't hand you a list of trades. You build the one you want, one step at a time, and it tells you how each version reads. First, what you're after: a player you already know, someone at a position (every QB, RB, WR or TE on other teams, sortable by value, points a game or age), a team to deal with (each with its timeline, where it's thin and where it's deep), or one of your own players to move (teams that need his position come first). Then the trade starts with that player or team, and you add or take off pieces.</p>
       <ul>
-        <li><strong>Every Trade Coach list</strong> keeps to prices both managers would take: Fair on trade value (under 14% off) and not Unfair on KTC's calculator (under 41%). Until October 24 it required Fair on KTC (under 14%) instead; KTC adds such a big bonus for the best piece that only a quarter of real accepted trades read Fair there, so that rule passed over most of the trades managers actually make (with the other team's verdict, 18% of real trades got through; now 40%).</li>
-        <li><strong>Best trades</strong>: the fairest trades between your team and every other team (one for one, two for one, either direction), kept to the ones that manager would likely accept, at most two per team. Unless you're rebuilding, it also tries two of a team's players who'd both start for you (never its best player) for up to four of your bench players and picks.</li>
-        <li><strong>Shop a player</strong>: each team's best offer for one of your players or picks, any return.</li>
-        <li><strong>Get a player</strong>: offers of one, two, or three of your pieces the owner would take, one per lead piece so you get real alternatives.</li>
-        <li><strong>Sell high</strong> and <strong>Buy low</strong>: your players and picks that sell for more than similar players in completed trades, each shopped for more than its KTC value; and players on other teams that sell for less, bought for less (see The market above).</li>
-        <li><strong>Trade with a team</strong>: the best trades with one team you pick. Team Analyzer's "Find trades with them" opens it on that team.</li>
-        <li><strong>Down-tier a player</strong>: pick one of your players and get back a lesser player plus extra pieces, so you gain total value. KTC's calculator adds a big bonus for the single best piece, so these nearly always read as the other team overpaying there (by <span class="num">15</span>-<span class="num">50%</span>); Down-tier doesn't require them to look fair on KTC, and each one says how it reads there, since the other manager may check.</li>
-        <li><strong>Fix a position</strong>: up to <span class="num">10</span> trades, at most two packages per player, from up to <span class="num">25</span> players who out-score your weakest starter there by 2+ points a week, in trades where your best lineup gets better and the most valuable player in the deal comes to you. Your starters at other positions stay put; ones at this position can be part of the deal. Go all-in instead needs a gain of at least 3 points a week.</li>
-        <li><strong>Rebuild</strong>: your players at or past the age their position usually starts losing value (RB 26, WR 28, TE 29, QB 30), each with the best return in picks and players 24 or under that any team would give.</li>
-        <li><strong>Go all-in</strong>: starters paid for with picks, prospects, and bench players, ranked by how much they add to your best lineup. Your starters stay put.</li>
+        <li><strong>The read.</strong> Once both sides have something: the verdict for your team and for theirs, the price on trade value, whether their manager would likely say yes (the same model as Negotiate: their own read of the deal, their needs and their trading history), and how much more you could ask for or how much more they'd want.</li>
+        <li><strong>Hints, one piece at a time.</strong> Before the trade has two sides, pieces of yours that fill a need of theirs (and the closest to what's missing on value), or theirs that fill yours. After, at a no: the single pieces of yours that get them to yes, or failing that, the ones that get them closest, each with what they'd still want. At a yes: one more of their pieces you could ask for, or a piece of yours you could keep or swap for something cheaper, with the room left. It never builds the trade for you.</li>
+        <li><strong>Then</strong> negotiate it (their manager answers round by round), open it in the builder, or copy the offer link.</li>
       </ul>
-      <p><strong>Closest deals.</strong> When a search finds nothing, Trade Coach shows up to three of the offers it built that just missed, says why each one isn't on the list (bad for the other team, not good enough for you, over on price, off on KTC's calculator), and for one that's bad for the other team, the smallest of your other pieces that makes it at least a Toss-up for them. <strong>Quick filters</strong> above the results narrow any search: pay with picks and bench only, at most one, two or three pieces each way, and a position you want back.</p>
-      <p>Go all-in and Fix a position can pay a premium, but they skip trades that would be a Bad trade or worse for the other team. In <span class="num">2024</span> and <span class="num">2025</span> in-season trades, contenders with <span class="num">85%</span>+ playoff odds gave up <span class="num">5</span>+ points a week in only <span class="num">2.2%</span> of the trades they accepted, and not for extra value; teams under <span class="num">10%</span> odds did in <span class="num">22%</span>.</p>
-      <p>During the season, each suggestion shows your title odds before and after (the same simulation as the Trade Calculator's This season box). For a team already headed to the playoffs, that's where a trade shows up: contenders with <span class="num">85%</span>+ playoff odds won the title <span class="num">1.35</span> times as often as their odds said after trades that added <span class="num">6</span>+ points a week, and <span class="num">1.12</span> times (the same as any team that traded) after trades that added about none.</p>
-      <p><strong>Your timeline</strong> decides whether your side is graded as contending or rebuilding. Auto reads it from your roster. Pick Contending or Rebuilding to override it: at the top of Trade Coach for your team, or from the Timeline dropdown on either team in the Trade Calculator, so you can also tell it the other team has changed direction. Every grade on the page uses it, and the Trade Analysis marks it "set by you". Go all-in sets it to Contending, and Rebuild sets it to Rebuilding, so a rebuilding team going all-in isn't graded as spending picks its rebuild needed. It's saved in your browser.</p>
-      <p><strong>Your side and Their side</strong> set rules every suggestion follows. On your side: pieces every trade must include (for Rebuild, the only players it shops, with offers from several teams), pieces you won't trade, and whole groups (a position, or picks) you won't trade. On their side: pieces a trade must bring back, which limits it to the teams that own them; pieces you don't want; and groups you won't take. Negotiate's "Ask for something else" skips anything you've said you don't want back.</p>
+      <p>Until October 27 the Coach suggested whole trades in a dozen lists (Best trades, Sell high, Rebuild and others). About a third of what they listed failed the manager model Negotiate uses, so a listed trade could be declined the moment you offered it; building it yourself with one read keeps the two from disagreeing.</p>
     </section>
 
     <p class="text-[12px] text-zinc-400">Something here doesn't match what you're seeing? Changes to how grading works are always listed on <a id="patchLink" class="text-amber-300 hover:text-amber-200" href="patch_notes.html">Patch Notes</a>.</p>

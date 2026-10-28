@@ -9,7 +9,7 @@
 <title>Player Market — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=38636712">
+<link rel="stylesheet" href="tailwind.css?v=facc4720">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -681,8 +681,7 @@ async function renderMarketNudge() {
       ${lows.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-orange-300/90">Sells low</span>${lows.map(a => chip(a, false)).join('')}</div>` : ''}
       ${week.length ? `<div class="flex flex-wrap items-center gap-2"><span class="text-[12px] text-zinc-400">Since ${marketSinceText(week[0].since)}</span>${week.map(m => `<a href="${link(m)}" title="Market price against KTC: ${signed(m.then)} on ${marketSinceText(m.since)}, ${signed(m.now)} now" class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 hover:bg-white/[0.03] transition-colors"><span class="text-zinc-100">${Vault.escapeHtml(m.name)}</span><span class="text-[12px] ${m.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${m.change > 0 ? '▲' : '▼'} from ${overUnder(m.then)} to ${overUnder(m.now)} KTC</span></a>`).join('')}</div>` : ''}
       <div class="ml-auto flex flex-wrap gap-2 shrink-0">
-        <a href="${Vault.linkTo('trade.html')}&coach=sellhigh" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Sell high →</a>
-        <a href="${Vault.linkTo('trade.html')}&coach=buylow" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Buy low →</a>
+        <a href="${Vault.linkTo('trade.html')}&coach=open" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06] transition-colors">Build a trade in Trade Coach →</a>
       </div>
     </div>`;
   box.classList.remove('hidden');

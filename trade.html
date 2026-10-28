@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=38636712">
+<link rel="stylesheet" href="tailwind.css?v=facc4720">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -456,11 +456,13 @@ async function init() {
     renderCompare(); // trades pinned on an earlier visit
     if (!applyTradeFromUrl()) {
       const coachFromLink = () => {
-        if (!coachParam || typeof COACH_OPTIONS === 'undefined' || !COACH_OPTIONS[coachParam]) return;
-        openCoach(coachParam);
-        if (coachParam === 'team' && withParam && teams.some(t => String(t.rosterId) === withParam)) coachSetTeam(withParam); // ?coach=team&with=<rosterId> (Team Analyzer's "Find trades with them")
-        if (coachParam === 'shop' && playerParam && (Vault.myTeam(teams)?.plist || []).some(p => 'p_' + p.id === playerParam)) coachSetShop(playerParam); // ?coach=shop&player=p_<id> (Contend or Rebuild?'s Reload)
-        if (coachReady()) coachFind();
+        if (!coachParam || typeof openCoach !== 'function') return;
+        // The Coach no longer suggests trades (2026-10-27): ?coach=team&with=<rosterId> starts
+        // a trade with that team, ?coach=shop&player=p_<id> starts moving that player, and
+        // any other option opens the Coach at its first step.
+        if (coachParam === 'team' && withParam && teams.some(t => String(t.rosterId) === withParam)) return coachPickTeam(withParam);
+        if (coachParam === 'shop' && playerParam && (teamOf('A')?.assets || []).some(a => a.key === playerParam)) return coachShopFor(playerParam);
+        openCoach('coach');
       };
       const btn = document.getElementById('loadRostersBtn');
       if (Vault.myTeam(teams)) { btn.onclick(); coachFromLink(); }
@@ -2269,6 +2271,6 @@ init();
 <script src="negotiation.js?v=7d597d52"></script>
 <script src="market-data.js?v=07632230"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=3f02eaf3"></script>
+<script src="coach.js?v=a1dbb58e"></script>
 </body>
 </html>

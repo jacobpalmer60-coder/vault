@@ -427,10 +427,10 @@ function evidence(o, k) {
 function coachButton(o, k) {
   const mine = Vault.myTeam(ctx.teams) === o.me;
   const base = Vault.linkTo('trade.html');
-  if (!mine) return `<a href="${base}&coach=team&with=${o.me.rosterId}" class="btn-ghost inline-block text-[13px] px-4 py-2">Find trades with ${esc(o.me.teamName)}</a>
+  if (!mine) return `<a href="${base}&coach=team&with=${o.me.rosterId}" class="btn-ghost inline-block text-[13px] px-4 py-2">Start a trade with ${esc(o.me.teamName)}</a>
     <div class="text-[12px] text-zinc-500 mt-1.5">Trade Coach works from your own team. Switch to it above to act on a path.</div>`;
-  const link = { push: [`${base}&coach=contend`, 'Go all-in in Trade Coach'], rebuild: [`${base}&coach=rebuild`, 'Rebuild in Trade Coach'], stay: [`${base}&coach=best`, 'Best trades in Trade Coach'] }[k]
-    || (o.sell[0] ? [`${base}&coach=shop&player=p_${o.sell[0].id}`, `Shop ${esc(o.sell[0].name)} in Trade Coach`] : [`${base}&coach=best`, 'Best trades in Trade Coach']);
+  // The Coach builds trades step by step (2026-10-27): reload can start by moving the player to sell.
+  const link = (k === 'reload' || !['push', 'rebuild', 'stay'].includes(k)) && o.sell[0] ? [`${base}&coach=shop&player=p_${o.sell[0].id}`, `Move ${esc(o.sell[0].name)} in Trade Coach`] : [`${base}&coach=open`, 'Build a trade in Trade Coach'];
   return `<a href="${link[0]}" class="btn-gold-solid inline-block text-[13px] px-4 py-2">${link[1]}</a>`;
 }
 

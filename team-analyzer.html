@@ -9,7 +9,7 @@
 <title>Team Analyzer — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=38636712">
+<link rel="stylesheet" href="tailwind.css?v=facc4720">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -41,7 +41,7 @@
 <script src="vault-nav.js?v=786ac780"></script>
 <script src="season-report.js?v=837c7cb0"></script>
 <script src="market-data.js?v=07632230"></script>
-<script src="timeline.js?v=e398b38a"></script>
+<script src="timeline.js?v=db490710"></script>
 <script>
 const $ = s => document.querySelector(s);
 
@@ -210,7 +210,7 @@ function renderSingle(t) {
               <div class="text-[12px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0" title="How well the two rosters and timelines complement each other">${p.fit >= 6 ? 'Strong fit' : p.fit >= 3 ? 'Good fit' : p.fit >= 1 ? 'Some fit' : 'Weak fit'}</div>
             </div>
             <div class="mt-1.5 space-y-0.5">${[...partnerLines(t, p), ...p.reasons].slice(0, 3).map(r => `<div class="flex gap-1.5 text-[13px] text-zinc-300"><span class="text-emerald-400/80">•</span><span>${Vault.escapeHtml(r)}</span></div>`).join('')}</div>
-            ${isMine ? `<a href="${Vault.linkTo('trade.html')}&coach=team&with=${p.rosterId}" class="inline-block mt-1.5 text-[12px] text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20">Find trades with them</a>` : ''}
+            ${isMine ? `<a href="${Vault.linkTo('trade.html')}&coach=team&with=${p.rosterId}" class="inline-block mt-1.5 text-[12px] text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20">Start a trade with them</a>` : ''}
           </div>`).join('')}</div>
       </div>
     </div>`;
