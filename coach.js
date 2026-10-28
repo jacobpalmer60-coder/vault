@@ -639,7 +639,7 @@ function coachReset() { coachScoreMemo.clear(); if (Coach.work) Coach.work.tweak
 // From a roster row: Shop (your piece: pick the team to deal with) or Get (their player: build it).
 function coachShopFor(key) {
   Coach.option = 'coach';
-  Coach.flow = { ...coachFlow(), what: 'move', myKey: key, step: 'pick' };
+  Coach.flow = { ...coachFlow(), what: 'player', myKey: key, goal: null, step: 'pick' };
   setView('coach');
   renderCoach();
   document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -833,21 +833,24 @@ function coachNegotiateHtml() {
    (both teams' verdicts, whether their manager would say yes, how much room is left)
    and hints one piece at a time (pieces of yours that fill their needs, pieces of
    theirs that fill yours), never a finished trade.
-     what   Get a player · Someone at a position · Deal with a team · Move one of my players
-     pick   the player (searchable), the position (every player at it, sortable), the
-            team (each with its timeline, needs and depth), or your player and then the
-            team to deal with (teams that need his position first)
+     what   a player, a position or a team (then, user: "if you select your own player,
+            upgrade, downtier, sell. position to depth or upgrade")
+     pick   a player: theirs goes straight to building; yours asks Upgrade, Down-tier or
+            Sell, then the team (the ones that fit that goal first). A position: Upgrade
+            (players who'd out-score your weakest starter there) or Depth (cheaper ones
+            who score). A team: each with its timeline, needs and depth.
      build  the trade so far, the read, hints, one-step changes, then negotiate it,
             open it in the builder, or copy the offer link
    ============================================================ */
-const COACH_FLOW_STEPS = [['what', 'What you\'re after'], ['pick', 'Pick'], ['build', 'Build it']];
+const COACH_FLOW_STEPS = [['what', 'Start from'], ['pick', 'Pick'], ['build', 'Build it']];
 const COACH_WHAT = [
-  ['player', 'Get a player', 'You know who you want.'],
-  ['position', 'Someone at a position', 'Browse every QB, RB, WR or TE on other teams and pick one.'],
-  ['team', 'Deal with a team', 'Pick a team, then choose what you want from their roster.'],
-  ['move', 'Move one of my players', 'Pick your player, then the team to deal with.']
+  ['player', 'A player', 'Any player, yours or another team\'s. Yours: upgrade him, down-tier him or sell him.'],
+  ['position', 'A position', 'Upgrade a position, or add depth there.'],
+  ['team', 'A team', 'Pick a team, then choose what you want from their roster.']
 ];
-const coachFlow = () => (Coach.flow ||= { step: 'what', what: null, pos: 'RB', sort: 'value', myKey: null });
+// What to do with one of your own players, and with a position.
+const COACH_GOALS = { upgrade: 'Upgrade', downtier: 'Down-tier', sell: 'Sell' }, COACH_POS_GOALS = { upgrade: 'Upgrade', depth: 'Depth' };
+const coachFlow = () => (Coach.flow ||= { step: 'what', what: null, pos: 'RB', sort: 'points', myKey: null, goal: null, posGoal: 'upgrade' });
 const coachEsc = s => Vault.escapeHtml(s);
 const coachPosNeed = (team, pos) => !!pos && Vault.positionalProfile(team, teams).needs.includes(String(pos).toLowerCase());
 const coachChip = (on, label, onclick, extra = '') => `<button onclick="${onclick}" class="text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${on ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}${extra}</button>`;
@@ -859,13 +862,14 @@ function coachFlowGo(step) {
   f.step = step;
   renderCoach();
 }
-function coachFlowWhat(what) { const f = coachFlow(); f.what = what; f.myKey = null; f.step = 'pick'; renderCoach(); }
+function coachFlowWhat(what) { const f = coachFlow(); f.what = what; f.myKey = null; f.goal = null; f.upKeys = null; f.step = 'pick'; renderCoach(); }
 function coachFlowSet(k, v) { coachFlow()[k] = v; renderCoach(); }
 // Into Build it with a starting trade.
-function coachBuildFrom(partner, give, get) {
+// goal: what you're doing with your own player (upgrade, downtier, sell), for the hints.
+function coachBuildFrom(partner, give, get, goal = null) {
   if (!partner) return;
   Coach.option = 'coach';
-  Coach.work = { partner, give: [...give], get: [...get], option: 'build', tweaks: null, seq: 0 };
+  Coach.work = { partner, give: [...give], get: [...get], option: 'build', goal, tweaks: null, seq: 0 };
   coachFlow().step = 'build';
   if (!coachOpen()) setView('coach');
   renderCoach();
@@ -875,10 +879,41 @@ function coachBuildFrom(partner, give, get) {
 const coachOwner = key => teams.find(t => t !== coachMe() && t.assets.some(a => a.key === key));
 function coachPickPlayer(key) { const t = coachOwner(key); if (t) coachBuildFrom(t, [], [t.assets.find(a => a.key === key)]); }
 function coachPickTeam(id) { const t = teams.find(x => String(x.rosterId) === String(id)); if (t) coachBuildFrom(t, [], []); }
-function coachPickMine(key) { coachFlow().myKey = key || null; renderCoach(); }
+// A player from the one list: another team's goes straight to building; yours asks what to
+// do with him (a pick can only be sold).
+function coachPickAny(key) {
+  if (!key) return;
+  const mine = coachMe().assets.find(a => a.key === key);
+  if (!mine) return coachPickPlayer(key);
+  const f = coachFlow(); f.myKey = key; f.upKeys = [key]; f.goal = mine.type === 'pick' ? 'sell' : null;
+  renderCoach();
+}
 function coachPickMoveTeam(id) {
-  const t = teams.find(x => String(x.rosterId) === String(id)), a = coachMe().assets.find(x => x.key === coachFlow().myKey);
-  if (t && a) coachBuildFrom(t, [a], []);
+  const f = coachFlow(), t = teams.find(x => String(x.rosterId) === String(id)), a = coachMe().assets.find(x => x.key === f.myKey);
+  if (t && a) coachBuildFrom(t, f.goal === 'upgrade' ? coachUpAssets() : [a], [], f.goal);
+}
+// Upgrade (user: "select a player or players that you are wanting to upgrade"): the players of
+// yours being upgraded, sent together for one better player.
+function coachUpToggle(key) {
+  const f = coachFlow(), l = f.upKeys || [];
+  if (key === f.myKey && f.what === 'player') return; // the player you started from stays in
+  f.upKeys = l.includes(key) ? l.filter(k => k !== key) : [...l, key];
+  renderCoach();
+}
+const coachUpAssets = () => (coachFlow().upKeys || []).map(k => coachMe().assets.find(a => a.key === k)).filter(Boolean);
+// From the position list: your selected players there for the one you picked.
+function coachPickUpgrade(key) {
+  const t = coachOwner(key), give = coachUpAssets();
+  if (t) coachBuildFrom(t, give, [t.assets.find(a => a.key === key)], give.length ? 'upgrade' : null);
+}
+// Your players to tick for an upgrade: chips for `list`, plus a box to add any other of yours.
+function coachUpPickerHtml(me, list, fixed = null) {
+  const up = new Set(coachFlow().upKeys || []), n = v => Math.round(v).toLocaleString();
+  const chips = list.map(a => `<button onclick="coachUpToggle('${a.key}')" aria-pressed="${up.has(a.key)}" ${a.key === fixed ? 'disabled' : ''} class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${up.has(a.key) ? 'bg-amber-400/10 border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${up.has(a.key) ? '✓ ' : ''}${coachEsc(a.name)} <span class="opacity-60">${a.type === 'pick' ? 'pick' : a.pos} · ${n(a.value)}</span></button>`).join('');
+  const rest = me.assets.filter(a => a.value >= 300 && !list.includes(a) && !up.has(a.key)).sort((x, y) => y.value - x.value);
+  const extra = me.assets.filter(a => up.has(a.key) && !list.includes(a)).map(a => `<button onclick="coachUpToggle('${a.key}')" class="text-[12px] px-2.5 py-1 rounded-lg border bg-amber-400/10 border-amber-400/40 text-amber-100">✓ ${coachEsc(a.name)} <span class="opacity-60">${a.type === 'pick' ? 'pick' : a.pos} · ${n(a.value)}</span></button>`).join('');
+  return `<div class="text-[12px] text-zinc-400 mb-1.5">Which of your players are you upgrading? Tick one or more; they go out together.</div>
+    <div class="flex flex-wrap items-center gap-1.5 mb-3">${chips}${extra}<select data-search="+ Another of yours…" onchange="if (this.value) coachUpToggle(this.value)" aria-label="Add another of your players" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[200px]"><option value="">+ Another of yours…</option>${rest.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${n(a.value)}</option>`).join('')}</select></div>`;
 }
 
 // Numbered steps along the top; a step opens once there's something for it.
@@ -914,46 +949,80 @@ function coachWhatHtml(me) {
 const coachBackHtml = (step, label) => `<button onclick="coachFlowGo('${step}')" class="text-[12px] text-zinc-400 hover:text-white">← ${label}</button>`;
 function coachPickHtml(me) {
   const f = coachFlow(), others = teams.filter(t => t !== me), n = v => Math.round(v).toLocaleString();
-  const head = text => `<div class="flex items-center justify-between gap-3 flex-wrap mb-3"><div class="text-[13px] text-zinc-300">${text}</div>${coachBackHtml('what', 'What you\'re after')}</div>`;
+  const head = text => `<div class="flex items-center justify-between gap-3 flex-wrap mb-3"><div class="text-[13px] text-zinc-300">${text}</div>${coachBackHtml('what', 'Start from')}</div>`;
   const pickBtn = onclick => `<button onclick="${onclick}" class="shrink-0 text-[12px] px-3 py-1 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Pick</button>`;
-  // A team's line: timeline, needs and depth, and whether it needs the position in play.
-  const teamRow = (t, onclick, pos) => {
+  // A team's line: timeline, needs and depth, whether it needs the position in play, and a note for the goal.
+  const teamRow = (t, onclick, pos, note = '') => {
     const { needs, surpluses } = Vault.positionalProfile(t, teams), P = l => l.map(x => x.toUpperCase()).join(', ');
     const need = pos && needs.includes(pos.toLowerCase());
     return `<div class="flex items-center justify-between gap-3 py-2 border-t border-white/[0.06] first:border-t-0">
-        <div class="min-w-0"><div class="text-[13px] text-zinc-100 truncate">${coachEsc(t.teamName)}${need ? ` <span class="text-[11px] text-emerald-300">needs ${pos}</span>` : ''}</div>
+        <div class="min-w-0"><div class="text-[13px] text-zinc-100 truncate">${coachEsc(t.teamName)}${need ? ` <span class="text-[11px] text-emerald-300">needs ${pos}</span>` : ''}${note ? ` <span class="text-[11px] text-amber-200/80">${note}</span>` : ''}</div>
           <div class="text-[11px] text-zinc-500">${Vault.MODE_LABEL[Vault.teamMode(t)] || ''}${needs.length ? ` · thin at ${P(needs)}` : ''}${surpluses.length ? ` · deep at ${P(surpluses)}` : ''}</div></div>
         ${pickBtn(onclick)}
       </div>`;
   };
+  const playerRows = (rows, pickFn = 'coachPickPlayer') => `<div class="rounded-lg bg-black/30 border border-white/5 px-3">${rows.map(({ a, t }) => `<div class="flex items-center justify-between gap-3 py-2 border-t border-white/[0.06] first:border-t-0">
+      <div class="min-w-0"><div class="text-[13px] text-zinc-100 truncate">${coachEsc(a.name)}</div><div class="text-[11px] text-zinc-500 truncate">${coachEsc(t.teamName)}${a.age ? ` · ${Math.round(a.age)} years old` : ''}${a.ppg ? ` · ${a.ppg.toFixed(1)} pts/game` : ''}</div></div>
+      <span class="flex items-center gap-3 shrink-0"><span class="text-[12px] mono text-zinc-400">${n(a.value)}</span>${pickBtn(`${pickFn}('${a.key}')`)}</span></div>`).join('') || '<div class="py-3 text-[12px] text-zinc-500">No one fits.</div>'}</div>`;
+
   if (f.what === 'player') {
-    const opts = others.flatMap(t => t.assets.filter(a => a.type === 'player' && a.value >= 300).map(a => ({ a, t }))).sort((x, y) => y.a.value - x.a.value);
-    return head('Who do you want? Type a name.') + `<select data-search="Type a player on another team…" onchange="if (this.value) coachPickPlayer(this.value)" aria-label="Player you want" class="w-full sm:w-[460px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
-        <option value="">Pick a player…</option>${opts.map(({ a, t }) => `<option value="${a.key}">${coachEsc(a.name)} (${a.pos}) · ${coachEsc(t.teamName)} · ${n(a.value)}</option>`).join('')}</select>`;
+    const mineList = me.assets.filter(a => a.value >= 300).sort((x, y) => y.value - x.value);
+    const theirs = others.flatMap(t => t.assets.filter(a => a.type === 'player' && a.value >= 300).map(a => ({ a, t }))).sort((x, y) => y.a.value - x.a.value);
+    const sel = `<select data-search="Type any player, yours or theirs…" onchange="coachPickAny(this.value)" aria-label="Player" class="w-full sm:w-[460px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
+        <option value="">Pick a player…</option>
+        <optgroup label="Your players and picks">${mineList.map(a => `<option value="${a.key}" ${a.key === f.myKey ? 'selected' : ''}>${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · yours · ${n(a.value)}</option>`).join('')}</optgroup>
+        <optgroup label="Other teams">${theirs.map(({ a, t }) => `<option value="${a.key}">${coachEsc(a.name)} (${a.pos}) · ${coachEsc(t.teamName)} · ${n(a.value)}</option>`).join('')}</optgroup></select>`;
+    const a = mineList.find(x => x.key === f.myKey);
+    if (!a) return head('Which player? One of yours, or one on another team.') + sel;
+    // One of yours: what to do with him, then the team.
+    const pos = a.type === 'player' ? a.pos : null;
+    const goals = a.type === 'pick' ? { sell: 'Sell' } : COACH_GOALS;
+    if (!(f.upKeys || []).includes(a.key)) f.upKeys = [a.key];
+    const ups = coachUpAssets(), upNames = ups.map(x => coachEsc(x.name)).join(' + ');
+    const blurb = { upgrade: `Send ${upNames} plus more for one better player.`, downtier: `Send ${coachEsc(a.name)} for a lesser ${pos} plus more pieces.`, sell: `Send ${coachEsc(a.name)} for picks and young players.` };
+    const goalRow = `<div class="flex flex-wrap items-center gap-1.5 mb-1">${Object.entries(goals).map(([k, l]) => coachChip(f.goal === k, l, `coachFlowSet('goal', '${k}')`)).join('')}</div>${f.goal ? `<div class="text-[12px] text-zinc-400 mb-3">${blurb[f.goal]}</div>` : ''}`;
+    if (!f.goal) return head(`${coachEsc(a.name)} is yours. What do you want to do with him?`) + `<div class="mb-3">${sel}</div>` + goalRow;
+    // Upgrading: tick the others going out with him (same position shown first).
+    const upPicker = f.goal === 'upgrade' ? coachUpPickerHtml(me, me.assets.filter(x => x.type === 'player' && x.pos === pos).sort((x, y) => y.value - x.value), a.key) : '';
+    // Teams that fit the goal first: upgrade, who has someone better than the best you're sending at
+    // those positions; down-tier, who has a lesser one (and needs his position); sell, who needs it.
+    const upPos = new Set(ups.map(x => x.pos)), best = Math.max(...ups.map(x => x.value)), upSum = sumValue(ups);
+    const better = t => t.assets.filter(x => x.type === 'player' && upPos.has(x.pos) && x.value > best * 1.05 && x.value <= Math.max(best * 2.2, upSum * 1.3)).length;
+    const lesser = t => t.assets.filter(x => x.type === 'player' && x.pos === pos && x.value > a.value * 0.4 && x.value <= a.value * 0.92).length;
+    const fit = t => (f.goal === 'upgrade' ? better(t) : f.goal === 'downtier' ? lesser(t) + (coachPosNeed(t, pos) ? 1 : 0) : coachPosNeed(t, pos) ? 1 : 0);
+    const note = t => { const k = f.goal === 'upgrade' ? better(t) : f.goal === 'downtier' ? lesser(t) : 0; return !k ? '' : `${k} ${f.goal === 'upgrade' ? 'better' : 'lesser'} ${f.goal === 'upgrade' ? [...upPos].join('/') : pos}${k > 1 ? 's' : ''}`; };
+    const order = [...others].sort((x, y) => fit(y) - fit(x));
+    return head(`${COACH_GOALS[f.goal]} ${f.goal === 'upgrade' ? upNames : coachEsc(a.name)}. Which team do you want to deal with?`) + `<div class="mb-3">${sel}</div>${goalRow}${upPicker}
+      <div class="rounded-lg bg-black/30 border border-white/5 px-3">${order.map(t => teamRow(t, `coachPickMoveTeam('${t.rosterId}')`, pos, note(t))).join('')}</div>`;
   }
   if (f.what === 'position') {
-    const P = f.pos;
-    const sorts = [['value', 'Value'], ['points', 'Points a game'], ['young', 'Youngest']];
-    const rows = others.flatMap(t => t.assets.filter(a => a.type === 'player' && a.pos === P && a.value >= 500).map(a => ({ a, t })))
-      .sort(f.sort === 'points' ? (x, y) => (y.a.ppg || 0) - (x.a.ppg || 0) : f.sort === 'young' ? (x, y) => (x.a.age || 99) - (y.a.age || 99) || y.a.value - x.a.value : (x, y) => y.a.value - x.a.value).slice(0, 40);
-    return head(`Every ${P} on another team. Pick the one you want.`) + `<div class="flex flex-wrap gap-1.5 mb-2">${['QB', 'RB', 'WR', 'TE'].map(p => coachChip(P === p, p, `coachFlowSet('pos', '${p}')`, coachPosNeed(me, p) ? ' <span class="text-[11px] text-rose-300/80">need</span>' : '')).join('')}</div>
-      <div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[12px] text-zinc-500 mr-1">Sort by</span>${sorts.map(([k, l]) => coachChip(f.sort === k, l, `coachFlowSet('sort', '${k}')`)).join('')}</div>
-      <div class="rounded-lg bg-black/30 border border-white/5 px-3">${rows.map(({ a, t }) => `<div class="flex items-center justify-between gap-3 py-2 border-t border-white/[0.06] first:border-t-0">
-          <div class="min-w-0"><div class="text-[13px] text-zinc-100 truncate">${coachEsc(a.name)}</div><div class="text-[11px] text-zinc-500 truncate">${coachEsc(t.teamName)}${a.age ? ` · ${Math.round(a.age)} years old` : ''}${a.ppg ? ` · ${a.ppg.toFixed(1)} pts/game` : ''}</div></div>
-          <span class="flex items-center gap-3 shrink-0"><span class="text-[12px] mono text-zinc-400">${n(a.value)}</span>${pickBtn(`coachPickPlayer('${a.key}')`)}</span></div>`).join('') || '<div class="py-3 text-[12px] text-zinc-500">No one at this position.</div>'}</div>`;
+    const P = f.pos, goal = f.posGoal || 'upgrade';
+    const starters = (me.lineup || []).filter(s => s.id && s.pos === P);
+    const weakest = starters.length ? starters.reduce((x, y) => (y.ppg < x.ppg ? y : x)) : null;
+    const weakAsset = weakest && me.assets.find(x => x.key === 'p_' + weakest.id);
+    const pool = others.flatMap(t => t.assets.filter(a => a.type === 'player' && a.pos === P && a.value >= 300).map(a => ({ a, t })));
+    const sortFn = f.sort === 'value' ? (x, y) => y.a.value - x.a.value : f.sort === 'young' ? (x, y) => (x.a.age || 99) - (y.a.age || 99) || y.a.value - x.a.value : (x, y) => (y.a.ppg || 0) - (x.a.ppg || 0);
+    const sorts = [['points', 'Points a game'], ['value', 'Value'], ['young', 'Youngest']];
+    const chips = `<div class="flex flex-wrap gap-1.5 mb-2">${['QB', 'RB', 'WR', 'TE'].map(p => coachChip(P === p, p, `coachFlowSet('pos', '${p}'); coachFlowSet('upKeys', null)`, coachPosNeed(me, p) ? ' <span class="text-[11px] text-rose-300/80">need</span>' : '')).join('')}</div>
+      <div class="flex flex-wrap items-center gap-1.5 mb-2">${Object.entries(COACH_POS_GOALS).map(([k, l]) => coachChip(goal === k, l, `coachFlowSet('posGoal', '${k}')`)).join('')}</div>`;
+    const sortRow = `<div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[12px] text-zinc-500 mr-1">Sort by</span>${sorts.map(([k, l]) => coachChip((f.sort || 'points') === k, l, `coachFlowSet('sort', '${k}')`)).join('')}</div>`;
+    if (goal === 'upgrade') {
+      // Which of yours you're upgrading (your weakest starter there to begin with); the players
+      // listed out-score the best of them by a point a game, and picking one starts the trade
+      // with yours going out.
+      const mineAtP = me.assets.filter(x => x.type === 'player' && x.pos === P).sort((x, y) => y.value - x.value);
+      if (!f.upKeys || !f.upKeys.length || !coachUpAssets().some(x => x.pos === P)) f.upKeys = weakAsset ? [weakAsset.key] : [];
+      const ups = coachUpAssets(), floor = ups.length ? Math.max(...ups.map(x => x.ppg || 0)) : 0;
+      const rows = pool.filter(({ a }) => (a.ppg || 0) >= floor + 1).sort(sortFn).slice(0, 40);
+      const who = ups.length ? `Showing ${P}s who score at least a point a game more than ${ups.length > 1 ? 'the best of them' : coachEsc(ups[0].name)}${floor ? ` (${floor.toFixed(1)} pts/game)` : ''}. Picking one starts the trade with yours going out.` : `Tick the players you're upgrading, or pick anyone below to start from scratch.`;
+      return head(`Upgrade at ${P}. Pick who you're upgrading, then the player you want.`) + chips + coachUpPickerHtml(me, mineAtP) + `<div class="text-[12px] text-zinc-400 mb-2">${who}</div>` + sortRow + playerRows(rows, 'coachPickUpgrade');
+    }
+    // Depth: cheap backups who still score: worth well under your weakest starter (at most 3,000).
+    const cap = Math.min(3000, weakAsset ? weakAsset.value * 0.6 : 3000);
+    const rows = pool.filter(({ a }) => a.value <= cap && (a.ppg || 0) > 0).sort(sortFn).slice(0, 40);
+    return head(`Depth at ${P}. Pick the player you want.`) + chips + `<div class="text-[12px] text-zinc-400 mb-2">${P}s on other teams worth ${Math.round(cap).toLocaleString()} or less who still score, best scorers first: backups for bye weeks and injuries.</div>` + sortRow + playerRows(rows);
   }
-  if (f.what === 'team') {
-    return head('Which team do you want to deal with?') + `<div class="rounded-lg bg-black/30 border border-white/5 px-3">${others.map(t => teamRow(t, `coachPickTeam('${t.rosterId}')`)).join('')}</div>`;
-  }
-  // Move one of my players: your player, then the team.
-  const mine = me.assets.filter(a => a.value >= 300).sort((x, y) => y.value - x.value), a = mine.find(x => x.key === f.myKey);
-  const sel = `<select data-search="Type one of your players or picks…" onchange="coachPickMine(this.value)" aria-label="Player to move" class="w-full sm:w-[460px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
-      <option value="">Pick one of your players or picks…</option>${mine.map(x => `<option value="${x.key}" ${x.key === f.myKey ? 'selected' : ''}>${coachEsc(x.name)}${x.type === 'player' ? ` (${x.pos})` : ''} · ${n(x.value)}</option>`).join('')}</select>`;
-  if (!a) return head('Who do you want to move?') + sel;
-  const pos = a.type === 'player' ? a.pos : null;
-  const order = [...others].sort((x, y) => (coachPosNeed(y, pos) ? 1 : 0) - (coachPosNeed(x, pos) ? 1 : 0));
-  return head(`Moving ${coachEsc(a.name)}. Which team do you want to deal with?${pos ? ` Teams that need a ${pos} come first.` : ''}`) + `<div class="mb-3">${sel}</div>
-    <div class="rounded-lg bg-black/30 border border-white/5 px-3">${order.map(t => teamRow(t, `coachPickMoveTeam('${t.rosterId}')`, pos)).join('')}</div>`;
+  return head('Which team do you want to deal with?') + `<div class="rounded-lg bg-black/30 border border-white/5 px-3">${others.map(t => teamRow(t, `coachPickTeam('${t.rosterId}')`)).join('')}</div>`;
 }
 
 /* ---------- Step 3: build it ----------
@@ -982,7 +1051,18 @@ function coachHintsHtml(me, w, r = null) {
   const youNeed = a => (a.type === 'player' && coachPosNeed(me, a.pos) ? `you need ${a.pos}` : '');
   let html = '';
   if (w.get.length && gap > 0) html += row(`Pieces of yours they might want (about ${n(gap)} to make up on value)`, rank(me.assets.filter(a => !inGive.has(a.key)), theyNeed, gap), 'give', theyNeed);
-  if (w.give.length && gap < 0) html += row(`Pieces of theirs you could ask for (about ${n(-gap)} to make up on value)`, rank(w.partner.assets.filter(a => !inGet.has(a.key)), youNeed, -gap), 'get', youNeed);
+  // Moving one of yours with a goal: what to ask for follows it, until something of theirs is in.
+  const lead = w.goal && w.give[0], pos = lead && lead.pos;
+  if (lead && !w.get.length) {
+    const theirs = w.partner.assets.filter(a => !inGet.has(a.key));
+    // Upgrade: better than the best you're sending, at any of their positions.
+    const upPos = new Set(w.give.map(a => a.pos)), best = Math.max(...w.give.map(a => a.value));
+    const list = w.goal === 'upgrade' ? theirs.filter(a => a.type === 'player' && upPos.has(a.pos) && a.value > best * 1.05).sort((x, y) => x.value - y.value).slice(0, 6)
+      : w.goal === 'downtier' ? theirs.filter(a => a.type === 'player' && a.pos === pos && a.value >= lead.value * 0.4 && a.value <= lead.value * 0.92).sort((x, y) => y.value - x.value).slice(0, 6)
+      : rank(theirs.filter(a => a.type === 'pick' || (a.age > 0 && a.age <= 24)), () => false, lead.value);
+    const title = { upgrade: `Better ${[...upPos].join('/')}s of theirs to ask for (then add what it takes)`, downtier: `Lesser ${pos}s of theirs to ask for (then ask for more pieces)`, sell: 'Their picks and young players to ask for' }[w.goal];
+    html += row(title, list, 'get', youNeed) || `<div class="mt-3 text-[12px] text-zinc-500">${coachEsc(w.partner.teamName)} has no ${w.goal === 'sell' ? 'picks or young players' : w.goal === 'upgrade' ? 'better ' + [...upPos].join('/') : 'lesser ' + pos} that fits. Try another team.</div>`;
+  } else if (w.give.length && gap < 0) html += row(`Pieces of theirs you could ask for (about ${n(-gap)} to make up on value)`, rank(w.partner.assets.filter(a => !inGet.has(a.key)), youNeed, -gap), 'get', youNeed);
   if (!w.give.length && !w.get.length) {
     const atNeeds = w.partner.assets.filter(a => a.type === 'player' && coachPosNeed(me, a.pos));
     html += atNeeds.length ? row('Their players at your thin spots', rank(atNeeds, () => true, 5000), 'get', youNeed)
@@ -992,7 +1072,7 @@ function coachHintsHtml(me, w, r = null) {
 }
 function coachBuildHeadHtml(w) {
   return `<div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-      <div class="text-[13px] text-zinc-300">Building a trade with <span class="text-zinc-100 font-medium">${coachEsc(w.partner.teamName)}</span>: add or take off one piece at a time.</div>
+      <div class="text-[13px] text-zinc-300">${w.goal && w.give[0] ? `${COACH_GOALS[w.goal]} ${w.goal === 'upgrade' ? w.give.map(a => coachEsc(a.name)).join(' + ') : coachEsc(w.give[0].name)} with` : 'Building a trade with'} <span class="text-zinc-100 font-medium">${coachEsc(w.partner.teamName)}</span>: add or take off one piece at a time.</div>
       ${coachFlow().what ? coachBackHtml('pick', 'Pick') : coachBackHtml('what', 'Start over')}
     </div>`;
 }
