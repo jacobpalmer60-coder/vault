@@ -234,6 +234,7 @@ function setView(v) {
   document.getElementById('backToBuilder').classList.toggle('hidden', v !== 'coach');
   const me = teamOf('A');
   document.getElementById('launcherTeam').textContent = me ? me.teamName : '';
+  if (typeof renderVerdictDock === 'function') renderVerdictDock();
 }
 // Roster sections (QB, RB, WR, TE, Picks, All) open on each side; all start closed.
 const openSections = { A: new Set(), B: new Set() };
@@ -1375,7 +1376,8 @@ function renderVerdictDock(html) {
   if (html !== undefined) dock.innerHTML = html;
   const r = tiles && tiles.getBoundingClientRect();
   const inView = !r || !r.height || (r.bottom > 60 && r.top < innerHeight - 140);
-  dock.classList.toggle('hidden', !dock.innerHTML || inView);
+  // Not in Trade Coach (2026-10-27): it reads the builder's trade, which can differ from the one being built there.
+  dock.classList.toggle('hidden', !dock.innerHTML || inView || view === 'coach');
 }
 let dockFrame = 0;
 ['scroll', 'resize'].forEach(ev => addEventListener(ev, () => { if (!dockFrame) dockFrame = requestAnimationFrame(() => { dockFrame = 0; renderVerdictDock(); }); }, { passive: true }));
