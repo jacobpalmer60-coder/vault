@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=dc7395d5">
+<link rel="stylesheet" href="tailwind.css?v=5931bd24">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -38,6 +38,9 @@
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-10-28', items: [
+    { kind: 'improved', page: 'Trade Coach', text: "Trade Coach is cleaner and quicker. It starts with one search box: type a player (yours or theirs), a position or a team and go. One of yours asks Upgrade, Down-tier or Sell right away; a position or team goes straight to its next step. The top is one line (record, odds, thin and deep spots, timeline as a dropdown) with a breadcrumb like Start › Rome Odunze · Upgrade instead of repeated team names and numbered steps. The players you're sending show as a short Sending row you can add to or clear, not every player at the position. And when a fit is close, it shows the one piece of yours that gets them to yes, with Build starting the trade with it added: Rome Odunze plus your 2029 4th for Emeka Egbuka, likely yes." },
+  ] },
   { date: '2026-10-27', items: [
     { kind: 'improved', page: 'Trade Coach', text: "The Coach recommends who to go after. Tick the players you're upgrading, down-tiering or selling (from A player or A position) and it checks every realistic target against them, then lists the best fits first: whether their manager would likely say yes (and how much room is left, or how much more they'd want), how it reads for you, and how many more points a game he scores than yours. Build any one to start the trade. For a down-tier or sale it also says how much more to ask for in extras. On a position you now tick your players and choose Upgrade, Down-tier or Sell, with Add depth as its own choice. Any ticked player can be unticked, the first one too: no more picking something else to clear it. Jeremiyah Love's best upgrade fit: James Cook III, likely yes with room for about 14% more, +6.5 points a game." },
     { kind: 'changed', page: 'Trade Coach', text: "Trade Coach builds the trade you want instead of suggesting trades. Start from a player, a position or a team. A player on another team goes straight to building; one of yours asks what you want to do with him: Upgrade (tick one or more of your players to send together for one better player), Down-tier (a lesser player plus more) or Sell (picks and young players), then the team, with the ones that fit first. A position asks Upgrade (tick who you're upgrading; it lists players who out-score the best of them) or Depth (cheap backups who still score). Then add or take off pieces one at a time: once both sides have something you see both teams' verdicts, whether their manager would likely say yes, and how much more you could ask for or they'd want. Hints come one piece at a time. Then negotiate it, open it in the builder, or copy the offer link. The suggestion lists are gone: in testing, about a third of the trades they listed were ones the other manager would turn down in Negotiate." },
