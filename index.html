@@ -113,6 +113,9 @@
       const nextRaw = new URLSearchParams(location.search).get('next');
       const next = nextRaw && /^[\w-]+(\.html)?(\?[^#]*)?(#[\w-]*)?$/.test(nextRaw) ? nextRaw : null;
       const nextLeague = next ? new URL(next, location.href).searchParams.get('league_id') : null;
+      // Playoff Race works for any Sleeper league, redraft too; every other tool is dynasty only.
+      const anyLeague = !!next && /^playoffs(\.html)?([?#]|$)/.test(next);
+      const usable = l => anyLeague || Vault.isDynastyLeague(l);
       const dest = id => {
         if (!next) return Vault.linkTo('app.html', id);
         const u = new URL(next, location.href);
@@ -134,7 +137,7 @@
         stepTeam.classList.add('hidden'); stepActions.classList.add('hidden'); current = null;
         const [league, users, rosters] = await Promise.all([getJson(`https://api.sleeper.app/v1/league/${id}`), getJson(`https://api.sleeper.app/v1/league/${id}/users`), getJson(`https://api.sleeper.app/v1/league/${id}/rosters`)]);
         if (!league || league.error || !league.name) return fail('League not found. Double-check the league ID.');
-        if (!Vault.isDynastyLeague(league)) return fail(`"${league.name}" is a redraft or keeper league. The Vault only supports dynasty leagues.`);
+        if (!usable(league)) return fail(`"${league.name}" is a redraft or keeper league. The Vault only supports dynasty leagues.`);
         const byUser = new Map((users || []).map(u => [u.user_id, u]));
         const teams = (rosters || []).map(r => {
           const u = byUser.get(r.owner_id) || {};
@@ -178,7 +181,7 @@
           if (!allLeagues.length) throw new Error('No leagues found for that username.');
           // Dynasty only (Vault.isDynastyLeague), and each league once: Sleeper starts a
           // new league every season, pointing back at last season's (previous_league_id).
-          const dyn = allLeagues.filter(Vault.isDynastyLeague);
+          const dyn = allLeagues.filter(usable);
           if (!dyn.length) throw new Error(`Found ${allLeagues.length} league(s) for that username, but none are dynasty. The Vault only supports dynasty leagues.`);
           const older = new Set(dyn.map(l => l.previous_league_id).filter(Boolean));
           // (A league restarted without that link shows up under the same name: newest season only.)

@@ -33,7 +33,13 @@
   .pr-pick select:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
   .pr-tablebox { overflow-x: auto; border-radius: 14px; }
-  table.pr { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 620px; }
+  table.pr { width: 100%; border-collapse: collapse; font-size: 13px; }
+  @media (max-width: 600px) {
+    table.pr .wide { display: none; }
+    table.pr td, table.pr th { padding: 10px 8px; }
+    table.pr td:first-child, table.pr th:first-child { padding-left: 12px; }
+    .nums { white-space: normal; }
+  }
   table.pr th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-2); font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
   table.pr td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; font-variant-numeric: tabular-nums; }
   table.pr td.r, table.pr th.r { text-align: right; }
@@ -51,6 +57,8 @@
   .chip.out { color: var(--bad); background: rgba(251, 113, 133, 0.12); }
   .chip.alive { color: var(--text-2); background: rgba(255, 255, 255, 0.05); }
   .chip.soon { color: var(--warn); background: rgba(251, 191, 36, 0.1); }
+  .race { display: flex; align-items: center; gap: 8px; }
+  .race .rk { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); width: 70px; flex: none; }
   .nums { font-size: 12px; color: var(--text-2); margin-top: 3px; white-space: nowrap; }
   .nums b { color: var(--text); font-weight: 600; }
 
@@ -89,12 +97,12 @@
 
 <div id="vault-nav"></div>
 
-<div class="pr-wrap" data-league-required>
+<main class="pr-wrap" data-league-required>
   <h1 class="display gold-text">Playoff race</h1>
   <p id="status" class="pr-sub">Loading league…</p>
   <div id="facts" class="pr-facts" hidden></div>
 
-  <div id="main" hidden>
+  <div id="prBody" hidden>
     <section class="pr-sec">
       <div class="pr-pick">
         <label for="teamPick">Looking at</label>
@@ -131,7 +139,7 @@
     </section>
   </div>
   <div id="empty" class="pr-empty" hidden></div>
-</div>
+</main>
 
 <script src="vault-core.js?v=a3131232"></script>
 <script src="vault-nav.js?v=755e1926"></script>
@@ -186,6 +194,47 @@ function byeCount(P, N) {
   let b = 1;
   while (b < P) b *= 2;
   return b - P;
+}
+
+// Every way next week's games can go (head-to-head winner, plus the median game
+// where the league plays one, with exactly half the league winning it). For each
+// team: can it clinch, or be knocked out, of the playoffs and the bye this week?
+// Strict only: points for will move, so ties aren't counted on.
+function weekPossibilities(teams, pairs, { N, P, B, G, gpw }) {
+  const out = new Map(teams.map(t => [t.rid, { pc: false, pe: false, bc: false, be: false }]));
+  const idx = new Map(teams.map((t, i) => [t.rid, i]));
+  const games = pairs.map(([a, b]) => [idx.get(a), idx.get(b)]).filter(([a, b]) => a != null && b != null);
+  if (!games.length || games.length > 8) return null;
+  const opts = gpw === 2 ? [[1, 1], [1, 0], [0, 0]] : [[0, 0]]; // [winner's median, loser's median]
+  const G2 = G - gpw, base = teams.map(t => t.w), w = base.slice();
+  const half = Math.floor(N / 2);
+  const check = () => {
+    const mx = w.map(x => x + G2);
+    for (let i = 0; i < N; i++) {
+      const o = out.get(teams[i].rid);
+      let below = 0, above = 0; // others sure to finish below / above team i
+      for (let j = 0; j < N; j++) {
+        if (j === i) continue;
+        if (mx[j] < w[i]) below++;
+        if (w[j] > mx[i]) above++;
+      }
+      if (below >= N - P) o.pc = true;
+      if (above >= P) o.pe = true;
+      if (B) { if (below >= N - B) o.bc = true; if (above >= B) o.be = true; }
+    }
+  };
+  (function go(k, med) {
+    if (k === games.length) { if (gpw === 1 || med === half || games.length * 2 !== N) check(); return; }
+    const [a, b] = games[k];
+    for (const [win, lose] of [[a, b], [b, a]]) {
+      for (const [mw, ml] of opts) {
+        w[win] += 1 + mw; w[lose] += ml;
+        go(k + 1, med + mw + ml);
+        w[win] -= 1 + mw; w[lose] -= ml;
+      }
+    }
+  })(0, 0);
+  return out;
 }
 
 async function load() {
@@ -243,6 +292,7 @@ async function load() {
 
   const schedule = weeksLeft ? await Vault.fetchRemainingSchedule(lid, league, weeksDone) : [];
   S = { league, teams, N, P, B, G, gpw, weeksDone, weeksLeft, regEnd, schedule, divisions: st.divisions || 0 };
+  S.thisWeek = schedule[0] && schedule[0].week === weeksDone + 1 ? weekPossibilities(teams, schedule[0].pairs, { N, P, B, G, gpw }) : null;
 
   const mine = Vault.myTeam(teams.map(t => ({ ...t, rosterId: t.rid })), lid);
   S.focus = mine ? mine.rid : teams[0].rid;
@@ -256,8 +306,9 @@ function statusChip(t, kind) {
   if (e === 0) return `<span class="chip out">Out</span>`;
   if (cp === 0) return `<span class="chip eff" title="Clinched if ties go to points for, on today's totals">${kind === 'bye' ? 'Bye' : 'In'} on points</span>`;
   if (ep === 0) return `<span class="chip out" title="Out unless they pass a team on points for">Out on points</span>`;
-  if (S.weeksLeft && cp <= 2 * S.gpw) return `<span class="chip soon">Can clinch this week</span>`;
-  if (S.weeksLeft && ep <= 2 * S.gpw) return `<span class="chip soon">Can be out this week</span>`;
+  const wk = S.thisWeek?.get(t.rid);
+  if (wk && wk[kind === 'bye' ? 'bc' : 'pc']) return `<span class="chip soon">Can clinch this week</span>`;
+  if (wk && wk[kind === 'bye' ? 'be' : 'pe']) return `<span class="chip soon">Can be out this week</span>`;
   return `<span class="chip alive">Alive</span>`;
 }
 const numTxt = n => (Number.isFinite(n) ? String(n) : '—');
@@ -272,7 +323,7 @@ function render() {
   const X = teams.find(t => t.rid === S.focus) || teams[0];
   const mineId = Vault.myTeam(teams.map(t => ({ ...t, rosterId: t.rid })))?.rid;
 
-  $('status').textContent = league.name || 'Your league';
+  $('status').innerHTML = `${esc(league.name || 'Your league')} · <a href="${esc(Vault.pickLeagueLink())}" style="color:var(--text);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--line-strong)">Pick another league</a> <span style="color:var(--text-2)">(redraft works here too)</span>`;
   $('facts').hidden = false;
   $('facts').innerHTML = [
     weeksLeft ? `Week <b>${weeksDone + 1}</b> next of <b>${regEnd}</b>` : `<b>Regular season over</b>`,
@@ -305,15 +356,13 @@ function render() {
 
   /* ---------- standings ---------- */
   $('table').innerHTML = `<thead><tr>
-      <th>#</th><th>Team</th><th class="r">Record</th><th class="r">Max</th><th class="r">PF</th><th>Playoffs</th>${B ? '<th>Bye</th>' : ''}
+      <th>#</th><th>Team</th><th>${B ? 'Playoffs · Bye' : 'Playoffs'}</th><th class="r wide">Max</th><th class="r wide">PF</th>
     </tr></thead><tbody>` + teams.map(t => `<tr data-rid="${t.rid}" class="${t.rid === X.rid ? 'me' : ''} ${t.rank === P ? 'cut' : ''} ${B && t.rank === B ? 'byecut' : ''}">
       <td class="num" style="font-size:18px">${t.rank}</td>
-      <td><div class="pr-team">${esc(t.name)}</div>${t.mgr ? `<div class="pr-mgr">@${esc(t.mgr)}</div>` : ''}</td>
-      <td class="r">${rec(t)}</td>
-      <td class="r">${fmtW(t.max)}</td>
-      <td class="r">${t.pf.toFixed(1)}</td>
-      <td>${statusChip(t, 'playoff')}${numsLine(t.pc, t.pe)}</td>
-      ${B ? `<td>${statusChip(t, 'bye')}${numsLine(t.bc, t.be)}</td>` : ''}
+      <td><div class="pr-team">${esc(t.name)}</div><div class="pr-mgr">${rec(t)}${t.mgr ? ` · @${esc(t.mgr)}` : ''}</div></td>
+      <td><div class="race"><span class="rk">Playoffs</span>${statusChip(t, 'playoff')}</div>${numsLine(t.pc, t.pe)}${B ? `<div class="race" style="margin-top:8px"><span class="rk">Bye</span>${statusChip(t, 'bye')}</div>${numsLine(t.bc, t.be)}` : ''}</td>
+      <td class="r wide">${fmtW(t.max)}</td>
+      <td class="r wide">${t.pf.toFixed(1)}</td>
     </tr>`).join('') + '</tbody>';
   $('tableNote').textContent = `Gold line: playoff cutoff after ${P}.${B ? ` Dashed line: byes after ${B}.` : ''} Tap a team to look at it.` + (S.divisions ? ' This league has divisions: these numbers ignore spots reserved for division winners.' : '');
 
@@ -369,7 +418,7 @@ function render() {
     <p>${gpw === 2 ? 'This league plays a median game, so every week is two results: one against your opponent and one against the league median. A head-to-head game against a rival counts double, since one of you gets the win and the other the loss.' : 'A head-to-head game against a rival counts double, since one of you gets the win and the other the loss.'}</p>
     <p><b>On points</b> means the spot is locked if a tie on record goes to points for, using today's totals. Points for still moves every week, so treat it as nearly certain rather than final. These numbers don't account for who plays whom, so a team can be safe slightly before its number says.</p>`;
 
-  $('main').hidden = false;
+  $('prBody').hidden = false;
 }
 
 function ordinal(n) {
