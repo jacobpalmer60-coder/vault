@@ -43,6 +43,7 @@
   .pr-name .need .ok { color: var(--good); font-weight: 600; }
   .pr-name .need .no { color: var(--bad); font-weight: 600; }
   .pr-rec { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pr-name .how { font-size: 12px; color: var(--text-2); margin-top: 2px; line-height: 1.35; }
   .pr-name .wk { color: var(--warn); font-size: 12px; font-weight: 600; margin-top: 3px; }
   .pill { font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
   .pill.in { color: var(--good); background: rgba(52, 211, 153, 0.12); }
@@ -274,6 +275,20 @@ function needLine(t) {
   if (t.rank <= P) return t.pc > G ? `Can't clinch yet: needs other teams to lose` : `Needs <b>${plural(t.pc, 'more win')}</b> to clinch`;
   return `Out after <b>${t.pe} more ${t.pe === 1 ? "loss" : "losses"}</b>`;
 }
+// The second line: how the count can go down besides the team's own results.
+function howLine(t) {
+  const { P, G } = S;
+  if (t.pc === 0 || t.pe === 0 || t.pcp === 0 || t.pep === 0) return '';
+  if (t.rank <= P) {
+    const k = S.N - P;
+    const rs = S.teams.filter(x => x !== t).map(Y => ({ Y, n: lockNeed(t, Y, G).strict })).sort((x, y) => x.n - y.n).slice(0, k).filter(x => x.n > 0);
+    if (!rs.length) return '';
+    const who = rs.length > 3 && rs.every(x => x.Y.rank > P) ? 'any team below the playoff line' : names(rs.map(x => esc(x.Y.name)), 'the teams chasing them');
+    return t.pc > G ? `Needs ${who} to lose some` : `Each loss by ${who} counts too`;
+  }
+  const a = above(t, P);
+  return a.length ? `Each win by ${names(a)} counts too` : '';
+}
 function playoffText(t, you) {
   const { P, G, gpw, teams } = S;
   const who = you ? 'You' : esc(t.name);
@@ -339,7 +354,7 @@ function render() {
     const byeTag = B && t.rank <= B && t.pe !== 0 ? `<span class="tagbye">${t.bc === 0 ? 'BYE ✓' : 'BYE'}</span>` : '';
     rows.push(`<button type="button" class="pr-row ${t.rid === S.mine ? 'me' : ''}" data-rid="${t.rid}" aria-expanded="${S.open.has(t.rid)}">
       <span class="pr-rank">${t.rank}</span>${av}
-      <span class="pr-name"><div class="t"><span>${esc(t.name)}</span>${byeTag}</div><div class="need">${needLine(t)}</div>${wkTxt}</span>
+      <span class="pr-name"><div class="t"><span>${esc(t.name)}</span>${byeTag}</div><div class="need">${needLine(t)}</div>${howLine(t) ? `<div class="how">${howLine(t)}</div>` : ''}${wkTxt}</span>
       <span class="pr-rec">${rec(t)}</span>
     </button>`);
     if (S.open.has(t.rid)) {
