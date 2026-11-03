@@ -42,7 +42,8 @@
   .pr-name .need b { color: var(--text); font-weight: 700; }
   .pr-name .need .ok { color: var(--good); font-weight: 600; }
   .pr-name .need .no { color: var(--bad); font-weight: 600; }
-  .pr-rec { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pr-rec { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; line-height: 1.1; }
+  .pr-rec small { display: block; font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 500; color: var(--text-2); margin-top: 3px; }
   .pr-name .how { font-size: 12px; color: var(--text-2); margin-top: 2px; line-height: 1.35; }
   .pr-name .wk { color: var(--warn); font-size: 12px; font-weight: 600; margin-top: 3px; }
   .pill { font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
@@ -152,14 +153,14 @@ function byeCount(P, N) {
 // Every way next week's games can go (head-to-head winner, plus the median game
 // where the league plays one, with exactly half the league winning it). For each
 // team: can it clinch, or be knocked out, of the playoffs and the bye this week?
-// Strict only: points for will move, so ties aren't counted on.
+// Ties on record go to today's points for, like the rest of the page.
 function weekPossibilities(teams, pairs, { N, P, B, G, gpw }) {
   const out = new Map(teams.map(t => [t.rid, { pc: false, pe: false, bc: false, be: false }]));
   const idx = new Map(teams.map((t, i) => [t.rid, i]));
   const games = pairs.map(([a, b]) => [idx.get(a), idx.get(b)]).filter(([a, b]) => a != null && b != null);
   if (!games.length || games.length > 8) return null;
   const opts = gpw === 2 ? [[1, 1], [1, 0], [0, 0]] : [[0, 0]]; // [winner's median, loser's median]
-  const G2 = G - gpw, base = teams.map(t => t.w), w = base.slice();
+  const G2 = G - gpw, base = teams.map(t => t.w), w = base.slice(), pf = teams.map(t => t.pf);
   const half = Math.floor(N / 2);
   const check = () => {
     const mx = w.map(x => x + G2);
@@ -168,8 +169,8 @@ function weekPossibilities(teams, pairs, { N, P, B, G, gpw }) {
       let below = 0, above = 0; // others sure to finish below / above team i
       for (let j = 0; j < N; j++) {
         if (j === i) continue;
-        if (mx[j] < w[i]) below++;
-        if (w[j] > mx[i]) above++;
+        if (mx[j] < w[i] || (mx[j] === w[i] && pf[j] < pf[i])) below++;
+        if (w[j] > mx[i] || (w[j] === mx[i] && pf[j] > pf[i])) above++;
       }
       if (below >= N - P) o.pc = true;
       if (above >= P) o.pe = true;
@@ -232,15 +233,16 @@ async function load() {
   teams.forEach((t, i) => { t.rank = i + 1; });
 
   teams.forEach(t => {
-    t.pc = clinchNum(t, teams, P, G, 'strict');
-    t.pcp = clinchNum(t, teams, P, G, 'onPoints');
-    t.pe = elimNum(t, teams, P, G, 'strict');
-    t.pep = elimNum(t, teams, P, G, 'onPoints');
+    // Shown numbers count ties on record as going to points for (today's totals);
+    // the strict ones (no tiebreaker) only say when a spot rests on points for.
+    t.pcs = clinchNum(t, teams, P, G, 'strict');
+    t.pc = clinchNum(t, teams, P, G, 'onPoints');
+    t.pes = elimNum(t, teams, P, G, 'strict');
+    t.pe = elimNum(t, teams, P, G, 'onPoints');
     if (B) {
-      t.bc = clinchNum(t, teams, B, G, 'strict');
-      t.bcp = clinchNum(t, teams, B, G, 'onPoints');
-      t.be = elimNum(t, teams, B, G, 'strict');
-      t.bep = elimNum(t, teams, B, G, 'onPoints');
+      t.bcs = clinchNum(t, teams, B, G, 'strict');
+      t.bc = clinchNum(t, teams, B, G, 'onPoints');
+      t.be = elimNum(t, teams, B, G, 'onPoints');
     }
   });
 
@@ -258,7 +260,7 @@ async function load() {
 // The rivals still to shake off for a spot: the easiest `k` lock-outs not done yet.
 function chasers(X, spots) {
   const k = S.N - spots;
-  return S.teams.filter(t => t !== X).map(Y => ({ Y, n: lockNeed(X, Y, S.G).strict }))
+  return S.teams.filter(t => t !== X).map(Y => ({ Y, n: lockNeed(X, Y, S.G).onPoints }))
     .sort((a, b) => a.n - b.n).slice(0, k).filter(r => r.n > 0).map(r => esc(r.Y.name));
 }
 // The teams `X` has to catch to get into the top `spots`.
@@ -268,20 +270,18 @@ function above(X, spots) {
 // The one line under each team: what it needs, in words.
 function needLine(t) {
   const { P, B, G } = S;
-  if (t.pc === 0) return `<span class="ok">${B && t.bc === 0 ? 'Clinched a playoff spot and a bye' : 'Clinched a playoff spot'}</span>`;
-  if (t.pe === 0) return '<span class="no">Eliminated</span>';
-  if (t.pcp === 0) return '<span class="ok">In, unless a tie on record goes against them</span>';
-  if (t.pep === 0) return '<span class="no">Out, unless they pass a team on a tiebreaker</span>';
+  if (t.pc === 0) return `<span class="ok">${B && t.bc === 0 ? 'Clinched a playoff spot and a bye' : 'Clinched a playoff spot'}${t.pcs ? ' (on points for)' : ''}</span>`;
+  if (t.pe === 0) return `<span class="no">Eliminated${t.pes ? ' (on points for)' : ''}</span>`;
   if (t.rank <= P) return t.pc > G ? `Can't clinch yet: needs other teams to lose` : `Needs <b>${plural(t.pc, 'more win')}</b> to clinch`;
   return `Out after <b>${t.pe} more ${t.pe === 1 ? "loss" : "losses"}</b>`;
 }
 // The second line: how the count can go down besides the team's own results.
 function howLine(t) {
   const { P, G } = S;
-  if (t.pc === 0 || t.pe === 0 || t.pcp === 0 || t.pep === 0) return '';
+  if (t.pc === 0 || t.pe === 0) return '';
   if (t.rank <= P) {
     const k = S.N - P;
-    const rs = S.teams.filter(x => x !== t).map(Y => ({ Y, n: lockNeed(t, Y, G).strict })).sort((x, y) => x.n - y.n).slice(0, k).filter(x => x.n > 0);
+    const rs = S.teams.filter(x => x !== t).map(Y => ({ Y, n: lockNeed(t, Y, G).onPoints })).sort((x, y) => x.n - y.n).slice(0, k).filter(x => x.n > 0);
     if (!rs.length) return '';
     const who = rs.length > 3 && rs.every(x => x.Y.rank > P) ? 'any team below the playoff line' : names(rs.map(x => esc(x.Y.name)), 'the teams chasing them');
     return t.pc > G ? `Needs ${who} to lose some` : `Each loss by ${who} counts too`;
@@ -292,12 +292,11 @@ function howLine(t) {
 function playoffText(t, you) {
   const { P, G, gpw, teams } = S;
   const who = you ? 'You' : esc(t.name);
-  if (t.pc === 0) return `<b>${who} clinched a playoff spot.</b>`;
+  if (t.pc === 0) return t.pcs ? `<b>${who} clinched a playoff spot on points for.</b> Every team that could still tie ${you ? 'you' : 'them'} on record is behind on points for; ${plural(t.pcs, 'more win')} makes it certain.` : `<b>${who} clinched a playoff spot.</b>`;
   if (t.pe === 0) return `<b>${who} ${you ? 'are' : 'is'} out of the playoffs.</b>`;
-  if (t.pcp === 0) return `<b>${who} ${you ? 'are' : 'is'} in</b> unless a tie on record goes the wrong way on points for. Strictly, ${plural(t.pc, 'more good result')}.`;
   if (t.rank <= P) {
     const rivals = chasers(t, P);
-    const extra = t.pcp < t.pc ? ` Realistically ${t.pcp}, since ${you ? 'you' : 'they'}'d win a tie on points for.` : '';
+    const extra = t.pcs > t.pc ? ` That counts on winning a tie on points for; without it, ${t.pcs}.` : '';
     if (t.pc > G) return `<b>Can't clinch alone yet.</b> Even winning all ${G} games left, ${you ? 'you need' : 'they need'} ${names(rivals, you ? 'the teams chasing you' : undefined)} to lose some too.`;
     return `<b>${plural(t.pc, 'more win')} clinches a playoff spot.</b> Every loss by ${names(rivals, you ? 'the teams chasing you' : undefined)} also counts as one.${extra}`;
   }
@@ -319,6 +318,19 @@ function byeText(t, you) {
   const cut = S.teams.find(x => x.rank === B);
   const gap = cut ? cut.w - t.w : 0;
   return `${gap > 0 ? `${plural(gap, 'game')} out of a bye` : 'Level with the last bye spot'}, held by ${esc(cut?.name || '')}.`;
+}
+// Points for decides ties on record: where this team stands against the teams it could tie.
+function pointsText(t) {
+  const { teams, gpw } = S;
+  const byPf = [...teams].sort((a, b) => b.pf - a.pf);
+  const pfRank = byPf.indexOf(t) + 1;
+  const near = teams.filter(x => x !== t && Math.abs(x.w - t.w) <= 2 * gpw)
+    .sort((a, b) => Math.abs(a.w - t.w) - Math.abs(b.w - t.w) || a.rank - b.rank).slice(0, 3);
+  const bits = near.map(x => {
+    const d = t.pf - x.pf;
+    return `${d >= 0 ? 'ahead of' : 'behind'} ${esc(x.name)} by ${Math.abs(d).toFixed(1)}`;
+  });
+  return `<b>Points for: ${t.pf.toFixed(1)}</b>, ${ordinal(pfRank)} in the league.${bits.length ? ` Against the teams close on record (ties go to points for): ${bits.join(', ')}.` : ''}`;
 }
 function nextGame(t) {
   const w = S.schedule[0];
@@ -342,7 +354,7 @@ function render() {
       : me.pe === 0 ? `You're out of the playoffs.`
       : me.rank <= P ? (me.pc > G ? `You're ${ordinal(me.rank)}, but can't clinch on your own yet.` : `You're ${ordinal(me.rank)}, ${plural(me.pc, 'win')} from clinching.`)
       : `You're ${ordinal(me.rank)}, outside the playoff line.`;
-    $('you').innerHTML = `<div class="lead">${lead}</div><p>${playoffText(me, true)}</p>${byeText(me, true) ? `<p>${byeText(me, true)}</p>` : ''}${nextGame(me) ? `<p>${nextGame(me)}</p>` : ''}`;
+    $('you').innerHTML = `<div class="lead">${lead}</div><p>${playoffText(me, true)}</p>${byeText(me, true) ? `<p>${byeText(me, true)}</p>` : ''}<p>${pointsText(me)}</p>${nextGame(me) ? `<p>${nextGame(me)}</p>` : ''}`;
   }
 
   const rows = [];
@@ -355,11 +367,11 @@ function render() {
     rows.push(`<button type="button" class="pr-row ${t.rid === S.mine ? 'me' : ''}" data-rid="${t.rid}" aria-expanded="${S.open.has(t.rid)}">
       <span class="pr-rank">${t.rank}</span>${av}
       <span class="pr-name"><div class="t"><span>${esc(t.name)}</span>${byeTag}</div><div class="need">${needLine(t)}</div>${howLine(t) ? `<div class="how">${howLine(t)}</div>` : ''}${wkTxt}</span>
-      <span class="pr-rec">${rec(t)}</span>
+      <span class="pr-rec">${rec(t)}<small>${t.pf.toFixed(1)} PF</small></span>
     </button>`);
     if (S.open.has(t.rid)) {
       const bt = byeText(t, false), ng = nextGame(t);
-      rows.push(`<div class="pr-detail"><p>${playoffText(t, false)}</p>${bt ? `<p>${bt}</p>` : ''}${ng ? `<p>${ng}</p>` : ''}</div>`);
+      rows.push(`<div class="pr-detail"><p>${playoffText(t, false)}</p>${bt ? `<p>${bt}</p>` : ''}<p>${pointsText(t)}</p>${ng ? `<p>${ng}</p>` : ''}</div>`);
     }
     if (B && t.rank === B && B < P) rows.push(`<div class="pr-line dash">Bye line</div>`);
     if (t.rank === P && P < N) rows.push(`<div class="pr-line">Playoff line</div>`);
@@ -393,7 +405,7 @@ function render() {
     $('week').innerHTML = big.map(g => `<div class="card pr-game"><div class="why">${g.why}</div>${esc(g.hi.name)} <span class="rec">${rec(g.hi)}</span> vs ${esc(g.lo.name)} <span class="rec">${rec(g.lo)}</span></div>`).join('');
   }
 
-  $('foot').innerHTML = `<b>How the counts work:</b> "Needs 3 more wins" assumes the teams chasing them win out. Every loss by one of those teams takes one off, so 2 wins plus a rival's loss does it too.${gpw === 2 ? ' The median game counts as a win or loss like any other.' : ''} "Out after 6 more losses" works the same way: wins by the teams above them count too. Ties on record go to points for.`;
+  $('foot').innerHTML = `<b>How the counts work:</b> "Needs 3 more wins" assumes the teams chasing them win out. Every loss by one of those teams takes one off, so 2 wins plus a rival's loss does it too.${gpw === 2 ? ' The median game counts as a win or loss like any other.' : ''} "Out after 6 more losses" works the same way: wins by the teams above them count too. Ties on record go to points for, so every count here uses today's points for; a team that's behind on points for needs one more. Points for moves every week, so a close one can flip.`;
   $('prBody').hidden = false;
 }
 
