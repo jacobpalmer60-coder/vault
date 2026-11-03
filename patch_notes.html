@@ -32,12 +32,15 @@
 </div>
 
 <script src="vault-core.js?v=a3131232"></script>
-<script src="vault-nav.js?v=786ac780"></script>
+<script src="vault-nav.js?v=755e1926"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-11-03', items: [
+    { kind: 'new', page: 'Playoff Race', text: "A Playoff Race page under League: every team's clinch and out numbers for the playoffs and for byes, from live Sleeper standings. It reads each league's own settings (how many make it, byes, the median game, weeks left), so it works for any Sleeper league you pick, redraft too. Pick a team to see its magic number against every rival, next week's matchups tagged by what's at stake, and its schedule left. Ties are read as going to points for, and a spot locked only that way says so." },
+  ] },
   { date: '2026-10-28', items: [
     { kind: 'improved', page: 'Trade Coach', text: "Trade Coach is cleaner and quicker. It starts with one search box: type a player (yours or theirs), a position or a team and go. One of yours asks Upgrade, Down-tier or Sell right away; a position or team goes straight to its next step. The top is one line (record, odds, thin and deep spots, timeline as a dropdown) with a breadcrumb like Start › Rome Odunze · Upgrade instead of repeated team names and numbered steps. The players you're sending show as a short Sending row you can add to or clear, not every player at the position. And when a fit is close, it shows the one piece of yours that gets them to yes, with Build starting the trade with it added: Rome Odunze plus your 2029 4th for Emeka Egbuka, likely yes." },
   ] },

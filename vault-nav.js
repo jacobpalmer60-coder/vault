@@ -12,7 +12,8 @@
   const GROUPS = [
     { label: 'League', tabs: [
       { key: 'overview', short: 'Overview', label: 'League Overview', href: 'app.html' },
-      { key: 'analyzer', short: 'Teams', label: 'Team Analyzer', href: 'team-analyzer.html' }
+      { key: 'analyzer', short: 'Teams', label: 'Team Analyzer', href: 'team-analyzer.html' },
+      { key: 'playoffs', short: 'Playoff Race', label: 'Playoff Race', href: 'playoffs.html' }
     ] },
     { label: 'Trade Calculator', tabs: [
       { key: 'trade', short: 'Trade Calculator', label: 'Trade Calculator', href: 'trade.html' }

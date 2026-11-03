@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>Playoff Race — The Vault</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=3aeabd20">
+<link rel="stylesheet" href="tailwind.css?v=5931bd24">
+<style>
+  /* Playoff Race: page-only pieces, built on the vault.css tokens. */
+  :root { --good: #34d399; --bad: #fb7185; --warn: #fbbf24; }
+  .pr-wrap { max-width: 1100px; margin: 0 auto; padding-block: 32px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .pr-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+  .pr-facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 22px; }
+  .pr-fact { font-size: 12px; color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; background: var(--surface); }
+  .pr-fact b { color: var(--text); font-weight: 600; }
+  .pr-h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); margin: 0 0 10px; font-weight: 600; }
+  .pr-sec { margin-bottom: 28px; }
+
+  .pr-you { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 720px) { .pr-you { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .pr-tile { padding: 14px 16px; border-radius: 14px; }
+  .pr-tile .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); }
+  .pr-tile .val { font-size: 34px; margin-top: 6px; }
+  .pr-tile .note { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.4; }
+  .pr-pick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .pr-pick label { font-size: 13px; color: var(--text-2); }
+  .pr-pick select { background: var(--surface-2); color: var(--text); border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 14px; max-width: 100%; }
+  .pr-pick select:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  .pr-tablebox { overflow-x: auto; border-radius: 14px; }
+  table.pr { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 620px; }
+  table.pr th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-2); font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
+  table.pr td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; font-variant-numeric: tabular-nums; }
+  table.pr td.r, table.pr th.r { text-align: right; }
+  table.pr tr.me td { background: rgba(227, 176, 75, 0.07); }
+  table.pr tr.me td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+  table.pr tr.cut td { border-bottom: 2px solid var(--gold); }
+  table.pr tr.byecut td { border-bottom: 1px dashed rgba(227, 176, 75, 0.6); }
+  table.pr tr { cursor: pointer; }
+  table.pr tr:hover td { background: rgba(255, 255, 255, 0.025); }
+  .pr-team { font-weight: 600; color: var(--text); }
+  .pr-mgr { font-size: 12px; color: var(--text-2); }
+  .chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; letter-spacing: .02em; }
+  .chip.in { color: var(--good); background: rgba(52, 211, 153, 0.12); }
+  .chip.eff { color: var(--good); background: rgba(52, 211, 153, 0.06); border: 1px dashed rgba(52, 211, 153, 0.45); }
+  .chip.out { color: var(--bad); background: rgba(251, 113, 133, 0.12); }
+  .chip.alive { color: var(--text-2); background: rgba(255, 255, 255, 0.05); }
+  .chip.soon { color: var(--warn); background: rgba(251, 191, 36, 0.1); }
+  .nums { font-size: 12px; color: var(--text-2); margin-top: 3px; white-space: nowrap; }
+  .nums b { color: var(--text); font-weight: 600; }
+
+  .pr-rivals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  @media (max-width: 720px) { .pr-rivals { grid-template-columns: minmax(0, 1fr); } }
+  .pr-rival { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; }
+  .pr-rival .who { min-width: 0; }
+  .pr-rival .who div:first-child { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pr-rival .need { text-align: right; flex: none; }
+  .pr-rival .need .num { font-size: 24px; }
+  .pr-rival .need small { display: block; font-size: 11px; color: var(--text-2); }
+
+  .pr-games { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  @media (max-width: 720px) { .pr-games { grid-template-columns: minmax(0, 1fr); } }
+  .pr-game { padding: 12px 14px; border-radius: 12px; }
+  .pr-game .row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 2px 0; }
+  .pr-game .row span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pr-game .row span:last-child { color: var(--text-2); font-variant-numeric: tabular-nums; flex: none; }
+  .pr-game .tags { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--text-2); }
+  .tag.gold { border-color: rgba(227, 176, 75, 0.5); color: var(--gold-hi); }
+
+  .pr-sched { display: flex; flex-direction: column; gap: 6px; }
+  .pr-sched div { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 8px 14px; border-radius: 10px; }
+  .pr-sched div span:last-child { color: var(--text-2); flex: none; font-variant-numeric: tabular-nums; }
+
+  .pr-help { padding: 18px 20px; border-radius: 14px; font-size: 14px; line-height: 1.6; color: #d4d4da; }
+  .pr-help p { max-width: 68ch; margin: 0 0 10px; }
+  .pr-help p:last-child { margin-bottom: 0; }
+  .pr-help b { color: var(--text); }
+  .pr-empty { text-align: center; font-size: 13px; color: var(--text-2); padding: 48px 0; }
+</style>
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<div class="pr-wrap" data-league-required>
+  <h1 class="display gold-text">Playoff race</h1>
+  <p id="status" class="pr-sub">Loading league…</p>
+  <div id="facts" class="pr-facts" hidden></div>
+
+  <div id="main" hidden>
+    <section class="pr-sec">
+      <div class="pr-pick">
+        <label for="teamPick">Looking at</label>
+        <select id="teamPick"></select>
+      </div>
+      <div id="you" class="pr-you"></div>
+    </section>
+
+    <section class="pr-sec">
+      <h2 class="pr-h2">Standings</h2>
+      <div class="pr-tablebox card"><table class="pr" id="table"></table></div>
+      <p class="pr-sub" id="tableNote"></p>
+    </section>
+
+    <section class="pr-sec" id="rivalsSec">
+      <h2 class="pr-h2" id="rivalsTitle">Magic numbers</h2>
+      <p class="pr-sub" id="rivalsNote" style="margin:-4px 0 12px"></p>
+      <div id="rivals" class="pr-rivals"></div>
+    </section>
+
+    <section class="pr-sec" id="weekSec" hidden>
+      <h2 class="pr-h2" id="weekTitle">Next week</h2>
+      <div id="week" class="pr-games"></div>
+    </section>
+
+    <section class="pr-sec" id="schedSec" hidden>
+      <h2 class="pr-h2" id="schedTitle">Schedule left</h2>
+      <div id="sched" class="pr-sched"></div>
+    </section>
+
+    <section class="pr-sec">
+      <h2 class="pr-h2">How to read the numbers</h2>
+      <div class="pr-help card" id="help"></div>
+    </section>
+  </div>
+  <div id="empty" class="pr-empty" hidden></div>
+</div>
+
+<script src="vault-core.js?v=a3131232"></script>
+<script src="vault-nav.js?v=755e1926"></script>
+<script>
+/* ============================================================
+   PLAYOFF RACE
+   Clinch and elimination math for any Sleeper league, from live
+   standings: magic numbers for the playoffs and for byes, read from
+   the league's own settings (playoff teams, median game, weeks left).
+   Ties on record are assumed to go to points for (Sleeper's default);
+   a number that relies on that is marked as clinched "on points".
+   The numbers are the standard magic-number bounds: they don't model
+   who plays whom, so a team can be safe a little before its number
+   says, never after.
+   ============================================================ */
+const esc = s => Vault.escapeHtml(String(s ?? ''));
+const get = url => fetch(url).then(r => (r.ok ? r.json() : null)).catch(() => null);
+const $ = id => document.getElementById(id);
+const fmtW = w => (Number.isInteger(w) ? String(w) : w.toFixed(1));
+const rec = t => `${t.wins}-${t.losses}${t.ties ? '-' + t.ties : ''}`;
+
+let S = null; // everything the page renders from
+
+// Games X still needs (own wins + Y's losses) so Y can't finish ahead.
+// Strict: X clears Y outright. On points: X ends level and wins on points for.
+function lockNeed(X, Y, G) {
+  const gap = Y.w + G - X.w;
+  if (gap < 0) return { strict: 0, onPoints: 0 };
+  const strict = Math.floor(gap) + 1;
+  const tieable = Number.isInteger(gap);
+  return { strict, onPoints: tieable && X.pf > Y.pf ? strict - 1 : strict };
+}
+// The k-th easiest lock-out among the other teams: lock out k teams and the spot is yours.
+function kth(arr, k) {
+  if (k <= 0) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  return k <= s.length ? s[k - 1] : Infinity;
+}
+function clinchNum(X, teams, spots, G, key) {
+  const others = teams.filter(t => t !== X);
+  return kth(others.map(Y => lockNeed(X, Y, G)[key]), teams.length - spots);
+}
+// Bad results (X's losses + Y's wins) before Y is sure to finish ahead of X.
+// X is out once `spots` teams are sure to.
+function elimNum(X, teams, spots, G, key) {
+  const others = teams.filter(t => t !== X);
+  return kth(others.map(Y => lockNeed(Y, X, G)[key]), spots);
+}
+
+function byeCount(P, N) {
+  if (P <= 1 || P >= N) return 0;
+  let b = 1;
+  while (b < P) b *= 2;
+  return b - P;
+}
+
+async function load() {
+  const lid = Vault.getLeagueId();
+  if (!lid) return;
+  const [league, users, rosters] = await Promise.all([
+    get(`https://api.sleeper.app/v1/league/${lid}`),
+    get(`https://api.sleeper.app/v1/league/${lid}/users`),
+    get(`https://api.sleeper.app/v1/league/${lid}/rosters`)
+  ]);
+  if (!league || !rosters?.length) {
+    $('status').textContent = "Couldn't load this league from Sleeper. Check your connection and reload.";
+    return;
+  }
+  const st = league.settings || {};
+  const gpw = st.league_average_match ? 2 : 1;
+  const N = rosters.length;
+  const P = Math.min(st.playoff_teams || 6, N);
+  const B = byeCount(P, N);
+  const regEnd = (st.playoff_week_start || 15) - 1;
+  const userBy = new Map((users || []).map(u => [u.user_id, u]));
+
+  const teams = rosters.map(r => {
+    const s = r.settings || {};
+    const u = userBy.get(r.owner_id) || {};
+    const wins = s.wins || 0, losses = s.losses || 0, ties = s.ties || 0;
+    return {
+      rid: r.roster_id, ownerId: r.owner_id,
+      name: u.metadata?.team_name || u.display_name || `Team ${r.roster_id}`,
+      mgr: u.display_name || '',
+      wins, losses, ties, w: wins + ties / 2,
+      pf: (s.fpts || 0) + (s.fpts_decimal || 0) / 100
+    };
+  });
+  const played = Math.max(0, ...teams.map(t => t.wins + t.losses + t.ties));
+  const weeksDone = Math.round(played / gpw);
+  const weeksLeft = Math.max(0, regEnd - weeksDone);
+  const G = weeksLeft * gpw;
+  teams.forEach(t => { t.max = t.w + G; });
+  teams.sort((a, b) => b.w - a.w || b.pf - a.pf);
+  teams.forEach((t, i) => { t.rank = i + 1; });
+
+  teams.forEach(t => {
+    t.pc = clinchNum(t, teams, P, G, 'strict');
+    t.pcp = clinchNum(t, teams, P, G, 'onPoints');
+    t.pe = elimNum(t, teams, P, G, 'strict');
+    t.pep = elimNum(t, teams, P, G, 'onPoints');
+    if (B) {
+      t.bc = clinchNum(t, teams, B, G, 'strict');
+      t.bcp = clinchNum(t, teams, B, G, 'onPoints');
+      t.be = elimNum(t, teams, B, G, 'strict');
+      t.bep = elimNum(t, teams, B, G, 'onPoints');
+    }
+  });
+
+  const schedule = weeksLeft ? await Vault.fetchRemainingSchedule(lid, league, weeksDone) : [];
+  S = { league, teams, N, P, B, G, gpw, weeksDone, weeksLeft, regEnd, schedule, divisions: st.divisions || 0 };
+
+  const mine = Vault.myTeam(teams.map(t => ({ ...t, rosterId: t.rid })), lid);
+  S.focus = mine ? mine.rid : teams[0].rid;
+  render();
+}
+
+/* ---------- status words ---------- */
+function statusChip(t, kind) {
+  const [c, cp, e, ep] = kind === 'bye' ? [t.bc, t.bcp, t.be, t.bep] : [t.pc, t.pcp, t.pe, t.pep];
+  if (c === 0) return `<span class="chip in">${kind === 'bye' ? 'Clinched bye' : 'Clinched'}</span>`;
+  if (e === 0) return `<span class="chip out">Out</span>`;
+  if (cp === 0) return `<span class="chip eff" title="Clinched if ties go to points for, on today's totals">${kind === 'bye' ? 'Bye' : 'In'} on points</span>`;
+  if (ep === 0) return `<span class="chip out" title="Out unless they pass a team on points for">Out on points</span>`;
+  if (S.weeksLeft && cp <= 2 * S.gpw) return `<span class="chip soon">Can clinch this week</span>`;
+  if (S.weeksLeft && ep <= 2 * S.gpw) return `<span class="chip soon">Can be out this week</span>`;
+  return `<span class="chip alive">Alive</span>`;
+}
+const numTxt = n => (Number.isFinite(n) ? String(n) : '—');
+function numsLine(c, e) {
+  if (c === 0 || e === 0) return '';
+  const cTxt = c > S.G ? `${numTxt(c)}, needs help` : numTxt(c);
+  return `<div class="nums">Clinch <b>${cTxt}</b> · Out <b>${numTxt(e)}</b></div>`;
+}
+
+function render() {
+  const { league, teams, N, P, B, G, gpw, weeksDone, weeksLeft, regEnd } = S;
+  const X = teams.find(t => t.rid === S.focus) || teams[0];
+  const mineId = Vault.myTeam(teams.map(t => ({ ...t, rosterId: t.rid })))?.rid;
+
+  $('status').textContent = league.name || 'Your league';
+  $('facts').hidden = false;
+  $('facts').innerHTML = [
+    weeksLeft ? `Week <b>${weeksDone + 1}</b> next of <b>${regEnd}</b>` : `<b>Regular season over</b>`,
+    `<b>${G}</b> game${G === 1 ? '' : 's'} left each`,
+    `Top <b>${P}</b> make it`,
+    B ? `Top <b>${B}</b> get byes` : 'No byes',
+    gpw === 2 ? `<b>Median game</b> counts` : 'No median game',
+    `<b>${N}</b> teams`
+  ].map(s => `<span class="pr-fact">${s}</span>`).join('');
+
+  $('teamPick').innerHTML = teams.map(t => `<option value="${t.rid}" ${t.rid === X.rid ? 'selected' : ''}>${esc(t.name)}${t.rid === mineId ? ' (you)' : ''}</option>`).join('');
+
+  /* ---------- the team in focus ---------- */
+  const tile = (lbl, val, note) => `<div class="card pr-tile"><div class="lbl">${lbl}</div><div class="num val">${val}</div><div class="note">${note}</div></div>`;
+  const clinchTile = (c, cp, e, label) => {
+    if (c === 0) return tile(label, '✓', 'Clinched.');
+    if (e === 0) return tile(label, '✗', 'Mathematically out.');
+    if (cp === 0) return tile(label, '✓', 'Clinched on points for. Strictly, ' + c + ' more.');
+    const note = c > G
+      ? `More than the ${G} games left, so other teams have to lose too.`
+      : cp < c ? `Realistically ${cp}, since you'd win the tie on points for.` : 'Your wins plus losses by the teams chasing you.';
+    return tile(label, numTxt(c), note);
+  };
+  $('you').innerHTML = [
+    tile('Record', rec(X), `${ordinal(X.rank)} of ${N} · ${X.pf.toFixed(2)} points for`),
+    tile('Best possible', fmtW(X.max), weeksLeft ? `Wins if they win every game left.` : 'Final.'),
+    clinchTile(X.pc, X.pcp, X.pe, 'Playoffs clinch'),
+    B ? clinchTile(X.bc, X.bcp, X.be, 'Bye clinch') : tile('Out number', numTxt(X.pe), X.pe === 0 ? 'Mathematically out.' : 'Their losses plus wins by the teams above them.')
+  ].join('');
+
+  /* ---------- standings ---------- */
+  $('table').innerHTML = `<thead><tr>
+      <th>#</th><th>Team</th><th class="r">Record</th><th class="r">Max</th><th class="r">PF</th><th>Playoffs</th>${B ? '<th>Bye</th>' : ''}
+    </tr></thead><tbody>` + teams.map(t => `<tr data-rid="${t.rid}" class="${t.rid === X.rid ? 'me' : ''} ${t.rank === P ? 'cut' : ''} ${B && t.rank === B ? 'byecut' : ''}">
+      <td class="num" style="font-size:18px">${t.rank}</td>
+      <td><div class="pr-team">${esc(t.name)}</div>${t.mgr ? `<div class="pr-mgr">@${esc(t.mgr)}</div>` : ''}</td>
+      <td class="r">${rec(t)}</td>
+      <td class="r">${fmtW(t.max)}</td>
+      <td class="r">${t.pf.toFixed(1)}</td>
+      <td>${statusChip(t, 'playoff')}${numsLine(t.pc, t.pe)}</td>
+      ${B ? `<td>${statusChip(t, 'bye')}${numsLine(t.bc, t.be)}</td>` : ''}
+    </tr>`).join('') + '</tbody>';
+  $('tableNote').textContent = `Gold line: playoff cutoff after ${P}.${B ? ` Dashed line: byes after ${B}.` : ''} Tap a team to look at it.` + (S.divisions ? ' This league has divisions: these numbers ignore spots reserved for division winners.' : '');
+
+  /* ---------- magic numbers against each rival ---------- */
+  const rivals = teams.filter(t => t !== X).map(Y => ({ Y, ...lockNeed(X, Y, G), back: lockNeed(Y, X, G) }));
+  const needPO = N - P;
+  $('rivalsTitle').textContent = `${X.name}: magic numbers`;
+  $('rivalsNote').innerHTML = X.pc === 0 && (!B || X.bc === 0)
+    ? 'Nothing left to clinch.'
+    : `Each number counts ${esc(X.name)}'s wins plus that team's losses. Reach it and that team can't finish ahead. ` +
+      `Playoffs: lock out any ${needPO} team${needPO === 1 ? '' : 's'}.${B ? ` Bye: lock out any ${N - B}.` : ''}`;
+  $('rivals').innerHTML = rivals.sort((a, b) => a.strict - b.strict || a.Y.rank - b.Y.rank).map(({ Y, strict, onPoints, back }) => {
+    const locked = onPoints === 0 ? 'Locked out on points' : onPoints < strict ? `${onPoints} on points` : 'to stay ahead';
+    const threat = back.strict === 0 ? `${esc(Y.name)} is already sure to finish ahead.` : '';
+    return `<div class="card pr-rival">
+      <div class="who"><div>${esc(Y.name)}</div><div class="pr-mgr">${rec(Y)} · ${ordinal(Y.rank)}${threat ? ' · ' + threat : ''}</div></div>
+      <div class="need"><span class="num">${strict === 0 ? '✓' : strict}</span><small>${strict === 0 ? 'Locked out' : locked}</small></div>
+    </div>`;
+  }).join('');
+
+  /* ---------- next week ---------- */
+  const next = S.schedule[0];
+  $('weekSec').hidden = !next;
+  if (next) {
+    const byId = new Map(teams.map(t => [t.rid, t]));
+    $('weekTitle').textContent = `Week ${next.week} matchups`;
+    $('week').innerHTML = next.pairs.map(([a, b]) => {
+      const A = byId.get(a), Bt = byId.get(b);
+      if (!A || !Bt) return '';
+      const tags = [];
+      if (A.rid === X.rid || Bt.rid === X.rid) tags.push('<span class="tag gold">' + esc(X.name) + "'s game</span>");
+      if (B && Math.max(A.rank, Bt.rank) <= B + 2 && A.bc && Bt.bc) tags.push('<span class="tag">Bye race</span>');
+      const nearLine = t => Math.abs(t.rank - P - 0.5) <= 2 && t.pc && t.pe;
+      if (nearLine(A) || nearLine(Bt)) tags.push('<span class="tag">Playoff line</span>');
+      if (A.pe === 0 && Bt.pe === 0) tags.push('<span class="tag">Both out</span>');
+      const row = t => `<div class="row"><span>${t.rid === X.rid ? '<b>' + esc(t.name) + '</b>' : esc(t.name)}</span><span>${rec(t)} · ${ordinal(t.rank)}</span></div>`;
+      return `<div class="card pr-game">${row(A)}${row(Bt)}${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}</div>`;
+    }).join('');
+  }
+
+  /* ---------- the focus team's schedule left ---------- */
+  const mySched = S.schedule.map(w => {
+    const p = w.pairs.find(pr => pr.includes(X.rid));
+    return p ? { week: w.week, opp: teams.find(t => t.rid === (p[0] === X.rid ? p[1] : p[0])) } : null;
+  }).filter(Boolean);
+  $('schedSec').hidden = !mySched.length;
+  $('schedTitle').textContent = `${X.name}: schedule left`;
+  $('sched').innerHTML = mySched.map(({ week, opp }) => `<div class="card"><span>Week ${week} vs ${esc(opp?.name || '?')}</span><span>${opp ? rec(opp) + ' · ' + ordinal(opp.rank) : ''}</span></div>`).join('');
+
+  $('help').innerHTML = `
+    <p><b>Clinch number:</b> how many good results it takes to lock the spot. A good result is one of your wins, or a loss by one of the teams you need to stay ahead of. Each rival is counted separately, so you need to reach the number against enough of them: ${needPO} for the playoffs${B ? ` and ${N - B} for a bye` : ''}.</p>
+    <p><b>Out number:</b> how many bad results before you're mathematically out. A bad result is one of your losses, or a win by a team above you.</p>
+    <p>${gpw === 2 ? 'This league plays a median game, so every week is two results: one against your opponent and one against the league median. A head-to-head game against a rival counts double, since one of you gets the win and the other the loss.' : 'A head-to-head game against a rival counts double, since one of you gets the win and the other the loss.'}</p>
+    <p><b>On points</b> means the spot is locked if a tie on record goes to points for, using today's totals. Points for still moves every week, so treat it as nearly certain rather than final. These numbers don't account for who plays whom, so a team can be safe slightly before its number says.</p>`;
+
+  $('main').hidden = false;
+}
+
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+$('teamPick').addEventListener('change', e => { S.focus = Number(e.target.value); render(); });
+$('table').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-rid]');
+  if (!tr) return;
+  S.focus = Number(tr.dataset.rid);
+  render();
+  $('you').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+});
+
+load().catch(() => { $('status').textContent = "Couldn't load this league from Sleeper. Check your connection and reload."; });
+</script>
+</body>
+</html>
