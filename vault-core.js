@@ -4,6 +4,13 @@
    ============================================================ */
 const VAULT_CONFIG = {
   KTC_URL: 'data/ktc-values.json',
+  // Our Worker holding the Roster Audit key (worker/roster-audit-verdict.js).
+  ROSTER_AUDIT_VERDICT_URL: 'https://vault-roster-audit.jacob-palmer60.workers.dev/',
+  // Dynasty Daddy's public values, fetched daily (scripts/fetch-dynasty-daddy.js).
+  DYNASTY_DADDY_URL: 'data/dynasty-daddy-values.json',
+  // Its calculator reads Fair when the gap is under 5% of everything in the trade
+  // (checked live 2026-11-03: 4.8% Fair, 5.2% not).
+  DYNASTY_DADDY_FAIR_SHARE: 0.05,
   // What each player and pick actually trades for, per league format, built
   // daily (scripts/build-grade-values.js); the grade's values (Vault.gradeValue).
   GRADE_VALUES_URL: 'data/grade-values.json',
@@ -2587,6 +2594,55 @@ const Vault = {
     return { rawA, rawB, valueA: rawA + bonusA, valueB: rawB + bonusB, bonusA, bonusB, display };
   },
 
+  fetchDynastyDaddy() {
+    if (!Vault._ddValues) Vault._ddValues = fetch(VAULT_CONFIG.DYNASTY_DADDY_URL).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    return Vault._ddValues;
+  },
+
+  // Dynasty Daddy's own calculator: a plain sum of its values, no bonus for the
+  // best piece (checked live 2026-11-03: 10,190 vs 8,956 + 5,797 reads 4,563 to
+  // even). `priced` is false when a piece isn't in its values (it has 2027-2029
+  // picks, rounds 1-4), and `url` opens the same trade on its calculator either way.
+  dynastyDaddyRead(aAssets, bAssets, isSF, data) {
+    const pickId = a => `${a.season}${String(a.ktcTier ?? a.tier ?? 'mid').toLowerCase()}${[, "1st", "2nd", "3rd", "4th", "5th"][a.ktcRound ?? a.round]}pi`;
+    const row = a => (a.type === 'pick' ? data?.picks?.[pickId(a)] : data?.players?.[a.id]) || null;
+    const linkId = a => (a.type === 'pick' ? pickId(a) : row(a)?.[2]);
+    const side = list => list.map(linkId).filter(Boolean).join(',');
+    const url = `https://dynasty-daddy.com/trade-calculator?isSuperflex=${!!isSF}&sideA=${side(bAssets)}&sideB=${side(aAssets)}`;
+    const sum = list => list.reduce((s, a) => s + (row(a)?.[isSF ? 1 : 0] || 0), 0);
+    if (![...aAssets, ...bAssets].every(a => row(a))) return { priced: false, url };
+    const valueA = sum(aAssets), valueB = sum(bAssets), total = valueA + valueB;
+    return { priced: true, url, valueA, valueB, signed: (valueA - valueB) / ((total / 2) || 1) * 100, fair: Math.abs(valueA - valueB) < total * VAULT_CONFIG.DYNASTY_DADDY_FAIR_SHARE };
+  },
+
+  // Roster Audit's public values, loaded straight from its site in the viewer's
+  // browser (no key, cached an hour by its server), so none of its data is stored
+  // here. Credit and link wherever it shows: their API terms ask for it.
+  fetchRosterAudit() {
+    if (!Vault._raValues) {
+      const get = path => fetch(`https://rosteraudit.com/wp-json/ra/v1/${path}`).then(r => (r.ok ? r.json() : null)).catch(() => null);
+      Vault._raValues = Promise.all([get('rankings/values'), get('picks')]).then(([players, picks]) => (players && picks ? { players, picks: picks.picks } : null));
+    }
+    return Vault._raValues;
+  },
+
+  // A plain sum of Roster Audit's values: its calculator page says it adds no
+  // consolidation adjustment, because its values come from completed trades. Only
+  // the fallback when its own grade (rosterAuditGrade in trade.html) can't be had.
+  rosterAuditRead(aAssets, bAssets, isSF, data) {
+    const value = a => {
+      if (a.type !== 'pick') return data?.players?.[a.id]?.[isSF ? 'sf' : '1qb'] ?? null;
+      const slot = String(a.ktcTier ?? a.tier ?? 'mid').toLowerCase(), round = a.ktcRound ?? a.round;
+      const pick = (data?.picks || []).find(p => p.pick_season === +a.season && p.pick_round === +round && p.pick_slot === slot);
+      return pick ? pick[isSF ? 'val_sf' : 'val_1qb'] : null;
+    };
+    const all = [...aAssets, ...bAssets];
+    if (!data || all.some(a => value(a) === null)) return { priced: false };
+    const sum = list => list.reduce((s, a) => s + value(a), 0);
+    const valueA = sum(aAssets), valueB = sum(bAssets);
+    return { priced: true, valueA, valueB, signed: (valueA - valueB) / (((valueA + valueB) / 2) || 1) * 100 };
+  },
+
   /* Trade value: what each side is worth the way managers actually trade, the
      basis of every grade on the site. Same KTC player and pick values; what
      changed is how a side's pieces add up. Tested on 1.5 million completed
@@ -3040,6 +3096,21 @@ const Vault = {
       ${row('Trade value', w.value, fair.value, "KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). KeepTradeCut's own calculator number is shown in the trade slip to check against.")}
       ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}
       ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend timeline, archetype, and contention window.')}
+    </div>`;
+  },
+
+  // One full-size bar with each team's name at its end. x is signed like the bar.
+  tradeBarHtml(teamAName, teamBName, { label, x, text, title = '' }) {
+    const esc = Vault.escapeHtml;
+    return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
+      <div class="hidden sm:block"></div>
+      <div class="col-span-3 sm:col-span-1 flex justify-between items-end gap-4 text-[12px] leading-snug text-zinc-400">
+        <span class="min-w-0">← ${esc(teamAName)}</span><span class="min-w-0 text-right">${esc(teamBName)} →</span>
+      </div>
+      <div class="hidden sm:block"></div>
+      <div class="text-[12px] font-medium text-zinc-100 whitespace-nowrap">${label}</div>
+      <div title="${title}">${Vault.fairnessBarHtml(x, 0)}</div>
+      <div class="text-[12px] font-medium text-zinc-100 text-right tabular-nums whitespace-nowrap" title="${title}">${text}</div>
     </div>`;
   },
 
