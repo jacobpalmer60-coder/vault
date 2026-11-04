@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=27335387">
+<link rel="stylesheet" href="tailwind.css?v=2d210117">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -88,7 +88,7 @@
     </div>
     <!-- The answer: the verdict for your team, then one price row (trade value,
          KTC's calculator, the market) and whether managers take trades like it. -->
-    <div class="border-t border-white/5 px-4 sm:px-5 py-4 grid lg:grid-cols-[minmax(0,1fr)_250px] gap-x-6 gap-y-4 items-start">
+    <div class="border-t border-white/5 px-4 sm:px-5 py-4 grid lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_430px] gap-x-6 gap-y-4 items-start">
       <div class="min-w-0">
         <div id="diffLabel" aria-live="polite"></div>
       </div>
@@ -214,7 +214,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=ffc7b66a"></script>
+<script src="vault-core.js?v=593cc882"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1290,6 +1290,28 @@ function siteConsensusRead(lean, teamA, teamB) {
   if (off < VAULT_CONFIG.LOPSIDED_PCT) return { dot: 'mid', text: `Favors ${team}` };
   return { dot: 'bad', text: `Strongly favors ${team}` };
 }
+/* Every piece at each site's price, the totals, and KTC's adjustment, so the
+   verdicts above can be checked piece by piece (user, 2026-11-03). KTC's verdict
+   counts its adjustment even when its page doesn't show one. */
+function siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc) {
+  const isSF = Vault.isSuperflex(league), esc = Vault.escapeHtml;
+  const n = v => (v == null ? '—' : Math.round(v).toLocaleString());
+  const cell = 'py-1 pl-2 text-right tabular-nums whitespace-nowrap';
+  const pickName = a => `${a.season} ${String(a.ktcTier ?? a.tier ?? 'mid').replace(/^./, c => c.toUpperCase())} ${[, '1st', '2nd', '3rd', '4th', '5th'][a.ktcRound ?? a.round] || `R${a.round}`}`;
+  const prices = a => [a.ktcPrice ?? a.value, Vault.rosterAuditValue(a, isSF, raValues), Vault.dynastyDaddyValue(a, isSF, ddValues)];
+  const total = list => [0, 1, 2].map(i => { const v = list.map(a => prices(a)[i]); return v.some(x => x == null) ? null : v.reduce((s, x) => s + x, 0); });
+  const row = (label, vals, cls = 'text-zinc-300') => `<tr class="${cls}"><td class="py-1 pr-2 min-w-0 truncate max-w-[150px]" title="${label}">${label}</td>${vals.map(v => `<td class="${cell}">${v}</td>`).join('')}</tr>`;
+  const side = (team, list, adjust) => `<tr><td colspan="4" class="pt-2.5 pb-0.5 text-[11px] text-zinc-400">${esc(team.teamName)} sends</td></tr>
+    ${list.map(a => row(esc(a.type === 'pick' ? pickName(a) : a.name), prices(a).map(n))).join('')}
+    ${adjust ? row('KTC adjustment', [`+${n(adjust)}`, '—', '—'], 'text-zinc-400') : ''}
+    ${row('Total', total(list).map((v, i) => n(i === 0 && v != null ? v + adjust : v)), 'text-zinc-100 font-medium border-t border-white/5')}`;
+  return `<div class="mt-3 pt-2.5 border-t border-white/5 overflow-x-auto">
+    <table class="w-full text-[12px] leading-snug">
+      <thead><tr class="text-[11px] text-zinc-400"><th class="font-normal text-left">Values on each site</th><th class="font-normal text-right pl-2">KTC</th><th class="font-normal text-right pl-2">Roster Audit</th><th class="font-normal text-right pl-2">Dynasty Daddy</th></tr></thead>
+      <tbody>${side(teamA, aAssets, Math.max(0, ktc.adjustA))}${side(teamB, bAssets, Math.max(0, ktc.adjustB))}</tbody>
+    </table>
+  </div>`;
+}
 function siteStatusHtml({ teamA, teamB, aAssets, bAssets, tradeEdge }) {
   const isSF = Vault.isSuperflex(league), esc = Vault.escapeHtml;
   const DOT = { good: 'bg-emerald-400', mid: 'bg-orange-400', bad: 'bg-rose-400' };
@@ -1321,16 +1343,17 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets, tradeEdge }) {
   ];
   const consensus = siteConsensus([-tradeEdge, ktc.signed, ra.priced ? ra.signed : null, dd.priced && !ddNoTe ? dd.signed : null]);
   const read = consensus && siteConsensusRead(consensus.lean, teamA, teamB);
-  return `<div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Other sites</div>
+  return `${read ? `<div class="flex items-baseline gap-2 text-[14px] leading-snug mb-2.5 pb-2.5 border-b border-white/5" title="The average lean of The Vault and ${consensus.sites - 1} other sites">
+      <span class="size-2 shrink-0 rounded-full self-center ${DOT[read.dot]}" aria-hidden="true"></span>
+      <span class="min-w-0 font-medium text-zinc-100">Consensus: ${read.text}${Math.abs(consensus.lean) < 1 ? '' : ` <span class="text-zinc-400 font-normal">· ${Math.round(Math.abs(consensus.lean))}%</span>`}</span>
+    </div>` : ''}
+    <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Other sites</div>
     <ul class="space-y-1.5">${rows.map(r => `<li class="flex items-baseline gap-2 text-[13px] leading-snug" title="${r.title || ''}">
       <span class="size-2 shrink-0 rounded-full self-center ${DOT[r.dot] || 'bg-zinc-600'}" aria-hidden="true"></span>
       <span class="min-w-0"><a href="${r.href}" target="_blank" rel="noopener" class="font-medium text-zinc-200 underline decoration-white/20 underline-offset-2 hover:text-white">${r.name}</a>: <span class="text-zinc-300">${r.text}</span>${r.note ? ` <span class="text-zinc-500">(${r.note})</span>` : ''}</span>
     </li>`).join('')}</ul>
-    ${read ? `<div class="flex items-baseline gap-2 text-[13px] leading-snug mt-2.5 pt-2.5 border-t border-white/5" title="The average lean of The Vault and ${consensus.sites - 1} other sites">
-      <span class="size-2 shrink-0 rounded-full self-center ${DOT[read.dot]}" aria-hidden="true"></span>
-      <span class="min-w-0 font-medium text-zinc-100">Consensus: ${read.text}${Math.abs(consensus.lean) < 1 ? '' : ` <span class="text-zinc-400 font-normal">· ${Math.round(Math.abs(consensus.lean))}%</span>`}</span>
-    </div>` : ''}
-    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Consensus averages how far The Vault and the sites lean.</div>`;
+    ${siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc)}
+    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Consensus averages how far The Vault and the sites lean. KTC counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
 }
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (!aAssets.length || !bAssets.length || ktcSameCall(tradeEdge, ktcEdge)) return '';

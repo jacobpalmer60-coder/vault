@@ -2609,7 +2609,7 @@ const Vault = {
     const sum = l => l.reduce((s, v) => s + v, 0);
     const a = Math.max(0, sum(valsA) + adjust1), b = Math.max(0, sum(valsB) + adjust2);
     // gap is the "add a player worth" number KTC shows; average sizes the trade on KTC's scale.
-    return { fair: Vault.checkEquality(a, b, 5), bigger: a >= b ? 'A' : 'B', signed: (a - b) / (((a + b) / 2) || 1) * 100, gap: Math.abs(a - b), average: (sum(valsA) + sum(valsB)) / 2 };
+    return { fair: Vault.checkEquality(a, b, 5), bigger: a >= b ? 'A' : 'B', signed: (a - b) / (((a + b) / 2) || 1) * 100, gap: Math.abs(a - b), average: (sum(valsA) + sum(valsB)) / 2, adjustA: adjust1, adjustB: adjust2 };
   },
 
   fetchDynastyDaddy() {
@@ -2617,14 +2617,23 @@ const Vault = {
     return Vault._ddValues;
   },
 
+  dynastyDaddyPickId(a) { return `${a.season}${String(a.ktcTier ?? a.tier ?? 'mid').toLowerCase()}${[, "1st", "2nd", "3rd", "4th", "5th"][a.ktcRound ?? a.round]}pi`; },
+  dynastyDaddyRow(a, data) { return (a.type === 'pick' ? data?.picks?.[Vault.dynastyDaddyPickId(a)] : data?.players?.[a.id]) || null; },
+  dynastyDaddyValue(a, isSF, data) { return Vault.dynastyDaddyRow(a, data)?.[isSF ? 1 : 0] ?? null; },
+  rosterAuditValue(a, isSF, data) {
+    if (a.type !== 'pick') return data?.players?.[a.id]?.[isSF ? 'sf' : '1qb'] ?? null;
+    const slot = String(a.ktcTier ?? a.tier ?? 'mid').toLowerCase(), round = a.ktcRound ?? a.round;
+    const pick = (data?.picks || []).find(p => p.pick_season === +a.season && p.pick_round === +round && p.pick_slot === slot);
+    return pick ? pick[isSF ? 'val_sf' : 'val_1qb'] : null;
+  },
+
   // Dynasty Daddy's own calculator: a plain sum of its values, no bonus for the
   // best piece (checked live 2026-11-03: 10,190 vs 8,956 + 5,797 reads 4,563 to
   // even). `priced` is false when a piece isn't in its values (it has 2027-2029
   // picks, rounds 1-4), and `url` opens the same trade on its calculator either way.
   dynastyDaddyRead(aAssets, bAssets, isSF, data) {
-    const pickId = a => `${a.season}${String(a.ktcTier ?? a.tier ?? 'mid').toLowerCase()}${[, "1st", "2nd", "3rd", "4th", "5th"][a.ktcRound ?? a.round]}pi`;
-    const row = a => (a.type === 'pick' ? data?.picks?.[pickId(a)] : data?.players?.[a.id]) || null;
-    const linkId = a => (a.type === 'pick' ? pickId(a) : row(a)?.[2]);
+    const row = a => Vault.dynastyDaddyRow(a, data);
+    const linkId = a => (a.type === 'pick' ? Vault.dynastyDaddyPickId(a) : row(a)?.[2]);
     const side = list => list.map(linkId).filter(Boolean).join(',');
     const url = `https://dynasty-daddy.com/trade-calculator?isSuperflex=${!!isSF}&sideA=${side(bAssets)}&sideB=${side(aAssets)}`;
     const sum = list => list.reduce((s, a) => s + (row(a)?.[isSF ? 1 : 0] || 0), 0);
@@ -2651,12 +2660,7 @@ const Vault = {
   // consolidation adjustment, because its values come from completed trades. Only
   // the fallback when its own grade (rosterAuditGrade in trade.html) can't be had.
   rosterAuditRead(aAssets, bAssets, isSF, data) {
-    const value = a => {
-      if (a.type !== 'pick') return data?.players?.[a.id]?.[isSF ? 'sf' : '1qb'] ?? null;
-      const slot = String(a.ktcTier ?? a.tier ?? 'mid').toLowerCase(), round = a.ktcRound ?? a.round;
-      const pick = (data?.picks || []).find(p => p.pick_season === +a.season && p.pick_round === +round && p.pick_slot === slot);
-      return pick ? pick[isSF ? 'val_sf' : 'val_1qb'] : null;
-    };
+    const value = a => Vault.rosterAuditValue(a, isSF, data);
     const all = [...aAssets, ...bAssets];
     if (!data || all.some(a => value(a) === null)) return { priced: false };
     const sum = list => list.reduce((s, a) => s + value(a), 0);
