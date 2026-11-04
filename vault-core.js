@@ -658,10 +658,10 @@ const Vault = {
      KTC's real code computes something for the OTHER side in a couple of these
      cases too, but never displays it (see the display gate at the end), so the
      net externally-visible effect is the same as just not adjusting. */
-  consolidationAdjustment(values1, values2) {
+  consolidationAdjustment(values1, values2, { oneForOne = false } = {}) {
     const zero = { adjust1: 0, adjust2: 0, display: false };
     if (!values1.length || !values2.length) return zero;
-    if (values1.length <= 1 && values2.length <= 1) return zero;
+    if (!oneForOne && values1.length <= 1 && values2.length <= 1) return zero;
     const total1 = values1.reduce((s, v) => s + v, 0);
     const total2 = values2.reduce((s, v) => s + v, 0);
     if (!total1 || !total2) return zero;
@@ -680,11 +680,11 @@ const Vault = {
     let adjust1 = 0, adjust2 = 0, valid = true;
     const favor1 = () => {
       const b = total2 + solve(gap) - total1;
-      if (b > 0) adjust1 = b; else valid = false;
+      if (b > 0) adjust1 = b; else { adjust2 = -b; valid = false; }
     };
     const favor2 = () => {
       const b = total1 + solve(gap) - total2;
-      if (b > 0) adjust2 = b; else valid = false;
+      if (b > 0) adjust2 = b; else { adjust1 = -b; valid = false; }
     };
     // Reached when the ratio (d vs u) and the raw curve scores (rawAdj1 vs
     // rawAdj2) disagree on which side is ahead — this is what our previous port
@@ -706,7 +706,8 @@ const Vault = {
       if (side1Primary) {
         if (g === 2) {
           const T = w - (total1 - total2);
-          if (T > 0) adjust2 = T; else valid = false;
+          adjust2 = T;
+          if (T <= 0) valid = false;
         } else {
           const T = w - (total2 - total1);
           if (T > 0) { if (T > VAULT_CONFIG.CONSOLIDATION_GLOBAL_MAX) valid = false; else adjust2 = T; }
@@ -715,7 +716,8 @@ const Vault = {
       } else {
         if (g === 1) {
           const T = w - (total2 - total1);
-          if (T > 0) adjust1 = T; else valid = false;
+          adjust1 = T;
+          if (T <= 0) valid = false;
         } else {
           const T = w - (total1 - total2);
           if (T > 0) { if (T > VAULT_CONFIG.CONSOLIDATION_GLOBAL_MAX) valid = false; else adjust1 = T; }
@@ -1301,6 +1303,7 @@ const Vault = {
     });
     const availYears = [...seasons].sort((a, b) => a - b);
     const map = new Map();
+    map.ktcPrice = new Map(); // KTC's own price for each pick, for its calculator's line
     if (!availYears.length) return map;
     years.forEach(year => {
       const nearest = availYears.reduce((best, y) => Math.abs(y - year) < Math.abs(best - year) ? y : best, availYears[0]);
@@ -1309,6 +1312,7 @@ const Vault = {
         ['early', 'mid', 'late'].forEach(tier => {
           const val = spread && mid != null && tier !== 'mid' ? Math.round(mid * spread[tier]) : raw.get(`${nearest}-${round}-${tier}`);
           if (val != null) map.set(`${year}-${round}-${tier}`, val);
+          if (raw.has(`${nearest}-${round}-${tier}`)) map.ktcPrice.set(`${year}-${round}-${tier}`, raw.get(`${nearest}-${round}-${tier}`));
         });
       });
     });
@@ -1348,6 +1352,7 @@ const Vault = {
         const { round: ktcRound, tier } = Vault.ktcPickSlot(overall);
         p.tier = Vault.leagueTier(rank, n); p.ktcRound = ktcRound; p.ktcTier = tier;
         p.value = pickMap.get(`${p.season}-${ktcRound}-${tier}`) || 0;
+        p.ktcPrice = pickMap.ktcPrice?.get(`${p.season}-${ktcRound}-${tier}`);
         p.volatilityPct = Vault.pickVolatilityPct(pickMap, p.season, ktcRound);
         sum += p.value;
       });
@@ -2584,7 +2589,7 @@ const Vault = {
      for the market math (market-data.js, the market summaries), which measures
      what managers pay against KTC. */
   ktcSideValues(assetsA, assetsB) {
-    const valsA = assetsA.map(a => a.value), valsB = assetsB.map(a => a.value);
+    const valsA = assetsA.map(a => a.ktcPrice ?? a.value), valsB = assetsB.map(a => a.ktcPrice ?? a.value);
     const rawA = valsA.reduce((s, v) => s + v, 0), rawB = valsB.reduce((s, v) => s + v, 0);
     // A bonus KTC hides (under ~3.3% of the trade, or an invalid solve) is left out
     // of its totals too: checked live 2026-10-24, Goff + Hubbard for Jordan Love
@@ -2592,6 +2597,18 @@ const Vault = {
     const { adjust1, adjust2, display } = Vault.consolidationAdjustment(valsA, valsB);
     const bonusA = display ? adjust1 : 0, bonusB = display ? adjust2 : 0;
     return { rawA, rawB, valueA: rawA + bonusA, valueB: rawB + bonusB, bonusA, bonusB, display };
+  },
+
+  // KTC's verdict, as its calculator words it (its evaluateTrade, read 2026-11-03):
+  // Fair Trade when the gap is at most 5% of everything in the trade, otherwise
+  // Favors the bigger side. Every adjustment counts here, even on a 1-for-1 and
+  // even one it doesn't show. `bigger` is 'A' or 'B', whichever list KTC favors.
+  ktcVerdict(assetsA, assetsB) {
+    const valsA = assetsA.map(a => a.ktcPrice ?? a.value), valsB = assetsB.map(a => a.ktcPrice ?? a.value);
+    const { adjust1, adjust2 } = Vault.consolidationAdjustment(valsA, valsB, { oneForOne: true });
+    const sum = l => l.reduce((s, v) => s + v, 0);
+    const a = Math.max(0, sum(valsA) + adjust1), b = Math.max(0, sum(valsB) + adjust2);
+    return { fair: Vault.checkEquality(a, b, 5), bigger: a >= b ? 'A' : 'B' };
   },
 
   fetchDynastyDaddy() {
