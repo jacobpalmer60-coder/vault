@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=9e80d19b">
+<link rel="stylesheet" href="tailwind.css?v=27335387">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=0c80d7ff"></script>
+<script src="vault-core.js?v=ffc7b66a"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-03', items: [
+    { kind: 'new', page: 'Trade Calculator', text: "A consensus line under the other sites: how far The Vault, KTC, Roster Audit and Dynasty Daddy lean on average, so a strong read counts for more than a slight one. It reads Fair, Near fair, Favors or Strongly favors, with the percent. Each site now shows by how much it favors a team, with Roster Audit and Dynasty Daddy also converted to KTC's scale, and Roster Audit uses your league's TE premium. Dynasty Daddy's line says so when it can't." },
     { kind: 'improved', page: 'Trade Calculator', text: "Opens faster: a trade link no longer freezes the page for about 3 seconds while it works out what similar players go for." },
     { kind: 'new', page: 'Trade Calculator', text: "The fairness bars are back on the trade card (overall, trade value, roster fit and timeline), and next to them a short list shows what KTC (with Value Source on Crowd + Trades), Roster Audit and Dynasty Daddy say about the same trade, in their own words, including Roster Audit's letter grade. Each name links to the site." },
     { kind: 'improved', page: 'Trade Grades', text: "The fairness bars are back on every trade, without opening More." },

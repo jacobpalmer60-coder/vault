@@ -2,7 +2,7 @@
 // the Trade Calculator can show it without the API key being in the page. The
 // key lives in the Worker's settings as the secret RA_KEY, never in this file.
 //
-// Takes { side_a, side_b, is_superflex }. Only those fields are sent on, so this
+// Takes { side_a, side_b, is_superflex, is_te_premium }. Only those fields are sent on, so this
 // can't be used to reach anything else on their API. Their limit is 100 trades an
 // hour per key: repeat trades are answered from memory, and when the limit is hit
 // the page keeps its plain read of their values.
@@ -36,7 +36,7 @@ export default {
     const input = await request.json().catch(() => null);
     const side_a = cleanSide(input?.side_a), side_b = cleanSide(input?.side_b);
     if (!side_a || !side_b) return reply({ error: 'Bad trade' }, 400);
-    const body = JSON.stringify({ side_a, side_b, settings: { is_superflex: !!input.is_superflex } });
+    const body = JSON.stringify({ side_a, side_b, settings: { is_superflex: !!input.is_superflex, is_te_premium: !!input.is_te_premium } });
 
     const saved = memo.get(body);
     if (saved && Date.now() - saved.at < MEMO_HOURS * 3600000) return reply(saved.data);

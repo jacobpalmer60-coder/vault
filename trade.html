@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=9e80d19b">
+<link rel="stylesheet" href="tailwind.css?v=27335387">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -214,7 +214,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=0c80d7ff"></script>
+<script src="vault-core.js?v=ffc7b66a"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -393,7 +393,7 @@ async function init() {
 
     // Other sites' values fill in the bars when they land; the page never waits on them.
     Vault.fetchDynastyDaddy().then(d => { ddValues = d; if (selectedA.size + selectedB.size) updateTrade(); });
-    Vault.fetchRosterAudit().then(d => { raValues = d; if (selectedA.size + selectedB.size) updateTrade(); });
+    Vault.fetchRosterAudit(league).then(d => { raValues = d; if (selectedA.size + selectedB.size) updateTrade(); });
 
     teams = built.teams.map(t => ({ ...t, assets: [] }));
     teams.forEach(t => t.assets = assetsFor(t));
@@ -1249,9 +1249,9 @@ function raAsset(a) {
 }
 function rosterAuditGrade(aAssets, bAssets, isSF) {
   // Each list is what that team receives: its winner is the list worth more.
-  const side_a = bAssets.map(raAsset), side_b = aAssets.map(raAsset);
+  const side_a = bAssets.map(raAsset), side_b = aAssets.map(raAsset), tep = Vault.rosterAuditTep(league);
   if ([...side_a, ...side_b].some(a => !a)) return null;
-  const key = JSON.stringify([side_a, side_b, isSF]);
+  const key = JSON.stringify([side_a, side_b, isSF, tep]);
   raWanted = key;
   if (raGrades.has(key)) { clearTimeout(raTimer); raPending = ''; return raGrades.get(key); }
   // A redraw of the same trade (the page does several while loading) doesn't restart the wait.
@@ -1259,10 +1259,10 @@ function rosterAuditGrade(aAssets, bAssets, isSF) {
   clearTimeout(raTimer);
   raPending = key;
   raTimer = setTimeout(async () => {
-    const res = await fetch(VAULT_CONFIG.ROSTER_AUDIT_VERDICT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ side_a, side_b, is_superflex: isSF }) }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    const res = await fetch(VAULT_CONFIG.ROSTER_AUDIT_VERDICT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ side_a, side_b, is_superflex: isSF, is_te_premium: tep }) }).then(r => (r.ok ? r.json() : null)).catch(() => null);
     if (raPending === key) raPending = '';
     if (res?.limited) raPausedUntil = Date.now() + RA_PAUSE_MS;
-    else { raGrades.set(key, res?.verdict?.grade ? res.verdict : null); saveRaGrades(); }
+    else { raGrades.set(key, res?.verdict?.grade && !!res.meta?.is_te_premium === tep ? res.verdict : null); saveRaGrades(); }
     if (key === raWanted) renderSiteStatus();
   }, RA_WAIT_MS);
   return null;
@@ -1273,33 +1273,64 @@ function renderSiteStatus(args = siteStatusArgs) {
   el.classList.toggle('hidden', !show);
   el.innerHTML = show ? siteStatusHtml(args) : '';
 }
-function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
+/* One line under the sites: how far The Vault and the sites lean, on average, so a
+   strong read counts for more than a barely (user, 2026-11-03). Each lean is signed
+   like the fairness bar; a site with no read sits out. 6% is the verdict's Toss-up
+   band; 14% and 41% are the Fair and Lopsided lines. */
+const SITE_NEAR_EVEN_PCT = 6;
+function siteConsensus(leans) {
+  const known = leans.filter(Number.isFinite);
+  if (known.length < 2) return null;
+  return { lean: known.reduce((s, x) => s + x, 0) / known.length, sites: known.length };
+}
+function siteConsensusRead(lean, teamA, teamB) {
+  const off = Math.abs(lean), team = Vault.escapeHtml((lean > 0 ? teamB : teamA).teamName);
+  if (off < SITE_NEAR_EVEN_PCT) return { dot: 'good', text: 'Fair' };
+  if (off < VAULT_CONFIG.FAIR_PCT) return { dot: 'good', text: `Near fair, leans ${team}` };
+  if (off < VAULT_CONFIG.LOPSIDED_PCT) return { dot: 'mid', text: `Favors ${team}` };
+  return { dot: 'bad', text: `Strongly favors ${team}` };
+}
+function siteStatusHtml({ teamA, teamB, aAssets, bAssets, tradeEdge }) {
   const isSF = Vault.isSuperflex(league), esc = Vault.escapeHtml;
   const DOT = { good: 'bg-emerald-400', mid: 'bg-orange-400', bad: 'bg-rose-400' };
-  // KTC and Dynasty Daddy only ever say Fair Trade or Favors a team.
-  const verdict = (fair, team) => (fair ? { dot: 'good', text: 'Fair' } : { dot: 'mid', text: `Favors ${esc(team.teamName)}` });
   const ktc = Vault.ktcVerdict(aAssets, bAssets);
+  const points = n => Math.round(n).toLocaleString();
+  // Each site's own gap, then the same share of this trade on KTC's scale: picks and
+  // stars sit at different values on each site, so their points don't compare directly.
+  const amount = (a, b) => ` by ${points(Math.abs(a - b))} (≈ ${points(Math.abs(a - b) / (((a + b) / 2) || 1) * ktc.average)} KTC)`;
+  // KTC and Dynasty Daddy only ever say Fair Trade or Favors a team.
+  const verdict = (fair, team, by) => (fair ? { dot: 'good', text: 'Fair' } : { dot: 'mid', text: `Favors ${esc(team.teamName)}${by}` });
   const dd = Vault.dynastyDaddyRead(aAssets, bAssets, isSF, ddValues);
   const ra = Vault.rosterAuditRead(aAssets, bAssets, isSF, raValues);
   const raGrade = rosterAuditGrade(aAssets, bAssets, isSF);
   const raFavors = raGrade && { side_a: teamA, side_b: teamB }[raGrade.winner];
+  // Its public values have no TE premium: say so when that could matter here, and leave
+  // it out of the consensus (user, 2026-11-03), which it would pull the wrong way.
+  const ddNoTe = Vault.rosterAuditTep(league) && [...aAssets, ...bAssets].some(a => a.pos === 'TE');
+  const raBy = ra.priced ? amount(ra.valueA, ra.valueB) : '';
   const raRow = raGrade
-    ? { dot: /^[AB]/.test(raGrade.grade) ? 'good' : /^C/.test(raGrade.grade) ? 'mid' : 'bad', text: `${esc(raGrade.grade)}${raFavors ? `, favors ${esc(raFavors.teamName)}` : ''}`, title: `Its own grade, ${raGrade.difference_pct}% apart` }
+    ? { dot: /^[AB]/.test(raGrade.grade) ? 'good' : /^C/.test(raGrade.grade) ? 'mid' : 'bad', text: `${esc(raGrade.grade)}${raFavors ? `, favors ${esc(raFavors.teamName)}${raBy}` : ''}`, title: `Its own grade, ${raGrade.difference_pct}% apart` }
     : ra.priced
-      ? { text: Math.abs(ra.signed) < 1 ? 'Even' : `Favors ${esc((ra.signed > 0 ? teamB : teamA).teamName)}`, title: 'Its values added up, not its grade' }
+      ? { text: Math.abs(ra.signed) < 1 ? 'Even' : `Favors ${esc((ra.signed > 0 ? teamB : teamA).teamName)}${raBy}`, title: 'Its values added up, not its grade' }
       : { text: raValues ? 'Not listed' : 'Loading…', title: 'A piece in this trade is not in its values' };
   const rows = [
     // Each list is what the other team receives, so the bigger list favors that team.
-    { name: 'KTC (Crowd + Trades)', href: 'https://keeptradecut.com/trade-calculator', ...verdict(ktc.fair, ktc.bigger === 'A' ? teamB : teamA), title: "KeepTradeCut's calculator with Value Source set to Crowd + Trades" },
+    { name: 'KTC (Crowd + Trades)', href: 'https://keeptradecut.com/trade-calculator', ...verdict(ktc.fair, ktc.bigger === 'A' ? teamB : teamA, ` by ${points(ktc.gap)}`), title: "KeepTradeCut's calculator with Value Source set to Crowd + Trades" },
     { name: 'Roster Audit', href: 'https://rosteraudit.com/trade-calculator/', ...raRow },
-    { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA), title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? 'Not listed' : 'Loading…', title: 'A piece in this trade is not in its values. Open this trade on its site.' }) }
+    { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd.valueA, dd.valueB)), note: ddNoTe ? "doesn't factor in TE premium" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? 'Not listed' : 'Loading…', title: 'A piece in this trade is not in its values. Open this trade on its site.' }) }
   ];
+  const consensus = siteConsensus([-tradeEdge, ktc.signed, ra.priced ? ra.signed : null, dd.priced && !ddNoTe ? dd.signed : null]);
+  const read = consensus && siteConsensusRead(consensus.lean, teamA, teamB);
   return `<div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Other sites</div>
     <ul class="space-y-1.5">${rows.map(r => `<li class="flex items-baseline gap-2 text-[13px] leading-snug" title="${r.title || ''}">
       <span class="size-2 shrink-0 rounded-full self-center ${DOT[r.dot] || 'bg-zinc-600'}" aria-hidden="true"></span>
-      <span class="min-w-0"><a href="${r.href}" target="_blank" rel="noopener" class="font-medium text-zinc-200 underline decoration-white/20 underline-offset-2 hover:text-white">${r.name}</a>: <span class="text-zinc-300">${r.text}</span></span>
+      <span class="min-w-0"><a href="${r.href}" target="_blank" rel="noopener" class="font-medium text-zinc-200 underline decoration-white/20 underline-offset-2 hover:text-white">${r.name}</a>: <span class="text-zinc-300">${r.text}</span>${r.note ? ` <span class="text-zinc-500">(${r.note})</span>` : ''}</span>
     </li>`).join('')}</ul>
-    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}.</div>`;
+    ${read ? `<div class="flex items-baseline gap-2 text-[13px] leading-snug mt-2.5 pt-2.5 border-t border-white/5" title="The average lean of The Vault and ${consensus.sites - 1} other sites">
+      <span class="size-2 shrink-0 rounded-full self-center ${DOT[read.dot]}" aria-hidden="true"></span>
+      <span class="min-w-0 font-medium text-zinc-100">Consensus: ${read.text}${Math.abs(consensus.lean) < 1 ? '' : ` <span class="text-zinc-400 font-normal">· ${Math.round(Math.abs(consensus.lean))}%</span>`}</span>
+    </div>` : ''}
+    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Consensus averages how far The Vault and the sites lean.</div>`;
 }
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (!aAssets.length || !bAssets.length || ktcSameCall(tradeEdge, ktcEdge)) return '';
@@ -1958,7 +1989,7 @@ function updateTrade() {
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
       ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName, 'mt-2.5')}</div></details>
       ${(() => { const c = bAssets.map(a => ({ a, c: Vault.cornerstone(teamB, a) })).find(x => x.c); if (!c) return ''; const oneIn = Math.round(1 / c.c.share); return `<div class="text-[12px] text-zinc-400 mt-1.5"><span class="text-amber-300 font-medium">Their ${c.c.rank === 1 ? 'best player' : `#${c.c.rank} player`}</span> · ${Vault.escapeHtml(c.a.name)} is ${Vault.possessive(Vault.escapeHtml(teamB.teamName))} ${c.c.rank === 1 ? 'most valuable player' : `#${c.c.rank} player by value`}. ${c.c.mode === 'contend' ? 'Contending teams' : c.c.mode === 'rebuild' ? 'Rebuilding teams' : 'Teams like theirs'} send a player that high on their roster in only about 1 of ${oneIn} of their trades, at any price, so expect a no unless they're looking to move him.</div>`; })()}` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
-  renderSiteStatus({ teamA, teamB, aAssets, bAssets });
+  renderSiteStatus({ teamA, teamB, aAssets, bAssets, tradeEdge });
   document.getElementById('priceBucket').innerHTML = (aAssets.length || bAssets.length) ? `<span title="Whether the price is fair for both teams: trade value, plus both teams' roster fit and timeline. Not the verdict, which is about your team.">Price with both teams' fit: <span class="font-medium ${bucketColor(Vault.priceWord(bucket))}">${Vault.priceWord(bucket)}</span> · ${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">(trade value alone ${capPct(pctDiff).toFixed(0)}%)</span>` : ''}</span>` : '';
   document.getElementById('consolidation').innerHTML = aAssets.length && bAssets.length ? consolidationAdviceHtml(aAssets, bAssets, teamA, teamB) : '';
   document.getElementById('priceBucket').title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than trade value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side, and neither side a poor fit.`;

@@ -2608,7 +2608,8 @@ const Vault = {
     const { adjust1, adjust2 } = Vault.consolidationAdjustment(valsA, valsB, { oneForOne: true });
     const sum = l => l.reduce((s, v) => s + v, 0);
     const a = Math.max(0, sum(valsA) + adjust1), b = Math.max(0, sum(valsB) + adjust2);
-    return { fair: Vault.checkEquality(a, b, 5), bigger: a >= b ? 'A' : 'B' };
+    // gap is the "add a player worth" number KTC shows; average sizes the trade on KTC's scale.
+    return { fair: Vault.checkEquality(a, b, 5), bigger: a >= b ? 'A' : 'B', signed: (a - b) / (((a + b) / 2) || 1) * 100, gap: Math.abs(a - b), average: (sum(valsA) + sum(valsB)) / 2 };
   },
 
   fetchDynastyDaddy() {
@@ -2635,13 +2636,16 @@ const Vault = {
   // Roster Audit's public values, loaded straight from its site in the viewer's
   // browser (no key, cached an hour by its server), so none of its data is stored
   // here. Credit and link wherever it shows: their API terms ask for it.
-  fetchRosterAudit() {
+  fetchRosterAudit(league) {
     if (!Vault._raValues) {
       const get = path => fetch(`https://rosteraudit.com/wp-json/ra/v1/${path}`).then(r => (r.ok ? r.json() : null)).catch(() => null);
-      Vault._raValues = Promise.all([get('rankings/values'), get('picks')]).then(([players, picks]) => (players && picks ? { players, picks: picks.picks } : null));
+      const format = `${Vault.isSuperflex(league) ? 'sf' : '1qb'}_ppr${Vault.rosterAuditTep(league) ? '_tep' : ''}`;
+      Vault._raValues = Promise.all([get(`rankings/values?format_key=${format}`), get('picks')]).then(([players, picks]) => (players && picks ? { players, picks: picks.picks } : null));
     }
     return Vault._raValues;
   },
+  // Roster Audit has one TE premium setting, on or off; KTC's TE+ and up count as on.
+  rosterAuditTep(league) { return !!Vault.ktcTepSuffix(league?.scoring_settings?.bonus_rec_te); },
 
   // A plain sum of Roster Audit's values: its calculator page says it adds no
   // consolidation adjustment, because its values come from completed trades. Only
