@@ -245,8 +245,8 @@ function setView(v) {
   const me = teamOf('A');
   document.getElementById('launcherTeam').textContent = me ? me.teamName : '';
   if (typeof renderVerdictDock === 'function') renderVerdictDock();
-  if (open && was !== v) document.getElementById('coachPanel').focus({ preventScroll: true });
-  if (!open && was !== v) { Coach.shownStep = null; document.getElementById('coachLauncher').focus({ preventScroll: true }); }
+  if (open && was !== v) { coachEntryAdd(); document.getElementById('coachPanel').focus({ preventScroll: true }); }
+  if (!open && was !== v) { coachEntryDrop(); Coach.shownStep = null; document.getElementById('coachLauncher').focus({ preventScroll: true }); }
 }
 // Roster sections (QB, RB, WR, TE, Picks, All) open on each side; all start closed.
 const openSections = { A: new Set(), B: new Set() };
@@ -2453,9 +2453,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=2b2cb135"></script>
+<script src="negotiation.js?v=35059c45"></script>
 <script src="market-data.js?v=0902cb1e"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=29c6a09f"></script>
+<script src="coach.js?v=605b14c1"></script>
 </body>
 </html>

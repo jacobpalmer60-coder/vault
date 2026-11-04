@@ -660,11 +660,17 @@ function coachWorkRead(me, w, give = w.give, get = w.get) {
 // managers can check those (user, 2026-11-03). Never changes who'd say yes.
 const coachConsensusBand = r => r.consensus?.band ?? 0;
 const coachByConsensus = (x, y) => coachConsensusBand(x) - coachConsensusBand(y) || y.score - x.score;
+// Good for you, then Toss-ups, then the ones that lean bad (user, 2026-11-04: selling Ja'Marr
+// Chase listed two Leans bad deals first). Consensus only orders trades within those.
+const COACH_LEVEL_ORDER = { good: 0, tossup: 1, bad: 2 };
+const coachLevelRank = r => COACH_LEVEL_ORDER[Vault.verdictTier(r.score).level] ?? 1;
 const coachConsensusText = r => (r.consensus ? `Consensus: ${r.consensus.text}` : '');
 // You've named who you want: what of yours would get him, so the next step isn't
 // picking one of your own players blind (user, 2026-11-03). Packages their manager
 // would take that aren't bad for you, ones that read fair across the sites first.
 const COACH_PACKAGES_SHOW = 5;
+const COACH_TWO_LOOK = 20, COACH_TWO_SHOW = 3;
+const coachStarterKeys = me => new Set((me.lineup || []).filter(s => s.id).map(s => 'p_' + s.id));
 async function coachWorkPackages(w, seq, me) {
   w.packages = null;
   if (coachOpen()) renderCoach();
@@ -682,18 +688,25 @@ function coachWorkUsePackage(k) {
 }
 async function coachWorkTweaks() {
   const w = Coach.work, me = coachMe(); if (!w) return;
-  const seq = ++w.seq; w.tweaks = null;
+  const seq = ++w.seq; w.tweaks = null; w.season = null;
   // Nothing to judge until both sides have something.
   if (!w.give.length || !w.get.length) {
-    w.tweaks = { more: [], less: [], yes: [], closer: [] };
+    w.tweaks = { more: [], less: [], yes: [], closer: [], two: [] };
     if (w.get.length) await coachWorkPackages(w, seq, me);
     if (coachOpen()) renderCoach();
     return;
   }
+  // The season first: it's a moment of simulation, and it shows before the suggestions.
+  await coachTick();
+  if (Coach.work !== w || w.seq !== seq) return;
+  w.season = coachSeasonRead(me, w);
+  if (coachOpen()) renderCoach();
+  await coachTick();
+  if (Coach.work !== w || w.seq !== seq) return;
   const base = coachWorkRead(me, w), off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
   const getVal = sumValue(w.get), giveVal = sumValue(w.give);
-  // Never suggest dropping a Must go piece, or the player an Upgrade a player trade is upgrading.
-  const locked = new Set([...Coach.mine.must, ...(w.option === 'upgrade' && Coach.upKey ? [Coach.upKey] : [])]);
+  // Never suggest dropping a Must go piece, or the pieces this trade is about.
+  const locked = new Set([...Coach.mine.must, ...w.lock]);
   const mine = me.assets.filter(a => !inGive.has(a.key) && !off.has(a.key) && a.value >= 150);
   const cands = [];
   // Ask for one more of theirs.
@@ -705,26 +718,51 @@ async function coachWorkTweaks() {
     .forEach(a => cands.push({ kind: 'less', text: `Send your ${Vault.escapeHtml(a.name)} instead of ${Vault.escapeHtml(g.name)}`, give: w.give.map(x => (x === g ? a : x)), get: w.get })));
   // At a no: add one of yours, swap one up, or ask for one less of theirs.
   if (!base.yes) {
-    // Pieces sized to what's missing on trade value (extra pieces count for less, so aim a bit above it).
-    const tv = Vault.tradeSideValues(w.give, w.get), needVal = Math.max(-base.room, base.you - VAULT_CONFIG.FAIR_PCT + 0.5) / 100 * (tv.valueA + tv.valueB) / 2;
-    mine.filter(a => a.value >= 300).sort((x, y) => Math.abs(x.value - needVal * 1.5) - Math.abs(y.value - needVal * 1.5)).slice(0, 16)
+    // Every piece, not just ones near the gap: extra pieces count for less, so the piece that
+    // gets to yes is often much bigger than the gap (Rashee Rice, 4,410, on a gap of 1,150).
+    mine.filter(a => a.value >= 300)
       .forEach(a => cands.push({ kind: 'yes', add: true, text: `Add your ${Vault.escapeHtml(a.name)}`, give: [...w.give, a], get: w.get }));
     w.give.filter(a => !locked.has(a.key)).forEach(g => mine.filter(a => a.value > g.value * 1.03 && a.value <= g.value * 1.6).sort((x, y) => x.value - y.value).slice(0, 4)
       .forEach(a => cands.push({ kind: 'yes', text: `Send your ${Vault.escapeHtml(a.name)} instead of ${Vault.escapeHtml(g.name)}`, give: w.give.map(x => (x === g ? a : x)), get: w.get })));
-    if (w.get.length > 1) w.get.filter(a => !Coach.theirs.must.includes(a.key) && a.key !== Coach.targetKey).forEach(a => cands.push({ kind: 'yes', text: `Don't ask for ${Vault.escapeHtml(a.name)}`, give: w.give, get: w.get.filter(x => x !== a) }));
+    if (w.get.length > 1) w.get.filter(a => !Coach.theirs.must.includes(a.key) && !w.lockGet.includes(a.key)).forEach(a => cands.push({ kind: 'yes', text: `Don't ask for ${Vault.escapeHtml(a.name)}`, give: w.give, get: w.get.filter(x => x !== a) }));
   }
   const out = [], closer = [];
   for (let k = 0; k < cands.length; k++) {
-    if (k % 6 === 5) { await coachTick(); if (Coach.work !== w || w.seq !== seq) return; }
-    const c = cands[k], r = coachWorkRead(me, w, c.give, c.get);
+    if (k % 12 === 11) { await coachTick(); if (Coach.work !== w || w.seq !== seq) return; }
+    const c = cands[k], r = coachWorkRead(me, w, c.give, c.get), badForYou = Vault.verdictTier(r.score).level === 'bad';
     // At a no, a piece that gets them closest without reaching yes is still worth showing.
-    if (!r.yes && c.add && r.room > base.room + 1) closer.push({ ...c, r });
-    if (!r.yes || !coachPiecesOK(c.give, c.get)) continue;
+    if (!r.yes && c.add && !badForYou && r.room > base.room + 1) closer.push({ ...c, r });
+    if (!r.yes || badForYou || !coachPiecesOK(c.give, c.get)) continue;
     if (c.kind !== 'yes' && r.score <= base.score + 0.5) continue; // only changes that help you
     out.push({ ...c, r });
   }
-  const top = kind => out.filter(c => c.kind === kind).sort((x, y) => coachByConsensus(x.r, y.r)).slice(0, 4);
-  w.tweaks = { more: top('more'), less: top('less'), yes: top('yes'), closer: closer.sort((x, y) => y.r.room - x.r.room).slice(0, 4) };
+  const top = kind => out.filter(c => c.kind === kind).sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachByConsensus(x.r, y.r)).slice(0, 4);
+  // 7. Two of your bench pieces or picks that get to yes (user, 2026-11-04), when no one piece
+  // does it and leaves you ahead. Starters never, like Even it out. Each piece aims well over
+  // half the gap, since extra pieces count for less. Not bad for you, and a piece shows up
+  // twice at most, so it isn't one player's list.
+  const two = [];
+  if (!base.yes && !top('yes').some(c => coachLevelRank(c.r) === 0)) {
+    const tv = Vault.tradeSideValues(w.give, w.get), needVal = Math.max(-base.room, base.you - VAULT_CONFIG.FAIR_PCT + 0.5) / 100 * (tv.valueA + tv.valueB) / 2;
+    // A piece that gets a yes alone doesn't need a partner: that's just paying more.
+    const alone = new Set(out.filter(c => c.add).map(c => c.give[c.give.length - 1].key));
+    const aim = needVal * 2.5, near = mine.filter(a => a.value >= 300 && !coachStarterKeys(me).has(a.key) && !alone.has(a.key)).sort((x, y) => Math.abs(x.value - aim) - Math.abs(y.value - aim)).slice(0, COACH_TWO_LOOK);
+    if (needVal > 0) {
+      let n = 0;
+      for (let i = 0; i < near.length; i++) for (let j = i + 1; j < near.length; j++) {
+        if (++n % 24 === 0) { await coachTick(); if (Coach.work !== w || w.seq !== seq) return; }
+        const give = [...w.give, near[i], near[j]], r = coachWorkRead(me, w, give, w.get);
+        if (r.yes && coachPiecesOK(give, w.get) && Vault.verdictTier(r.score).level !== 'bad') two.push({ kind: 'two', text: `Add your ${Vault.escapeHtml(near[i].name)} and ${Vault.escapeHtml(near[j].name)}`, give, get: w.get, r, pair: [near[i].key, near[j].key] });
+      }
+    }
+  }
+  const seen = new Map(), twoShown = [];
+  for (const c of two.sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachByConsensus(x.r, y.r))) {
+    if (twoShown.length >= COACH_TWO_SHOW || c.pair.some(k => (seen.get(k) || 0) >= 2)) continue;
+    c.pair.forEach(k => seen.set(k, (seen.get(k) || 0) + 1));
+    twoShown.push(c);
+  }
+  w.tweaks = { more: top('more'), less: top('less'), yes: top('yes'), closer: closer.sort((x, y) => y.r.room - x.r.room).slice(0, 4), two: twoShown };
   if (coachOpen()) renderCoach();
 }
 function coachWorkApply(kind, k) {
@@ -749,8 +787,7 @@ const coachWorkToBuilder = () => { const w = Coach.work; if (w) coachLoadTrade({
 function coachWorkLoad() {
   coachWorkToBuilder();
   coachFresh();
-  setView('builder');
-  document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  coachToTrade();
 }
 function coachWorkNegotiate(btn) {
   coachWorkToBuilder();
@@ -798,11 +835,13 @@ function coachWorkHtml(me) {
     const list = w.tweaks ? w.tweaks[kind] : [];
     if (!list.length) return '';
     return `<div class="mt-5"><div class="text-[12px] text-zinc-400 mb-2">${title}</div><div class="grid gap-2">${list.map((c, k) => { const t = Vault.verdictTier(c.r.score); return coachChoice(`coachWorkApply('${kind}', ${k})`, c.text,
-        `for you <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.key]}">${t.label}</span>, ${esc(coachMe().teamName)} pays ${pc(c.r.you)} ${c.r.you >= 0 ? 'under' : 'over'} trade value${c.r.consensus ? `, consensus: ${c.r.consensus.text}` : ''}${kind === 'yes' ? '' : kind === 'closer' ? `, they'd still want about ${pc(Math.max(-c.r.room, c.r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more` : `, room left ${c.r.room >= 2 ? `about ${pc(c.r.room)}` : 'about none'}`}`,
+        `for you <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.key]}">${t.label}</span>, ${esc(coachMe().teamName)} pays ${pc(c.r.you)} ${c.r.you >= 0 ? 'under' : 'over'} trade value${c.r.consensus ? `, consensus: ${c.r.consensus.text}` : ''}${kind === 'yes' || kind === 'two' ? '' : kind === 'closer' ? `, they'd still want about ${pc(Math.max(-c.r.room, c.r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more` : `, room left ${c.r.room >= 2 ? `about ${pc(c.r.room)}` : 'about none'}`}`,
         '<span class="shrink-0 text-[12px] text-amber-200">Apply</span>', false); }).join('')}</div></div>`;
   };
+  const oneRows = tweakRows('yes', 'One piece that gets them to yes, best for you first');
+  const noRows = oneRows + tweakRows('two', oneRows ? 'Or two pieces, keeping your starters' : 'No single piece gets them to yes. Two pieces do') || tweakRows('closer', 'No single piece gets them to yes. These get them closest');
   const tweaks = w.tweaks == null ? '<div class="text-[12px] text-zinc-500 mt-5">Looking for ways to make it better…</div>'
-    : (r.yes ? tweakRows('more', 'Ask for more (they\'d still say yes)') + tweakRows('less', 'Send less (they\'d still say yes)') : tweakRows('yes', 'One piece that gets them to yes, best for you first') || tweakRows('closer', 'No single piece gets them to yes. These get them closest'))
+    : (r.yes ? tweakRows('more', 'Ask for more (they\'d still say yes)') + tweakRows('less', 'Send less (they\'d still say yes)') : noRows)
       || `<div class="text-[12px] text-zinc-500 mt-5">${r.yes ? 'No one-step change helps you and keeps them at yes: this one is as good as it gets.' : 'No single piece of yours moves them much. Try a bigger piece, or ask for less.'}</div>`;
   return `<div class="p-4 rounded-xl mb-4 ${r.yes ? 'bg-emerald-500/[0.07] border border-emerald-500/25' : 'bg-orange-500/[0.07] border border-orange-500/25'}${pulse}">
       <div class="display text-[24px] leading-tight ${r.yes ? 'text-emerald-300' : 'text-orange-300'}">${esc(w.partner.teamName)} would likely say ${r.yes ? 'yes' : 'no'}</div>
@@ -815,6 +854,7 @@ function coachWorkHtml(me) {
       <div class="min-w-0 col-span-2 sm:col-span-1"><div class="text-[11px] text-zinc-500 truncate">${esc(me.teamName)} pays</div><div class="text-[18px] font-semibold text-zinc-100">${Math.abs(r.you) < 1 ? 'even' : `${pc(r.you)} ${r.you > 0 ? 'under' : 'over'}`} <span class="text-[12px] font-normal text-zinc-500">trade value</span></div></div>
       ${r.consensus ? `<div class="col-span-2 sm:col-span-3 text-[12px] text-zinc-400">Consensus: <span class="text-zinc-200">${r.consensus.text}</span></div>` : ''}
     </div>
+    ${coachSeasonHtml(w.season)}
     ${tweaks}`;
 }
 
@@ -833,11 +873,45 @@ function coachWorkHtml(me) {
 // after trades adding 6+ points a week, 1.12x (the same as any team that traded)
 // after ones adding about none. Hidden when both are under 1%.
 function coachTitleOdds(o) {
+  const s = coachSeasonOdds(o);
+  return s && !(s.before < 1 && s.after < 1) ? s : null;
+}
+function coachSeasonOdds(o) {
   if (!remainingWeeks.length || typeof tradeSeasonOdds !== 'function') return null;
   const me = coachMe(), { next } = tradeSeasonOdds(me, o.partner, o.give, o.get);
-  const before = seasonBase?.get(me.rosterId)?.championshipPct, after = next.get(me.rosterId)?.championshipPct;
-  if (before == null || after == null || (before < 1 && after < 1)) return null;
-  return { before, after };
+  const was = seasonBase?.get(me.rosterId), now = next.get(me.rosterId);
+  if (was?.championshipPct == null || now?.championshipPct == null) return null;
+  return { before: was.championshipPct, after: now.championshipPct, playoffsBefore: was.playoffPct, playoffsAfter: now.playoffPct };
+}
+// What the trade does to your season: odds (the calculator's simulation), and who comes
+// into your best lineup for whom, same position first, and points a week.
+function coachSeasonRead(me, w) {
+  const aft = coachAfter(me.rosterId, w.partner.rosterId, w.give, w.get), ids = l => new Set((l || []).map(s => s.id).filter(Boolean));
+  const was = ids(me.lineup), now = ids(aft.lineup);
+  const out = (me.lineup || []).filter(s => s.id && !now.has(s.id)), swaps = [];
+  (aft.lineup || []).filter(s => s.id && !was.has(s.id)).forEach(s => {
+    const i = Math.max(out.findIndex(x => x.pos === s.pos), 0), gone = out.splice(i, 1)[0];
+    swaps.push(gone ? `${coachEsc(s.name)} replaces ${coachEsc(gone.name)}` : `${coachEsc(s.name)} starts`);
+  });
+  out.forEach(s => swaps.push(`${coachEsc(s.name)} leaves your lineup`));
+  return { odds: coachSeasonOdds({ partner: w.partner, give: w.give, get: w.get }), gain: aft.opt - me.opt, swaps };
+}
+function coachSeasonHtml(s) {
+  if (!s) return '<div class="text-[12px] text-zinc-500 mt-3">Working out what it does to your season…</div>';
+  const pc = v => (v > 0 && v < 1 ? '<1' : v > 99 && v < 100 ? '>99' : Math.round(v)) + '%';
+  const move = (label, a, b) => {
+    const d = Math.round(b) - Math.round(a);
+    return `<div class="min-w-0"><div class="text-[11px] text-zinc-500">${label}</div><div class="text-[18px] font-semibold text-zinc-100">${pc(a)} <span class="text-zinc-500" aria-hidden="true">→</span><span class="sr-only">to</span> ${pc(b)} <span class="text-[12px] font-medium ${d > 0 ? 'text-emerald-300' : d < 0 ? 'text-orange-300' : 'text-zinc-500'}">${d ? `${d > 0 ? '+' : '−'}${Math.abs(d)}` : 'no change'}</span></div></div>`;
+  };
+  const o = s.odds, cells = !o ? [] : [
+    o.before >= 1 || o.after >= 1 ? move('Your title odds', o.before, o.after) : '',
+    (o.playoffsBefore < 99.5 || o.playoffsAfter < 99.5) && (o.playoffsBefore >= 0.5 || o.playoffsAfter >= 0.5) ? move('Your playoff odds', o.playoffsBefore, o.playoffsAfter) : '',
+  ].filter(Boolean);
+  const pts = Math.abs(s.gain) < 0.05 ? 'no change in points a week' : `${s.gain > 0 ? '+' : '−'}${Math.abs(s.gain).toFixed(1)} pts a week`;
+  return `<div class="mt-3 pt-3 border-t border-white/[0.06]">
+      ${cells.length ? `<div class="grid gap-3 grid-cols-2 sm:grid-cols-3 mb-2">${cells.join('')}</div>` : ''}
+      <div class="text-[12px] text-zinc-400">${s.swaps.length ? `<span class="text-zinc-200">${s.swaps.join(', ')}</span> · ${pts}` : 'Your starting lineup stays the same.'}</div>
+    </div>`;
 }
 // Negotiate option: a prompt to offer the loaded trade. Once rounds exist
 // they render below and this stays empty.
@@ -886,7 +960,7 @@ function coachRestore(i) {
   // A list still being worked out when it was saved is worked out again.
   Coach.flow = { ...s.f, trail: trail.slice(0, i), recs: s.f.recs?.list ? s.f.recs : null };
   // A new object, so anything still running for the trade you left stops.
-  Coach.work = s.work && { ...s.work, tweaks: null, packages: null, seq: 0 };
+  Coach.work = s.work && { ...s.work, tweaks: null, packages: null, season: null, seq: 0 };
   Coach.option = 'coach';
   renderCoach();
   if (Coach.work && Coach.flow.step === 'build') coachWorkTweaks();
@@ -899,11 +973,15 @@ function coachRewind(step) {
 function coachFlowSet(k, v) { coachFlow()[k] = v; renderCoach(); }
 // Into Build it with a starting trade.
 // goal: what you're doing with your own player (upgrade, downtier, sell), for the hints.
-function coachBuildFrom(partner, give, get, goal = null) {
+// lock: the pieces of yours this trade is about (the player you're upgrading, down-tiering
+// or selling). They and whoever you came for stay put in the suggestions; you can still take
+// them off by hand. (The old rule read Coach.upKey, which nothing has set since the rebuild,
+// so upgrading Jonathan Taylor could suggest sending Trey McBride instead of him.)
+function coachBuildFrom(partner, give, get, goal = null, lock = give) {
   if (!partner) return;
   coachPush();
   Coach.option = 'coach';
-  Coach.work = { partner, give: [...give], get: [...get], option: 'build', goal, tweaks: null, seq: 0 };
+  Coach.work = { partner, give: [...give], get: [...get], option: 'build', goal, lock: goal ? negKeys(lock) : [], lockGet: negKeys(get), tweaks: null, seq: 0 };
   coachFlow().step = 'build';
   if (!coachOpen()) setView('coach');
   renderCoach();
@@ -981,6 +1059,13 @@ function coachUpPickerHtml(me, list) {
      sell      picks and players 24 or younger worth 50-130% of him
    Likely yeses first, best for you first; then the closest noes. Each one's Build starts it. */
 const COACH_REC_CANDS = 40, COACH_REC_SHOW = 8;
+// Their side of a fit, for selling it: their verdict and what they'd be getting that they need.
+function coachForThem(t, give, r) {
+  const thin = [...new Set(give.filter(a => a.type === 'player' && coachPosNeed(t, a.pos)).map(a => a.pos))];
+  const later = !thin.length && Vault.teamMode(t) === 'rebuild' && give.some(a => a.type === 'pick' || (a.age > 0 && a.age <= 24));
+  const why = thin.length ? `, they're thin at ${thin.join(' and ')}` : later ? `, they're building for later` : '';
+  return `<span class="${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</span> for them${why}`;
+}
 function coachRecSpec(me) {
   const f = coachFlow(), others = teams.filter(t => t !== me);
   const players = filt => others.flatMap(t => t.assets.filter(a => !coachTheirOff(a) && filt(a)).map(a => ({ a, t })));
@@ -1023,7 +1108,7 @@ async function coachRecsRun(spec) {
   // fit is real and the gap is the extras to ask for (it read "they'd want 70% more").
   out.forEach(x => { x.extras = spec.goal !== 'upgrade' && !x.r.yes && x.r.j.accepts && x.r.you <= -VAULT_CONFIG.FAIR_PCT; });
   const fit = x => x.r.yes || x.extras;
-  const yes = out.filter(fit).sort(spec.goal === 'downtier' ? (x, y) => (y.r.yes ? 1 : 0) - (x.r.yes ? 1 : 0) || coachConsensusBand(x.r) - coachConsensusBand(y.r) || y.a.value - x.a.value : (x, y) => coachByConsensus(x.r, y.r));
+  const yes = out.filter(fit).sort(spec.goal === 'downtier' ? (x, y) => (y.r.yes ? 1 : 0) - (x.r.yes ? 1 : 0) || coachLevelRank(x.r) - coachLevelRank(y.r) || coachConsensusBand(x.r) - coachConsensusBand(y.r) || y.a.value - x.a.value : (x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachByConsensus(x.r, y.r));
   const no = out.filter(x => !fit(x)).sort((x, y) => y.r.room - x.r.room);
   // Close the gap (user, 2026-10-28): for the closest noes, the one piece of yours that gets
   // them to yes and leaves you best off (sized to what's missing on trade value), so a fit
@@ -1032,13 +1117,12 @@ async function coachRecsRun(spec) {
   const pool = me.assets.filter(p => !inGive.has(p.key) && !off.has(p.key) && p.value >= 150);
   for (const x of no.slice(0, COACH_REC_SHOW)) {
     await coachTick(); if (stale()) return;
-    const tv = Vault.tradeSideValues(spec.give, [x.a]), need = Math.max(-x.r.room, x.r.you - VAULT_CONFIG.FAIR_PCT + 0.5) / 100 * (tv.valueA + tv.valueB) / 2;
-    for (const p of [...pool].sort((u, v) => Math.abs(u.value - need * 1.5) - Math.abs(v.value - need * 1.5)).slice(0, 10)) {
+    for (const p of pool) {
       const r = coachWorkRead(me, { partner: x.t, give: [...spec.give, p], get: [x.a], option: 'build' });
-      if (r.yes && (!x.fix || coachByConsensus(r, x.fix.r) < 0)) x.fix = { p, r };
+      if (r.yes && coachLevelRank(r) < 2 && (!x.fix || (coachLevelRank(r) - coachLevelRank(x.fix.r) || coachByConsensus(r, x.fix.r)) < 0)) x.fix = { p, r };
     }
   }
-  const fixed = no.filter(x => x.fix).sort((x, y) => coachByConsensus(x.fix.r, y.fix.r)), rest = no.filter(x => !x.fix);
+  const fixed = no.filter(x => x.fix).sort((x, y) => coachLevelRank(x.fix.r) - coachLevelRank(y.fix.r) || coachByConsensus(x.fix.r, y.fix.r)), rest = no.filter(x => !x.fix);
   coachFlow().recs = { key: spec.key, list: [...yes, ...fixed, ...rest].slice(0, COACH_REC_SHOW), yes: yes.length, fixed: fixed.length, total: out.length, give: negKeys(spec.give), goal: spec.goal };
   if (coachOpen() && coachFlow().step === 'pick') renderCoach();
 }
@@ -1047,7 +1131,7 @@ function coachRecBuild(i) {
   const rec = coachFlow().recs, x = rec && rec.list && rec.list[i], me = coachMe();
   if (!x) return;
   const give = rec.give.map(k => me.assets.find(a => a.key === k)).filter(Boolean);
-  coachBuildFrom(x.t, x.fix && !x.r.yes ? [...give, x.fix.p] : give, [x.a], rec.goal);
+  coachBuildFrom(x.t, x.fix && !x.r.yes ? [...give, x.fix.p] : give, [x.a], rec.goal, give);
 }
 function coachRecsHtml(me, spec) {
   const f = coachFlow(), n = v => Math.round(v).toLocaleString(), pc = v => `${Math.round(Math.abs(v))}%`;
@@ -1066,10 +1150,10 @@ function coachRecsHtml(me, spec) {
       : fix ? `Add your <span class="text-zinc-100">${coachEsc(fix.p.name)}</span> <span class="text-zinc-500">(${n(fix.p.value)})</span> → <span class="text-emerald-300">likely yes</span>`
       : `<span class="text-orange-300">They'd want about ${pc(Math.max(-r.room, r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more</span>`;
     return coachChoice(`coachRecBuild(${i})`, `${coachEsc(a.name)} <span class="text-[12px] text-zinc-500">${a.type === 'pick' ? 'pick' : a.pos} · ${coachEsc(t.teamName)} · ${n(a.value)}</span>`,
-      `${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}${use.consensus ? ` · ${coachConsensusText(use)}` : ''}`);
+      `${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}<br>${coachForThem(t, fix && !r.yes ? [...spec.give, fix.p] : spec.give, use)}${use.consensus ? ` · ${coachConsensusText(use)}` : ''}`);
   }).join('');
   const word = spec.goal === 'upgrade' ? 'would likely say yes' : 'would take it';
-  const summary = f.recs.yes || f.recs.fixed ? [f.recs.yes ? `${f.recs.yes} ${word}` : '', f.recs.fixed ? `${f.recs.fixed} more with one piece added` : ''].filter(Boolean).join(', ') : 'none would say yes yet; these are the closest';
+  const summary = f.recs.yes || f.recs.fixed ? [f.recs.yes ? `${f.recs.yes} ${word}` : '', f.recs.fixed ? `${f.recs.fixed}${f.recs.yes ? ' more' : ''} with one piece added` : ''].filter(Boolean).join(', ') : 'none would say yes yet; these are the closest';
   return `<div class="text-[12px] text-zinc-400 mb-2">${summary[0].toUpperCase()}${summary.slice(1)}.</div>
     <div class="grid gap-2">${rows}</div>`;
 }
@@ -1303,7 +1387,7 @@ function coachPackagesHtml(w) {
   const rows = w.packages.map((p, k) => {
     const tier = Vault.verdictTier(p.r.score), extra = p.get.filter(a => !w.get.includes(a));
     return coachChoice(`coachWorkUsePackage(${k})`, `Send ${names(p.give)}${extra.length ? ` <span class="text-zinc-400">and get ${names(extra)} too</span>` : ''}`,
-      `<span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${p.r.consensus ? ` · ${coachConsensusText(p.r)}` : ''}`);
+      `<span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you<br>${coachForThem(w.partner, p.give, p.r)}${p.r.consensus ? ` · ${coachConsensusText(p.r)}` : ''}`);
   }).join('');
   return box(`<div class="grid gap-2">${rows}</div>`);
 }
@@ -1336,6 +1420,45 @@ function renderCoach() {
 ['focusin', 'input'].forEach(type => document.getElementById('coachScroll').addEventListener(type, e => {
   if (e.target.matches('.vs-input')) requestAnimationFrame(() => e.target.closest('.vs-wrap').querySelector('.vs-list:not(.hidden)')?.scrollIntoView({ block: 'nearest' }));
 }));
+/* Back on a phone (user, 2026-11-04). Full screen, the pop-up looks like a page, so Back undoes
+   your last decision here, as ← Back does, and closes it from the first step; it left the
+   calculator before. One extra history entry stands for the pop-up: put back after each step,
+   and given back whenever the pop-up closes any other way. coachEntry, not history.state, says
+   whether it's there, because the address sync replaces the state. */
+let coachEntry = false, coachLeaving = false, coachScrollDue = false;
+const coachScrollToTrade = () => document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+// Close on the trade in the builder. The scroll waits for the history step, which would cancel it.
+function coachToTrade() {
+  coachScrollDue = true;
+  setView('builder');
+  if (!coachLeaving) { coachScrollDue = false; coachScrollToTrade(); }
+}
+const coachEntryAdd = () => { if (!coachEntry && !coachLeaving) { history.pushState({ vaultCoach: true }, ''); coachEntry = true; } };
+function coachEntryDrop() {
+  if (!coachEntry) return;
+  coachEntry = false; coachLeaving = true;
+  history.scrollRestoration = 'manual'; // keep the page where it is
+  history.back();
+}
+addEventListener('popstate', () => {
+  if (coachLeaving) {
+    coachLeaving = false;
+    syncTradeUrl(); // the trade loaded while the entry was on top
+    if (view === 'coach') coachEntryAdd(); // opened again before it landed
+    // A tick later: the browser finishes restoring the scroll position after this event.
+    const scroll = view !== 'coach' && coachScrollDue;
+    coachScrollDue = false;
+    setTimeout(() => { history.scrollRestoration = 'auto'; if (scroll) coachScrollToTrade(); }, 0);
+    return;
+  }
+  if (!coachEntry || view !== 'coach') return;
+  coachEntry = false;
+  const neg = Coach.option === 'negotiate' && Coach.work;
+  if (!neg && !coachFlow().trail?.length) return setView('builder');
+  coachEntryAdd();
+  if (neg) coachNegBack(); else coachBack();
+});
+
 // Esc closes (an open search list closes first), and Tab stays inside the pop-up.
 document.addEventListener('keydown', e => {
   if (view !== 'coach') return;

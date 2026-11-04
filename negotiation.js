@@ -555,8 +555,7 @@ function negEditCounter(i) {
   const c = Negotiation.rounds[i]?.counter;
   if (!c) return;
   negLoad(c.A, c.B);
-  setView('builder');
-  document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  coachToTrade();
 }
 
 // Tapping a piece they want adds it to your side of the calculator.
@@ -565,8 +564,7 @@ function negAddInterest(key) {
   (O === 'A' ? selectedA : selectedB).add(key);
   render(O);
   // It's in the calculator, under the pop-up: show it there, where Offer sends it.
-  setView('builder');
-  document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  coachToTrade();
 }
 
 const NEG_PILL = {
