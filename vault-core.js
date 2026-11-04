@@ -2619,7 +2619,9 @@ const Vault = {
 
   dynastyDaddyPickId(a) { return `${a.season}${String(a.ktcTier ?? a.tier ?? 'mid').toLowerCase()}${[, "1st", "2nd", "3rd", "4th", "5th"][a.ktcRound ?? a.round]}pi`; },
   dynastyDaddyRow(a, data) { return (a.type === 'pick' ? data?.picks?.[Vault.dynastyDaddyPickId(a)] : data?.players?.[a.id]) || null; },
-  dynastyDaddyValue(a, isSF, data) { return Vault.dynastyDaddyRow(a, data)?.[isSF ? 1 : 0] ?? null; },
+  // 0 means it has dropped the piece from its list (Travis Hunter on 2026-11-04, 1,648
+  // within three months and 2,775 on KTC), not that he's worth nothing: no value, not a price.
+  dynastyDaddyValue(a, isSF, data) { return Vault.dynastyDaddyRow(a, data)?.[isSF ? 1 : 0] || null; },
   rosterAuditValue(a, isSF, data) {
     if (a.type !== 'pick') return data?.players?.[a.id]?.[isSF ? 'sf' : '1qb'] ?? null;
     const slot = String(a.ktcTier ?? a.tier ?? 'mid').toLowerCase(), round = a.ktcRound ?? a.round;
@@ -2630,14 +2632,17 @@ const Vault = {
   // Dynasty Daddy's own calculator: a plain sum of its values, no bonus for the
   // best piece (checked live 2026-11-03: 10,190 vs 8,956 + 5,797 reads 4,563 to
   // even). `priced` is false when a piece isn't in its values (it has 2027-2029
-  // picks, rounds 1-4), and `url` opens the same trade on its calculator either way.
+  // picks, rounds 1-4), with those pieces in `missing`, and `url` opens the same
+  // trade on its calculator either way.
   dynastyDaddyRead(aAssets, bAssets, isSF, data) {
     const row = a => Vault.dynastyDaddyRow(a, data);
     const linkId = a => (a.type === 'pick' ? Vault.dynastyDaddyPickId(a) : row(a)?.[2]);
     const side = list => list.map(linkId).filter(Boolean).join(',');
     const url = `https://dynasty-daddy.com/trade-calculator?isSuperflex=${!!isSF}&sideA=${side(bAssets)}&sideB=${side(aAssets)}`;
-    const sum = list => list.reduce((s, a) => s + (row(a)?.[isSF ? 1 : 0] || 0), 0);
-    if (![...aAssets, ...bAssets].every(a => row(a))) return { priced: false, url };
+    const value = a => Vault.dynastyDaddyValue(a, isSF, data);
+    const sum = list => list.reduce((s, a) => s + value(a), 0);
+    const missing = [...aAssets, ...bAssets].filter(a => !value(a));
+    if (missing.length) return { priced: false, url, missing };
     const valueA = sum(aAssets), valueB = sum(bAssets), total = valueA + valueB;
     return { priced: true, url, valueA, valueB, signed: (valueA - valueB) / ((total / 2) || 1) * 100, fair: Math.abs(valueA - valueB) < total * VAULT_CONFIG.DYNASTY_DADDY_FAIR_SHARE };
   },

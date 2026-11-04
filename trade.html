@@ -214,7 +214,7 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=593cc882"></script>
+<script src="vault-core.js?v=7016dd10"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1278,8 +1278,12 @@ function renderSiteStatus(args = siteStatusArgs) {
    like the fairness bar; a site with no read sits out. 6% is the verdict's Toss-up
    band; 14% and 41% are the Fair and Lopsided lines. */
 const SITE_NEAR_EVEN_PCT = 6;
+// One side worth three times the other. Past that a site reads the same, so one
+// near-zero price (Dynasty Daddy has 113 players under 200 that KTC has over 1,000)
+// can't carry the average on its own.
+const SITE_LEAN_CAP_PCT = 100;
 function siteConsensus(leans) {
-  const known = leans.filter(Number.isFinite);
+  const known = leans.filter(Number.isFinite).map(x => Math.max(-SITE_LEAN_CAP_PCT, Math.min(SITE_LEAN_CAP_PCT, x)));
   if (known.length < 2) return null;
   return { lean: known.reduce((s, x) => s + x, 0) / known.length, sites: known.length };
 }
@@ -1302,16 +1306,16 @@ function siteConsensusRead(lean, teamA, teamB) {
 /* Every piece at each site's price, the totals, and KTC's adjustment, so the
    verdicts above can be checked piece by piece (user, 2026-11-03). KTC's verdict
    counts its adjustment even when its page doesn't show one. */
+const sitePieceName = a => (a.type === 'pick' ? `${a.season} ${String(a.ktcTier ?? a.tier ?? 'mid').replace(/^./, c => c.toUpperCase())} ${[, '1st', '2nd', '3rd', '4th', '5th'][a.ktcRound ?? a.round] || `R${a.round}`}` : a.name);
 function siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc) {
   const isSF = Vault.isSuperflex(league), esc = Vault.escapeHtml;
   const n = v => (v == null ? '—' : Math.round(v).toLocaleString());
   const cell = 'py-1 pl-2 text-right tabular-nums whitespace-nowrap';
-  const pickName = a => `${a.season} ${String(a.ktcTier ?? a.tier ?? 'mid').replace(/^./, c => c.toUpperCase())} ${[, '1st', '2nd', '3rd', '4th', '5th'][a.ktcRound ?? a.round] || `R${a.round}`}`;
   const prices = a => [a.ktcPrice ?? a.value, Vault.rosterAuditValue(a, isSF, raValues), Vault.dynastyDaddyValue(a, isSF, ddValues)];
   const total = list => [0, 1, 2].map(i => { const v = list.map(a => prices(a)[i]); return v.some(x => x == null) ? null : v.reduce((s, x) => s + x, 0); });
   const row = (label, vals, cls = 'text-zinc-300') => `<tr class="${cls}"><td class="py-1 pr-2 min-w-0 truncate max-w-[150px]" title="${label}">${label}</td>${vals.map(v => `<td class="${cell}">${v}</td>`).join('')}</tr>`;
   const side = (team, list, adjust) => `<tr><td colspan="4" class="pt-2.5 pb-0.5 text-[11px] text-zinc-400">${esc(team.teamName)} sends</td></tr>
-    ${list.map(a => row(esc(a.type === 'pick' ? pickName(a) : a.name), prices(a).map(n))).join('')}
+    ${list.map(a => row(esc(sitePieceName(a)), prices(a).map(n))).join('')}
     ${adjust ? row('KTC adjustment', [`+${n(adjust)}`, '—', '—'], 'text-zinc-400') : ''}
     ${row('Total', total(list).map((v, i) => n(i === 0 && v != null ? v + adjust : v)), 'text-zinc-100 font-medium border-t border-white/5')}`;
   return `<div class="mt-3 pt-2.5 border-t border-white/5 overflow-x-auto">
@@ -1326,9 +1330,12 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const DOT = { good: 'bg-emerald-400', mid: 'bg-orange-400', bad: 'bg-rose-400' };
   const ktc = Vault.ktcVerdict(aAssets, bAssets);
   const points = n => Math.round(n).toLocaleString();
-  // Each site's own gap, then the same share of this trade on KTC's scale: picks and
-  // stars sit at different values on each site, so their points don't compare directly.
-  const amount = (a, b) => ` by ${points(Math.abs(a - b))} (≈ ${points(Math.abs(a - b) / (((a + b) / 2) || 1) * ktc.average)} KTC)`;
+  // Each site's own gap, then the same share of the bigger side on KTC's scale: picks
+  // and stars sit at different values on each site, so their points don't compare
+  // directly. A share of the bigger side can't come out above what's in the trade.
+  const ktcSum = list => list.reduce((s, a) => s + (a.ktcPrice ?? a.value), 0);
+  const ktcBigger = Math.max(ktcSum(aAssets), ktcSum(bAssets));
+  const amount = (a, b) => ` by ${points(Math.abs(a - b))} (≈ ${points(Math.abs(a - b) / (Math.max(a, b) || 1) * ktcBigger)} KTC)`;
   // KTC and Dynasty Daddy only ever say Fair Trade or Favors a team.
   const verdict = (fair, team, by) => (fair ? { dot: 'good', text: 'Fair' } : { dot: 'mid', text: `Favors ${esc(team.teamName)}${by}` });
   const dd = Vault.dynastyDaddyRead(aAssets, bAssets, isSF, ddValues);
@@ -1347,7 +1354,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
     // Each list is what the other team receives, so the bigger list favors that team.
     { name: 'KTC (Crowd + Trades)', href: 'https://keeptradecut.com/trade-calculator', ...verdict(ktc.fair, ktc.bigger === 'A' ? teamB : teamA, ` by ${points(ktc.gap)}`), title: "KeepTradeCut's calculator with Value Source set to Crowd + Trades" },
     { name: 'Roster Audit', href: 'https://rosteraudit.com/trade-calculator/', ...raRow },
-    { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd.valueA, dd.valueB)), note: ddNoTe ? "doesn't factor in TE premium" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? 'Not listed' : 'Loading…', title: 'A piece in this trade is not in its values. Open this trade on its site.' }) }
+    { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd.valueA, dd.valueB)), note: ddNoTe ? "doesn't factor in TE premium" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? `No value for ${esc((dd.missing || []).map(sitePieceName).join(', '))}` : 'Loading…', title: 'It has no value for this piece, so it sits out the consensus. Open this trade on its site.' }) }
   ];
   const consensus = tradeConsensus(teamA, teamB, aAssets, bAssets), read = consensus;
   return `${read ? `<div class="flex items-baseline gap-2 text-[14px] leading-snug mb-2.5 pb-2.5 border-b border-white/5" title="The average lean of The Vault and ${consensus.sites - 1} other sites">
