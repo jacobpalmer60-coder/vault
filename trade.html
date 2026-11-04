@@ -8,8 +8,8 @@
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=0787f0cb">
+<link rel="stylesheet" href="vault.css?v=e8bc9912">
+<link rel="stylesheet" href="tailwind.css?v=0774d5ad">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -47,23 +47,15 @@
   <div id="tools">
   <!-- Top (2026-10-27, user: "just put trade coach as a big button on the trade builder with a
        small description"): the calculator opens on the Trade Builder; Trade Coach, every way
-       to find trades, is the big button above it. In the Coach, a link back to the builder. -->
+       to find trades, is the big button above it and opens as a pop-up (#coach, end of page). -->
   <div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-[12px] text-zinc-400">
     <span>Trading as <span id="launcherTeam" class="text-zinc-100 font-medium"></span> · <button onclick="backToSetup()" class="py-1.5 text-amber-400/80 hover:text-amber-300">Change team</button></span>
-    <button id="backToBuilder" onclick="setView('builder')" class="hidden py-1.5 text-zinc-400 hover:text-white transition-colors">← Back to Trade Builder</button>
   </div>
   <button id="coachLauncher" onclick="openCoach('best')" class="w-full mb-4 card card-hover rounded-2xl p-4 sm:p-5 text-left flex gap-4 items-center hover:bg-white/[0.02] transition-colors border border-amber-400/20">
     <span class="size-11 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg></span>
     <span class="min-w-0 flex-1"><span class="block text-[17px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-0.5">Find trades for your team: the best ones, a position or player you want, an upgrade, a player to sell, and more.</span></span>
     <span class="shrink-0 text-[13px] px-4 py-2 rounded-lg btn-gold-solid hidden sm:inline-block">Open</span>
   </button>
-
-  <!-- Trade Coach: best trades for your team, goals, negotiation (coach.js). -->
-  <div id="coach" class="mb-4 p-4 sm:p-5 rounded-2xl card">
-    <div id="coachHead"></div>
-    <div id="coachBody"></div>
-    <div id="negotiation" class="hidden"></div>
-  </div>
 
   <!-- Trade Builder: the trade bar, both rosters, and the verdict. -->
   <div id="builder">
@@ -214,7 +206,24 @@
   </div><!-- /workspace -->
 </div>
 
-<script src="vault-core.js?v=7016dd10"></script>
+<!-- Trade Coach pop-up (user, 2026-11-04): one decision a screen, the rail on top fills in as
+     you go, Back undoes the last decision. A full-screen sheet on phones. Lives outside the
+     page wrapper so it covers the nav too. Header, body and footer are drawn by coach.js. -->
+<div id="coach" class="hidden fixed inset-0 z-[60]">
+  <div class="absolute inset-0 bg-black/75" onclick="setView('builder')"></div>
+  <div class="relative h-full flex items-center justify-center sm:p-6 pointer-events-none">
+    <div id="coachPanel" role="dialog" aria-modal="true" aria-labelledby="coachTitle" tabindex="-1" class="pointer-events-auto w-full sm:max-w-[720px] h-[100dvh] sm:h-[700px] sm:max-h-full flex flex-col bg-[#14161a] sm:border sm:border-white/10 sm:rounded-2xl shadow-2xl shadow-black/60 outline-none fade-in">
+      <div id="coachHead" class="shrink-0 px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-white/[0.06]"></div>
+      <div id="coachScroll" class="flex-1 min-h-0 overflow-y-auto scrollbar px-4 sm:px-6 py-5">
+        <div id="coachBody"></div>
+        <div id="negotiation" class="hidden"></div>
+      </div>
+      <div id="coachFoot" class="shrink-0"></div>
+    </div>
+  </div>
+</div>
+
+<script src="vault-core.js?v=3e56727f"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -224,21 +233,22 @@ let playerTrend = new Map(), pickTrend = new Map(), playerVolatility = new Map()
 let ddValues = null, raValues = null; // other sites' values, for the bars on the trade card
 let selectedA = new Set();
 let selectedB = new Set();
-// Which screen is showing: 'coach' (Trade Coach, with the builder below once a trade
-// has pieces) or 'builder' (Trade Builder, with the Trade Coach button on top). The
-// start screen that picked between them is gone (2026-10-27).
+// 'coach' (the Trade Coach pop-up is open) or 'builder'. The Trade Builder is always the
+// page underneath.
 let view = 'builder';
 function setView(v) {
   if (v !== 'coach') v = 'builder';
+  const was = view, root = document.documentElement, open = v === 'coach';
   view = v;
-  const hasTrade = selectedA.size + selectedB.size > 0;
-  document.getElementById('coach').classList.toggle('hidden', v !== 'coach');
-  document.getElementById('builder').classList.toggle('hidden', v === 'coach' && !hasTrade);
-  document.getElementById('coachLauncher').classList.toggle('hidden', v === 'coach');
-  document.getElementById('backToBuilder').classList.toggle('hidden', v !== 'coach');
+  // Stops the page scrolling behind the pop-up, without it shifting when the scrollbar goes.
+  document.body.style.paddingRight = open ? `${innerWidth - root.clientWidth}px` : '';
+  root.classList.toggle('overflow-hidden', open);
+  document.getElementById('coach').classList.toggle('hidden', !open);
   const me = teamOf('A');
   document.getElementById('launcherTeam').textContent = me ? me.teamName : '';
   if (typeof renderVerdictDock === 'function') renderVerdictDock();
+  if (open && was !== v) document.getElementById('coachPanel').focus({ preventScroll: true });
+  if (!open && was !== v) { Coach.shownStep = null; document.getElementById('coachLauncher').focus({ preventScroll: true }); }
 }
 // Roster sections (QB, RB, WR, TE, Picks, All) open on each side; all start closed.
 const openSections = { A: new Set(), B: new Set() };
@@ -1273,35 +1283,37 @@ function renderSiteStatus(args = siteStatusArgs) {
   el.classList.toggle('hidden', !show);
   el.innerHTML = show ? siteStatusHtml(args) : '';
 }
-/* One line under the sites: how far The Vault and the sites lean, on average, so a
-   strong read counts for more than a barely (user, 2026-11-03). Each lean is signed
-   like the fairness bar; a site with no read sits out. 6% is the verdict's Toss-up
-   band; 14% and 41% are the Fair and Lopsided lines. */
+/* One line above the sites: how many KTC points The Vault and the sites put between the
+   two sides, on average, so a strong read counts for more than a barely (user,
+   2026-11-03) and a small trade reads small (2026-11-04: Darnell Washington for Stefon
+   Diggs read 40% off on about 200 points of KTC value). Each gap is signed like the
+   fairness bar, and a site with no read sits out. KTC's is the totals on its page.
+   A gap counts by its share of the trade (6% is the verdict's Toss-up band, 14% and 41%
+   the Fair and Lopsided lines) or its size, whichever reads closer: 1,000 points is
+   about the player KTC suggests to even a trade like that one, a waiver-level name. */
 const SITE_NEAR_EVEN_PCT = 6;
-// One side worth three times the other. Past that a site reads the same, so one
-// near-zero price (Dynasty Daddy has 113 players under 200 that KTC has over 1,000)
-// can't carry the average on its own.
-const SITE_LEAN_CAP_PCT = 100;
-function siteConsensus(leans) {
-  const known = leans.filter(Number.isFinite).map(x => Math.max(-SITE_LEAN_CAP_PCT, Math.min(SITE_LEAN_CAP_PCT, x)));
+const SITE_NEAR_EVEN_POINTS = 250;
+const SITE_NEAR_FAIR_POINTS = 1000;
+function siteConsensus(gaps) {
+  const known = gaps.filter(Number.isFinite);
   if (known.length < 2) return null;
-  return { lean: known.reduce((s, x) => s + x, 0) / known.length, sites: known.length };
+  return { gap: known.reduce((s, x) => s + x, 0) / known.length, sites: known.length };
 }
 // The same read anywhere a trade is judged. Roster Audit counts as its values added up,
 // which is what its grade measures, so this costs nothing against its hourly limit.
 function tradeConsensus(teamA, teamB, aAssets, bAssets) {
-  const isSF = Vault.isSuperflex(league), tv = Vault.tradeSideValues(aAssets, bAssets);
+  const isSF = Vault.isSuperflex(league), tv = Vault.tradeSideValues(aAssets, bAssets), ktc = Vault.ktcSideValues(aAssets, bAssets);
   const ra = Vault.rosterAuditRead(aAssets, bAssets, isSF, raValues), dd = Vault.dynastyDaddyRead(aAssets, bAssets, isSF, ddValues);
   const noTe = Vault.rosterAuditTep(league) && [...aAssets, ...bAssets].some(a => a.pos === 'TE');
-  const found = siteConsensus([(tv.valueA - tv.valueB) / (((tv.valueA + tv.valueB) / 2) || 1) * 100, Vault.ktcVerdict(aAssets, bAssets).signed, ra.priced ? ra.signed : null, dd.priced && !noTe ? dd.signed : null]);
-  return found && { ...found, ...siteConsensusRead(found.lean, teamA, teamB) };
+  const found = siteConsensus([tv.valueA - tv.valueB, ktc.valueA - ktc.valueB, ra.priced ? ra.ktcGap : null, dd.priced && !noTe ? dd.ktcGap : null]);
+  return found && { ...found, ...siteConsensusRead(found.gap, (ktc.valueA + ktc.valueB) / 2, teamA, teamB) };
 }
-function siteConsensusRead(lean, teamA, teamB) {
-  const off = Math.abs(lean), team = Vault.escapeHtml((lean > 0 ? teamB : teamA).teamName);
-  if (off < SITE_NEAR_EVEN_PCT) return { dot: 'good', text: 'Fair' };
-  if (off < VAULT_CONFIG.FAIR_PCT) return { dot: 'good', text: `Near fair, leans ${team}` };
-  if (off < VAULT_CONFIG.LOPSIDED_PCT) return { dot: 'mid', text: `Favors ${team}` };
-  return { dot: 'bad', text: `Strongly favors ${team}` };
+function siteConsensusRead(gap, size, teamA, teamB) {
+  const off = Math.abs(gap), pct = off / (size || 1) * 100, team = Vault.escapeHtml((gap > 0 ? teamB : teamA).teamName);
+  if (pct < SITE_NEAR_EVEN_PCT || off < SITE_NEAR_EVEN_POINTS) return { dot: 'good', band: 0, text: 'Fair' };
+  if (pct < VAULT_CONFIG.FAIR_PCT || off < SITE_NEAR_FAIR_POINTS) return { dot: 'good', band: 0, text: `Near fair, leans ${team}` };
+  if (pct < VAULT_CONFIG.LOPSIDED_PCT) return { dot: 'mid', band: 1, text: `Favors ${team}` };
+  return { dot: 'bad', band: 2, text: `Strongly favors ${team}` };
 }
 /* Every piece at each site's price, the totals, and KTC's adjustment, so the
    verdicts above can be checked piece by piece (user, 2026-11-03). KTC's verdict
@@ -1330,12 +1342,9 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const DOT = { good: 'bg-emerald-400', mid: 'bg-orange-400', bad: 'bg-rose-400' };
   const ktc = Vault.ktcVerdict(aAssets, bAssets);
   const points = n => Math.round(n).toLocaleString();
-  // Each site's own gap, then the same share of the bigger side on KTC's scale: picks
-  // and stars sit at different values on each site, so their points don't compare
-  // directly. A share of the bigger side can't come out above what's in the trade.
-  const ktcSum = list => list.reduce((s, a) => s + (a.ktcPrice ?? a.value), 0);
-  const ktcBigger = Math.max(ktcSum(aAssets), ktcSum(bAssets));
-  const amount = (a, b) => ` by ${points(Math.abs(a - b))} (≈ ${points(Math.abs(a - b) / (Math.max(a, b) || 1) * ktcBigger)} KTC)`;
+  // Each site's own gap, then the gap on KTC's scale, matched by rank (Vault.ktcEquivalent):
+  // picks and stars sit at different values on each site, so their points don't compare directly.
+  const amount = read => ` by ${points(Math.abs(read.valueA - read.valueB))} (≈ ${points(Math.abs(read.ktcGap))} KTC)`;
   // KTC and Dynasty Daddy only ever say Fair Trade or Favors a team.
   const verdict = (fair, team, by) => (fair ? { dot: 'good', text: 'Fair' } : { dot: 'mid', text: `Favors ${esc(team.teamName)}${by}` });
   const dd = Vault.dynastyDaddyRead(aAssets, bAssets, isSF, ddValues);
@@ -1344,7 +1353,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const raFavors = raGrade && { side_a: teamA, side_b: teamB }[raGrade.winner];
   // Its public values have no TE premium: say so when that could matter here (the consensus leaves it out).
   const ddNoTe = Vault.rosterAuditTep(league) && [...aAssets, ...bAssets].some(a => a.pos === 'TE');
-  const raBy = ra.priced ? amount(ra.valueA, ra.valueB) : '';
+  const raBy = ra.priced ? amount(ra) : '';
   const raRow = raGrade
     ? { dot: /^[AB]/.test(raGrade.grade) ? 'good' : /^C/.test(raGrade.grade) ? 'mid' : 'bad', text: `${esc(raGrade.grade)}${raFavors ? `, favors ${esc(raFavors.teamName)}${raBy}` : ''}`, title: `Its own grade, ${raGrade.difference_pct}% apart` }
     : ra.priced
@@ -1354,12 +1363,12 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
     // Each list is what the other team receives, so the bigger list favors that team.
     { name: 'KTC (Crowd + Trades)', href: 'https://keeptradecut.com/trade-calculator', ...verdict(ktc.fair, ktc.bigger === 'A' ? teamB : teamA, ` by ${points(ktc.gap)}`), title: "KeepTradeCut's calculator with Value Source set to Crowd + Trades" },
     { name: 'Roster Audit', href: 'https://rosteraudit.com/trade-calculator/', ...raRow },
-    { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd.valueA, dd.valueB)), note: ddNoTe ? "doesn't factor in TE premium" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? `No value for ${esc((dd.missing || []).map(sitePieceName).join(', '))}` : 'Loading…', title: 'It has no value for this piece, so it sits out the consensus. Open this trade on its site.' }) }
+    { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd)), note: ddNoTe ? "doesn't factor in TE premium, so it's left out of the consensus" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? `No value for ${esc((dd.missing || []).map(sitePieceName).join(', '))}` : 'Loading…', title: 'It has no value for this piece, so it sits out the consensus. Open this trade on its site.' }) }
   ];
   const consensus = tradeConsensus(teamA, teamB, aAssets, bAssets), read = consensus;
-  return `${read ? `<div class="flex items-baseline gap-2 text-[14px] leading-snug mb-2.5 pb-2.5 border-b border-white/5" title="The average lean of The Vault and ${consensus.sites - 1} other sites">
+  return `${read ? `<div class="flex items-baseline gap-2 text-[14px] leading-snug mb-2.5 pb-2.5 border-b border-white/5" title="The average gap across The Vault and ${consensus.sites - 1} other sites, in KTC points">
       <span class="size-2 shrink-0 rounded-full self-center ${DOT[read.dot]}" aria-hidden="true"></span>
-      <span class="min-w-0 font-medium text-zinc-100">Consensus: ${read.text}${Math.abs(consensus.lean) < 1 ? '' : ` <span class="text-zinc-400 font-normal">· ${Math.round(Math.abs(consensus.lean))}%</span>`}</span>
+      <span class="min-w-0 font-medium text-zinc-100">Consensus: ${read.text}${Math.abs(consensus.gap) < 5 ? '' : ` <span class="text-zinc-400 font-normal">· about ${(Math.round(Math.abs(consensus.gap) / 10) * 10).toLocaleString()} KTC</span>`}</span>
     </div>` : ''}
     <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Other sites</div>
     <ul class="space-y-1.5">${rows.map(r => `<li class="flex items-baseline gap-2 text-[13px] leading-snug" title="${r.title || ''}">
@@ -1367,7 +1376,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
       <span class="min-w-0"><a href="${r.href}" target="_blank" rel="noopener" class="font-medium text-zinc-200 underline decoration-white/20 underline-offset-2 hover:text-white">${r.name}</a>: <span class="text-zinc-300">${r.text}</span>${r.note ? ` <span class="text-zinc-500">(${r.note})</span>` : ''}</span>
     </li>`).join('')}</ul>
     ${siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc)}
-    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Consensus averages how far The Vault and the sites lean. KTC counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
+    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Consensus averages the gap between the sides across The Vault and the sites, on KTC's scale, with Roster Audit and Dynasty Daddy matched to KTC by rank. KTC's own verdict counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
 }
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (!aAssets.length || !bAssets.length || ktcSameCall(tradeEdge, ktcEdge)) return '';
@@ -1526,7 +1535,7 @@ function renderVerdictDock(html) {
   if (html !== undefined) dock.innerHTML = html;
   const r = tiles && tiles.getBoundingClientRect();
   const inView = !r || !r.height || (r.bottom > 60 && r.top < innerHeight - 140);
-  // Not in Trade Coach (2026-10-27): it reads the builder's trade, which can differ from the one being built there.
+  // Not over the Trade Coach pop-up.
   dock.classList.toggle('hidden', !dock.innerHTML || inView || view === 'coach');
 }
 let dockFrame = 0;
@@ -1582,7 +1591,8 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   // Even it out: when either team would see it as a bad trade.
   const wb = document.getElementById('workBoth');
   const fixFor = them && them.level === 'bad' ? 'them' : imp.level === 'bad' ? 'you' : null;
-  if (wb) wb.innerHTML = fixFor ? `<button onclick="evenItOut(this)" title="${fixFor === 'them' ? 'The smallest change that makes it at least a Toss-up for them, keeping it as good as possible for you' : 'The smallest change that makes it at least a Toss-up for you, keeping it fine for them'}" class="mt-3 text-[13px] px-3.5 py-2 rounded-lg border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 transition-colors">Even it out</button>` : '';
+  const fix = evenFixLive() ? evenFix : null;
+  if (wb) wb.innerHTML = fix ? (fix.options.length > 1 ? `<button onclick="evenItOutNext()" title="Swap in another way to even out the trade you started with" class="mt-3 text-[13px] px-3.5 py-2 rounded-lg border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 transition-colors">Try another (${fix.at + 1} of ${fix.options.length})</button>` : '') : fixFor ? `<button onclick="evenItOut(this)" title="${fixFor === 'them' ? 'The smallest change that makes it at least a Toss-up for them, keeping it as good as possible for you' : 'The smallest change that makes it at least a Toss-up for you, keeping it fine for them'}" class="mt-3 text-[13px] px-3.5 py-2 rounded-lg border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 transition-colors">Even it out</button>` : '';
 }
 
 /* ---------- Even it out (user, 2026-10-20) ----------
@@ -1592,7 +1602,29 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
      theirs out, until it's at least a Toss-up for them, best for you;
    - bad for you: they add a piece (or two smaller ones), or one of yours comes
      out, until it's at least a Toss-up for you and still one for them, best for them.
-   Fewer changes win ties, and a team's starters are never added. */
+   Fewer changes win ties, and a team's starters are never added.
+   Up to EVEN_OPTIONS of them, best first, with Try another moving through the list
+   from the trade you started with (user, 2026-11-04: it always suggested the same
+   thing). A piece shows up in at most two, so the list isn't one player with different
+   partners. Changing the trade by hand ends the list. */
+const EVEN_OPTIONS = 6, EVEN_PIECE_REPEATS = 2;
+let evenFix = null;
+const evenSame = (set, keys) => set.size === keys.length && keys.every(k => set.has(k));
+const evenFixLive = () => !!evenFix && evenSame(selectedA, evenFix.nowA) && evenSame(selectedB, evenFix.nowB);
+function evenApply() {
+  const f = evenFix, o = f.options[f.at];
+  selectedA = new Set(f.baseA); selectedB = new Set(f.baseB);
+  const giverSel = f.helpB ? selectedA : selectedB, otherSel = f.helpB ? selectedB : selectedA;
+  o.add.forEach(a => giverSel.add(a.key));
+  o.drop.forEach(d => otherSel.delete(d.key));
+  f.nowA = [...selectedA]; f.nowB = [...selectedB];
+  render('A'); render('B');
+}
+function evenItOutNext() {
+  if (!evenFixLive()) return;
+  evenFix.at = (evenFix.at + 1) % evenFix.options.length;
+  evenApply();
+}
 function evenItOut(btn) {
   const teamA = teamOf('A'), teamB = teamOf('B');
   if (!teamA || !teamB) return;
@@ -1602,27 +1634,33 @@ function evenItOut(btn) {
   const now = judge(A0, B0);
   // Who needs help: the team that's worse off (them first, when both are).
   const helpB = now.B.level === 'bad' || now.A.level !== 'bad';
-  const giver = helpB ? teamA : teamB, giverSel = helpB ? selectedA : selectedB, has = helpB ? B0 : A0;
+  const giver = helpB ? teamA : teamB, has = helpB ? B0 : A0;
+  const giverKeys = helpB ? selectedA : selectedB;
   const starters = new Set((giver.lineup || []).filter(x => x.id).map(x => 'p_' + x.id));
   const top = Math.max(...A0.map(a => a.value), ...B0.map(b => b.value));
-  const pool = giver.assets.filter(a => !giverSel.has(a.key) && !starters.has(a.key) && a.value > 0 && a.value <= top * 0.9).sort((x, y) => y.value - x.value).slice(0, 18);
+  const pool = giver.assets.filter(a => !giverKeys.has(a.key) && !starters.has(a.key) && a.value > 0 && a.value <= top * 0.9).sort((x, y) => y.value - x.value).slice(0, 18);
   const cands = pool.map(x => ({ add: [x], drop: [] }));
   if (has.length > 1) has.forEach(y => cands.push({ add: [], drop: [y] }));
   const small = pool.slice(-10);
   small.forEach((x, i) => small.slice(i + 1).forEach(y => cands.push({ add: [x, y], drop: [] })));
-  let best = null;
+  const found = [];
   for (const c of cands) {
     const A = helpB ? [...A0, ...c.add] : A0.filter(a => !c.drop.includes(a));
     const B = helpB ? B0.filter(b => !c.drop.includes(b)) : [...B0, ...c.add];
     const j = judge(A, B);
     if (j.A.score < -6 || j.B.score < -6) continue;
-    const key = (helpB ? j.A.score : j.B.score) - (c.add.length + c.drop.length - 1) * 4;
-    if (!best || key > best.key) best = { ...c, key };
+    found.push({ ...c, key: (helpB ? j.A.score : j.B.score) - (c.add.length + c.drop.length - 1) * 4 });
   }
-  if (!best) { flashButtonMessage(btn, 'No small change gets there'); return; }
-  best.add.forEach(a => giverSel.add(a.key));
-  best.drop.forEach(d => (helpB ? selectedB : selectedA).delete(d.key));
-  render('A'); render('B');
+  if (!found.length) { flashButtonMessage(btn, 'No small change gets there'); return; }
+  const seen = new Map(), options = [];
+  for (const o of found.sort((x, y) => y.key - x.key)) {
+    const pieces = [...o.add, ...o.drop];
+    if (options.length >= EVEN_OPTIONS || pieces.some(p => (seen.get(p.key) || 0) >= EVEN_PIECE_REPEATS)) continue;
+    pieces.forEach(p => seen.set(p.key, (seen.get(p.key) || 0) + 1));
+    options.push(o);
+  }
+  evenFix = { baseA: [...selectedA], baseB: [...selectedB], helpB, options, at: 0 };
+  evenApply();
 }
 
 // The other team's verdict on the same ladder, right under yours (user, 2026-10-19:
@@ -1937,7 +1975,6 @@ function quickAdd(sel) {
 
 function updateTrade() {
   syncTradeUrl();
-  if (view === 'coach') document.getElementById('builder').classList.toggle('hidden', selectedA.size + selectedB.size === 0);
   const teamA = teamOf('A'), teamB = teamOf('B');
   document.getElementById('offeredByWrap').classList.toggle('hidden', !teamB);
   if (!teamB) {
@@ -2418,9 +2455,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=7d597d52"></script>
+<script src="negotiation.js?v=2b2cb135"></script>
 <script src="market-data.js?v=0902cb1e"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=a504c0f5"></script>
+<script src="coach.js?v=29c6a09f"></script>
 </body>
 </html>

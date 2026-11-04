@@ -183,6 +183,14 @@ select option { background: #121418; color: var(--text); }
 @keyframes vault-fade-in { from { opacity: .4; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 .fade-in { animation: vault-fade-in .3s ease-out both; }
 
+/* Trade Coach pop-up: a step slides in from the way you're heading, and the read pulses when the trade changes. */
+@keyframes coach-next { from { opacity: .4; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@keyframes coach-prev { from { opacity: .4; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes coach-pulse { from { box-shadow: 0 0 0 2px rgba(227, 176, 75, .55); } to { box-shadow: 0 0 0 2px rgba(227, 176, 75, 0); } }
+.coach-next { animation: coach-next .18s ease-out both; }
+.coach-prev { animation: coach-prev .18s ease-out both; }
+.coach-pulse { animation: coach-pulse .7s ease-out; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

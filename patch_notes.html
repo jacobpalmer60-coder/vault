@@ -8,8 +8,8 @@
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=0787f0cb">
+<link rel="stylesheet" href="vault.css?v=e8bc9912">
+<link rel="stylesheet" href="tailwind.css?v=0774d5ad">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=7016dd10"></script>
+<script src="vault-core.js?v=3e56727f"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,11 +39,14 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-04', items: [
+    { kind: 'improved', page: 'Trade Coach', text: "Trade Coach is now a pop-up with one decision on each screen. Each choice moves you to the next step, the bar across the top fills in as you go, and the likely yes or no updates with every change. Back undoes your last decision, and closing it keeps your place." },
+    { kind: 'improved', page: 'Trade Calculator', text: "Even it out now has up to six different options. After it makes a change, Try another swaps in the next one, starting again from the trade you built." },
+    { kind: 'changed', page: 'Trade Calculator', text: "The consensus now reads in KTC points instead of a percent, so a small trade reads small: it takes the size of the gap into account as well as its share of the trade. Roster Audit's and Dynasty Daddy's amounts are converted to KTC by matching each player's rank on that site, which is closer on cheaper players. Dynasty Daddy's line says when it's left out of the consensus." },
     { kind: 'new', page: 'Player Rankings', text: "Min and max filters: open Min / max and set limits on age, value, market price, trend, projected points or VORP, such as market price under 3,000 with at least 12 points a game. Players with no number in a filtered column are left out." },
     { kind: 'new', page: 'Player Rankings', text: "Sort by several columns: turn on Sort by several, then click each column you want, such as market price going up and projected points going down. Players are ranked on each column and listed by their combined rank, so cheap players with strong projections come first." },
     { kind: 'fixed', page: 'Player Rankings', text: "Players who are hurt and projected to miss the rest of the season now read Out instead of the points they'd score healthy, and no longer count in the green and red projection colors. Hover to see their healthy projection." },
     { kind: 'fixed', page: 'Player Rankings', text: "Healthy players projected to play only a game or two of the weeks left, mostly backup quarterbacks, now read Bench instead of a points-per-game number based on those few games, so they no longer top a sort. Hover to see the number." },
-    { kind: 'fixed', page: 'Trade Calculator', text: "Dynasty Daddy lists some players at 0 after dropping them from its values, such as Travis Hunter. Those trades now say it has no value for that player and leave it out of the consensus, instead of reading as a hugely one-sided trade. One site's lean also counts for no more than one side being worth three times the other, and the KTC-scale amounts can no longer come out bigger than what's in the trade." },
+    { kind: 'fixed', page: 'Trade Calculator', text: "Dynasty Daddy lists some players at 0 after dropping them from its values, such as Travis Hunter. Those trades now say it has no value for that player and leave it out of the consensus, instead of reading as a hugely one-sided trade." },
   ] },
   { date: '2026-11-03', items: [
     { kind: 'improved', page: 'Trade Calculator', text: "Pick the player you want in Trade Coach and it now shows what it could take: offers from your roster their manager would likely accept and that aren't bad for you, with one click to use one. You can still add your own." },

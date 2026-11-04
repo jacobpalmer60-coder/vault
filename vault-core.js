@@ -1577,6 +1577,8 @@ const Vault = {
   buildValueMaps({ ktcData, projData, gradeData, isSF, scoringSettings, pickYears }) {
     const bonusRecTe = scoringSettings?.bonus_rec_te;
     Vault.setGradeMarket(gradeData, isSF, bonusRecTe);
+    const scaleField = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
+    Vault._ktcScale = (ktcData.players || []).map(p => p[scaleField]).filter(v => v > 0).sort((a, b) => b - a);
     const valMap = Vault.buildKtcValueMap(ktcData, isSF, bonusRecTe);
     const ppgMap = Vault.buildProjectedPpgMapById(projData, scoringSettings);
     const pickMap = Vault.buildKtcPickMap(ktcData, isSF, pickYears, bonusRecTe);
@@ -2612,6 +2614,31 @@ const Vault = {
     return { fair: Vault.checkEquality(a, b, 5), bigger: a >= b ? 'A' : 'B', signed: (a - b) / (((a + b) / 2) || 1) * 100, gap: Math.abs(a - b), average: (sum(valsA) + sum(valsB)) / 2, adjustA: adjust1, adjustB: adjust2 };
   },
 
+  // Another site's value on KTC's scale: what KTC has at the same rank. Roster Audit and
+  // Dynasty Daddy squeeze cheap players far more than KTC does, so a share of the trade
+  // overstates a small gap: 184 vs 409 on Roster Audit is 55%, but those ranks are 1,420
+  // and 2,603 on KTC (user, 2026-11-04). `sorted` is the site's values, biggest first.
+  _ktcScale: [],
+  ktcEquivalent(value, sorted) {
+    const scale = Vault._ktcScale;
+    if (!scale.length || !sorted.length) return 0;
+    let lo = 0, hi = sorted.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (sorted[mid] > value) lo = mid + 1; else hi = mid; }
+    return scale[Math.min(lo, scale.length - 1)];
+  },
+  // One sorted list per site and format, kept with the site's data.
+  _siteScales: new WeakMap(),
+  siteScale(data, isSF, valuesOf) {
+    let byFormat = Vault._siteScales.get(data);
+    if (!byFormat) Vault._siteScales.set(data, byFormat = {});
+    return byFormat[isSF ? 'sf' : '1qb'] ||= valuesOf().filter(v => v > 0).sort((a, b) => b - a);
+  },
+  // Side A's KTC-scale total minus side B's, from a site's value for each piece.
+  siteKtcGap(aAssets, bAssets, value, sorted) {
+    const sum = list => list.reduce((s, a) => s + Vault.ktcEquivalent(value(a), sorted), 0);
+    return sum(aAssets) - sum(bAssets);
+  },
+
   fetchDynastyDaddy() {
     if (!Vault._ddValues) Vault._ddValues = fetch(VAULT_CONFIG.DYNASTY_DADDY_URL).then(r => (r.ok ? r.json() : null)).catch(() => null);
     return Vault._ddValues;
@@ -2644,7 +2671,8 @@ const Vault = {
     const missing = [...aAssets, ...bAssets].filter(a => !value(a));
     if (missing.length) return { priced: false, url, missing };
     const valueA = sum(aAssets), valueB = sum(bAssets), total = valueA + valueB;
-    return { priced: true, url, valueA, valueB, signed: (valueA - valueB) / ((total / 2) || 1) * 100, fair: Math.abs(valueA - valueB) < total * VAULT_CONFIG.DYNASTY_DADDY_FAIR_SHARE };
+    const scale = Vault.siteScale(data, isSF, () => Object.values(data.players || {}).map(p => p[isSF ? 1 : 0]));
+    return { priced: true, url, valueA, valueB, ktcGap: Vault.siteKtcGap(aAssets, bAssets, value, scale), signed: (valueA - valueB) / ((total / 2) || 1) * 100, fair: Math.abs(valueA - valueB) < total * VAULT_CONFIG.DYNASTY_DADDY_FAIR_SHARE };
   },
 
   // Roster Audit's public values, loaded straight from its site in the viewer's
@@ -2670,7 +2698,8 @@ const Vault = {
     if (!data || all.some(a => value(a) === null)) return { priced: false };
     const sum = list => list.reduce((s, a) => s + value(a), 0);
     const valueA = sum(aAssets), valueB = sum(bAssets);
-    return { priced: true, valueA, valueB, signed: (valueA - valueB) / (((valueA + valueB) / 2) || 1) * 100 };
+    const scale = Vault.siteScale(data, isSF, () => Object.values(data.players || {}).map(p => p[isSF ? 'sf' : '1qb']));
+    return { priced: true, valueA, valueB, ktcGap: Vault.siteKtcGap(aAssets, bAssets, value, scale), signed: (valueA - valueB) / (((valueA + valueB) / 2) || 1) * 100 };
   },
 
   /* Trade value: what each side is worth the way managers actually trade, the

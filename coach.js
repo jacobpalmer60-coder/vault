@@ -595,14 +595,12 @@ const COACH_NEAR_SHOW = 3, COACH_NEAR_LOOK = 12;
 /* ---------- Panel ---------- */
 
 // option: 'negotiate' (the trade loaded in the builder), or anything else for the
-// step-by-step Coach, from the top.
+// step-by-step Coach. It picks up where you left off, so closing the pop-up costs
+// nothing; Start on the rail begins again.
 function openCoach(option) {
-  if (option === 'negotiate') Coach.option = 'negotiate';
-  else if (option) { Coach.option = 'coach'; coachFlow().step = 'what'; }
-  const wasOpen = coachOpen();
+  Coach.option = option === 'negotiate' ? 'negotiate' : 'coach';
   setView('coach');
   renderCoach();
-  if (!wasOpen) document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 // Called when the workspace opens on your team: fresh results, back to step 1.
 function coachStart() {
@@ -615,6 +613,7 @@ function coachStart() {
   Coach.wantPos = Coach.pos;
   Coach.work = null;
   Coach.flow = null;
+  Coach.shownStep = null;
   if (Coach.option !== 'negotiate') Coach.option = 'coach';
   negPreloadStyles();
   renderCoach();
@@ -626,15 +625,10 @@ function coachSync() {
 }
 // Something the read depends on changed (a timeline, trade history): drop cached judgments and redraw.
 function coachReset() { coachScoreMemo.clear(); if (Coach.work) Coach.work.tweaks = null; if (coachOpen()) { renderCoach(); if (Coach.work) coachWorkTweaks(); } }
-// From a roster row: Shop (your piece: pick the team to deal with) or Get (their player: build it).
-function coachShopFor(key) {
-  Coach.option = 'coach';
-  Coach.flow = { ...coachFlow(), what: 'player', myKey: key, goal: null, step: 'pick' };
-  setView('coach');
-  renderCoach();
-  document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-function coachGetFor(key) { coachPickPlayer(key); }
+// From a roster row: Shop (your piece: what to do with it) or Get (their player: build it).
+function coachFresh() { Coach.option = 'coach'; Coach.flow = null; Coach.work = null; }
+function coachShopFor(key) { coachFresh(); setView('coach'); coachPickAny(key); }
+function coachGetFor(key) { coachFresh(); coachPickPlayer(key); }
 
 function coachDefaultPos() {
   const { posPct, needs } = Vault.positionalProfile(coachMe(), teams);
@@ -647,10 +641,6 @@ function coachLoadTrade(o) {
   const selB = document.getElementById('teamB');
   if (selB.value !== String(o.partner.rosterId)) { selB.value = String(o.partner.rosterId); selB.onchange(); }
   negLoad(negKeys(o.give), negKeys(o.get));
-  // Fold the list away so the trade is right there (mostly for phones).
-  Coach.collapsed = true;
-  renderCoach();
-  document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /* ---------- Your side / Their side ---------- */
@@ -668,7 +658,7 @@ function coachWorkRead(me, w, give = w.give, get = w.get) {
 }
 // Among trades that work, the ones that read fair across the sites come first: both
 // managers can check those (user, 2026-11-03). Never changes who'd say yes.
-const coachConsensusBand = r => { const off = Math.abs(r.consensus?.lean ?? 0); return off < VAULT_CONFIG.FAIR_PCT ? 0 : off < VAULT_CONFIG.LOPSIDED_PCT ? 1 : 2; };
+const coachConsensusBand = r => r.consensus?.band ?? 0;
 const coachByConsensus = (x, y) => coachConsensusBand(x) - coachConsensusBand(y) || y.score - x.score;
 const coachConsensusText = r => (r.consensus ? `Consensus: ${r.consensus.text}` : '');
 // You've named who you want: what of yours would get him, so the next step isn't
@@ -686,6 +676,7 @@ async function coachWorkPackages(w, seq, me) {
 }
 function coachWorkUsePackage(k) {
   const w = Coach.work, p = w?.packages?.[k]; if (!p) return;
+  coachPush();
   w.give = [...p.give]; w.get = [...p.get]; w.packages = null;
   renderCoach(); coachWorkTweaks();
 }
@@ -739,6 +730,7 @@ async function coachWorkTweaks() {
 function coachWorkApply(kind, k) {
   const w = Coach.work, c = w && w.tweaks && w.tweaks[kind][k];
   if (!c) return;
+  coachPush();
   w.give = [...c.give]; w.get = [...c.get];
   renderCoach(); coachWorkTweaks();
 }
@@ -746,69 +738,84 @@ function coachWorkEdit(side, key, add) {
   const w = Coach.work, me = coachMe(); if (!w) return;
   const pool = side === 'give' ? me.assets : w.partner.assets, a = pool.find(x => x.key === key);
   if (!a) return;
+  coachPush();
   if (add) { if (!w[side].includes(a)) w[side] = [...w[side], a]; }
   else w[side] = w[side].filter(x => x !== a);
   renderCoach(); coachWorkTweaks();
 }
-// The trade as it stands, loaded into the builder (your team as Team A).
-function coachWorkLoad() { const w = Coach.work; if (w) coachLoadTrade({ partner: w.partner, give: w.give, get: w.get }); }
+// The trade as it stands, into the builder (your team as Team A).
+const coachWorkToBuilder = () => { const w = Coach.work; if (w) coachLoadTrade({ partner: w.partner, give: w.give, get: w.get }); };
+// Done with the Coach: the pop-up closes on the trade in the builder, and the next open starts fresh.
+function coachWorkLoad() {
+  coachWorkToBuilder();
+  coachFresh();
+  setView('builder');
+  document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 function coachWorkNegotiate(btn) {
-  coachWorkLoad();
-  Coach.option = 'negotiate'; Coach.collapsed = false;
+  coachWorkToBuilder();
+  Coach.option = 'negotiate';
   renderCoach();
   negOffer(btn);
 }
-function coachWorkShare(btn) { coachWorkLoad(); shareTrade(btn); }
+function coachNegBack() { Coach.option = 'coach'; renderCoach(); coachWorkTweaks(); }
+function coachWorkShare(btn) { coachWorkToBuilder(); shareTrade(btn); }
+// The two sides, each with its add box.
+function coachSlipHtml(me, w) {
+  const n = v => Math.round(v).toLocaleString(), off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
+  const piece = (a, side) => `<div class="flex items-center justify-between gap-2 py-1.5 border-t border-white/[0.05] first:border-t-0">
+      <span class="min-w-0 truncate text-[13px] text-zinc-100">${coachEsc(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span></span>
+      <span class="flex items-center gap-2 shrink-0"><span class="text-[11px] mono text-zinc-500">${n(a.value)}</span><button onclick="coachWorkEdit('${side}', '${a.key}', false)" aria-label="Take ${coachEsc(a.name)} off" class="px-1 text-zinc-500 hover:text-white">×</button></span>
+    </div>`;
+  const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;
+  const side = (word, list, key, add) => `<div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1 truncate">${word}</div>${list.map(a => piece(a, key)).join('') || '<div class="py-2 text-[12px] text-zinc-500">Nothing yet.</div>'}${add}</div>`;
+  return `<div class="grid gap-3 sm:grid-cols-2">
+      ${side(`${coachEsc(me.teamName)} sends`, w.give, 'give', addSel('give', me.assets.filter(a => !inGive.has(a.key) && !off.has(a.key) && a.value >= 100), '+ Add one of yours…'))}
+      ${side(`${coachEsc(me.teamName)} gets`, w.get, 'get', addSel('get', w.partner.assets.filter(a => !inGet.has(a.key) && !coachTheirOff(a) && a.value >= 100), '+ Ask for one of theirs…'))}
+    </div>`;
+}
 function coachWorkHtml(me) {
   const w = Coach.work, esc = Vault.escapeHtml;
-  // One side still empty: the trade so far, what to add, and hints; no read yet.
-  if (!w.give.length || !w.get.length) return coachBuildStartHtml(me, w);
+  // One side still empty: what's next, and offers or hints; no read yet.
+  if (!w.give.length || !w.get.length) { w.read = null; return coachBuildStartHtml(me, w); }
   const r = coachWorkRead(me, w);
+  w.read = r;
   const tier = Vault.verdictTier(r.score), pc = v => `${Math.round(Math.abs(v))}%`;
-  const piece = (a, side) => `<div class="flex items-center justify-between gap-2 py-1.5 border-t border-white/[0.05] first:border-t-0">
-      <span class="min-w-0 truncate text-[13px] text-zinc-100">${esc(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span></span>
-      <span class="flex items-center gap-2 shrink-0"><span class="text-[11px] mono text-zinc-500">${Math.round(a.value).toLocaleString()}</span><button onclick="coachWorkEdit('${side}', '${a.key}', false)" aria-label="Take ${esc(a.name)} off" class="px-1 text-zinc-500 hover:text-white">×</button></span>
-    </div>`;
-  const off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
-  const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${esc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${Math.round(a.value).toLocaleString()}</option>`).join('')}</select>`;
-  const status = r.yes
-    ? `<div class="text-[14px] text-emerald-300 font-medium">${esc(w.partner.teamName)} would likely say yes.</div><div class="text-[12px] text-zinc-400 mt-0.5">${r.room >= 2 && !(w.tweaks && !w.tweaks.more.length && !w.tweaks.less.length) ? `You likely have room to ask for about ${pc(r.room)} more value.` : 'That\'s about as far as they\'d go.'}</div>`
-    : `<div class="text-[14px] text-orange-300 font-medium">${esc(w.partner.teamName)} would likely say no.</div><div class="text-[12px] text-zinc-400 mt-0.5">${(() => {
+  const why = r.yes
+    ? (r.room >= 2 && !(w.tweaks && !w.tweaks.more.length && !w.tweaks.less.length) ? `You likely have room to ask for about ${pc(r.room)} more value.` : 'That\'s about as far as they\'d go.')
+    : (() => {
         // How far off: their will against what they ask, or the price past Fair in your favor.
         const need = Math.max(-r.room, r.you - VAULT_CONFIG.FAIR_PCT + 0.5), worry = r.j.concerns.filter(c => c.w < 0).sort((a, b) => a.w - b.w)[0];
-        const why = worry ? `: ${esc(worry.text.replace(/<[^>]+>/g, '').replace(/\.$/, ''))}` : '';
-        return need > 0 ? `They'd want about ${pc(need)} more value, or less to worry about${why}.` : `The value works, but it reads as a bad trade for their team or too lopsided on KTC's calculator${why}.`;
-      })()}</div>`;
+        const reason = worry ? `: ${esc(worry.text.replace(/<[^>]+>/g, '').replace(/\.$/, ''))}` : '';
+        return need > 0 ? `They'd want about ${pc(need)} more value, or less to worry about${reason}.` : `The value works, but it reads as a bad trade for their team or too lopsided on KTC's calculator${reason}.`;
+      })();
+  // The read pulses for a moment when the trade changes; a redraw partway through (the
+  // ways to make it better arriving) carries on from the same point.
+  const key = [...negKeys(w.give), '|', ...negKeys(w.get)].join(), now = Date.now();
+  if (Coach.readKey !== key) { if (Coach.readKey) Coach.readAt = now; Coach.readKey = key; }
+  const age = now - (Coach.readAt || 0), pulse = age < 700 ? ` coach-pulse" style="animation-delay:-${age}ms` : '';
   const tweakRows = (kind, title) => {
     const list = w.tweaks ? w.tweaks[kind] : [];
     if (!list.length) return '';
-    return `<div class="mt-3"><div class="text-[12px] text-zinc-400 mb-1">${title}</div>${list.map((c, k) => { const t = Vault.verdictTier(c.r.score); return `<div class="flex items-center justify-between gap-3 py-2 border-t border-white/[0.06]">
-        <span class="min-w-0 text-[13px] text-zinc-200">${c.text} <span class="text-[12px] text-zinc-500">· for you <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.key]}">${t.label}</span>, ${esc(coachMe().teamName)} pays ${pc(c.r.you)} ${c.r.you >= 0 ? 'under' : 'over'} trade value${c.r.consensus ? `, consensus: ${c.r.consensus.text}` : ''}${kind === 'yes' ? '' : kind === 'closer' ? `, they'd still want about ${pc(Math.max(-c.r.room, c.r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more` : `, room left ${c.r.room >= 2 ? `about ${pc(c.r.room)}` : 'about none'}`}</span></span>
-        <button onclick="coachWorkApply('${kind}', ${k})" class="shrink-0 text-[12px] px-3 py-1 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Apply</button>
-      </div>`; }).join('')}</div>`;
+    return `<div class="mt-5"><div class="text-[12px] text-zinc-400 mb-2">${title}</div><div class="grid gap-2">${list.map((c, k) => { const t = Vault.verdictTier(c.r.score); return coachChoice(`coachWorkApply('${kind}', ${k})`, c.text,
+        `for you <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.key]}">${t.label}</span>, ${esc(coachMe().teamName)} pays ${pc(c.r.you)} ${c.r.you >= 0 ? 'under' : 'over'} trade value${c.r.consensus ? `, consensus: ${c.r.consensus.text}` : ''}${kind === 'yes' ? '' : kind === 'closer' ? `, they'd still want about ${pc(Math.max(-c.r.room, c.r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more` : `, room left ${c.r.room >= 2 ? `about ${pc(c.r.room)}` : 'about none'}`}`,
+        '<span class="shrink-0 text-[12px] text-amber-200">Apply</span>', false); }).join('')}</div></div>`;
   };
-  const tweaks = w.tweaks == null ? '<div class="text-[12px] text-zinc-500 mt-3">Looking for ways to make it better…</div>'
+  const tweaks = w.tweaks == null ? '<div class="text-[12px] text-zinc-500 mt-5">Looking for ways to make it better…</div>'
     : (r.yes ? tweakRows('more', 'Ask for more (they\'d still say yes)') + tweakRows('less', 'Send less (they\'d still say yes)') : tweakRows('yes', 'One piece that gets them to yes, best for you first') || tweakRows('closer', 'No single piece gets them to yes. These get them closest'))
-      || `<div class="text-[12px] text-zinc-500 mt-3">${r.yes ? 'No one-step change helps you and keeps them at yes: this one is as good as it gets.' : 'No single piece of yours moves them much. Try a bigger piece, or ask for less.'}</div>`;
-  return `${coachBuildHeadHtml(w)}
-    <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${esc(me.teamName)} gives</div>${w.give.map(a => piece(a, 'give')).join('')}${addSel('give', me.assets.filter(a => !inGive.has(a.key) && !off.has(a.key) && a.value >= 100), '+ Add one of yours…')}</div>
-      <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${esc(me.teamName)} gets</div>${w.get.map(a => piece(a, 'get')).join('')}${addSel('get', w.partner.assets.filter(a => !inGet.has(a.key) && !coachTheirOff(a) && a.value >= 100), '+ Ask for one of theirs…')}</div>
+      || `<div class="text-[12px] text-zinc-500 mt-5">${r.yes ? 'No one-step change helps you and keeps them at yes: this one is as good as it gets.' : 'No single piece of yours moves them much. Try a bigger piece, or ask for less.'}</div>`;
+  return `<div class="p-4 rounded-xl mb-4 ${r.yes ? 'bg-emerald-500/[0.07] border border-emerald-500/25' : 'bg-orange-500/[0.07] border border-orange-500/25'}${pulse}">
+      <div class="display text-[24px] leading-tight ${r.yes ? 'text-emerald-300' : 'text-orange-300'}">${esc(w.partner.teamName)} would likely say ${r.yes ? 'yes' : 'no'}</div>
+      <div class="text-[13px] text-zinc-300 mt-1">${why}</div>
     </div>
-    <div class="grid gap-3 sm:grid-cols-4 mt-3">
-      <div><div class="text-[11px] text-zinc-500">For ${esc(me.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</div></div>
-      <div><div class="text-[11px] text-zinc-500">For ${esc(w.partner.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</div></div>
-      <div><div class="text-[11px] text-zinc-500">${esc(me.teamName)} pays</div><div class="text-[18px] font-semibold text-zinc-100">${Math.abs(r.you) < 1 ? 'even' : `${pc(r.you)} ${r.you > 0 ? 'under' : 'over'}`} <span class="text-[12px] font-normal text-zinc-500">trade value</span></div></div>
-      ${r.consensus ? `<div><div class="text-[11px] text-zinc-500">Consensus</div><div class="text-[14px] leading-snug font-semibold text-zinc-100 mt-1">${r.consensus.text}</div></div>` : ''}
+    ${coachSlipHtml(me, w)}
+    <div class="grid gap-3 grid-cols-2 sm:grid-cols-3 mt-4">
+      <div class="min-w-0"><div class="text-[11px] text-zinc-500 truncate">For ${esc(me.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</div></div>
+      <div class="min-w-0"><div class="text-[11px] text-zinc-500 truncate">For ${esc(w.partner.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</div></div>
+      <div class="min-w-0 col-span-2 sm:col-span-1"><div class="text-[11px] text-zinc-500 truncate">${esc(me.teamName)} pays</div><div class="text-[18px] font-semibold text-zinc-100">${Math.abs(r.you) < 1 ? 'even' : `${pc(r.you)} ${r.you > 0 ? 'under' : 'over'}`} <span class="text-[12px] font-normal text-zinc-500">trade value</span></div></div>
+      ${r.consensus ? `<div class="col-span-2 sm:col-span-3 text-[12px] text-zinc-400">Consensus: <span class="text-zinc-200">${r.consensus.text}</span></div>` : ''}
     </div>
-    <div class="mt-3 p-3 rounded-lg ${r.yes ? 'bg-emerald-500/[0.06] border border-emerald-500/20' : 'bg-orange-500/[0.06] border border-orange-500/20'}">${status}</div>
-
-    ${tweaks}
-    <div class="flex flex-wrap items-center justify-end gap-2 mt-4 pt-3 border-t border-white/5">
-      <button onclick="coachWorkShare(this)" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Copy offer link</button>
-      <button onclick="coachWorkLoad()" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Open in builder</button>
-      <button onclick="coachWorkNegotiate(this)" class="text-[12px] px-4 py-1.5 rounded-lg btn-gold-solid">Negotiate it</button>
-    </div>`;
+    ${tweaks}`;
 }
 
 /* ---------- Target picker ---------- */
@@ -849,39 +856,90 @@ const coachFlow = () => (Coach.flow ||= { step: 'what', what: null, pos: 'RB', s
 const coachEsc = s => Vault.escapeHtml(s);
 const coachPosNeed = (team, pos) => !!pos && Vault.positionalProfile(team, teams).needs.includes(String(pos).toLowerCase());
 const coachChip = (on, label, onclick, extra = '') => `<button onclick="${onclick}" class="text-[12px] px-3 py-1.5 rounded-lg border transition-colors ${on ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}${extra}</button>`;
-function coachFlowGo(step) {
+// One choice on a step: the whole row is the button, and clicking it moves on.
+const coachChoice = (onclick, title, sub = '', right = '', arrow = true) => `<button onclick="${onclick}" class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left rounded-xl border border-white/[0.08] bg-white/[0.02] hover:border-amber-400/40 hover:bg-amber-400/[0.04] focus-visible:border-amber-400/60 outline-none transition-colors">
+    <span class="min-w-0 flex-1"><span class="block text-[14px] text-zinc-100">${title}</span>${sub ? `<span class="block text-[12px] text-zinc-400 mt-0.5">${sub}</span>` : ''}</span>
+    ${right}${arrow ? '<span class="shrink-0 text-zinc-500" aria-hidden="true">›</span>' : ''}
+  </button>`;
+const coachAsk = (text, sub = '') => `<div class="mb-4"><h3 class="display text-[26px] leading-tight text-zinc-100">${text}</h3>${sub ? `<p class="text-[13px] text-zinc-400 mt-1">${sub}</p>` : ''}</div>`;
+
+/* ---------- Steps ----------
+   (User, 2026-11-04: "visually change the coach? maybe make it a pop up window? and every
+   decision updates and takes to next step?") One decision a screen. Each decision saves where
+   you were (coachPush), so Back undoes exactly one, trade edits included, and each fills in
+   its stop on the rail. Steps: what → goal → send (a position's who) → pick → build. A
+   player or team named at the start goes straight to build. */
+const coachSnap = () => ({ f: { ...coachFlow(), trail: null }, work: Coach.work && { ...Coach.work } });
+function coachPush() { const s = coachSnap(), f = coachFlow(); (f.trail ||= []).push(s); }
+// One decision: save, change, show the next step.
+function coachGo(step, change) {
+  coachPush();
   const f = coachFlow();
-  if (step === 'build' && !Coach.work) return;
-  if (step === 'pick' && !f.what) return;
-  Coach.option = 'coach';
+  change?.(f);
   f.step = step;
+  Coach.option = 'coach';
   renderCoach();
+}
+function coachRestore(i) {
+  const trail = coachFlow().trail || [], s = trail[i];
+  if (!s) return;
+  // A list still being worked out when it was saved is worked out again.
+  Coach.flow = { ...s.f, trail: trail.slice(0, i), recs: s.f.recs?.list ? s.f.recs : null };
+  // A new object, so anything still running for the trade you left stops.
+  Coach.work = s.work && { ...s.work, tweaks: null, packages: null, seq: 0 };
+  Coach.option = 'coach';
+  renderCoach();
+  if (Coach.work && Coach.flow.step === 'build') coachWorkTweaks();
+}
+function coachBack() { coachRestore((coachFlow().trail || []).length - 1); }
+function coachRewind(step) {
+  const trail = coachFlow().trail || [];
+  for (let i = trail.length - 1; i >= 0; i--) if (trail[i].f.step === step) return coachRestore(i);
 }
 function coachFlowSet(k, v) { coachFlow()[k] = v; renderCoach(); }
 // Into Build it with a starting trade.
 // goal: what you're doing with your own player (upgrade, downtier, sell), for the hints.
 function coachBuildFrom(partner, give, get, goal = null) {
   if (!partner) return;
+  coachPush();
   Coach.option = 'coach';
   Coach.work = { partner, give: [...give], get: [...get], option: 'build', goal, tweaks: null, seq: 0 };
   coachFlow().step = 'build';
   if (!coachOpen()) setView('coach');
   renderCoach();
-  document.getElementById('coach').scrollIntoView({ behavior: 'smooth', block: 'start' });
   coachWorkTweaks();
 }
 const coachOwner = key => teams.find(t => t !== coachMe() && t.assets.some(a => a.key === key));
-function coachPickPlayer(key) { const t = coachOwner(key); if (t) coachBuildFrom(t, [], [t.assets.find(a => a.key === key)]); }
-function coachPickTeam(id) { const t = teams.find(x => String(x.rosterId) === String(id)); if (t) coachBuildFrom(t, [], []); }
+function coachPickPlayer(key) {
+  const t = coachOwner(key), a = t?.assets.find(x => x.key === key);
+  if (!t) return;
+  Object.assign(coachFlow(), { what: 'target', startName: a.name });
+  coachBuildFrom(t, [], [a]);
+}
+function coachPickTeam(id) {
+  const t = teams.find(x => String(x.rosterId) === String(id));
+  if (!t) return;
+  Object.assign(coachFlow(), { what: 'team', startName: t.teamName });
+  coachBuildFrom(t, [], []);
+}
+function coachPickDepth(key) { const t = coachOwner(key); if (t) coachBuildFrom(t, [], [t.assets.find(a => a.key === key)]); }
 // A player from the one list: another team's goes straight to building; yours asks what to
-// do with him (a pick can only be sold).
+// do next (a pick can only be sold, so that's skipped).
 function coachPickAny(key) {
   if (!key) return;
-  const mine = coachMe().assets.find(a => a.key === key);
-  if (!mine) return coachPickPlayer(key);
-  const f = coachFlow(); f.myKey = key; f.upKeys = [key]; f.goal = mine.type === 'pick' ? 'sell' : null;
-  renderCoach();
+  const a = coachMe().assets.find(x => x.key === key);
+  if (!a) return coachPickPlayer(key);
+  const pick = a.type === 'pick';
+  coachGo(pick ? 'pick' : 'goal', f => Object.assign(f, { what: 'player', myKey: key, startName: a.name, upKeys: [key], goal: pick ? 'sell' : null, recs: null }));
 }
+// Upgrade, Down-tier, Sell or Add depth.
+function coachChooseGoal(k) {
+  const f = coachFlow();
+  if (f.what === 'player') return coachGo('pick', x => { x.goal = k; x.recs = null; });
+  coachGo(k === 'depth' ? 'pick' : 'send', x => { x.posGoal = k; x.upKeys = []; x.recs = null; });
+}
+// At a position: which of yours. One click moves on; the next step can add more.
+function coachChooseSend(key) { if (key) coachGo('pick', f => { f.upKeys = [key]; f.recs = null; }); }
 function coachPickMoveTeam(id) {
   const f = coachFlow(), t = teams.find(x => String(x.rosterId) === String(id)), a = coachMe().assets.find(x => x.key === f.myKey);
   if (t && a) coachBuildFrom(t, f.goal === 'upgrade' ? coachUpAssets() : [a], [], f.goal);
@@ -981,8 +1039,8 @@ async function coachRecsRun(spec) {
     }
   }
   const fixed = no.filter(x => x.fix).sort((x, y) => coachByConsensus(x.fix.r, y.fix.r)), rest = no.filter(x => !x.fix);
-  f.recs = { key: spec.key, list: [...yes, ...fixed, ...rest].slice(0, COACH_REC_SHOW), yes: yes.length, fixed: fixed.length, total: out.length, give: negKeys(spec.give), goal: spec.goal };
-  if (coachOpen() && f.step === 'pick') renderCoach();
+  coachFlow().recs = { key: spec.key, list: [...yes, ...fixed, ...rest].slice(0, COACH_REC_SHOW), yes: yes.length, fixed: fixed.length, total: out.length, give: negKeys(spec.give), goal: spec.goal };
+  if (coachOpen() && coachFlow().step === 'pick') renderCoach();
 }
 // Build a fit: what you selected, plus its gap-closing piece if it has one, for him.
 function coachRecBuild(i) {
@@ -996,7 +1054,7 @@ function coachRecsHtml(me, spec) {
   if (!spec.cands.length) {
     // Upgrading someone nobody out-scores: say that, not just "nobody fits".
     const top = spec.goal === 'upgrade' ? [...spec.give].sort((x, y) => (y.ppg || 0) - (x.ppg || 0))[0] : null;
-    return `<div class="text-[12px] text-zinc-500 py-2">${top && top.ppg ? `No ${coachEsc(top.pos)} on another team scores more than ${coachEsc(top.name)} (${top.ppg.toFixed(1)} pts/game) within reach of what you'd send. He's already the upgrade.` : 'Nobody on another team fits that. Try different players.'}</div>`;
+    return `<div class="text-[12px] text-zinc-500 py-2">${top && top.ppg ? `No ${coachEsc(top.pos)} on another team scores more than ${coachEsc(top.name)} (${top.ppg.toFixed(1)} pts/game) within reach of what you'd send. ${coachEsc(top.name)} is already the upgrade.` : 'Nobody on another team fits that. Try different players.'}</div>`;
   }
   if (!f.recs || f.recs.key !== spec.key) { coachRecsRun(spec); return '<div class="text-[12px] text-zinc-400 py-2">Finding the best fits…</div>'; }
   if (!f.recs.list) return '<div class="text-[12px] text-zinc-400 py-2">Finding the best fits…</div>';
@@ -1007,26 +1065,17 @@ function coachRecsHtml(me, spec) {
       : extras ? `<span class="text-emerald-300">They'd take it</span> · ask for about ${pc(-r.you)} more in extras`
       : fix ? `Add your <span class="text-zinc-100">${coachEsc(fix.p.name)}</span> <span class="text-zinc-500">(${n(fix.p.value)})</span> → <span class="text-emerald-300">likely yes</span>`
       : `<span class="text-orange-300">They'd want about ${pc(Math.max(-r.room, r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more</span>`;
-    return `<div class="flex items-center justify-between gap-3 py-2.5 border-t border-white/[0.06] first:border-t-0">
-        <div class="min-w-0">
-          <div class="text-[13px] text-zinc-100 truncate">${coachEsc(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? 'pick' : a.pos} · ${coachEsc(t.teamName)} · ${n(a.value)}</span></div>
-          <div class="text-[11px] text-zinc-400">${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}${use.consensus ? ` · ${coachConsensusText(use)}` : ''}</div>
-        </div>
-        <button onclick="coachRecBuild(${i})" class="shrink-0 text-[12px] px-3 py-1 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Build</button>
-      </div>`;
+    return coachChoice(`coachRecBuild(${i})`, `${coachEsc(a.name)} <span class="text-[12px] text-zinc-500">${a.type === 'pick' ? 'pick' : a.pos} · ${coachEsc(t.teamName)} · ${n(a.value)}</span>`,
+      `${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}${use.consensus ? ` · ${coachConsensusText(use)}` : ''}`);
   }).join('');
   const word = spec.goal === 'upgrade' ? 'would likely say yes' : 'would take it';
   const summary = f.recs.yes || f.recs.fixed ? [f.recs.yes ? `${f.recs.yes} ${word}` : '', f.recs.fixed ? `${f.recs.fixed} more with one piece added` : ''].filter(Boolean).join(', ') : 'none would say yes yet; these are the closest';
-  return `<div class="text-[12px] text-zinc-400 mb-1.5">Best fits: ${summary}.</div>
-    <div class="rounded-lg bg-black/30 border border-white/5 px-3">${rows}</div>`;
+  return `<div class="text-[12px] text-zinc-400 mb-2">${summary[0].toUpperCase()}${summary.slice(1)}.</div>
+    <div class="grid gap-2">${rows}</div>`;
 }
 
-/* ---------- The header: one line about your team, and where you are ----------
-   (2026-10-28, user: "cleaner and flow more easily"; picked all four: one search box to
-   start, trim the headers, a shorter tick list, close the gap on each fit.) One line with
-   your record, odds, thin and deep spots and timeline (a small dropdown), and a breadcrumb
-   (Start › what you picked › Build) in place of the team card, the repeated team names and
-   the numbered steps. */
+/* ---------- One line about your team (2026-10-28, user: "cleaner and flow more easily"):
+   your record, odds, thin and deep spots and timeline (a small dropdown). ---------- */
 function coachTeamLineHtml(me) {
   const { needs, surpluses } = Vault.positionalProfile(me, teams), P = l => l.map(x => x.toUpperCase()).join(', ');
   const rec = me.record && (me.record.wins + me.record.losses) ? `${me.record.wins}-${me.record.losses}${me.record.ties ? '-' + me.record.ties : ''}` : '';
@@ -1038,14 +1087,32 @@ function coachTeamLineHtml(me) {
   return `<div class="text-[12px] text-zinc-400 flex flex-wrap items-center gap-x-2 gap-y-1">${bits.join(' · ')}${bits.length ? ' ·' : ''}
       <label class="inline-flex items-center gap-1">Timeline <select onchange="coachSetPlan(this.value)" aria-label="Your timeline" class="bg-black/40 border border-white/10 rounded-md px-1.5 py-0.5 text-[12px] text-zinc-200">${opt('auto', `Auto (${auto})`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}</select></label></div>`;
 }
-function coachCrumbsHtml(me) {
-  const f = coachFlow(), w = Coach.work, crumbs = [['Start', "coachFlowGo('what')"]];
-  const goal = f.what === 'player' && f.goal ? COACH_GOALS[f.goal] : f.what === 'position' ? (f.posGoal === 'depth' ? 'Add depth' : COACH_GOALS[f.posGoal || 'upgrade']) : '';
-  const mine = f.what === 'player' && me.assets.find(a => a.key === f.myKey);
-  const picked = mine ? mine.name : f.what === 'position' ? f.pos : null;
-  if (f.step !== 'what' && picked) crumbs.push([`${picked}${goal ? ' · ' + goal : ''}`, "coachFlowGo('pick')"]);
-  if (f.step === 'build' && w) crumbs.push([`Building with ${w.partner.teamName}`, null]);
-  return crumbs.map(([label, go], i) => (i === crumbs.length - 1 ? `<span class="text-zinc-100">${coachEsc(label)}</span>` : `<button onclick="${go}" class="text-zinc-400 hover:text-white">${coachEsc(label)}</button>`)).join('<span class="text-zinc-600 px-1.5" aria-hidden="true">›</span>');
+// The rail: where you are, and each decision so far. A stop you've passed goes back to it.
+const COACH_RAIL_AT = { what: 0, goal: 1, send: 1, pick: 2, build: 3 };
+function coachRailHtml(me, neg) {
+  const f = coachFlow(), w = Coach.work, at = neg ? 3 : COACH_RAIL_AT[f.step] ?? 0, trail = f.trail || [];
+  const goal = f.what === 'player' ? (COACH_GOALS[f.goal] || '') : f.what === 'position' && f.posGoal ? (f.posGoal === 'depth' ? 'Add depth' : COACH_GOALS[f.posGoal]) : '';
+  const sending = f.what === 'position' && f.posGoal !== 'depth' ? coachUpAssets().map(a => a.name).join(' + ') : '';
+  const read = neg ? 'Negotiating' : w?.read ? (w.read.yes ? 'Likely yes' : 'Likely no') : '';
+  const stops = [['Start', 'what', f.startName], ['Plan', 'goal', [goal, sending].filter(Boolean).join(' ')], ['Match', 'pick', f.what === 'team' ? '' : w?.partner.teamName], ['Trade', 'build', read]];
+  return `<div class="grid grid-cols-4 gap-2 mt-3">${stops.map(([label, step, value], i) => {
+    const now = i === at, shown = i <= at && value ? coachEsc(value) : '';
+    const body = `<span class="block h-1 rounded-full ${now ? 'bg-amber-400' : i < at ? 'bg-amber-400/40' : 'bg-white/10'}"></span>
+      <span class="block mt-1.5 text-[11px] uppercase tracking-wider ${now ? 'text-amber-200' : 'text-zinc-500'}">${label}</span>
+      <span class="block min-h-[18px] text-[12px] truncate ${i === 3 && read === 'Likely yes' ? 'text-emerald-300' : i === 3 && read === 'Likely no' ? 'text-orange-300' : 'text-zinc-200'}" title="${shown}">${shown}</span>`;
+    return i < at && trail.some(s => s.f.step === step) ? `<button onclick="coachRewind('${step}')" title="Back to ${label}" class="min-w-0 text-left hover:opacity-80 transition-opacity">${body}</button>` : `<div class="min-w-0"${now ? ' aria-current="step"' : ''}>${body}</div>`;
+  }).join('')}</div>`;
+}
+function coachFootHtml(neg) {
+  const f = coachFlow(), w = Coach.work, quiet = 'whitespace-nowrap text-[12px] sm:text-[13px] px-2.5 sm:px-3.5 py-2 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors';
+  const back = neg ? (w ? `<button onclick="coachNegBack()" class="${quiet}">← Back to the trade</button>` : '') : f.trail?.length ? `<button onclick="coachBack()" class="${quiet}">← Back</button>` : '';
+  // One row on a phone too: the short words there.
+  const done = !neg && f.step === 'build' && w?.give.length && w.get.length ? `<div class="flex items-center gap-1.5 sm:gap-2 ml-auto">
+      <button onclick="coachWorkShare(this)" class="${quiet}">Copy<span class="hidden sm:inline"> offer</span> link</button>
+      <button onclick="coachWorkLoad()" class="${quiet}"><span class="hidden sm:inline">Open in </span><span class="sm:hidden">B</span><span class="hidden sm:inline">b</span>uilder</button>
+      <button onclick="coachWorkNegotiate(this)" class="whitespace-nowrap text-[12px] sm:text-[13px] px-3 sm:px-4 py-2 rounded-lg btn-gold-solid">Negotiate<span class="hidden sm:inline"> it</span></button>
+    </div>` : '';
+  return back || done ? `<div class="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-3 border-t border-white/[0.06]">${back}${done}</div>` : '';
 }
 
 /* ---------- Step 1: one search box ----------
@@ -1057,62 +1124,81 @@ function coachWhatHtml(me) {
   const theirs = others.flatMap(t => t.assets.filter(a => a.type === 'player' && a.value >= 300).map(a => ({ a, t }))).sort((x, y) => y.a.value - x.a.value);
   const posOpt = p => `<option value="pos:${p}">${p}: upgrade, down-tier, sell or add depth${coachPosNeed(me, p) ? ' (you\'re thin here)' : ''}</option>`;
   const teamOpt = t => { const { needs } = Vault.positionalProfile(t, teams); return `<option value="team:${t.rosterId}">${coachEsc(t.teamName)} · ${Vault.MODE_LABEL[Vault.teamMode(t)] || ''}${needs.length ? ` · thin at ${needs.map(x => x.toUpperCase()).join(', ')}` : ''}</option>`; };
-  return `<div class="text-[15px] text-zinc-100 font-medium mb-2">Who or what do you want to trade around?</div>
-    <select data-search="Type a player, a position (RB) or a team…" onchange="coachStartFrom(this.value)" aria-label="Start from a player, a position or a team" class="w-full sm:w-[520px] bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-[14px] outline-none focus:border-amber-400/40">
+  return `${coachAsk('Who or what do you want to trade around?')}
+    <select data-search="Type a player, a position (RB) or a team…" onchange="coachStartFrom(this.value)" aria-label="Start from a player, a position or a team" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-[14px] outline-none focus:border-amber-400/40">
       <option value="">Type a player, a position (RB) or a team…</option>
       <optgroup label="Your players and picks">${mine.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · yours · ${n(a.value)}</option>`).join('')}</optgroup>
       <optgroup label="Positions">${['QB', 'RB', 'WR', 'TE'].map(posOpt).join('')}</optgroup>
       <optgroup label="Teams">${others.map(teamOpt).join('')}</optgroup>
       <optgroup label="Other teams' players">${theirs.map(({ a, t }) => `<option value="${a.key}">${coachEsc(a.name)} (${a.pos}) · ${coachEsc(t.teamName)} · ${n(a.value)}</option>`).join('')}</optgroup>
     </select>
-    <div class="flex flex-wrap items-center gap-1.5 mt-3"><span class="text-[12px] text-zinc-500 mr-1">Or a position</span>${['QB', 'RB', 'WR', 'TE'].map(p => coachChip(false, p, `coachStartFrom('pos:${p}')`, coachPosNeed(me, p) ? ' <span class="text-[11px] text-rose-300/80">thin</span>' : '')).join('')}</div>`;
+    <div class="text-[12px] text-zinc-500 mt-5 mb-2">Or start from a position</div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${['QB', 'RB', 'WR', 'TE'].map(p => coachChoice(`coachStartFrom('pos:${p}')`, p, coachPosNeed(me, p) ? '<span class="text-rose-300">You\'re thin here</span>' : '')).join('')}</div>
+    <div class="mt-6 pt-4 border-t border-white/[0.06]">${coachTeamLineHtml(me)}</div>`;
 }
 function coachStartFrom(v) {
   if (!v) return;
-  const f = coachFlow();
-  f.recs = null;
-  if (v.startsWith('pos:')) { Object.assign(f, { what: 'position', pos: v.slice(4), posGoal: f.posGoal && f.posGoal !== 'depth' ? f.posGoal : 'upgrade', upPos: null, upKeys: null, step: 'pick' }); return renderCoach(); }
+  if (v.startsWith('pos:')) { const pos = v.slice(4); return coachGo('goal', f => Object.assign(f, { what: 'position', pos, startName: pos, posGoal: null, upKeys: [], recs: null })); }
   if (v.startsWith('team:')) return coachPickTeam(v.slice(5));
-  if (coachMe().assets.some(a => a.key === v)) { Object.assign(f, { what: 'player', step: 'pick' }); return coachPickAny(v); }
-  coachPickPlayer(v);
+  coachPickAny(v);
 }
 
-/* ---------- Step 2: pick ---------- */
+/* ---------- Step 2: what to do with it ---------- */
+function coachGoalHtml(me) {
+  const f = coachFlow(), a = f.what === 'player' ? me.assets.find(x => x.key === f.myKey) : null;
+  if (a) {
+    const name = coachEsc(a.name);
+    return coachAsk(`What's the plan for ${name}?`) + `<div class="grid gap-2">${[
+      ['upgrade', 'Upgrade', `Send ${name} plus more for one better ${a.pos}.`],
+      ['downtier', 'Down-tier', `Send ${name} for a lesser ${a.pos} plus more pieces.`],
+      ['sell', 'Sell', `Send ${name} for picks and young players.`],
+    ].map(([k, l, s]) => coachChoice(`coachChooseGoal('${k}')`, l, s)).join('')}</div>`;
+  }
+  const P = f.pos;
+  return coachAsk(`What do you want to do at ${P}?`, coachPosNeed(me, P) ? '<span class="text-rose-300">You\'re thin here.</span>' : '') + `<div class="grid gap-2">${[
+    ['upgrade', 'Upgrade', `Send one of your ${P}s plus more for a better one.`],
+    ['downtier', 'Down-tier', `Send one of your ${P}s for a lesser one plus more pieces.`],
+    ['sell', 'Sell', `Send one of your ${P}s for picks and young players.`],
+    ['depth', 'Add depth', 'Cheap backups for bye weeks and injuries.'],
+  ].map(([k, l, s]) => coachChoice(`coachChooseGoal('${k}')`, l, s)).join('')}</div>`;
+}
+/* ---------- A position: which of yours ---------- */
+function coachSendHtml(me) {
+  const f = coachFlow(), P = f.pos, n = v => Math.round(v).toLocaleString();
+  const starters = (me.lineup || []).filter(s => s.id && s.pos === P);
+  const weakest = starters.length ? starters.reduce((x, y) => (y.ppg < x.ppg ? y : x)) : null, weakKey = weakest && 'p_' + weakest.id;
+  const isStarter = a => starters.some(s => 'p_' + s.id === a.key);
+  const mine = me.assets.filter(x => x.type === 'player' && x.pos === P).sort((x, y) => (f.posGoal === 'upgrade' ? (y.key === weakKey) - (x.key === weakKey) : 0) || y.value - x.value);
+  const rows = mine.map(a => coachChoice(`coachChooseSend('${a.key}')`, `${coachEsc(a.name)}${a.key === weakKey ? ' <span class="text-[12px] text-amber-200/90">weakest starter</span>' : ''}`,
+    [isStarter(a) ? 'Starter' : 'Bench', a.age ? `${Math.round(a.age)} years old` : '', a.ppg ? `${a.ppg.toFixed(1)} pts/game` : ''].filter(Boolean).join(' · '), `<span class="shrink-0 text-[12px] mono text-zinc-400">${n(a.value)}</span>`)).join('');
+  const rest = me.assets.filter(a => !mine.includes(a) && a.value >= 300).sort((x, y) => y.value - x.value);
+  const verb = { upgrade: 'upgrading', downtier: 'down-tiering', sell: 'selling' }[f.posGoal];
+  return coachAsk(`Which ${P} are you ${verb}?`, 'You can add more on the next step.') + `<div class="grid gap-2">${rows || `<div class="text-[12px] text-zinc-500">You have no ${P} to send.</div>`}</div>
+    <div class="text-[12px] text-zinc-500 mt-4 mb-2">Or send someone else</div>
+    <select data-search="Type one of your players or picks…" onchange="coachChooseSend(this.value)" aria-label="Send someone else" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-amber-400/40"><option value="">Type one of your players or picks…</option>${rest.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;
+}
+
+/* ---------- Step 3: the match ---------- */
 function coachPickHtml(me) {
   const f = coachFlow(), others = teams.filter(t => t !== me), n = v => Math.round(v).toLocaleString();
-  const head = text => `<div class="text-[14px] text-zinc-100 font-medium mb-3">${text}</div>`; // the breadcrumb goes back
-  const pickBtn = onclick => `<button onclick="${onclick}" class="shrink-0 text-[12px] px-3 py-1 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Pick</button>`;
   // A team's line: timeline, needs and depth, whether it needs the position in play, and a note for the goal.
   const teamRow = (t, onclick, pos, note = '') => {
     const { needs, surpluses } = Vault.positionalProfile(t, teams), P = l => l.map(x => x.toUpperCase()).join(', ');
     const need = pos && needs.includes(pos.toLowerCase());
-    return `<div class="flex items-center justify-between gap-3 py-2 border-t border-white/[0.06] first:border-t-0">
-        <div class="min-w-0"><div class="text-[13px] text-zinc-100 truncate">${coachEsc(t.teamName)}${need ? ` <span class="text-[11px] text-emerald-300">needs ${pos}</span>` : ''}${note ? ` <span class="text-[11px] text-amber-200/80">${note}</span>` : ''}</div>
-          <div class="text-[11px] text-zinc-500">${Vault.MODE_LABEL[Vault.teamMode(t)] || ''}${needs.length ? ` · thin at ${P(needs)}` : ''}${surpluses.length ? ` · deep at ${P(surpluses)}` : ''}</div></div>
-        ${pickBtn(onclick)}
-      </div>`;
+    return coachChoice(onclick, `${coachEsc(t.teamName)}${need ? ` <span class="text-[12px] text-emerald-300">needs ${pos}</span>` : ''}${note ? ` <span class="text-[12px] text-amber-200/80">${note}</span>` : ''}`,
+      `${Vault.MODE_LABEL[Vault.teamMode(t)] || ''}${needs.length ? ` · thin at ${P(needs)}` : ''}${surpluses.length ? ` · deep at ${P(surpluses)}` : ''}`);
   };
-  const playerRows = (rows, pickFn = 'coachPickPlayer') => `<div class="rounded-lg bg-black/30 border border-white/5 px-3">${rows.map(({ a, t }) => `<div class="flex items-center justify-between gap-3 py-2 border-t border-white/[0.06] first:border-t-0">
-      <div class="min-w-0"><div class="text-[13px] text-zinc-100 truncate">${coachEsc(a.name)}</div><div class="text-[11px] text-zinc-500 truncate">${coachEsc(t.teamName)}${a.age ? ` · ${Math.round(a.age)} years old` : ''}${a.ppg ? ` · ${a.ppg.toFixed(1)} pts/game` : ''}</div></div>
-      <span class="flex items-center gap-3 shrink-0"><span class="text-[12px] mono text-zinc-400">${n(a.value)}</span>${pickBtn(`${pickFn}('${a.key}')`)}</span></div>`).join('') || '<div class="py-3 text-[12px] text-zinc-500">No one fits.</div>'}</div>`;
+  const playerRows = (rows, pickFn) => `<div class="grid gap-2">${rows.map(({ a, t }) => coachChoice(`${pickFn}('${a.key}')`, coachEsc(a.name),
+    `${coachEsc(t.teamName)}${a.age ? ` · ${Math.round(a.age)} years old` : ''}${a.ppg ? ` · ${a.ppg.toFixed(1)} pts/game` : ''}`, `<span class="shrink-0 text-[12px] mono text-zinc-400">${n(a.value)}</span>`)).join('') || '<div class="py-3 text-[12px] text-zinc-500">No one fits.</div>'}</div>`;
+  const fold = (cls, summary, body) => `<details class="mt-4 group/${cls}"><summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">${summary}</summary><div class="mt-2">${body}</div></details>`;
 
   if (f.what === 'player') {
-    const mineList = me.assets.filter(a => a.value >= 300).sort((x, y) => y.value - x.value);
-    const theirs = others.flatMap(t => t.assets.filter(a => a.type === 'player' && a.value >= 300).map(a => ({ a, t }))).sort((x, y) => y.a.value - x.a.value);
-    const sel = `<select data-search="Type any player, yours or theirs…" onchange="coachPickAny(this.value)" aria-label="Player" class="w-full sm:w-[460px] bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] outline-none focus:border-amber-400/40">
-        <option value="">Pick a player…</option>
-        <optgroup label="Your players and picks">${mineList.map(a => `<option value="${a.key}" ${a.key === f.myKey ? 'selected' : ''}>${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · yours · ${n(a.value)}</option>`).join('')}</optgroup>
-        <optgroup label="Other teams">${theirs.map(({ a, t }) => `<option value="${a.key}">${coachEsc(a.name)} (${a.pos}) · ${coachEsc(t.teamName)} · ${n(a.value)}</option>`).join('')}</optgroup></select>`;
-    const a = mineList.find(x => x.key === f.myKey);
-    if (!a) return head('Which player? One of yours, or one on another team.') + sel;
-    // One of yours: what to do with him, then the team.
+    const a = me.assets.find(x => x.key === f.myKey);
+    if (!a || !f.goal) return coachWhatHtml(me);
     const pos = a.type === 'player' ? a.pos : null;
-    const goals = a.type === 'pick' ? { sell: 'Sell' } : COACH_GOALS;
     const ups = coachUpAssets(), upNames = ups.map(x => coachEsc(x.name)).join(' + ') || 'your players';
-    const blurb = { upgrade: `Send ${upNames} plus more for one better player.`, downtier: `Send ${coachEsc(a.name)} for a lesser ${pos} plus more pieces.`, sell: `Send ${coachEsc(a.name)} for picks and young players.` };
-    const goalRow = `<div class="flex flex-wrap items-center gap-1.5 mb-1">${Object.entries(goals).map(([k, l]) => coachChip(f.goal === k, l, `coachFlowSet('goal', '${k}')`)).join('')}</div>${f.goal ? `<div class="text-[12px] text-zinc-400 mb-3">${blurb[f.goal]}</div>` : ''}`;
-    if (!f.goal) return head(`${coachEsc(a.name)} is yours. What do you want to do with him?`) + goalRow;
-    // Upgrading: tick the others going out with him (same position shown first).
+    const blurb = { upgrade: `Send ${upNames} plus more for one better player.`, downtier: `Send ${coachEsc(a.name)} for a lesser ${pos} plus more pieces.`, sell: `Send ${coachEsc(a.name)} for picks and young players.` }[f.goal];
+    // Upgrading: the others going out too (same position shown first).
     const upPicker = f.goal === 'upgrade' ? coachUpPickerHtml(me, me.assets.filter(x => x.type === 'player' && x.pos === pos).sort((x, y) => y.value - x.value)) : '';
     // Teams that fit the goal first: upgrade, who has someone better than the best you're sending at
     // those positions; down-tier, who has a lesser one (and needs his position); sell, who needs it.
@@ -1125,43 +1211,31 @@ function coachPickHtml(me) {
     // The best fits for what you selected, then any team yourself, folded.
     const spec = coachRecSpec(me);
     const recs = f.goal === 'upgrade' && !ups.length ? '<div class="text-[12px] text-zinc-500 py-2">Add at least one player to see the best fits.</div>' : spec ? coachRecsHtml(me, spec) : '';
-    return head(`${COACH_GOALS[f.goal]} ${f.goal === 'upgrade' ? upNames : coachEsc(a.name)}.`) + `${goalRow}${upPicker}${recs}
-      <details class="mt-3 group/teams"><summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">Or pick a team yourself <span class="group-open/teams:hidden">▾</span><span class="hidden group-open/teams:inline">▴</span></summary>
-        <div class="mt-2 rounded-lg bg-black/30 border border-white/5 px-3">${order.map(t => teamRow(t, `coachPickMoveTeam('${t.rosterId}')`, pos, note(t))).join('')}</div></details>`;
+    return coachAsk('Pick your best fit', blurb) + upPicker + recs + fold('teams', 'Or pick a team yourself', `<div class="grid gap-2">${order.map(t => teamRow(t, `coachPickMoveTeam('${t.rosterId}')`, pos, note(t))).join('')}</div>`);
   }
-  if (f.what === 'position') {
-    // (2026-10-27, user: "once we select our player, give the option to upgrade, downtier, or
-    // sell".) Tick your players at the position, then Upgrade, Down-tier or Sell them: the best
-    // fits for them come first (coachRecSpec, coachRecsHtml). Add depth is its own choice: cheap
-    // backups who still score, nothing of yours ticked.
-    const P = f.pos, goal = f.posGoal || 'upgrade';
-    const starters = (me.lineup || []).filter(s => s.id && s.pos === P);
-    const weakest = starters.length ? starters.reduce((x, y) => (y.ppg < x.ppg ? y : x)) : null;
-    const weakAsset = weakest && me.assets.find(x => x.key === 'p_' + weakest.id);
-    const pool = others.flatMap(t => t.assets.filter(a => a.type === 'player' && a.pos === P && a.value >= 300).map(a => ({ a, t })));
-    const sortFn = f.sort === 'value' ? (x, y) => y.a.value - x.a.value : f.sort === 'young' ? (x, y) => (x.a.age || 99) - (y.a.age || 99) || y.a.value - x.a.value : (x, y) => (y.a.ppg || 0) - (x.a.ppg || 0);
-    const sorts = [['points', 'Points a game'], ['value', 'Value'], ['young', 'Youngest']];
-    const posChips = `<div class="flex flex-wrap gap-1.5 mb-3">${['QB', 'RB', 'WR', 'TE'].map(p => coachChip(P === p, p, `coachFlowSet('pos', '${p}')`, coachPosNeed(me, p) ? ' <span class="text-[11px] text-rose-300/80">need</span>' : '')).join('')}</div>`;
-    const sortRow = `<div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[12px] text-zinc-500 mr-1">Sort by</span>${sorts.map(([k, l]) => coachChip((f.sort || 'points') === k, l, `coachFlowSet('sort', '${k}')`)).join('')}</div>`;
-    const goalChips = `<div class="flex flex-wrap items-center gap-1.5 mb-3">${Object.entries(COACH_GOALS).map(([k, l]) => coachChip(goal === k, l, `coachFlowSet('posGoal', '${k}')`)).join('')}<span class="text-zinc-600 px-1">or</span>${coachChip(goal === 'depth', 'Add depth', `coachFlowSet('posGoal', 'depth')`)}</div>`;
-    if (goal === 'depth') {
-      const cap = Math.min(3000, weakAsset ? weakAsset.value * 0.6 : 3000);
-      const rows = pool.filter(({ a }) => a.value <= cap && (a.ppg || 0) > 0).sort(sortFn).slice(0, 40);
-      return head(`Add depth at ${P}. Pick the player you want.`) + posChips + goalChips + `<div class="text-[12px] text-zinc-400 mb-2">${P}s on other teams worth ${Math.round(cap).toLocaleString()} or less who still score, best scorers first: backups for bye weeks and injuries.</div>` + sortRow + playerRows(rows);
-    }
-    // Your weakest starter there is ticked once, on arriving at the position; after that any can be unticked.
-    const mineAtP = me.assets.filter(x => x.type === 'player' && x.pos === P).sort((x, y) => y.value - x.value);
-    if (f.upPos !== P) { f.upKeys = weakAsset ? [weakAsset.key] : []; f.upPos = P; }
-    const ups = coachUpAssets(), names = ups.map(x => coachEsc(x.name)).join(' + ');
-    const blurb = { upgrade: `Send ${names} plus more for one better ${P}.`, downtier: `Send ${names} for a lesser ${P} plus more pieces.`, sell: `Send ${names} for picks and young players.` }[goal];
-    const spec = coachRecSpec(me);
-    if (!spec) return head(`${P}: who are you sending? Then upgrade, down-tier or sell. Or add depth.`) + posChips + coachUpPickerHtml(me, mineAtP) + goalChips + `<div class="text-[12px] text-zinc-500 py-1">Add at least one of your ${P}s to see the best fits.</div>`;
-    // Upgrades: everyone who out-scores them, folded under the best fits.
-    const floor = Math.max(...ups.map(x => x.ppg || 0)), rows = pool.filter(({ a }) => (a.ppg || 0) >= floor + 1).sort(sortFn).slice(0, 40);
-    const everyone = goal !== 'upgrade' ? '' : `<details class="mt-3 group/all"><summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">Everyone who out-scores ${ups.length > 1 ? 'them' : coachEsc(ups[0].name)} (${rows.length}) <span class="group-open/all:hidden">▾</span><span class="hidden group-open/all:inline">▴</span></summary><div class="mt-2">${sortRow}${playerRows(rows, 'coachPickUpgrade')}</div></details>`;
-    return head(`${P}: who are you sending? Then upgrade, down-tier or sell. Or add depth.`) + posChips + coachUpPickerHtml(me, mineAtP) + goalChips + `<div class="text-[12px] text-zinc-400 mb-2">${blurb}</div>` + coachRecsHtml(me, spec) + everyone;
+  // A position. Add depth: cheap backups who still score, nothing of yours going out yet.
+  const P = f.pos, goal = f.posGoal;
+  const starters = (me.lineup || []).filter(s => s.id && s.pos === P);
+  const weakest = starters.length ? starters.reduce((x, y) => (y.ppg < x.ppg ? y : x)) : null;
+  const weakAsset = weakest && me.assets.find(x => x.key === 'p_' + weakest.id);
+  const pool = others.flatMap(t => t.assets.filter(a => a.type === 'player' && a.pos === P && a.value >= 300).map(a => ({ a, t })));
+  const sortFn = f.sort === 'value' ? (x, y) => y.a.value - x.a.value : f.sort === 'young' ? (x, y) => (x.a.age || 99) - (y.a.age || 99) || y.a.value - x.a.value : (x, y) => (y.a.ppg || 0) - (x.a.ppg || 0);
+  const sorts = [['points', 'Points a game'], ['value', 'Value'], ['young', 'Youngest']];
+  const sortRow = `<div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[12px] text-zinc-500 mr-1">Sort by</span>${sorts.map(([k, l]) => coachChip((f.sort || 'points') === k, l, `coachFlowSet('sort', '${k}')`)).join('')}</div>`;
+  if (goal === 'depth') {
+    const cap = Math.min(3000, weakAsset ? weakAsset.value * 0.6 : 3000);
+    const rows = pool.filter(({ a }) => a.value <= cap && (a.ppg || 0) > 0).sort(sortFn).slice(0, 40);
+    return coachAsk(`Pick your backup ${P}`, `${P}s on other teams worth ${Math.round(cap).toLocaleString()} or less who still score.`) + sortRow + playerRows(rows, 'coachPickDepth');
   }
-  return head('Which team do you want to deal with?') + `<div class="rounded-lg bg-black/30 border border-white/5 px-3">${others.map(t => teamRow(t, `coachPickTeam('${t.rosterId}')`)).join('')}</div>`;
+  const mineAtP = me.assets.filter(x => x.type === 'player' && x.pos === P).sort((x, y) => y.value - x.value);
+  const ups = coachUpAssets(), names = ups.map(x => coachEsc(x.name)).join(' + ');
+  const blurb = { upgrade: `Send ${names} plus more for one better ${P}.`, downtier: `Send ${names} for a lesser ${P} plus more pieces.`, sell: `Send ${names} for picks and young players.` }[goal];
+  const spec = coachRecSpec(me);
+  if (!spec) return coachAsk('Pick your best fit') + coachUpPickerHtml(me, mineAtP) + `<div class="text-[12px] text-zinc-500 py-1">Add at least one of yours to see the best fits.</div>`;
+  // Upgrades: everyone who out-scores them, folded under the best fits.
+  const floor = Math.max(...ups.map(x => x.ppg || 0)), rows = pool.filter(({ a }) => (a.ppg || 0) >= floor + 1).sort(sortFn).slice(0, 40);
+  const everyone = goal !== 'upgrade' ? '' : fold('all', `Everyone who out-scores ${ups.length > 1 ? 'them' : coachEsc(ups[0].name)} (${rows.length})`, sortRow + playerRows(rows, 'coachPickUpgrade'));
+  return coachAsk('Pick your best fit', blurb) + coachUpPickerHtml(me, mineAtP) + coachRecsHtml(me, spec) + everyone;
 }
 
 /* ---------- Step 3: build it ----------
@@ -1209,60 +1283,68 @@ function coachHintsHtml(me, w, r = null) {
   }
   return html;
 }
-function coachBuildHeadHtml(w) {
-  return `<div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-      <div class="text-[13px] text-zinc-300">${w.goal && w.give[0] ? `${COACH_GOALS[w.goal]} ${w.goal === 'upgrade' ? w.give.map(a => coachEsc(a.name)).join(' + ') : coachEsc(w.give[0].name)} with` : 'Building a trade with'} <span class="text-zinc-100 font-medium">${coachEsc(w.partner.teamName)}</span>: add or take off one piece at a time.</div>
-    </div>`;
-}
-// Build it with one side still empty: the two sides, what's missing, and hints.
+// Build it with one side still empty: what's next, then offers or hints, then the two sides.
 function coachBuildStartHtml(me, w) {
-  const n = v => Math.round(v).toLocaleString(), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
-  const piece = (a, side) => `<div class="flex items-center justify-between gap-2 py-1.5 border-t border-white/[0.05] first:border-t-0">
-      <span class="min-w-0 truncate text-[13px] text-zinc-100">${coachEsc(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span></span>
-      <span class="flex items-center gap-2 shrink-0"><span class="text-[11px] mono text-zinc-500">${n(a.value)}</span><button onclick="coachWorkEdit('${side}', '${a.key}', false)" aria-label="Take ${coachEsc(a.name)} off" class="px-1 text-zinc-500 hover:text-white">×</button></span>
-    </div>`;
-  const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;
-  const empty = text => `<div class="py-2 text-[12px] text-zinc-500">${text}</div>`;
-  const need = !w.give.length && !w.get.length ? `Start by asking for something from ${coachEsc(w.partner.teamName)}'s roster.` : !w.give.length ? 'Add what you\'d give for it, or use an offer below.' : 'Now add what you\'d want back.';
-  return `${coachBuildHeadHtml(w)}
-    <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${coachEsc(me.teamName)} gives</div>${w.give.map(a => piece(a, 'give')).join('') || empty('Nothing yet.')}${addSel('give', me.assets.filter(a => !inGive.has(a.key) && a.value >= 100), '+ Add one of yours…')}</div>
-      <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${coachEsc(me.teamName)} gets</div>${w.get.map(a => piece(a, 'get')).join('') || empty('Nothing yet.')}${addSel('get', w.partner.assets.filter(a => !inGet.has(a.key) && a.value >= 100), '+ Ask for one of theirs…')}</div>
-    </div>
-    <div class="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/10 text-[13px] text-zinc-200">${need} The read on both teams, and whether their manager would say yes, shows up once both sides have something.</div>
+  const names = list => list.map(a => coachEsc(a.name)).join(' + ');
+  const ask = !w.give.length && !w.get.length ? `What do you want from ${coachEsc(w.partner.teamName)}?`
+    : !w.give.length ? `What would you send for ${names(w.get)}?`
+    : `What do you want back for ${names(w.give)}?`;
+  return `${coachAsk(ask, w.give.length || w.get.length ? `Dealing with ${coachEsc(w.partner.teamName)}.` : '')}
     ${coachPackagesHtml(w)}
-    ${coachHintsHtml(me, w)}`;
+    ${coachHintsHtml(me, w)}
+    <div class="mt-5">${coachSlipHtml(me, w)}</div>`;
 }
 function coachPackagesHtml(w) {
   if (w.give.length || !w.get.length) return '';
   const names = list => list.map(a => coachEsc(a.name)).join(' + ');
-  const box = html => `<div class="mt-3"><div class="text-[12px] text-zinc-400 mb-1.5">What it could take</div>${html}</div>`;
+  const box = html => `<div><div class="text-[12px] text-zinc-400 mb-2">What it could take</div>${html}</div>`;
   if (!w.packages) return box('<div class="text-[12px] text-zinc-500 py-1">Finding offers they\'d take…</div>');
   if (!w.packages.length) return box(`<div class="text-[12px] text-zinc-500 py-1">No offer of yours gets a likely yes from ${coachEsc(w.partner.teamName)} without being bad for you. Try adding your own above.</div>`);
   const rows = w.packages.map((p, k) => {
     const tier = Vault.verdictTier(p.r.score), extra = p.get.filter(a => !w.get.includes(a));
-    return `<div class="flex items-center justify-between gap-3 py-2.5 border-t border-white/[0.06] first:border-t-0">
-        <div class="min-w-0">
-          <div class="text-[13px] text-zinc-100">Send ${names(p.give)}${extra.length ? ` <span class="text-zinc-400">and get ${names(extra)} too</span>` : ''}</div>
-          <div class="text-[11px] text-zinc-400"><span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${p.r.consensus ? ` · ${coachConsensusText(p.r)}` : ''}</div>
-        </div>
-        <button onclick="coachWorkUsePackage(${k})" class="shrink-0 text-[12px] px-3 py-1 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Use</button>
-      </div>`;
+    return coachChoice(`coachWorkUsePackage(${k})`, `Send ${names(p.give)}${extra.length ? ` <span class="text-zinc-400">and get ${names(extra)} too</span>` : ''}`,
+      `<span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${p.r.consensus ? ` · ${coachConsensusText(p.r)}` : ''}`);
   }).join('');
-  return box(`<div class="rounded-lg bg-black/30 border border-white/5 px-3">${rows}</div>`);
+  return box(`<div class="grid gap-2">${rows}</div>`);
 }
 
+const COACH_STEP_ORDER = { what: 0, goal: 1, send: 2, pick: 3, build: 4, neg: 5 };
 function renderCoach() {
   const head = document.getElementById('coachHead'), box = document.getElementById('coachBody');
   if (!head || !coachOpen()) return;
-  const me = coachMe(), neg = Coach.option === 'negotiate', f = coachFlow();
+  const me = coachMe(), neg = Coach.option === 'negotiate', f = coachFlow(), step = neg ? 'neg' : f.step;
+  // The body first: it works out the read the rail shows.
+  const html = neg ? `<div class="text-[13px] text-zinc-400 mb-3">Offer the trade loaded in the builder. Their manager answers in their own words, and you can steer what you ask for next.</div>${coachNegotiateHtml()}`
+    : step === 'build' && Coach.work ? coachWorkHtml(me) : step === 'pick' ? coachPickHtml(me) : step === 'send' ? coachSendHtml(me) : step === 'goal' ? coachGoalHtml(me) : coachWhatHtml(me);
   head.innerHTML = `
-    <div class="flex items-center justify-between gap-3 flex-wrap mb-1">
-      <h2 class="text-[18px] font-semibold text-zinc-100">Trade Coach</h2>
-      <nav aria-label="Where you are" class="text-[12px] flex flex-wrap items-center">${neg ? `<button onclick="coachFlowGo(Coach.work ? 'build' : 'what')" class="text-zinc-400 hover:text-white">← Back to Trade Coach</button>` : coachCrumbsHtml(me)}</nav>
+    <div class="flex items-center justify-between gap-3">
+      <div class="min-w-0 flex items-baseline gap-2.5"><h2 id="coachTitle" class="display text-[22px] leading-none gold-text">Trade Coach</h2><span class="text-[12px] text-zinc-500 truncate">${coachEsc(me.teamName)}</span></div>
+      <button onclick="setView('builder')" aria-label="Close Trade Coach" class="shrink-0 size-8 -mr-1.5 rounded-lg text-[20px] leading-none text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors">×</button>
     </div>
-    <div class="mb-4">${coachTeamLineHtml(me)}</div>`;
+    ${neg && !Coach.work ? '' : coachRailHtml(me, neg)}`;
   coachSync();
-  if (neg) { box.innerHTML = `<div class="text-[12px] text-zinc-400 mb-3 max-w-[680px]">Offer the trade loaded in the builder. Their manager answers in their own words, and you can steer what you ask for next.</div>${coachNegotiateHtml()}`; return; }
-  box.innerHTML = f.step === 'build' && Coach.work ? coachWorkHtml(me) : f.step === 'pick' && f.what ? coachPickHtml(me) : coachWhatHtml(me);
+  const from = Coach.shownStep, moved = from !== step;
+  Coach.shownStep = step;
+  box.innerHTML = `<div class="${!moved || from == null ? '' : COACH_STEP_ORDER[step] < COACH_STEP_ORDER[from] ? 'coach-prev' : 'coach-next'}">${html}</div>`;
+  document.getElementById('coachFoot').innerHTML = coachFootHtml(neg);
+  if (moved) {
+    document.getElementById('coachScroll').scrollTop = 0;
+    document.getElementById('coachPanel').focus({ preventScroll: true });
+  }
 }
+// A search list opening low in the panel: scroll until all of it shows.
+['focusin', 'input'].forEach(type => document.getElementById('coachScroll').addEventListener(type, e => {
+  if (e.target.matches('.vs-input')) requestAnimationFrame(() => e.target.closest('.vs-wrap').querySelector('.vs-list:not(.hidden)')?.scrollIntoView({ block: 'nearest' }));
+}));
+// Esc closes (an open search list closes first), and Tab stays inside the pop-up.
+document.addEventListener('keydown', e => {
+  if (view !== 'coach') return;
+  const panel = document.getElementById('coachPanel');
+  if (e.key === 'Escape') { if (!panel.querySelector('.vs-list:not(.hidden)')) setView('builder'); return; }
+  if (e.key !== 'Tab') return;
+  const stops = [...panel.querySelectorAll('button, input, select:not(.vs-native), summary, a[href]')].filter(el => el.offsetParent !== null);
+  if (!stops.length) return;
+  const first = stops[0], last = stops[stops.length - 1], at = document.activeElement;
+  if (!panel.contains(at) || at === panel || (e.shiftKey && at === first)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+  else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
+});
