@@ -5158,3 +5158,78 @@ const Vault = {
   document.addEventListener('DOMContentLoaded', run);
   Vault.enhanceSearchSelects = run;
 })();
+
+/* Shared pop-up (user, 2026-11-04: less scrolling). Vault.popup({ title, html, foot }) opens it,
+   or swaps what's in it if it's already open; a full-screen sheet on phones. Esc, the ×
+   and clicking outside close it, and so does the phone's Back button: full screen it looks
+   like a page, so Back has to mean "out of this", not "leave the page". A link out of a
+   pop-up should use location.replace, or Back lands on that spare history entry.
+   title, html and foot are HTML: escape anything from a league. */
+(function () {
+  let box = null, returnTo = null, leaving = false; // leaving: our own history.back() hasn't landed yet
+  const panel = () => box.querySelector('#vaultPopupPanel');
+  const isOpen = () => !!box && !box.classList.contains('hidden');
+  // Stops the page scrolling behind a pop-up, without it shifting when the scrollbar goes.
+  Vault.pageLock = on => {
+    const root = document.documentElement;
+    document.body.style.paddingRight = on ? `${innerWidth - root.clientWidth}px` : '';
+    root.classList.toggle('overflow-hidden', on);
+  };
+  function hide() {
+    box.classList.add('hidden');
+    Vault.pageLock(false);
+    if (returnTo && document.contains(returnTo)) returnTo.focus({ preventScroll: true });
+    returnTo = null;
+  }
+  function build() {
+    box = document.createElement('div');
+    box.className = 'hidden fixed inset-0 z-[60]';
+    box.innerHTML = `<div class="absolute inset-0 bg-black/75" data-popup-close></div>
+      <div class="relative h-full flex items-center justify-center sm:p-6 pointer-events-none">
+        <div id="vaultPopupPanel" role="dialog" aria-modal="true" aria-labelledby="vaultPopupTitle" tabindex="-1" class="pointer-events-auto w-full sm:max-w-[720px] h-[100dvh] sm:h-auto sm:max-h-full flex flex-col bg-[#14161a] sm:border sm:border-white/10 sm:rounded-2xl shadow-2xl shadow-black/60 outline-none fade-in">
+          <div class="shrink-0 flex items-start justify-between gap-3 px-4 sm:px-6 py-3.5 border-b border-white/[0.06]">
+            <h2 id="vaultPopupTitle" class="display text-[22px] leading-tight text-zinc-100 min-w-0"></h2>
+            <button data-popup-close aria-label="Close" class="shrink-0 size-8 -mr-1.5 rounded-lg text-[20px] leading-none text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors">×</button>
+          </div>
+          <div id="vaultPopupBody" class="flex-1 min-h-0 overflow-y-auto scrollbar px-4 sm:px-6 py-5"></div>
+          <div id="vaultPopupFoot" class="shrink-0"></div>
+        </div>
+      </div>`;
+    document.body.append(box);
+    box.addEventListener('click', e => { if (e.target.closest('[data-popup-close]')) Vault.popupClose(); });
+    addEventListener('popstate', () => {
+      if (leaving) { leaving = false; if (isOpen()) history.pushState({ vaultPopup: true }, ''); return; } // opened again before it landed
+      if (isOpen()) hide();
+    });
+    document.addEventListener('keydown', e => {
+      if (!isOpen()) return;
+      if (e.key === 'Escape') return Vault.popupClose();
+      if (e.key !== 'Tab') return;
+      const stops = [...panel().querySelectorAll('button:not([disabled]), a[href], summary, select, input')].filter(el => el.offsetParent !== null);
+      if (!stops.length) return;
+      const first = stops[0], last = stops[stops.length - 1], at = document.activeElement;
+      if (!panel().contains(at) || at === panel() || (e.shiftKey && at === first)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+      else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
+    });
+  }
+  Vault.popupOpen = isOpen;
+  Vault.popupClose = () => {
+    if (!isOpen()) return;
+    hide();
+    if (history.state?.vaultPopup) { leaving = true; history.back(); }
+  };
+  Vault.popup = ({ title, html, foot = '' }) => {
+    if (!box) build();
+    box.querySelector('#vaultPopupTitle').innerHTML = title;
+    box.querySelector('#vaultPopupFoot').innerHTML = foot;
+    const body = box.querySelector('#vaultPopupBody');
+    body.innerHTML = html;
+    body.scrollTop = 0;
+    if (isOpen()) return;
+    returnTo = document.activeElement;
+    Vault.pageLock(true);
+    box.classList.remove('hidden');
+    if (!leaving) history.pushState({ vaultPopup: true }, '');
+    panel().focus({ preventScroll: true });
+  };
+})();

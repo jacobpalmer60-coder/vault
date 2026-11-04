@@ -9,7 +9,7 @@
 <title>Trade Grades — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=0774d5ad">
+<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -35,11 +35,11 @@
   </div>
 
   <div id="teamFilterBar" class="hidden mb-4"></div>
-  <div id="list" class="space-y-4"></div>
+  <div id="list" class="space-y-2"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=3e56727f"></script>
+<script src="vault-core.js?v=18fa7b88"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script src="season-report.js?v=837c7cb0"></script>
 <script>
@@ -236,7 +236,42 @@ function seasonHtml(g) {
     </div>`;
 }
 
-function renderCard(g) {
+// A trade as one short row (user, 2026-11-04: less scrolling): when, the price, and for each
+// team its verdict and what it got. The row opens the full grade.
+function renderRow(g, i) {
+  const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const word = Vault.priceWord(g.bucket), names = list => list.map(a => Vault.escapeHtml(a.name)).join(', ') || 'Nothing';
+  const side = s => {
+    const imp = Vault.gradedImprovement(g, s);
+    return `<span class="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,200px)_104px_minmax(0,1fr)] gap-x-3 items-baseline">
+        <span class="truncate text-[13px] text-zinc-100">${Vault.escapeHtml(g['team' + s].teamName)}</span>
+        <span class="inline-flex items-center gap-1.5 text-[12px] font-medium ${Vault.VERDICT_TIER_TEXT[imp.tier]}"><span class="size-1.5 rounded-full ${VERDICT_DOT[imp.level]}"></span>${imp.label}</span>
+        <span class="col-span-2 sm:col-span-1 truncate text-[12px] text-zinc-400">gets ${names(s === 'A' ? g.toA : g.toB)}</span>
+      </span>`;
+  };
+  return `<button onclick="showGrade(${i})" class="block w-full text-left card card-hover rounded-xl px-4 py-2.5 space-y-1">
+      <span class="flex items-center justify-between gap-3 text-[12px]">
+        <span class="text-zinc-400 mono">${date}</span>
+        <span class="inline-flex items-center gap-2"><span class="${(Vault.BUCKET_STYLE[word] || Vault.BUCKET_STYLE.Fair).text}">${word}</span><span class="text-zinc-400">${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off</span><span class="text-zinc-500" aria-hidden="true">›</span></span>
+      </span>
+      ${side('A')}${side('B')}
+    </button>`;
+}
+// The list as shown, for Previous and Next in the pop-up.
+let shown = [], gradeAt = 0;
+function showGrade(i) {
+  const g = shown[i];
+  if (!g) return;
+  gradeAt = i;
+  const nav = (to, label, on) => `<button onclick="showGrade(${to})" ${on ? '' : 'disabled'} class="text-[13px] px-3.5 py-2 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 disabled:opacity-40 disabled:pointer-events-none transition-colors">${label}</button>`;
+  Vault.popup({
+    title: `${Vault.escapeHtml(g.teamA.teamName)} and ${Vault.escapeHtml(g.teamB.teamName)}`,
+    html: renderGrade(g),
+    foot: `<div class="flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-t border-white/[0.06]">${nav(i - 1, '← Previous', i > 0)}<span class="text-[12px] text-zinc-400">${i + 1} of ${shown.length}</span>${nav(i + 1, 'Next →', i < shown.length - 1)}</div>`,
+  });
+}
+
+function renderGrade(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const bucket = g.bucket;
   const notes = [
@@ -254,7 +289,6 @@ function renderCard(g) {
     ...(g.depthB?.note ? [{ ...g.depthB.note, who: g.teamB.teamName }] : [])
   ];
   return `
-    <div class="card rounded-vault-sm p-5">
       <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
         <div class="text-[12px] text-zinc-400 mono">${date}</div>
         <div class="flex items-center gap-x-4 gap-y-1 flex-wrap">${['A', 'B'].map(side => { const imp = Vault.gradedImprovement(g, side); return `<span class="inline-flex items-center gap-1.5" title="The verdict for ${Vault.escapeHtml(g['team' + side].teamName)} (${Vault.MODE_LABEL[imp.mode]}), the Trade Calculator's: value at the time, roster fit, timeline and this season's points${imp.outOfRace ? ' (not counted: out of the playoff race then)' : ''}."><span class="size-2 rounded-full ${VERDICT_DOT[imp.level]}"></span><span class="text-[13px] font-medium ${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span><span class="text-[12px] text-zinc-400">for ${Vault.escapeHtml(g['team' + side].teamName)}</span></span>`; }).join('')}</div>
@@ -281,7 +315,7 @@ function renderCard(g) {
         ${valueAloneText(g)}
         ${agedText(g) ? `<div class="text-[12px] text-zinc-400 mt-1.5">${agedText(g)}</div>` : ''}
       </div>
-      ${`<details class="group mt-3 pt-2 border-t border-white/5">
+      ${`<details open class="group mt-3 pt-2 border-t border-white/5">
         <summary class="flex items-center gap-1.5 py-1 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
           <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
           <span>More: ${seasonEffect(g) && !seasonEffect(g).gone ? 'this season\'s odds, ' : ''}how it's graded${notes.length ? `, the full breakdown (${notes.length})` : ''}</span>
@@ -291,8 +325,7 @@ function renderCard(g) {
         <div class="space-y-1.5 mt-3">
           ${notes.map(n => `<div class="flex gap-2 text-[12px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="min-w-0"><span class="text-zinc-400">${Vault.escapeHtml(n.who)}:</span> <span class="${TONE[n.tone]}">${n.text}</span></span></div>`).join('')}
         </div>
-      </details>`}
-    </div>`;
+      </details>`}`;
 }
 
 const FAIR_FILTER_TITLE = {
@@ -350,6 +383,7 @@ function renderList() {
 
   const list = document.getElementById('list');
   const empty = document.getElementById('empty');
+  shown = items;
   if (!items.length) {
     list.innerHTML = '';
     empty.classList.remove('hidden');
@@ -357,7 +391,8 @@ function renderList() {
     return;
   }
   empty.classList.add('hidden');
-  list.innerHTML = items.map(renderCard).join('');
+  list.innerHTML = items.map(renderRow).join('');
+  if (Vault.popupOpen()) showGrade(gradeAt); // the out-of-race check landing with a trade open
 }
 
 async function init() {

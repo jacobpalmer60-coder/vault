@@ -9,7 +9,7 @@
 <title>Team Analyzer — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=0774d5ad">
+<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -23,7 +23,7 @@
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Team Analyzer</h1>
       <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
-      <p class="text-[13px] text-zinc-400 mt-2 max-w-[620px]">One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team on the right.</p>
+      <p class="hidden sm:block text-[13px] text-zinc-400 mt-2 max-w-[620px]">One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team on the right.</p>
     </div>
     <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
   </div>
@@ -37,7 +37,7 @@
   <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=3e56727f"></script>
+<script src="vault-core.js?v=18fa7b88"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script src="season-report.js?v=837c7cb0"></script>
 <script src="market-data.js?v=0902cb1e"></script>
@@ -67,6 +67,7 @@ const TEAM_TABS = [['overview', 'Overview'], ['roster', 'Roster'], ['season', 'T
 function showTab(key) {
   if (!TEAM_TABS.some(([k]) => k === key)) key = 'overview';
   document.querySelectorAll('[data-tab]').forEach(el => el.classList.toggle('hidden', el.dataset.tab !== key));
+  $('#singleCard').classList.toggle('tiles-off', key !== 'overview');
   $('#teamTabs').innerHTML = TEAM_TABS.map(([k, label]) => `<button role="tab" aria-selected="${k === key}" onclick="showTab('${k}')" class="whitespace-nowrap text-[13px] px-3 sm:px-3.5 py-2 rounded-lg border transition-colors ${k === key ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`).join('');
   try { localStorage.setItem('vault_team_tab', key); } catch {}
   const u = new URL(location.href); u.hash = key === 'overview' ? '' : key; history.replaceState(null, '', u);
@@ -140,9 +141,9 @@ function statTile(label, val, display, all, key, rosterId, higherIsBetter, title
   const ranked = all.filter(x => Number.isFinite(x[key])).sort((a, b) => higherIsBetter === false ? a[key] - b[key] : b[key] - a[key]);
   const rankIdx = finite ? ranked.findIndex(x => x.rosterId === rosterId) : -1;
   const rankText = rankIdx >= 0 ? `#${rankIdx + 1}/${ranked.length}` : '—';
-  return `<div class="stat-tile relative overflow-hidden" ${title ? `title="${Vault.escapeHtml(title)}"` : ''}>
+  return `<div class="stat-tile relative overflow-hidden max-sm:!px-2.5 max-sm:!py-2" ${title ? `title="${Vault.escapeHtml(title)}"` : ''}>
     <div class="absolute top-0 inset-x-0 h-[3px]" style="background:${color}"></div>
-    <div class="flex items-center justify-between mt-1">
+    <div class="flex max-sm:flex-col sm:items-center justify-between gap-x-2 mt-1">
       <div class="stat-label">${label}</div>
       <div class="text-[11px] mono text-zinc-400">${rankText}</div>
     </div>
@@ -176,18 +177,18 @@ function renderSingle(t) {
     statTile('Lineup PPG', t.opt, t.opt.toFixed(1), all, 'opt', t.rosterId, true),
     statTile('VORP', t.vorpTotal, Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—', all, 'vorpTotal', t.rosterId, true, "Optimal lineup's total Value Over Replacement Player — real, scarcity-adjusted edge over readily-available replacements, not just raw scoring rate. Comparable across positions, unlike Opt PPG."),
     statTile('Age', t.age, t.age.toFixed(1), all, 'age', t.rosterId, null),
-    statTile('Picks Value', t.picksValue, Math.round(t.picksValue).toLocaleString(), all, 'picksValue', t.rosterId, true),
+    statTile('Picks<span class="max-sm:hidden"> Value</span>', t.picksValue, Math.round(t.picksValue).toLocaleString(), all, 'picksValue', t.rosterId, true),
   ].join('');
   $('#singleCard').innerHTML = `
-  <div class="card rounded-vault p-6 fade-in">
+  <div class="card rounded-vault p-4 sm:p-6 fade-in">
     <div class="flex items-start justify-between gap-4">
-      <div>
-        <h2 class="display text-[24px] gold-text">${Vault.escapeHtml(t.teamName)}</h2>
+      <div class="min-w-0">
+        <h2 class="display text-[22px] sm:text-[24px] leading-tight gold-text">${Vault.escapeHtml(t.teamName)}</h2>
         <p class="text-[12px] text-zinc-400">${[t.username ? '@' + Vault.escapeHtml(t.username) : '', `#${t.rank} of ${all.length} in value`, t.record ? `${t.record.wins}-${t.record.losses}${t.record.ties ? '-' + t.record.ties : ''}` : '', Number.isFinite(t.playoffPct) ? `${pctText(t.playoffPct)} playoff odds` : ''].filter(Boolean).join(' · ')}</p>
       </div>
       <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="shrink-0 px-3 py-1.5 rounded-full text-[12px] border bg-gradient-to-r ${t.archCls}">${t.arch}</span>
     </div>
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4 mt-6">
+    <div class="[.tiles-off_&]:max-sm:hidden grid grid-cols-3 md:grid-cols-6 gap-2 sm:gap-4 mt-3 sm:mt-6">
       ${statTiles}
     </div>
   </div>`;

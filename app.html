@@ -9,7 +9,7 @@
 <title>League Overview — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=0774d5ad">
+<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -38,7 +38,7 @@
     <label for="mobileSort">Sort by</label>
     <select id="mobileSort" class="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[13px] text-zinc-200 outline-none"></select>
   </div>
-  <div id="mobileCards" class="md:hidden space-y-3"></div>
+  <div id="mobileCards" class="md:hidden space-y-2"></div>
 
   <div class="hidden md:block card rounded-vault overflow-hidden relative">
     <div id="tableScroll" class="overflow-x-auto scrollbar">
@@ -115,7 +115,7 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=3e56727f"></script>
+<script src="vault-core.js?v=18fa7b88"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 };
@@ -445,52 +445,74 @@ function renderMobileSort() {
   sel.innerHTML = MOBILE_SORTS.map(([k, label]) => `<option value="${k}" ${sort.key === k ? 'selected' : ''}>${label}${sort.key === k && sort.dir > 0 ? ' (reversed)' : ''}</option>`).join('');
   sel.onchange = () => { const k = sel.value; if (sort.key === k) sort.dir *= -1; else { sort.key = k; sort.dir = k === 'teamName' || k === 'age' ? 1 : -1; } render(); };
 }
+// What the phone list is sorted by, so the number on each row is the one it's in order of.
+function mobileStat(t) {
+  const proj = projectedText(t), pct = (v, d = 0) => (v == null ? '—' : v.toFixed(d) + '%');
+  const stats = {
+    nowScore: ['Title', pct(proj?.championshipPct, 1)],
+    overall: ['Value', kFmt(t.overall)],
+    actualSort: ['PPG', t.actualPpg != null ? t.actualPpg.toFixed(1) : '—'],
+    playoffPct: ['Playoffs', pct(proj?.playoffPct)],
+    recordWinPct: ['Record', t.record ? recordText(t) : '—'],
+    total: ['Players', kFmt(t.total)],
+    picksValue: ['Picks', kFmt(t.picksValue)],
+    opt: ['Lineup', t.opt.toFixed(1)],
+    vorpTotal: ['VORP', Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—'],
+    longevity: ['Longevity', `${t.windowYears}yr`],
+    age: ['Age', t.age.toFixed(1)],
+  };
+  return stats[sort.key] || stats.overall;
+}
+// Each team as one short row (user, 2026-11-04: 368px a card put the bottom of the league
+// four screens down). The row opens the rest; the team page is a button from there.
+let mobileRange = [0, 0];
 function renderMobileCards(data, minOverall, maxOverall) {
   renderMobileSort();
-  const mount = document.getElementById('mobileCards');
-  mount.innerHTML = data.map(t => {
-    const proj = projectedText(t);
-    return `<div class="card card-hover rounded-vault-sm p-4 mobile-team-card" data-id="${t.rosterId}">
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2.5 min-w-0">
-          <span class="w-5 text-right num text-[16px] text-zinc-500 shrink-0">${t.viewRank}</span>
-          <div class="min-w-0">
-            <div class="font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}${youTag(t)}</div>
-            <div class="text-[12px] text-zinc-400 truncate">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks${t.record ? ` • <span class="mono text-zinc-400">${recordText(t)}</span>` : ''}</div>
-            ${careerRecordText(t) ? `<div class="text-[12px] text-zinc-400 truncate mt-0.5">${careerRecordText(t)}</div>` : ''}
-          </div>
-        </div>
-        <svg class="size-3 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 18 6-6-6-6" stroke-width="2"/></svg>
-      </div>
-
-      <div class="flex items-center justify-between gap-3 mt-3.5">
+  mobileRange = [minOverall, maxOverall];
+  document.getElementById('mobileCards').innerHTML = data.map(t => {
+    const [label, value] = mobileStat(t);
+    return `<button onclick="showTeam(${t.rosterId})" class="w-full text-left card card-hover rounded-xl px-3.5 py-2.5 flex items-center gap-3">
+      <span class="w-5 text-right num text-[16px] text-zinc-500 shrink-0">${t.viewRank}</span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-[14px] font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}${youTag(t)}</span>
+        <span class="block text-[12px] text-zinc-400 truncate">${[t.record ? `<span class="mono">${recordText(t)}</span>` : '', t.arch].filter(Boolean).join(' • ')}</span>
+      </span>
+      <span class="shrink-0 text-right"><span class="block num text-[18px] text-zinc-100">${value}</span><span class="block text-[11px] text-zinc-400">${label}</span></span>
+      <span class="shrink-0 text-zinc-500" aria-hidden="true">›</span>
+    </button>`;
+  }).join('');
+}
+function showTeam(id) {
+  const t = teams.find(x => x.rosterId === Number(id)), proj = t && projectedText(t);
+  if (!t) return;
+  const stat = (v, label, cls = 'text-zinc-200') => `<div><div class="font-mono text-[13px] ${cls}">${v}</div><div class="text-[12px] text-zinc-400">${label}</div></div>`;
+  Vault.popup({
+    title: `${Vault.escapeHtml(t.teamName)}${youTag(t)}`,
+    html: `<div class="text-[12px] text-zinc-400">${t.username ? '@' + Vault.escapeHtml(t.username) + ' • ' : ''}${t.picks.length} picks${t.record ? ` • <span class="mono">${recordText(t)}</span>` : ''}</div>
+      ${careerRecordText(t) ? `<div class="text-[12px] text-zinc-400 mt-0.5">${careerRecordText(t)}</div>` : ''}
+      <div class="flex items-center justify-between gap-3 mt-4">
         <div>
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Dynasty value</div>
           <div class="num text-[26px] text-zinc-50">${ord(rankMap(x => x.overall).get(t.rosterId))} <span class="text-[13px] font-mono text-zinc-500">${kFmt(t.overall)}</span></div>
-          ${microBar(t.overall, minOverall, maxOverall)}
+          ${microBar(t.overall, ...mobileRange)}
         </div>
-        <span title="${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch]?.desc || '')}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
       </div>
-
-      <div class="mt-3.5">${posChips(t)}</div>
-
-      <div class="grid grid-cols-4 gap-2 text-center py-3 mt-3.5 border-y border-white/5">
-        <div><div class="font-mono text-[13px] text-zinc-200">${t.age.toFixed(1)}</div><div class="text-[12px] text-zinc-400">Age</div></div>
-        <div><div class="font-mono text-[13px] text-zinc-200">${t.actualPpg != null ? t.actualPpg.toFixed(1) : '—'}</div><div class="text-[12px] text-zinc-400">PPG <span class="text-zinc-500">(${t.opt.toFixed(0)} proj.)</span></div></div>
-        <div><div class="font-mono text-[13px] text-zinc-100">${Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—'}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
-        <div><div class="font-mono text-[13px] text-zinc-200">${t.windowYears}yr</div><div class="text-[12px] text-zinc-400">Longevity</div></div>
+      ${Vault.ARCHETYPE_INFO[t.arch]?.desc ? `<p class="text-[12px] text-zinc-400 mt-2">${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch].desc)}</p>` : ''}
+      <div class="mt-4">${posChips(t)}</div>
+      <div class="grid grid-cols-4 gap-2 text-center py-3 mt-4 border-y border-white/5">
+        ${stat(t.age.toFixed(1), 'Age')}
+        ${stat(t.actualPpg != null ? t.actualPpg.toFixed(1) : '—', `PPG <span class="text-zinc-500">(${t.opt.toFixed(0)} proj.)</span>`)}
+        ${stat(Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—', 'VORP', 'text-zinc-100')}
+        ${stat(`${t.windowYears}yr`, 'Longevity')}
       </div>
-
       <div class="grid grid-cols-3 gap-2 text-center py-3 border-b border-white/5">
-        <div><div class="font-mono text-[13px] text-zinc-200">${proj?.rec ?? '—'}</div><div class="text-[12px] text-zinc-400">Proj. Record</div></div>
-        <div><div class="font-mono text-[13px] ${(proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-200'}">${proj ? proj.playoffPct.toFixed(0) + '%' : '—'}</div><div class="text-[12px] text-zinc-400">Playoff %</div></div>
-        <div><div class="font-mono text-[13px] ${(proj?.championshipPct ?? 0) >= 15 ? 'text-zinc-100 font-medium' : 'text-zinc-200'}">${proj ? proj.championshipPct.toFixed(1) + '%' : '—'}</div><div class="text-[12px] text-zinc-400">Title %</div></div>
-      </div>
-
-    </div>`;
-  }).join('');
-  mount.querySelectorAll('.mobile-team-card').forEach(el => {
-    el.onclick = () => { location.href = teamLink(teams.find(t => t.rosterId === Number(el.dataset.id))); };
+        ${stat(proj?.rec ?? '—', 'Proj. Record')}
+        ${stat(proj ? proj.playoffPct.toFixed(0) + '%' : '—', 'Playoff %', (proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-200')}
+        ${stat(proj ? proj.championshipPct.toFixed(1) + '%' : '—', 'Title %', (proj?.championshipPct ?? 0) >= 15 ? 'text-zinc-100 font-medium' : 'text-zinc-200')}
+      </div>`,
+    // location.replace: Back from the team page comes here, not to the spare entry the pop-up added.
+    foot: `<div class="px-4 sm:px-6 py-3 border-t border-white/[0.06]"><a href="${teamLink(t)}" onclick="event.preventDefault(); location.replace(this.href)" class="block text-center text-[13px] px-4 py-2.5 rounded-lg btn-gold-solid">Open team page</a></div>`,
   });
 }
 

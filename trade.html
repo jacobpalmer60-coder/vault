@@ -9,7 +9,7 @@
 <title>Trade Calculator — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=0774d5ad">
+<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -223,7 +223,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=3e56727f"></script>
+<script src="vault-core.js?v=18fa7b88"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -238,11 +238,9 @@ let selectedB = new Set();
 let view = 'builder';
 function setView(v) {
   if (v !== 'coach') v = 'builder';
-  const was = view, root = document.documentElement, open = v === 'coach';
+  const was = view, open = v === 'coach';
   view = v;
-  // Stops the page scrolling behind the pop-up, without it shifting when the scrollbar goes.
-  document.body.style.paddingRight = open ? `${innerWidth - root.clientWidth}px` : '';
-  root.classList.toggle('overflow-hidden', open);
+  Vault.pageLock(open);
   document.getElementById('coach').classList.toggle('hidden', !open);
   const me = teamOf('A');
   document.getElementById('launcherTeam').textContent = me ? me.teamName : '';
