@@ -9,7 +9,7 @@
 <title>Patch Notes — The Vault</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=2d210117">
+<link rel="stylesheet" href="tailwind.css?v=0787f0cb">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -39,6 +39,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-04', items: [
+    { kind: 'new', page: 'Player Rankings', text: "Min and max filters: open Min / max and set limits on age, value, market price, trend, projected points or VORP, such as market price under 3,000 with at least 12 points a game. Players with no number in a filtered column are left out." },
     { kind: 'new', page: 'Player Rankings', text: "Sort by several columns: turn on Sort by several, then click each column you want, such as market price going up and projected points going down. Players are ranked on each column and listed by their combined rank, so cheap players with strong projections come first." },
     { kind: 'fixed', page: 'Player Rankings', text: "Players who are hurt and projected to miss the rest of the season now read Out instead of the points they'd score healthy, and no longer count in the green and red projection colors. Hover to see their healthy projection." },
     { kind: 'fixed', page: 'Player Rankings', text: "Healthy players projected to play only a game or two of the weeks left, mostly backup quarterbacks, now read Bench instead of a points-per-game number based on those few games, so they no longer top a sort. Hover to see the number." },

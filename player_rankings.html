@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=3aeabd20">
-<link rel="stylesheet" href="tailwind.css?v=2d210117">
+<link rel="stylesheet" href="tailwind.css?v=0787f0cb">
 <style>
   /* Phones: tighter cells, so value, market price and projected points fit without scrolling sideways (2026-10-23). */
   @media (max-width: 639px) { table th, #tbody td { padding-left: 0.5rem !important; padding-right: 0.5rem !important; } }
@@ -57,12 +57,14 @@
           <div id="trendWindowToggle" class="flex items-center bg-black/40 border border-white/[0.08] rounded-xl p-1"></div>
         </div>
       </div>
-      <div class="flex items-center gap-3 text-xs text-zinc-400">
-        <span id="sortHint" class="max-w-[260px] leading-snug"></span>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-zinc-400">
+        <span id="sortHint" class="min-w-[150px] max-w-[260px] leading-snug"></span>
+        <button id="rangeToggle" aria-expanded="false" aria-controls="rangePanel" class="px-3 py-1.5 rounded-lg border border-white/[0.08] hover:bg-white/5 whitespace-nowrap">Min / max</button>
         <button id="multiSort" aria-pressed="false" class="px-3 py-1.5 rounded-lg border border-white/[0.08] hover:bg-white/5 whitespace-nowrap">Sort by several</button>
         <button id="resetFilters" class="px-3 py-1.5 rounded-lg border border-white/[0.08] hover:bg-white/5">Reset</button>
       </div>
     </div>
+    <div id="rangePanel" class="hidden mt-4 pt-4 border-t border-white/[0.06] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"></div>
   </div>
 
   <!-- Table -->
@@ -123,6 +125,10 @@
   let sortKeys = SORT_DEFAULT();
   let sortPicked = false; // false until someone picks a column, so the first pick replaces the default
   let multiSort = false;
+  // Min and max on each number column (user, 2026-11-04). A row with nothing in a
+  // filtered column is left out: Out, Bench and picks don't pass a PPG minimum.
+  const RANGE_COLS = [['age', 'Age'], ['value', 'Value'], ['marketPrice', 'Market price'], ['trendDelta', 'Trend'], ['ppg', 'Proj. PPG'], ['vorp', 'VORP']];
+  let rangeFilters = {};
   let posFilter = 'ALL';
   let searchQuery = '';
   let isSF = true; // default assumption until league loads
@@ -747,7 +753,10 @@
         const hay = `${r.player} ${r.team} ${r.pos}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      return true;
+      return Object.entries(rangeFilters).every(([key, { min, max }]) => {
+        const v = r[key];
+        return !sortBlank(v) && (min == null || v >= min) && (max == null || v <= max);
+      });
     });
     sortRows();
     renderTable();
@@ -847,6 +856,34 @@
     });
   });
 
+  // Empty boxes clear that side; a column with neither side set isn't filtered.
+  function readRangeFilters() {
+    const side = (key, end) => {
+      const v = document.getElementById(`range-${key}-${end}`).value.trim();
+      return v === '' || !Number.isFinite(+v) ? null : +v;
+    };
+    rangeFilters = {};
+    RANGE_COLS.forEach(([key]) => {
+      const min = side(key, 'min'), max = side(key, 'max');
+      if (min != null || max != null) rangeFilters[key] = { min, max };
+    });
+    renderRangeToggle();
+    applyFiltersAndRender();
+  }
+  function renderRangeToggle() {
+    const n = Object.keys(rangeFilters).length, btn = $('#rangeToggle'), open = !$('#rangePanel').classList.contains('hidden');
+    btn.textContent = n ? `Min / max (${n})` : 'Min / max';
+    btn.setAttribute('aria-expanded', open);
+    btn.classList.toggle('bg-white/[0.08]', open || n > 0);
+    btn.classList.toggle('text-white', open || n > 0);
+  }
+  $('#rangePanel').innerHTML = RANGE_COLS.map(([key, label]) => {
+    const box = (end, word) => `<input id="range-${key}-${end}" type="number" step="any" inputmode="decimal" placeholder="${word}" aria-label="${label} ${word}" class="w-full min-w-0 bg-black/40 border border-white/[0.08] rounded-lg px-2 py-1.5 text-[13px] text-zinc-100 outline-none focus:border-white/25">`;
+    return `<div class="min-w-0"><div class="text-[11px] text-zinc-400 mb-1">${label}</div><div class="flex items-center gap-1.5">${box('min', 'Min')}${box('max', 'Max')}</div></div>`;
+  }).join('');
+  $('#rangePanel').addEventListener('input', readRangeFilters);
+  $('#rangeToggle').addEventListener('click', () => { $('#rangePanel').classList.toggle('hidden'); renderRangeToggle(); });
+
   function renderSortMode() {
     const btn = $('#multiSort');
     btn.setAttribute('aria-pressed', multiSort);
@@ -880,6 +917,10 @@
     document.querySelectorAll('.pos-btn').forEach((b, i) => b.classList.toggle('bg-white/[0.08]', i === 0));
     sortKeys = SORT_DEFAULT(); sortPicked = false; multiSort = false;
     renderSortMode();
+    rangeFilters = {};
+    document.querySelectorAll('#rangePanel input').forEach(i => { i.value = ''; });
+    $('#rangePanel').classList.add('hidden');
+    renderRangeToggle();
     applyFiltersAndRender();
   });
 
