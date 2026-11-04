@@ -664,6 +664,13 @@ const coachByConsensus = (x, y) => coachConsensusBand(x) - coachConsensusBand(y)
 // Chase listed two Leans bad deals first). Consensus only orders trades within those.
 const COACH_LEVEL_ORDER = { good: 0, tossup: 1, bad: 2 };
 const coachLevelRank = r => COACH_LEVEL_ORDER[Vault.verdictTier(r.score).level] ?? 1;
+// Among those, 2-for-1s (either way) before 1-for-1s, anything bigger after (user, 2026-11-04).
+// In the 2.15M trades of Trade Lab, 2-for-1s are the most common deal (27.8%, 1-for-1s 26.5%)
+// and land closer: typically 6.3% apart against 14.4%.
+const coachShapeRank = (give, get) => {
+  const fewer = Math.min(give.length, get.length), more = Math.max(give.length, get.length);
+  return fewer === 1 && more === 2 ? 0 : fewer === 1 && more === 1 ? 1 : 2;
+};
 const coachConsensusText = r => (r.consensus ? `Consensus: ${r.consensus.text}` : '');
 // You've named who you want: what of yours would get him, so the next step isn't
 // picking one of your own players blind (user, 2026-11-03). Packages their manager
@@ -678,7 +685,7 @@ async function coachWorkPackages(w, seq, me) {
   if (Coach.work !== w || w.seq !== seq) return;
   const offers = coachOffers(me, w.partner, w.get, { limit: COACH_PACKAGES_SHOW * 3, perLead: 2, option: 'build' });
   w.packages = offers.map(o => ({ give: o.give, get: o.get, r: coachWorkRead(me, w, o.give, o.get) })).filter(p => p.r.yes && Vault.verdictTier(p.r.score).level !== 'bad')
-    .sort((x, y) => coachByConsensus(x.r, y.r)).slice(0, COACH_PACKAGES_SHOW);
+    .sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachShapeRank(x.give, x.get) - coachShapeRank(y.give, y.get) || coachByConsensus(x.r, y.r)).slice(0, COACH_PACKAGES_SHOW);
 }
 function coachWorkUsePackage(k) {
   const w = Coach.work, p = w?.packages?.[k]; if (!p) return;
@@ -736,7 +743,7 @@ async function coachWorkTweaks() {
     if (c.kind !== 'yes' && r.score <= base.score + 0.5) continue; // only changes that help you
     out.push({ ...c, r });
   }
-  const top = kind => out.filter(c => c.kind === kind).sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachByConsensus(x.r, y.r)).slice(0, 4);
+  const top = kind => out.filter(c => c.kind === kind).sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachShapeRank(x.give, x.get) - coachShapeRank(y.give, y.get) || coachByConsensus(x.r, y.r)).slice(0, 4);
   // 7. Two of your bench pieces or picks that get to yes (user, 2026-11-04), when no one piece
   // does it and leaves you ahead. Starters never, like Even it out. Each piece aims well over
   // half the gap, since extra pieces count for less. Not bad for you, and a piece shows up
@@ -1123,7 +1130,10 @@ async function coachRecsRun(spec) {
     }
   }
   const fixed = no.filter(x => x.fix).sort((x, y) => coachLevelRank(x.fix.r) - coachLevelRank(y.fix.r) || coachByConsensus(x.fix.r, y.fix.r)), rest = no.filter(x => !x.fix);
-  coachFlow().recs = { key: spec.key, list: [...yes, ...fixed, ...rest].slice(0, COACH_REC_SHOW), yes: yes.length, fixed: fixed.length, total: out.length, give: negKeys(spec.give), goal: spec.goal };
+  // The trade each fit would really be: with its added piece, or with the extras to ask for.
+  const read = x => (x.fix && !x.r.yes ? x.fix.r : x.r), shape = x => (x.extras ? 0 : coachShapeRank(x.fix && !x.r.yes ? [...spec.give, x.fix.p] : spec.give, [x.a]));
+  const best = [...yes, ...fixed].sort((x, y) => coachLevelRank(read(x)) - coachLevelRank(read(y)) || shape(x) - shape(y));
+  coachFlow().recs = { key: spec.key, list: [...best, ...rest].slice(0, COACH_REC_SHOW), yes: yes.length, fixed: fixed.length, total: out.length, give: negKeys(spec.give), goal: spec.goal };
   if (coachOpen() && coachFlow().step === 'pick') renderCoach();
 }
 // Build a fit: what you selected, plus its gap-closing piece if it has one, for him.
