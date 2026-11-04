@@ -1283,6 +1283,15 @@ function siteConsensus(leans) {
   if (known.length < 2) return null;
   return { lean: known.reduce((s, x) => s + x, 0) / known.length, sites: known.length };
 }
+// The same read anywhere a trade is judged. Roster Audit counts as its values added up,
+// which is what its grade measures, so this costs nothing against its hourly limit.
+function tradeConsensus(teamA, teamB, aAssets, bAssets) {
+  const isSF = Vault.isSuperflex(league), tv = Vault.tradeSideValues(aAssets, bAssets);
+  const ra = Vault.rosterAuditRead(aAssets, bAssets, isSF, raValues), dd = Vault.dynastyDaddyRead(aAssets, bAssets, isSF, ddValues);
+  const noTe = Vault.rosterAuditTep(league) && [...aAssets, ...bAssets].some(a => a.pos === 'TE');
+  const found = siteConsensus([(tv.valueA - tv.valueB) / (((tv.valueA + tv.valueB) / 2) || 1) * 100, Vault.ktcVerdict(aAssets, bAssets).signed, ra.priced ? ra.signed : null, dd.priced && !noTe ? dd.signed : null]);
+  return found && { ...found, ...siteConsensusRead(found.lean, teamA, teamB) };
+}
 function siteConsensusRead(lean, teamA, teamB) {
   const off = Math.abs(lean), team = Vault.escapeHtml((lean > 0 ? teamB : teamA).teamName);
   if (off < SITE_NEAR_EVEN_PCT) return { dot: 'good', text: 'Fair' };
@@ -1312,7 +1321,7 @@ function siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc) {
     </table>
   </div>`;
 }
-function siteStatusHtml({ teamA, teamB, aAssets, bAssets, tradeEdge }) {
+function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const isSF = Vault.isSuperflex(league), esc = Vault.escapeHtml;
   const DOT = { good: 'bg-emerald-400', mid: 'bg-orange-400', bad: 'bg-rose-400' };
   const ktc = Vault.ktcVerdict(aAssets, bAssets);
@@ -1326,8 +1335,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets, tradeEdge }) {
   const ra = Vault.rosterAuditRead(aAssets, bAssets, isSF, raValues);
   const raGrade = rosterAuditGrade(aAssets, bAssets, isSF);
   const raFavors = raGrade && { side_a: teamA, side_b: teamB }[raGrade.winner];
-  // Its public values have no TE premium: say so when that could matter here, and leave
-  // it out of the consensus (user, 2026-11-03), which it would pull the wrong way.
+  // Its public values have no TE premium: say so when that could matter here (the consensus leaves it out).
   const ddNoTe = Vault.rosterAuditTep(league) && [...aAssets, ...bAssets].some(a => a.pos === 'TE');
   const raBy = ra.priced ? amount(ra.valueA, ra.valueB) : '';
   const raRow = raGrade
@@ -1341,8 +1349,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets, tradeEdge }) {
     { name: 'Roster Audit', href: 'https://rosteraudit.com/trade-calculator/', ...raRow },
     { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd.valueA, dd.valueB)), note: ddNoTe ? "doesn't factor in TE premium" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? 'Not listed' : 'Loading…', title: 'A piece in this trade is not in its values. Open this trade on its site.' }) }
   ];
-  const consensus = siteConsensus([-tradeEdge, ktc.signed, ra.priced ? ra.signed : null, dd.priced && !ddNoTe ? dd.signed : null]);
-  const read = consensus && siteConsensusRead(consensus.lean, teamA, teamB);
+  const consensus = tradeConsensus(teamA, teamB, aAssets, bAssets), read = consensus;
   return `${read ? `<div class="flex items-baseline gap-2 text-[14px] leading-snug mb-2.5 pb-2.5 border-b border-white/5" title="The average lean of The Vault and ${consensus.sites - 1} other sites">
       <span class="size-2 shrink-0 rounded-full self-center ${DOT[read.dot]}" aria-hidden="true"></span>
       <span class="min-w-0 font-medium text-zinc-100">Consensus: ${read.text}${Math.abs(consensus.lean) < 1 ? '' : ` <span class="text-zinc-400 font-normal">· ${Math.round(Math.abs(consensus.lean))}%</span>`}</span>
@@ -2012,7 +2019,7 @@ function updateTrade() {
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
       ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName, 'mt-2.5')}</div></details>
       ${(() => { const c = bAssets.map(a => ({ a, c: Vault.cornerstone(teamB, a) })).find(x => x.c); if (!c) return ''; const oneIn = Math.round(1 / c.c.share); return `<div class="text-[12px] text-zinc-400 mt-1.5"><span class="text-amber-300 font-medium">Their ${c.c.rank === 1 ? 'best player' : `#${c.c.rank} player`}</span> · ${Vault.escapeHtml(c.a.name)} is ${Vault.possessive(Vault.escapeHtml(teamB.teamName))} ${c.c.rank === 1 ? 'most valuable player' : `#${c.c.rank} player by value`}. ${c.c.mode === 'contend' ? 'Contending teams' : c.c.mode === 'rebuild' ? 'Rebuilding teams' : 'Teams like theirs'} send a player that high on their roster in only about 1 of ${oneIn} of their trades, at any price, so expect a no unless they're looking to move him.</div>`; })()}` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
-  renderSiteStatus({ teamA, teamB, aAssets, bAssets, tradeEdge });
+  renderSiteStatus({ teamA, teamB, aAssets, bAssets });
   document.getElementById('priceBucket').innerHTML = (aAssets.length || bAssets.length) ? `<span title="Whether the price is fair for both teams: trade value, plus both teams' roster fit and timeline. Not the verdict, which is about your team.">Price with both teams' fit: <span class="font-medium ${bucketColor(Vault.priceWord(bucket))}">${Vault.priceWord(bucket)}</span> · ${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">(trade value alone ${capPct(pctDiff).toFixed(0)}%)</span>` : ''}</span>` : '';
   document.getElementById('consolidation').innerHTML = aAssets.length && bAssets.length ? consolidationAdviceHtml(aAssets, bAssets, teamA, teamB) : '';
   document.getElementById('priceBucket').title = `Overall: ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline — but never closer to even than trade value alone (${capPct(pctDiff).toFixed(0)}% off). Great means Fair AND a strong fit for both sides; Good means Fair and a strong fit for one side, and neither side a poor fit.`;
@@ -2407,6 +2414,6 @@ init();
 <script src="negotiation.js?v=7d597d52"></script>
 <script src="market-data.js?v=0902cb1e"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=3ef98eb2"></script>
+<script src="coach.js?v=d9000519"></script>
 </body>
 </html>

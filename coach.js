@@ -664,8 +664,13 @@ function coachWorkRead(me, w, give = w.give, get = w.get) {
   const j = coachJudged(me, w.partner, give, get), o = { partner: w.partner, give, get }, you = coachValuePct(o);
   const yes = j.accepts && coachTheyTake(o, w.option);
   const room = yes ? Math.min(j.will - j.ask, VAULT_CONFIG.FAIR_PCT - you) : j.will - j.ask;
-  return { j, o, score: coachScore(o), yes, room, you, them: improvementOf(j.an, 'B') };
+  return { j, o, score: coachScore(o), yes, room, you, them: improvementOf(j.an, 'B'), consensus: give.length && get.length ? tradeConsensus(me, w.partner, give, get) : null };
 }
+// Among trades that work, the ones that read fair across the sites come first: both
+// managers can check those (user, 2026-11-03). Never changes who'd say yes.
+const coachConsensusBand = r => { const off = Math.abs(r.consensus?.lean ?? 0); return off < VAULT_CONFIG.FAIR_PCT ? 0 : off < VAULT_CONFIG.LOPSIDED_PCT ? 1 : 2; };
+const coachByConsensus = (x, y) => coachConsensusBand(x) - coachConsensusBand(y) || y.score - x.score;
+const coachConsensusText = r => (r.consensus ? `Consensus: ${r.consensus.text}` : '');
 async function coachWorkTweaks() {
   const w = Coach.work, me = coachMe(); if (!w) return;
   const seq = ++w.seq; w.tweaks = null;
@@ -704,7 +709,7 @@ async function coachWorkTweaks() {
     if (c.kind !== 'yes' && r.score <= base.score + 0.5) continue; // only changes that help you
     out.push({ ...c, r });
   }
-  const top = kind => out.filter(c => c.kind === kind).sort((x, y) => y.r.score - x.r.score).slice(0, 4);
+  const top = kind => out.filter(c => c.kind === kind).sort((x, y) => coachByConsensus(x.r, y.r)).slice(0, 4);
   w.tweaks = { more: top('more'), less: top('less'), yes: top('yes'), closer: closer.sort((x, y) => y.r.room - x.r.room).slice(0, 4) };
   if (coachOpen()) renderCoach();
 }
@@ -755,7 +760,7 @@ function coachWorkHtml(me) {
     const list = w.tweaks ? w.tweaks[kind] : [];
     if (!list.length) return '';
     return `<div class="mt-3"><div class="text-[12px] text-zinc-400 mb-1">${title}</div>${list.map((c, k) => { const t = Vault.verdictTier(c.r.score); return `<div class="flex items-center justify-between gap-3 py-2 border-t border-white/[0.06]">
-        <span class="min-w-0 text-[13px] text-zinc-200">${c.text} <span class="text-[12px] text-zinc-500">· for you <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.key]}">${t.label}</span>, ${esc(coachMe().teamName)} pays ${pc(c.r.you)} ${c.r.you >= 0 ? 'under' : 'over'} trade value${kind === 'yes' ? '' : kind === 'closer' ? `, they'd still want about ${pc(Math.max(-c.r.room, c.r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more` : `, room left ${c.r.room >= 2 ? `about ${pc(c.r.room)}` : 'about none'}`}</span></span>
+        <span class="min-w-0 text-[13px] text-zinc-200">${c.text} <span class="text-[12px] text-zinc-500">· for you <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.key]}">${t.label}</span>, ${esc(coachMe().teamName)} pays ${pc(c.r.you)} ${c.r.you >= 0 ? 'under' : 'over'} trade value${c.r.consensus ? `, consensus: ${c.r.consensus.text}` : ''}${kind === 'yes' ? '' : kind === 'closer' ? `, they'd still want about ${pc(Math.max(-c.r.room, c.r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more` : `, room left ${c.r.room >= 2 ? `about ${pc(c.r.room)}` : 'about none'}`}</span></span>
         <button onclick="coachWorkApply('${kind}', ${k})" class="shrink-0 text-[12px] px-3 py-1 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Apply</button>
       </div>`; }).join('')}</div>`;
   };
@@ -767,10 +772,11 @@ function coachWorkHtml(me) {
       <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${esc(me.teamName)} gives</div>${w.give.map(a => piece(a, 'give')).join('')}${addSel('give', me.assets.filter(a => !inGive.has(a.key) && !off.has(a.key) && a.value >= 100), '+ Add one of yours…')}</div>
       <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${esc(me.teamName)} gets</div>${w.get.map(a => piece(a, 'get')).join('')}${addSel('get', w.partner.assets.filter(a => !inGet.has(a.key) && !coachTheirOff(a) && a.value >= 100), '+ Ask for one of theirs…')}</div>
     </div>
-    <div class="grid gap-3 sm:grid-cols-3 mt-3">
+    <div class="grid gap-3 sm:grid-cols-4 mt-3">
       <div><div class="text-[11px] text-zinc-500">For ${esc(me.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</div></div>
       <div><div class="text-[11px] text-zinc-500">For ${esc(w.partner.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</div></div>
       <div><div class="text-[11px] text-zinc-500">${esc(me.teamName)} pays</div><div class="text-[18px] font-semibold text-zinc-100">${Math.abs(r.you) < 1 ? 'even' : `${pc(r.you)} ${r.you > 0 ? 'under' : 'over'}`} <span class="text-[12px] font-normal text-zinc-500">trade value</span></div></div>
+      ${r.consensus ? `<div><div class="text-[11px] text-zinc-500">Consensus</div><div class="text-[14px] leading-snug font-semibold text-zinc-100 mt-1">${r.consensus.text}</div></div>` : ''}
     </div>
     <div class="mt-3 p-3 rounded-lg ${r.yes ? 'bg-emerald-500/[0.06] border border-emerald-500/20' : 'bg-orange-500/[0.06] border border-orange-500/20'}">${status}</div>
 
@@ -936,7 +942,7 @@ async function coachRecsRun(spec) {
   // fit is real and the gap is the extras to ask for (it read "they'd want 70% more").
   out.forEach(x => { x.extras = spec.goal !== 'upgrade' && !x.r.yes && x.r.j.accepts && x.r.you <= -VAULT_CONFIG.FAIR_PCT; });
   const fit = x => x.r.yes || x.extras;
-  const yes = out.filter(fit).sort(spec.goal === 'downtier' ? (x, y) => (y.r.yes ? 1 : 0) - (x.r.yes ? 1 : 0) || y.a.value - x.a.value : (x, y) => y.r.score - x.r.score);
+  const yes = out.filter(fit).sort(spec.goal === 'downtier' ? (x, y) => (y.r.yes ? 1 : 0) - (x.r.yes ? 1 : 0) || coachConsensusBand(x.r) - coachConsensusBand(y.r) || y.a.value - x.a.value : (x, y) => coachByConsensus(x.r, y.r));
   const no = out.filter(x => !fit(x)).sort((x, y) => y.r.room - x.r.room);
   // Close the gap (user, 2026-10-28): for the closest noes, the one piece of yours that gets
   // them to yes and leaves you best off (sized to what's missing on trade value), so a fit
@@ -948,10 +954,10 @@ async function coachRecsRun(spec) {
     const tv = Vault.tradeSideValues(spec.give, [x.a]), need = Math.max(-x.r.room, x.r.you - VAULT_CONFIG.FAIR_PCT + 0.5) / 100 * (tv.valueA + tv.valueB) / 2;
     for (const p of [...pool].sort((u, v) => Math.abs(u.value - need * 1.5) - Math.abs(v.value - need * 1.5)).slice(0, 10)) {
       const r = coachWorkRead(me, { partner: x.t, give: [...spec.give, p], get: [x.a], option: 'build' });
-      if (r.yes && (!x.fix || r.score > x.fix.r.score)) x.fix = { p, r };
+      if (r.yes && (!x.fix || coachByConsensus(r, x.fix.r) < 0)) x.fix = { p, r };
     }
   }
-  const fixed = no.filter(x => x.fix).sort((x, y) => y.fix.r.score - x.fix.r.score), rest = no.filter(x => !x.fix);
+  const fixed = no.filter(x => x.fix).sort((x, y) => coachByConsensus(x.fix.r, y.fix.r)), rest = no.filter(x => !x.fix);
   f.recs = { key: spec.key, list: [...yes, ...fixed, ...rest].slice(0, COACH_REC_SHOW), yes: yes.length, fixed: fixed.length, total: out.length, give: negKeys(spec.give), goal: spec.goal };
   if (coachOpen() && f.step === 'pick') renderCoach();
 }
@@ -981,7 +987,7 @@ function coachRecsHtml(me, spec) {
     return `<div class="flex items-center justify-between gap-3 py-2.5 border-t border-white/[0.06] first:border-t-0">
         <div class="min-w-0">
           <div class="text-[13px] text-zinc-100 truncate">${coachEsc(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? 'pick' : a.pos} · ${coachEsc(t.teamName)} · ${n(a.value)}</span></div>
-          <div class="text-[11px] text-zinc-400">${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}</div>
+          <div class="text-[11px] text-zinc-400">${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}${use.consensus ? ` · ${coachConsensusText(use)}` : ''}</div>
         </div>
         <button onclick="coachRecBuild(${i})" class="shrink-0 text-[12px] px-3 py-1 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Build</button>
       </div>`;
