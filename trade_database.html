@@ -26,7 +26,11 @@
     <a href="how_we_grade.html#market" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How it works</a>
   </p>
 
-  <!-- Search first (2026-10-20: the page read like Trade Lab, charts on top): the trades are the point. -->
+  <!-- One section at a time (user, 2026-11-04). Trades first (2026-10-20: the page read like
+       Trade Lab, charts on top): the trades are the point. -->
+  <div id="dbTabs" role="tablist" aria-label="Trade Search sections" class="flex flex-wrap gap-1.5 mb-4 scroll-mt-4"></div>
+
+  <div data-tab="trades" role="tabpanel">
   <div class="card rounded-vault-sm p-4 mb-3">
     <div class="flex items-center gap-3">
       <input id="searchSideA" type="text" autocomplete="off" aria-label="One side of the trade: player or pick" placeholder="Player or pick"
@@ -39,37 +43,44 @@
     <div id="matchBar" class="mt-3 pt-3 border-t border-white/[0.06]"></div>
   </div>
 
-  <!-- Your format's market, folded to one line each: open for the charts. -->
-  <details id="market" class="group card rounded-vault-sm mb-2">
-    <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-      <span class="min-w-0">
-        <span class="block text-[14px] font-medium text-zinc-100">The market at a glance</span>
-        <span id="marketSub" class="block text-[12px] text-zinc-400 mt-0.5">Crunching completed trades…</span>
-      </span>
-      <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
-    </summary>
-    <div id="marketBody" class="px-4 pb-4 space-y-5"></div>
-  </details>
-  <details id="history" class="group card rounded-vault-sm mb-2 hidden">
-    <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-      <span class="min-w-0">
-        <span class="block text-[14px] font-medium text-zinc-100">Over time</span>
-        <span id="historySub" class="block text-[12px] text-zinc-400 mt-0.5"></span>
-      </span>
-      <span class="text-[12px] text-zinc-400 shrink-0"><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
-    </summary>
-    <div id="historyBody" class="px-4 pb-4 space-y-5"></div>
-  </details>
-  <div class="text-[12px] text-zinc-400 mb-6 mt-3">More: <a id="marketLink" href="market.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">who sells above or below KTC (Player Market)</a> · <a id="labLink" href="trade_lab.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">what 1.3 million trades show (Trade Lab)</a></div>
-
   <div id="resultCount" class="text-[12px] text-zinc-400 mb-3"></div>
   <div id="list" class="space-y-4"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
+  </div>
+
+  <section id="market" data-tab="market" role="tabpanel" class="hidden card rounded-vault-sm p-4 mb-6">
+    <div class="text-[14px] font-medium text-zinc-100">The market at a glance</div>
+    <div id="marketSub" class="text-[12px] text-zinc-400 mt-0.5">Crunching completed trades…</div>
+    <div id="marketBody" class="space-y-5 mt-4"></div>
+  </section>
+  <section id="history" data-tab="history" role="tabpanel" class="hidden card rounded-vault-sm p-4 mb-6">
+    <div class="text-[14px] font-medium text-zinc-100">Over time</div>
+    <div id="historySub" class="text-[12px] text-zinc-400 mt-0.5"></div>
+    <div id="historyBody" class="space-y-5 mt-4"></div>
+  </section>
+  <div class="text-[12px] text-zinc-400 mt-6">More: <a id="marketLink" href="market.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">who sells above or below KTC (Player Market)</a> · <a id="labLink" href="trade_lab.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">what 1.3 million trades show (Trade Lab)</a></div>
 </div>
 
-<script src="vault-core.js?v=18fa7b88"></script>
+<script src="vault-core.js?v=39353ae4"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
+/* Tabs, in the address (#market, #history) so a link opens on one; the page always opens on
+   the trades otherwise. Over time shows up once its file loads, and the market needs 200
+   trades, so a tab asked for early opens as soon as it's there (dbWant). */
+const DB_TABS = [['trades', 'Trades'], ['market', 'The market at a glance'], ['history', 'Over time']];
+const dbOff = new Set(['history']);
+let dbWant = location.hash.slice(1) || 'trades';
+function showTab(key) {
+  dbWant = key;
+  const tabs = DB_TABS.filter(([k]) => !dbOff.has(k)), tab = tabs.some(([k]) => k === key) ? key : 'trades';
+  document.querySelectorAll('[data-tab]').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== tab));
+  document.getElementById('dbTabs').innerHTML = Vault.tabButtons(tabs, tab);
+  const hash = tab === 'trades' ? '' : tab;
+  if (tab === key && location.hash.slice(1) !== hash) history.replaceState(null, '', location.pathname + location.search + (hash ? '#' + hash : ''));
+}
+showTab(dbWant);
+addEventListener('hashchange', () => showTab(location.hash.slice(1) || 'trades'));
+
 const TIER_LABEL = {
   full: 'same settings',
   noTep: 'any TE premium (too few with yours)',
@@ -254,7 +265,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
   marketState = { rows, fmt, exactShare, league, src };
   const n = rows.length;
   const body = document.getElementById('marketBody');
-  if (n < 200) { document.getElementById('market').classList.add('hidden'); return; }
+  if (n < 200) { dbOff.add('market'); showTab(dbWant); return; }
   const med = mkMedian(rows.map(r => r.pct)), mean = rows.reduce((s, r) => s + r.pct, 0) / n;
   document.getElementById('marketSub').textContent = `What trades in leagues like yours (${fmt}) cost, by position and value${src && src.sleeper ? `: the last ${src.ktcDays + src.sleeperDays} days` : ''}${src && src.looser ? `. Not enough ${src.looser} trades yet, so this is a broader match` : ''}`;
 
@@ -422,7 +433,7 @@ function wireColumns(id, months, valueOf, fmt) {
 async function renderHistory(field) {
   let doc;
   try { const res = await fetch(`data/market-history/${field}.json`); if (!res.ok) return; doc = await res.json(); } catch { return; }
-  const box = document.getElementById('history'), body = document.getElementById('historyBody');
+  const body = document.getElementById('historyBody');
   const byMonth = new Map();
   Object.entries(doc.weeks || {}).forEach(([w, s]) => {
     const key = w.slice(0, 7), m = byMonth.get(key) || byMonth.set(key, { key, n: 0, bins: Array(s.pct.length).fill(0), buckets: [0, 0, 0] }).get(key);
@@ -433,7 +444,8 @@ async function renderHistory(field) {
     m.label = new Date(m.key + '-15T00:00:00Z').toLocaleDateString(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' });
     m.median = binMedian(m.bins, m.n); m.fair = mkShare(m.buckets[0], m.n);
   });
-  box.classList.remove('hidden');
+  dbOff.delete('history');
+  showTab(dbWant);
   const fmt = FORMAT_NAME[field] || field;
   document.getElementById('historySub').textContent = `${fmt} trades in Sleeper dynasty leagues, year by year, each priced at KTC values from the day it happened`;
   // Year by year: each year summarized whole by the pricing step, so its numbers are exact.

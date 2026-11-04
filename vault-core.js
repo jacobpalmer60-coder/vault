@@ -5159,6 +5159,9 @@ const Vault = {
   Vault.enhanceSearchSelects = run;
 })();
 
+// Tab buttons in the site's style: tabs is [[key, label]], onclick is the page's function.
+Vault.tabButtons = (tabs, key, onclick = 'showTab') => tabs.map(([k, label]) => `<button role="tab" aria-selected="${k === key}" onclick="${onclick}('${k}')" class="whitespace-nowrap text-[13px] px-3 sm:px-3.5 py-2 rounded-lg border transition-colors ${k === key ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`).join('');
+
 /* Shared pop-up (user, 2026-11-04: less scrolling). Vault.popup({ title, html, foot }) opens it,
    or swaps what's in it if it's already open; a full-screen sheet on phones. Esc, the ×
    and clicking outside close it, and so does the phone's Back button: full screen it looks

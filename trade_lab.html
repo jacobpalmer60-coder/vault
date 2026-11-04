@@ -29,36 +29,30 @@
 
   <div id="tiles" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
 
-  <!-- What it adds up to (2026-10-24): one line per finding, each linking to its chart below. -->
-  <section id="summary" class="mb-6 scroll-mt-24 hidden">
+  <!-- One section at a time, picked here (showTab), instead of one long scroll (user, 2026-11-04). -->
+  <div id="labTabs" role="tablist" aria-label="Trade Lab sections" class="flex flex-wrap gap-1.5 mb-4 scroll-mt-4"></div>
+
+  <!-- What it adds up to (2026-10-24): one line per finding, each linking to its chart. -->
+  <section id="summary" data-tab="summary" role="tabpanel" class="mb-6 scroll-mt-24">
     <div class="card rounded-vault-sm p-4">
       <div class="text-[14px] font-medium text-zinc-100">What it adds up to</div>
-      <ul id="summaryList" class="grid lg:grid-cols-2 gap-x-8 gap-y-2.5 mt-3 text-[13px] text-zinc-300 leading-relaxed"></ul>
+      <ul id="summaryList" class="grid lg:grid-cols-2 gap-x-8 gap-y-2.5 mt-3 text-[13px] text-zinc-300 leading-relaxed"><li class="text-zinc-500">Loading…</li></ul>
     </div>
   </section>
 
-  <nav aria-label="Sections" class="flex flex-wrap gap-2 mb-6 text-[12px]">
-    <a href="#how" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">How managers trade</a>
-    <a href="#after" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">What happened after</a>
-    <a href="#picks" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Picks and rookie drafts</a>
-    <a href="#deep" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Deep dives</a>
-    <a href="#league" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Your league vs everyone</a>
-    <a href="#explore" class="px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Explore it yourself</a>
-  </nav>
-
-  <section id="how" class="mb-10 scroll-mt-24">
+  <section id="how" data-tab="how" role="tabpanel" class="hidden mb-10 scroll-mt-24">
     <h2 class="text-[18px] font-semibold text-zinc-100 mb-3">How managers trade</h2>
     <div id="howBody" class="space-y-4"></div>
   </section>
 
-  <section id="after" class="mb-10 scroll-mt-24">
+  <section id="after" data-tab="after" role="tabpanel" class="hidden mb-10 scroll-mt-24">
     <h2 class="text-[18px] font-semibold text-zinc-100 mb-3">What happened after</h2>
     <div id="afterBody" class="space-y-4"></div>
   </section>
 
   <!-- Picks and rookie drafts (moved from Player Market, 2026-10-21): early/mid/late
        picks against real trades, picks against players later, and where each rookie went. -->
-  <section id="picks" class="mb-10 scroll-mt-24">
+  <section id="picks" data-tab="picks" role="tabpanel" class="hidden mb-10 scroll-mt-24">
     <h2 class="text-[18px] font-semibold text-zinc-100 mb-3">Picks and rookie drafts</h2>
     <div id="picksBody" class="space-y-4"><div class="text-[12px] text-zinc-500">Loading…</div></div>
     <div class="card rounded-vault-sm p-4 min-w-0 mt-4">
@@ -74,18 +68,18 @@
   </section>
 
   <!-- Deep dives (2026-10-24): accuracy, liquidity, timing, the long view, production vs value. -->
-  <section id="deep" class="mb-10 scroll-mt-24 hidden">
+  <section id="deep" data-tab="deep" role="tabpanel" class="hidden mb-10 scroll-mt-24">
     <h2 class="text-[18px] font-semibold text-zinc-100 mb-3">Deep dives</h2>
-    <div id="deepBody" class="space-y-4"></div>
+    <div id="deepBody" class="space-y-4"><div class="text-[12px] text-zinc-500">Loading…</div></div>
   </section>
 
-  <section id="league" class="mb-10 scroll-mt-24">
+  <section id="league" data-tab="league" role="tabpanel" class="hidden mb-10 scroll-mt-24">
     <h2 class="text-[18px] font-semibold text-zinc-100 mb-1">Your league vs everyone</h2>
     <p id="leagueSub" class="text-[12px] text-zinc-400 mb-3">Loading your league's trades…</p>
     <div id="leagueBody" class="space-y-4"></div>
   </section>
 
-  <section id="explore" class="mb-10 scroll-mt-24">
+  <section id="explore" data-tab="explore" role="tabpanel" class="hidden mb-10 scroll-mt-24">
     <h2 class="text-[18px] font-semibold text-zinc-100 mb-1">Explore it yourself</h2>
     <p class="text-[12px] text-zinc-400 mb-3 max-w-[720px]">Pick what one side of a trade looked like and see how sides like it turned out. Ahead later: that side was ahead on value a year or more on (KTC). Value change after: how much its edge grew or shrank after the trade, on average.</p>
     <div id="exploreBody"></div>
@@ -94,7 +88,7 @@
 
 <div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
 
-<script src="vault-core.js?v=18fa7b88"></script>
+<script src="vault-core.js?v=39353ae4"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
@@ -289,7 +283,6 @@ function renderDeep(f) {
   document.getElementById('deepBody').innerHTML = `<div id="accuracy" class="scroll-mt-24">${accuracy}</div>
     <div class="grid lg:grid-cols-2 gap-4"><div id="liquidity" class="scroll-mt-24">${liq}</div><div id="production" class="scroll-mt-24">${predict}</div></div>
     <div id="timing" class="scroll-mt-24">${timing}</div><div id="long-view" class="scroll-mt-24">${long}</div>`;
-  document.getElementById('deep').classList.remove('hidden');
 }
 // What the player taken at each rookie-draft slot scored (findings.rookiePpg).
 function rookiePpgPanel(f) {
@@ -326,7 +319,6 @@ function renderSummary(d, ins, f) {
   const mid1 = f?.rookiePpg?.find(r => r.slot === '1.mid');
   if (mid1) add(`A pick isn't an instant starter: a mid 1st scored ${b(mid1.y1.toFixed(1))} PPR points a game as a rookie and ${b(mid1.y2.toFixed(1))} the next year.`, 'picks');
   document.getElementById('summaryList').innerHTML = items.join('');
-  document.getElementById('summary').classList.toggle('hidden', !items.length);
 }
 
 /* ---------- Your league vs everyone ---------- */
@@ -527,6 +519,27 @@ function renderRookies() {
 }
 
 let LAB_DATA = null;
+/* ---------- Tabs ----------
+   One section at a time, in the address (#after…) so a link opens on it, and remembered in
+   this browser. The address can also be a chart inside a tab (#paying): the summary's See it
+   links, which open that tab and go to the chart. */
+const LAB_TABS = [['summary', 'Summary'], ['how', 'How managers trade'], ['after', 'What happened after'], ['picks', 'Picks and rookie drafts'], ['deep', 'Deep dives'], ['league', 'Your league'], ['explore', 'Explore it yourself']];
+let labTabs = LAB_TABS;
+function showTab(key) {
+  const isTab = labTabs.some(([k]) => k === key), chart = key && !isTab ? document.getElementById(key) : null;
+  let tab = isTab ? key : chart?.closest('[data-tab]')?.dataset.tab;
+  if (!labTabs.some(([k]) => k === tab)) tab = 'summary';
+  document.querySelectorAll('[data-tab]').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== tab));
+  document.getElementById('labTabs').innerHTML = Vault.tabButtons(labTabs, tab);
+  try { localStorage.setItem('vault_lab_tab', tab); } catch {}
+  const hash = chart ? key : tab === 'summary' ? '' : tab;
+  if (location.hash.slice(1) !== hash) history.replaceState(null, '', location.pathname + location.search + (hash ? '#' + hash : ''));
+  if (chart) chart.scrollIntoView({ block: 'start' });
+}
+const labStart = location.hash.slice(1) || (() => { try { return localStorage.getItem('vault_lab_tab'); } catch { return null; } })();
+showTab(labStart);
+addEventListener('hashchange', () => showTab(location.hash.slice(1)));
+
 async function init() {
   const status = document.getElementById('status');
   try {
@@ -556,6 +569,9 @@ async function init() {
     renderExplore(d);
     renderPicksRookies(ins).catch(e => { console.error(e); document.getElementById('picksBody').innerHTML = '<div class="text-[12px] text-zinc-500">Couldn\'t load picks.</div>'; });
     renderLeague(d, ins);
+    // Deep dives need findings.json; and a link to a chart can only land once the charts exist.
+    if (!f) labTabs = LAB_TABS.filter(([k]) => k !== 'deep');
+    showTab(location.hash.slice(1) || labStart);
   } catch (e) {
     console.error(e);
     status.textContent = e.message || 'Failed to load';
