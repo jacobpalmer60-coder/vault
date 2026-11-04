@@ -671,11 +671,34 @@ function coachWorkRead(me, w, give = w.give, get = w.get) {
 const coachConsensusBand = r => { const off = Math.abs(r.consensus?.lean ?? 0); return off < VAULT_CONFIG.FAIR_PCT ? 0 : off < VAULT_CONFIG.LOPSIDED_PCT ? 1 : 2; };
 const coachByConsensus = (x, y) => coachConsensusBand(x) - coachConsensusBand(y) || y.score - x.score;
 const coachConsensusText = r => (r.consensus ? `Consensus: ${r.consensus.text}` : '');
+// You've named who you want: what of yours would get him, so the next step isn't
+// picking one of your own players blind (user, 2026-11-03). Packages their manager
+// would take that aren't bad for you, ones that read fair across the sites first.
+const COACH_PACKAGES_SHOW = 5;
+async function coachWorkPackages(w, seq, me) {
+  w.packages = null;
+  if (coachOpen()) renderCoach();
+  await coachTick();
+  if (Coach.work !== w || w.seq !== seq) return;
+  const offers = coachOffers(me, w.partner, w.get, { limit: COACH_PACKAGES_SHOW * 3, perLead: 2, option: 'build' });
+  w.packages = offers.map(o => ({ give: o.give, get: o.get, r: coachWorkRead(me, w, o.give, o.get) })).filter(p => p.r.yes && Vault.verdictTier(p.r.score).level !== 'bad')
+    .sort((x, y) => coachByConsensus(x.r, y.r)).slice(0, COACH_PACKAGES_SHOW);
+}
+function coachWorkUsePackage(k) {
+  const w = Coach.work, p = w?.packages?.[k]; if (!p) return;
+  w.give = [...p.give]; w.get = [...p.get]; w.packages = null;
+  renderCoach(); coachWorkTweaks();
+}
 async function coachWorkTweaks() {
   const w = Coach.work, me = coachMe(); if (!w) return;
   const seq = ++w.seq; w.tweaks = null;
   // Nothing to judge until both sides have something.
-  if (!w.give.length || !w.get.length) { w.tweaks = { more: [], less: [], yes: [], closer: [] }; if (coachOpen()) renderCoach(); return; }
+  if (!w.give.length || !w.get.length) {
+    w.tweaks = { more: [], less: [], yes: [], closer: [] };
+    if (w.get.length) await coachWorkPackages(w, seq, me);
+    if (coachOpen()) renderCoach();
+    return;
+  }
   const base = coachWorkRead(me, w), off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
   const getVal = sumValue(w.get), giveVal = sumValue(w.give);
   // Never suggest dropping a Must go piece, or the player an Upgrade a player trade is upgrading.
@@ -1200,14 +1223,33 @@ function coachBuildStartHtml(me, w) {
     </div>`;
   const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;
   const empty = text => `<div class="py-2 text-[12px] text-zinc-500">${text}</div>`;
-  const need = !w.give.length && !w.get.length ? `Start by asking for something from ${coachEsc(w.partner.teamName)}'s roster.` : !w.give.length ? 'Now add what you\'d give for it.' : 'Now add what you\'d want back.';
+  const need = !w.give.length && !w.get.length ? `Start by asking for something from ${coachEsc(w.partner.teamName)}'s roster.` : !w.give.length ? 'Add what you\'d give for it, or use an offer below.' : 'Now add what you\'d want back.';
   return `${coachBuildHeadHtml(w)}
     <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${coachEsc(me.teamName)} gives</div>${w.give.map(a => piece(a, 'give')).join('') || empty('Nothing yet.')}${addSel('give', me.assets.filter(a => !inGive.has(a.key) && a.value >= 100), '+ Add one of yours…')}</div>
       <div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">${coachEsc(me.teamName)} gets</div>${w.get.map(a => piece(a, 'get')).join('') || empty('Nothing yet.')}${addSel('get', w.partner.assets.filter(a => !inGet.has(a.key) && a.value >= 100), '+ Ask for one of theirs…')}</div>
     </div>
     <div class="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/10 text-[13px] text-zinc-200">${need} The read on both teams, and whether their manager would say yes, shows up once both sides have something.</div>
+    ${coachPackagesHtml(w)}
     ${coachHintsHtml(me, w)}`;
+}
+function coachPackagesHtml(w) {
+  if (w.give.length || !w.get.length) return '';
+  const names = list => list.map(a => coachEsc(a.name)).join(' + ');
+  const box = html => `<div class="mt-3"><div class="text-[12px] text-zinc-400 mb-1.5">What it could take</div>${html}</div>`;
+  if (!w.packages) return box('<div class="text-[12px] text-zinc-500 py-1">Finding offers they\'d take…</div>');
+  if (!w.packages.length) return box(`<div class="text-[12px] text-zinc-500 py-1">No offer of yours gets a likely yes from ${coachEsc(w.partner.teamName)} without being bad for you. Try adding your own above.</div>`);
+  const rows = w.packages.map((p, k) => {
+    const tier = Vault.verdictTier(p.r.score), extra = p.get.filter(a => !w.get.includes(a));
+    return `<div class="flex items-center justify-between gap-3 py-2.5 border-t border-white/[0.06] first:border-t-0">
+        <div class="min-w-0">
+          <div class="text-[13px] text-zinc-100">Send ${names(p.give)}${extra.length ? ` <span class="text-zinc-400">and get ${names(extra)} too</span>` : ''}</div>
+          <div class="text-[11px] text-zinc-400"><span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${p.r.consensus ? ` · ${coachConsensusText(p.r)}` : ''}</div>
+        </div>
+        <button onclick="coachWorkUsePackage(${k})" class="shrink-0 text-[12px] px-3 py-1 rounded-lg border border-white/15 text-zinc-100 hover:bg-white/[0.06]">Use</button>
+      </div>`;
+  }).join('');
+  return box(`<div class="rounded-lg bg-black/30 border border-white/5 px-3">${rows}</div>`);
 }
 
 function renderCoach() {
