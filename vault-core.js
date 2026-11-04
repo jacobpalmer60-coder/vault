@@ -3102,32 +3102,17 @@ const Vault = {
       <div title="${title}">${Vault.fairnessBarHtml(x, 0, true)}</div>
       <div class="text-[12px] text-zinc-300 text-right tabular-nums whitespace-nowrap">${lean(x)}</div>`;
     return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
-      <div></div>
-      <div class="flex justify-between items-end gap-4 text-[12px] leading-snug text-zinc-400">
+      <div class="hidden sm:block"></div>
+      <div class="col-span-3 sm:col-span-1 flex justify-between items-end gap-4 text-[12px] leading-snug text-zinc-400">
         <span class="min-w-0">← ${esc(teamAName)}</span><span class="min-w-0 text-right">${esc(teamBName)} →</span>
       </div>
-      <div></div>
+      <div class="hidden sm:block"></div>
       <div class="text-[13px] font-medium text-zinc-100 whitespace-nowrap">Overall</div>
       <div>${Vault.fairnessBarHtml(fair.overallSigned, bandPct, false, accept)}</div>
       <div class="text-[13px] font-medium text-zinc-100 text-right tabular-nums whitespace-nowrap">${overallText}</div>
       ${row('Trade value', w.value, fair.value, "KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). KeepTradeCut's own calculator number is shown in the trade slip to check against.")}
       ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}
       ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend timeline, archetype, and contention window.')}
-    </div>`;
-  },
-
-  // One full-size bar with each team's name at its end. x is signed like the bar.
-  tradeBarHtml(teamAName, teamBName, { label, x, text, title = '' }) {
-    const esc = Vault.escapeHtml;
-    return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
-      <div class="hidden sm:block"></div>
-      <div class="col-span-3 sm:col-span-1 flex justify-between items-end gap-4 text-[12px] leading-snug text-zinc-400">
-        <span class="min-w-0">← ${esc(teamAName)}</span><span class="min-w-0 text-right">${esc(teamBName)} →</span>
-      </div>
-      <div class="hidden sm:block"></div>
-      <div class="text-[12px] font-medium text-zinc-100 whitespace-nowrap">${label}</div>
-      <div title="${title}">${Vault.fairnessBarHtml(x, 0)}</div>
-      <div class="text-[12px] font-medium text-zinc-100 text-right tabular-nums whitespace-nowrap" title="${title}">${text}</div>
     </div>`;
   },
 

@@ -28,7 +28,7 @@ function marketLoad(league) {
   // league's values (Player Rankings, Compare, Player Market), so a player's
   // price against KTC reads the same everywhere (marketPlayer).
   const grade = Vault._gradeMarket ? Promise.resolve(null) : Vault.fetchGradeValues();
-  Market.loading = Promise.all([Vault.fetchKtcTrades(qbs), Vault.fetchKtcValues({ raw: true }), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null), grade]).then(([db, ktc, recent, gradeData]) => {
+  Market.loading = Promise.all([Vault.fetchKtcTrades(qbs), Vault.fetchKtcValues({ raw: true }), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null), grade, fetch('data/market-history/peer-baseline.json').then(r => (r.ok ? r.json() : null)).catch(() => null)]).then(([db, ktc, recent, gradeData, peers]) => {
     if (gradeData && !Vault._gradeMarket) Vault.setGradeMarket(gradeData, qbs === 2, league?.scoring_settings?.bonus_rec_te);
     // Each KTC trade is priced in its own league's format: its QB setting and TE
     // premium (KTC's tep code 0-3 -> no premium, TE+, TE++), like the Sleeper
@@ -81,7 +81,7 @@ function marketLoad(league) {
     (ktc.players || []).forEach(p => nowRow.set('n:' + Vault.normalizeName(p.name), p));
     (ktc.picks || []).forEach(p => { const k = `k:${p.season}-${p.round}`; if (!nowRow.has(k) || p.slot === 'mid') nowRow.set(k, p); });
     const nowValue = (key, tep) => { const r = nowRow.get(key), v = r && (r[fieldFor(tep)] ?? r[base]); return v > 0 ? v : null; };
-    Market.data = { byPlayer, isSF: qbs === 2, days, sleeperCount, nowValue };
+    Market.data = { byPlayer, isSF: qbs === 2, days, sleeperCount, nowValue, peers: peers?.[qbs === 2 ? 'sf' : 'oneQB'] };
     return Market.data;
   }).catch(e => { console.warn('The market unavailable', e); Market.data = { failed: true }; return Market.data; });
   return Market.loading;
@@ -168,7 +168,13 @@ const peerCache = new Map();
 function marketPeerBaseline(even) {
   const d = Market.data;
   if (!d || d.failed) return null;
-  if (peerCache.has(even)) return peerCache.get(even);
+  if (!peerCache.has(even)) peerCache.set(even, marketPeerFrom(d.peers?.[even ? 'even' : 'all'] || marketPeerGrids(even)));
+  return peerCache.get(even);
+}
+// Reads every trade under every player, about 3 seconds in a browser, so pages use
+// the day's copy (scripts/build-peer-baseline.js) and this is only the fallback.
+function marketPeerGrids(even) {
+  const d = Market.data;
   const events = [];
   d.byPlayer.forEach((trades, key) => marketComps(key).forEach(c => {
     if (!c.main || (even && c.dir !== 0)) return;
@@ -186,6 +192,11 @@ function marketPeerBaseline(even) {
   };
   const grids = { ALL: gridFor(events) };
   ['QB', 'RB', 'WR', 'TE', 'Pick'].forEach(p => { grids[p] = gridFor(events.filter(e => e[2] === p)); });
+  const byPos = {};
+  ['QB', 'RB', 'WR', 'TE', 'Pick'].forEach(p => { const l = events.filter(e => e[2] === p).map(e => e[1]); if (l.length >= 30) byPos[p] = med(l); });
+  return { grids, byPos };
+}
+function marketPeerFrom({ grids, byPos }) {
   const knownAll = grids.ALL.map((g, i) => (g == null ? null : i)).filter(i => i != null);
   const at = (v, pos) => {
     const i = Math.round(Math.max(0, Math.min(10000, v)) / 100);
@@ -194,11 +205,7 @@ function marketPeerBaseline(even) {
     if (!knownAll.length) return 0;
     return grids.ALL[knownAll.reduce((b, j) => (Math.abs(j - i) < Math.abs(b - i) ? j : b), knownAll[0])];
   };
-  const byPos = {};
-  ['QB', 'RB', 'WR', 'TE', 'Pick'].forEach(p => { const l = events.filter(e => e[2] === p).map(e => e[1]); if (l.length >= 30) byPos[p] = med(l); });
-  const out = { at, byPos };
-  peerCache.set(even, out);
-  return out;
+  return { at, byPos };
 }
 
 // The completed trades a market value is read from: the ones he headlined, in

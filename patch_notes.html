@@ -31,7 +31,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=1556a41e"></script>
+<script src="vault-core.js?v=0c80d7ff"></script>
 <script src="vault-nav.js?v=755e1926"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -39,8 +39,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-03', items: [
-    { kind: 'new', page: 'Trade Calculator', text: "The fairness bar is back on the trade card, and next to it a short list shows what KTC (with Value Source on Crowd + Trades), Roster Audit and Dynasty Daddy say about the same trade, in their own words, including Roster Audit's letter grade. Each name links to the site." },
-    { kind: 'improved', page: 'Trade Grades', text: "The fairness bar is back on every trade, without opening More." },
+    { kind: 'improved', page: 'Trade Calculator', text: "Opens faster: a trade link no longer freezes the page for about 3 seconds while it works out what similar players go for." },
+    { kind: 'new', page: 'Trade Calculator', text: "The fairness bars are back on the trade card (overall, trade value, roster fit and timeline), and next to them a short list shows what KTC (with Value Source on Crowd + Trades), Roster Audit and Dynasty Daddy say about the same trade, in their own words, including Roster Audit's letter grade. Each name links to the site." },
+    { kind: 'improved', page: 'Trade Grades', text: "The fairness bars are back on every trade, without opening More." },
     { kind: 'new', page: 'Playoff Race', text: "A Playoff Race page under League: your league's standings with what each team needs in words (Needs 3 more wins to clinch, Out after 6 more losses, Clinched, Eliminated) and the playoff and bye lines drawn in, from live Sleeper standings. Tap a team for what it needs in plain words, like 3 more wins clinches, with losses by the three teams chasing it counting too. Up top it says where you stand, and below it lists the week's games that move a race. It reads each league's own settings (how many make it, byes, the median game, weeks left), so it works for any Sleeper league, redraft too: tap Pick another league. Can clinch this week is checked against every way the week's games can go. Ties on record go to points for, so every count uses today's points for, and each team shows its points for and how far ahead or behind it is of the teams it could tie." },
   ] },
   { date: '2026-10-28', items: [
