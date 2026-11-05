@@ -1938,6 +1938,8 @@ const Vault = {
     ppgOverTime: ['PPG Over Time', 'His season points per game at each date, in your scoring.'],
     pointsByWeek: ['Points by week', 'What he really scored each week this season, in your scoring.'],
     playoffWeeks: ['Playoff weeks', "Sleeper's projected points for him in weeks 15 to 17, in your scoring."],
+    starterLine: ['Over a starter', "Games where he beat his position's replacement level: what the best player who wouldn't start in your league scores a game."],
+    recentTrades: ['Recent trades', 'The latest completed trades he headlined, in leagues like yours. Paid vs KTC is what the team getting him sent over or under his KTC value.'],
     window5: ['Contention window', 'Each bar is one of the next seasons: how much value this roster is projected to have then. Green seasons are good enough for the playoffs.'],
   },
   glossaryHtml(key) {

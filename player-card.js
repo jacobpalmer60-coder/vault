@@ -255,7 +255,8 @@
         </div>
         <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 mr-6 ${posColor(r.pos)}">${r.pos || '—'}</span>
       </div>
-      <div class="flex flex-wrap gap-2 mb-4">${cardActions(r)}</div>
+      <div class="flex flex-wrap gap-2 mb-3">${cardActions(r)}</div>
+      <div id="pcHolder" class="text-[12px] text-zinc-400 mb-3 empty:hidden"></div>
       <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">
         <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="value">Value</span></div></div>
         <div><div class="mono text-[15px] text-zinc-100">${r.posRank ? '#' + r.posRank + ' of ' + r.posCount : '—'}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">${r.pos || 'Pos'} Rank</div></div>
@@ -266,6 +267,7 @@
       ${playoffHtml(r)}
       <div id="pcWeekly" class="mb-4"></div>
       <div id="pcMarket" class="mb-4"></div>
+      <div id="pcTrades" class="mb-4 empty:hidden"></div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time${Vault.info('valueOverTime')}</div>
       <div id="pcValueChart">${valueChart}</div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time${Vault.info('ppgOverTime')}</div>
@@ -293,7 +295,27 @@
   }
   // What he really scored each week, in this league's scoring. Loaded with the first card.
   let weeklyLoad = null;
+  // Who holds him in this league (user's list, 2026-11-05). Sleeper's rosters, so it works before the page's teams are built.
+  function renderHolder(r) {
+    const box = document.getElementById('pcHolder'), id = leagueObj?.league_id;
+    if (!box || !r.pid || !id) return;
+    const url = what => `https://api.sleeper.app/v1/league/${id}/${what}`;
+    Promise.all([Vault.sleeperJson(url('rosters'), 5), Vault.sleeperJson(url('users'), 5)]).then(([rosters, users]) => {
+      if (document.getElementById('pcHolder') !== box) return;
+      const held = rosters.find(x => (x.players || []).includes(String(r.pid)));
+      if (!held) { box.textContent = 'Free agent in your league'; return; }
+      if (String(held.roster_id) === String(Vault.getMyTeamId(id))) { box.textContent = 'On your team'; return; }
+      const u = users.find(x => x.user_id === held.owner_id);
+      box.innerHTML = `On ${Vault.teamLink({ rosterId: held.roster_id, teamName: Vault.teamLabel(u, held.roster_id) })}`;
+    }).catch(() => {});
+  }
   const loadWeekly = () => (weeklyLoad ||= fetch(`data/weekly/${leagueObj?.season}.json`).then(res => (res.ok ? res.json() : null)).catch(() => null));
+  function boomBust(played, r) {
+    if (played.length < 3) return '';
+    const pts = played.map(w => w.pts), line = Number.isFinite(r.ppg) && Number.isFinite(r.vorp) ? r.ppg - r.vorp : null;
+    const stat = (v, label) => `<div><div class="mono text-[14px] text-zinc-100">${v}</div><div class="text-[11px] text-zinc-400 mt-0.5">${label}</div></div>`;
+    return `<div class="grid grid-cols-3 gap-2 text-center mt-2">${stat(Math.max(...pts).toFixed(1), 'Best')}${stat(Math.min(...pts).toFixed(1), 'Worst')}${line != null ? stat(`${pts.filter(p => p > line).length} of ${pts.length}`, Vault.term('starterLine', 'Over a starter')) : ''}</div>`;
+  }
   function renderWeekly(r) {
     const box = document.getElementById('pcWeekly');
     if (!box || !r.pid || !leagueObj) return;
@@ -317,8 +339,8 @@
         const on = recent.includes(w), top = y(Math.max(w.pts, 0));
         return `<g><title>Week ${w.week}${w.opp ? ` vs ${Vault.escapeHtml(w.opp)}` : ''}: ${w.pts.toFixed(1)} points</title><rect x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent"/><rect x="${x - 7}" y="${top}" width="14" height="${Math.max(1, H - B - top)}" rx="2" fill="#fbbf24" opacity="${on ? 1 : 0.45}"/>${w.pts === Math.max(...played.map(p => p.pts)) || w === played[played.length - 1] ? `<text x="${x}" y="${top - 3}" text-anchor="middle" font-size="9" fill="currentColor" class="text-zinc-300">${w.pts.toFixed(1)}</text>` : ''}${label}</g>`;
       }).join('');
-      box.innerHTML = `<div class="flex items-baseline justify-between gap-3 mb-2"><div class="text-[11px] text-zinc-400 uppercase tracking-wider">Points by week${Vault.info('pointsByWeek')}</div><div class="text-[12px] text-zinc-400">${recent.length > 1 ? `Last ${recent.length}: <span class="mono text-zinc-200">${avg(recent).toFixed(1)}</span> · ` : ''}Season: <span class="mono text-zinc-200">${avg(played).toFixed(1)}</span> a game</div></div>
-        <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${Vault.escapeHtml(r.player)}'s points each week this season">${bars}</svg>`;
+      box.innerHTML = `<div class="flex items-baseline justify-between gap-3 mb-2"><div class="text-[11px] text-zinc-400 uppercase tracking-wider whitespace-nowrap shrink-0">Points by week${Vault.info('pointsByWeek')}</div><div class="text-[12px] text-zinc-400">${recent.length > 1 ? `Last ${recent.length}: <span class="mono text-zinc-200">${avg(recent).toFixed(1)}</span> · ` : ''}Season: <span class="mono text-zinc-200">${avg(played).toFixed(1)}</span> a game</div></div>
+        <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${Vault.escapeHtml(r.player)}'s points each week this season">${bars}</svg>${boomBust(played, r)}`;
     });
   }
 
@@ -345,6 +367,22 @@
     }
     return dailyMarketLoading;
   }
+  function renderRecentTrades(r) {
+    const box = document.getElementById('pcTrades'), { like, pool } = marketPool(leagueObj, r.player);
+    if (!box || !like || !pool.length) return;
+    const name = a => Vault.escapeHtml(a.type === 'pick' ? Vault.pickName(a) : a.name);
+    const side = (s, him) => [...s].sort((x, y) => y.value - x.value).map(a => `<span class="${a === him ? 'text-zinc-100 font-medium' : 'text-zinc-300'}">${name(a)}</span>`).join('<span class="text-zinc-600">, </span>');
+    const rows = [...pool].sort((a, b) => b.t.date.localeCompare(a.t.date)).slice(0, 3).map(c => {
+      const p = marketPremium(c);
+      return `<div class="py-2 border-t border-white/5 flex items-start gap-3">
+        <div class="min-w-0 flex-1"><div class="text-[11px] text-zinc-500">${new Date(c.t.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+          <div class="flex text-[12px] mt-0.5 leading-relaxed"><span class="text-zinc-500 w-9 shrink-0">Got</span><span class="min-w-0">${side(c.ps, c.him)}</span></div>
+          <div class="flex text-[12px] leading-relaxed"><span class="text-zinc-500 w-9 shrink-0">Sent</span><span class="min-w-0">${side(c.os, null)}</span></div></div>
+        <div class="text-right shrink-0"><div class="mono text-[13px] ${Math.abs(p) < 5 ? 'text-zinc-200' : p > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Math.round(Math.abs(p))}% ${p > 0 ? 'over' : 'under'}</div><div class="text-[11px] text-zinc-500">paid vs KTC</div></div>
+      </div>`;
+    }).join('');
+    box.innerHTML = `<div class="flex items-baseline justify-between gap-3 mb-1"><div class="text-[11px] text-zinc-400 uppercase tracking-wider">Recent trades${Vault.info('recentTrades')}</div><div class="text-[12px] text-zinc-500">${pool.length} in all</div></div>${rows}`;
+  }
   function renderPlayerMarket(r) {
     const box = document.getElementById('pcMarket');
     if (!box || !leagueObj || !r.value) return;
@@ -365,6 +403,7 @@
     });
     marketLoad(leagueObj).then(() => {
       if (document.getElementById('pcMarket') !== box) return; // a different card opened meanwhile
+      renderRecentTrades(r);
       // His market value (market-data.js marketPlayer): the same number as the Player Market page and "At market prices".
       const mp = marketPlayer(leagueObj, r.player, r.pos), m = mp.read;
       // How easy he is to move: trades he was in lately, next to players at his position and value.
@@ -627,7 +666,7 @@
   function drawCard(r) {
     body().innerHTML = r.isPick ? renderPickCard(r) : renderPlayerCard(r);
     box.firstElementChild.scrollTop = 0;
-    if (!r.isPick) { renderPlayerMarket(r); renderWeekly(r); }
+    if (!r.isPick) { renderPlayerMarket(r); renderWeekly(r); renderHolder(r); }
   }
   async function open(norm, name = '') {
     show();
