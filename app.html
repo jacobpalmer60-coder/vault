@@ -130,7 +130,7 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=0d06919b"></script>
+<script src="vault-core.js?v=fdcef309"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=b03660f3"></script>
@@ -239,10 +239,13 @@ function renderValueHistory(history, currentTeams) {
   const nameFor = id => (currentTeams.find(t => t.rosterId === id) || {}).teamName
     || (snaps[snaps.length - 1].teams.find(t => t.rosterId === id) || {}).teamName || `Team ${id}`;
 
+  // Ten lines at equal weight can't be read (user, 2026-11-05): your team stands out, and the
+  // others fade until you hover one. Drawn last, so yours sits on top.
+  const mineId = Vault.myTeam(currentTeams)?.rosterId;
   const series = rosterIds.map((id, i) => ({
-    id, name: nameFor(id), color: CHART_COLORS[i % CHART_COLORS.length],
+    id, name: nameFor(id), color: id === mineId ? '#fbbf24' : CHART_COLORS[i % CHART_COLORS.length], mine: id === mineId,
     points: snaps.map(s => { const t = s.teams.find(x => x.rosterId === id); return t && t[field] != null ? t[field] : null; })
-  }));
+  })).sort((a, b) => a.mine - b.mine);
 
   const allVals = series.flatMap(s => s.points.filter(v => v != null));
   const minV = Math.min(...allVals), maxV = Math.max(...allVals);
@@ -290,7 +293,7 @@ function renderValueHistory(history, currentTeams) {
     // Grouped per team (data-series) so hovering a legend row can dim every
     // other line instead of leaving all 10 stacked on top of each other at
     // equal weight all the time.
-    return `<g data-series="${s.id}" style="transition:opacity .15s"><polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>${dots}</g>`;
+    return `<g data-series="${s.id}" data-base="${mineId == null || s.mine ? 1 : 0.28}" style="transition:opacity .15s;opacity:${mineId == null || s.mine ? 1 : 0.28}"><polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.mine ? 3 : 2}" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>${dots}</g>`;
   }).join('');
 
   // Hover info for wireChartHover (set up once at page init) — a plain module
@@ -299,6 +302,14 @@ function renderValueHistory(history, currentTeams) {
   // re-created, whenever the metric/window toggle changes).
   currentChartInfo = { snaps, series, field, decimals, ML, MT, plotW, plotH, W, H };
   const hoverRect = `<rect x="${ML}" y="${MT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>`;
+  const mine = series.find(s => s.mine);
+  const myTrades = mine ? (history.trades || []).filter(t => t.rosters.includes(mineId)) : [];
+  const tradeMarks = myTrades.map(t => {
+    const i = snaps.findIndex(s => s.date === t.date), v = mine.points[i];
+    if (i < 0 || v == null) return '';
+    const got = t.moves.filter(m => m.to === mineId).map(m => m.what), sent = t.moves.filter(m => m.from === mineId).map(m => m.what);
+    return `<circle cx="${x(i)}" cy="${y(v)}" r="5" fill="#14161b" stroke="#fbbf24" stroke-width="2"><title>${t.date}: got ${Vault.escapeHtml(got.join(', ') || 'nothing')} for ${Vault.escapeHtml(sent.join(', ') || 'nothing')}</title></circle>`;
+  }).join('');
 
   // Legend sorted by current value (most relevant ordering — matches the
   // standings table) rather than snapshot/roster order, and hoverable to
@@ -311,7 +322,8 @@ function renderValueHistory(history, currentTeams) {
   }).sort((a, b) => (b.last ?? -Infinity) - (a.last ?? -Infinity));
 
   mount.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" id="valueHistorySvg">${gridLines}${lines}${hoverRect}${dateTicks}</svg>
+    <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" id="valueHistorySvg">${gridLines}${lines}${hoverRect}${tradeMarks}${dateTicks}</svg>
+    ${tradeMarks ? '<div class="text-[11px] text-zinc-500 mt-1">Rings mark your trades. Hover one for what moved.</div>' : ''}
     <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1.5">
       ${legendRows.map(({ s, last, delta }) => `
         <div class="flex items-center gap-1.5 text-[12px] px-1.5 py-1 rounded-lg cursor-default legend-row" data-series="${s.id}">
@@ -397,7 +409,7 @@ function highlightSeries(id) {
 }
 function clearSeriesHighlight() {
   document.querySelectorAll('#valueHistoryChart [data-series]').forEach(el => {
-    if (el.tagName.toLowerCase() === 'g') el.style.opacity = '';
+    if (el.tagName.toLowerCase() === 'g') el.style.opacity = el.dataset.base ?? '';
     else el.classList.remove('bg-white/[0.06]');
   });
 }

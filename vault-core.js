@@ -1297,7 +1297,14 @@ const Vault = {
       snapshots.push({ date, teams });
     }
 
-    return { snapshots };
+    // Who gave what, for the marks on Value Over Time.
+    const nameOf = pid => { const p = players[pid]; return p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'a player'; };
+    const trades = transactions.filter(t => t.type === 'trade').map(t => ({
+      date: new Date(t.created).toISOString().slice(0, 10), rosters: t.roster_ids || [],
+      moves: [...Object.entries(t.adds || {}).map(([pid, to]) => ({ to: +to, from: +(t.drops || {})[pid], what: nameOf(pid) })),
+        ...(t.draft_picks || []).map(pk => ({ to: +pk.owner_id, from: +pk.previous_owner_id, what: Vault.pickName({ season: pk.season, round: pk.round }) }))]
+    }));
+    return { snapshots, trades };
   },
 
   /* KTC's pick grid rolls forward each spring after that year's rookie draft, so its
