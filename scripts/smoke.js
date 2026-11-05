@@ -57,6 +57,8 @@ const IGNORE = [/Failed to load resource/, /favicon/, /api\.github\.com/];
 async function visit(browser, url, label, [sizeName, width, height, mobile], key) {
   const page = await browser.newPage();
   await page.setViewport({ width, height, isMobile: mobile, hasTouch: mobile });
+  // No cached copies: the local server leaks a file on every 304 and dies with EMFILE after a few sweeps.
+  await page.setCacheEnabled(false);
   // League pages send you home until a team is picked, so pick one, or nothing here gets tested.
   await page.evaluateOnNewDocument(leagues => { leagues.forEach(id => localStorage.setItem(`vault_my_team_${id}`, '1')); localStorage.setItem('vault_tips_seen', '1'); }, leagues);
   if (SEASON) {
