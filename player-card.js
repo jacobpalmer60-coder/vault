@@ -650,13 +650,45 @@
     drawCard(r);
     if (!r.isPick) loadCardStats();
   }
+  // The team card: the standing, the shape of the roster, and where to go next (user, 2026-11-05).
+  let teamsLoad = null;
+  const leagueTeams = () => (typeof teams !== 'undefined' && teams?.length && teams[0].plist ? Promise.resolve(teams)
+    : (teamsLoad ||= Vault.buildLeagueTeams(Vault.getLeagueId()).then(b => b.teams).catch(e => { teamsLoad = null; throw e; })));
+  function teamCardHtml(t, all) {
+    const rank = all.filter(x => x.overall > t.overall).length + 1, ppg = [...all].sort((a, b) => b.opt - a.opt).indexOf(t) + 1, p = t.projected;
+    const stat = (v, label) => `<div><div class="mono text-[15px] text-zinc-100">${v}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">${label}</div></div>`;
+    const pct = v => (v == null ? '—' : `${v > 0 && v < 1 ? '<1' : v > 99 && v < 100 ? '>99' : Math.round(v)}%`);
+    const needs = Vault.positionalProfile(t, all).needs.map(x => x.toUpperCase());
+    const best = [...t.plist].sort((a, b) => b.value - a.value).slice(0, 6);
+    const link = (href, text) => `<a href="${href}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">${text}</a>`;
+    const rec = t.record ? `${t.record.wins}-${t.record.losses}${t.record.ties ? `-${t.record.ties}` : ''}` : '';
+    return `<div class="pr-8 mb-4"><div class="text-[20px] font-bold text-zinc-100 truncate">${Vault.escapeHtml(t.teamName)}</div>
+        <div class="text-[12px] text-zinc-400 mt-1">${[rec, Vault.MODE_LABEL[Vault.teamMode(t)], needs.length ? `Thin at ${needs.join(', ')}` : ''].filter(Boolean).join(' • ')}</div></div>
+      <div class="flex flex-wrap gap-2 mb-4">${link(`${Vault.linkTo('team-analyzer.html')}&team=${t.rosterId}`, 'Open team')}${link(`${Vault.linkTo('trade.html')}&coach=team&with=${t.rosterId}`, 'Start a trade')}</div>
+      <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">${stat(`#${rank}`, 'Value')}${stat(t.opt ? t.opt.toFixed(1) : '—', `Lineup #${ppg}`)}${stat(pct(p?.playoffPct ?? t.playoffPct), 'Playoffs')}${stat(pct(p?.championshipPct), 'Title')}</div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Most valuable players</div>
+      <div class="space-y-1.5 text-[13px]">${best.map(a => `<div class="flex items-baseline justify-between gap-3"><span class="min-w-0 text-zinc-200">${Vault.playerLink(a.name)} <span class="text-[12px] text-zinc-500">${Vault.posMeta(a)}</span></span><span class="mono text-zinc-400">${fmtInt(a.value)}</span></div>`).join('')}</div>`;
+  }
+  async function openTeam(id) {
+    show();
+    const want = `team-${id}`;
+    cardOpen = want;
+    body().innerHTML = '<div class="text-[13px] text-zinc-400 py-16 text-center">Loading the team…</div>';
+    try {
+      const all = await leagueTeams(), t = all.find(x => String(x.rosterId) === String(id));
+      if (cardOpen === want && t) { body().innerHTML = teamCardHtml(t, all); box.firstElementChild.scrollTop = 0; }
+    } catch {
+      if (cardOpen === want) body().innerHTML = '<div class="text-[13px] text-zinc-400 py-16 text-center">The team card couldn\'t load. Try again in a moment.</div>';
+    }
+  }
   // Capture, because a name often sits in a row that does something else when clicked.
   document.addEventListener('click', e => {
-    const el = e.target.closest?.('[data-player]');
+    const el = e.target.closest?.('[data-player], [data-team]');
     if (!el) return;
     e.preventDefault();
     e.stopPropagation();
-    open(Vault.normalizeName(el.dataset.player), el.dataset.player);
+    if (el.dataset.team) openTeam(el.dataset.team);
+    else open(Vault.normalizeName(el.dataset.player), el.dataset.player);
   }, true);
 
   window.PlayerCard = { load, open, outTip, setWindow(days) { trendWindowDays = days; applyTrendWindow(); } };

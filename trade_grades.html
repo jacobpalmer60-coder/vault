@@ -54,10 +54,10 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=fdcef309"></script>
+<script src="vault-core.js?v=d5266e08"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=b03660f3"></script>
+<script src="player-card.js?v=a07a2167"></script>
 <script src="season-report.js?v=0596935e"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
@@ -320,12 +320,12 @@ function renderGrade(g) {
       <div class="max-w-lg mb-4">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`, null)}</div>
       <div class="grid md:grid-cols-2 gap-4 mb-3">
         <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.teamLink(g.teamA)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toA)}</div>
           ${sideValueLine(g.toA)}
         </div>
         <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.teamLink(g.teamB)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toB)}</div>
           ${sideValueLine(g.toB)}
         </div>

@@ -238,7 +238,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=fdcef309"></script>
+<script src="vault-core.js?v=d5266e08"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1318,7 +1318,7 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
   const favored = fairness.roster + fairness.timeline > 0 ? partner.teamName : me.teamName; // who fit leans toward (positive = partner)
   return `<div class="grid grid-cols-[auto_auto_auto_auto] gap-x-4 gap-y-1 items-baseline text-right tabular-nums">
       <span></span>
-      <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.escapeHtml(me.teamName)} sends</span>
+      <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.teamLink(me)} sends</span>
       <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.escapeHtml(me.teamName)} gets</span>
       <span class="text-[11px] uppercase tracking-wider text-zinc-400">Net</span>
       <span class="text-[12px] text-zinc-400 text-left cursor-help" title="${PRICE_TIP.trade}">Trade value</span>
@@ -1902,8 +1902,8 @@ function updateTrade() {
       <button onclick="toggle('${side}','${a.key}')" title="Remove from trade" aria-label="Remove ${Vault.escapeHtml(a.name)} from the trade" class="size-7 shrink-0 grid place-items-center rounded-md text-zinc-500 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"><span aria-hidden="true">✕</span></button>
     </div>`;
   const nothing = side => `<div class="text-[13px] text-zinc-500 py-1">Nothing yet. Pick from ${side === 'A' ? 'your roster' : 'their roster'} below.</div>`;
-  document.getElementById('giveALabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.escapeHtml(teamA.teamName)}</span> sends`;
-  document.getElementById('giveBLabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.escapeHtml(teamB.teamName)}</span> sends`;
+  document.getElementById('giveALabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.teamLink(teamA)}</span> sends`;
+  document.getElementById('giveBLabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.teamLink(teamB)}</span> sends`;
   document.getElementById('giveA').innerHTML = aAssets.length ? aAssets.map(a => giveChip('A', a)).join('') : nothing('A');
   document.getElementById('giveB').innerHTML = bAssets.length ? bAssets.map(a => giveChip('B', a)).join('') : nothing('B');
 
@@ -2340,7 +2340,7 @@ init();
 </script>
 <script src="negotiation.js?v=74ef6b53"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=b03660f3"></script>
+<script src="player-card.js?v=a07a2167"></script>
 <script src="market.js?v=bfa5ee54"></script>
 <script src="coach.js?v=3657ed83"></script>
 </body>

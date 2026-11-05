@@ -1885,6 +1885,8 @@ const Vault = {
     const round = [, '1st', '2nd', '3rd', '4th', '5th'][a.round] || `Round ${a.round}`, tier = a.tier ? `${a.tier[0].toUpperCase()}${a.tier.slice(1)} ` : '';
     return `${a.season} ${tier}${round}`;
   },
+  // A team's name that opens its card when clicked (player-card.js).
+  teamLink(t) { return `<span class="player-link" data-team="${t.rosterId}">${Vault.escapeHtml(t.teamName)}</span>`; },
   // A small button for his card, where clicking the name does something else.
   cardIcon(name) { return `<span data-player="${Vault.escapeHtml(name)}" role="button" title="Open player card" aria-label="Open player card" class="inline-grid place-items-center align-middle size-5 ml-1 rounded text-zinc-500 hover:text-amber-300 cursor-pointer"><svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16c.6-1.2 1.6-1.8 3-1.8s2.4.6 3 1.8"/></svg></span>`; },
   // A player's name that opens his card when clicked (player-card.js). label is what shows.
