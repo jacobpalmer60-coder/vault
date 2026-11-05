@@ -56,9 +56,6 @@ function coachRankScore(o) {
   return coachScoreMemo.get(id);
 }
 const coachKey = o => (Math.abs(o.edge) < VAULT_CONFIG.FAIR_PCT ? 0 : 1000) - coachRankScore(o);
-// Slight edge or better (VAULT_CONFIG.VERDICT_TIERS): below that, real trades
-// scored the same way came out a coin flip.
-const coachImproves = o => Vault.verdictTier(coachScore(o)).level === 'good';
 // A suggestion has to make sense for both teams (user, 2026-10-09):
 // - the other manager has a reason to take it: at least a Toss-up for them;
 // - it doesn't hurt either roster (roster fit not meaningfully negative, -1 or better, for either side);
@@ -96,16 +93,8 @@ const coachPriceFair = (give, get, option) => {
 // Get a player (you name the target) and the price plays you start from your
 // own player skip this.
 const coachAsksCornerstone = (partner, get) => get.some(a => Vault.cornerstone(partner, a));
-const COACH_CORNERSTONE_OK = new Set(['target', 'shop', 'sellhigh']);
 // Options that are about the price: these keep Toss-ups too.
 const COACH_PRICE_PLAYS = new Set(['shop', 'sellhigh', 'buylow']);
-// Don't give value away (user, 2026-10-08): a contender's verdict weighs this
-// season's points heavily, so Coach kept finding trades that buy points with
-// value (Ja'Marr Chase for McCaffrey + Irving at 13% over, for Lamb + Adams at
-// 2% over). Every list but Go all-in (whose point is spending future value to
-// win now) needs you even or ahead on trade value: at most COACH_VALUE_FLOOR %
-// behind, about the noise in a trade's price.
-const COACH_VALUE_FLOOR = 2;
 const coachValuePct = o => { const tv = Vault.tradeSideValues(o.give, o.get); return (tv.valueB - tv.valueA) / (((tv.valueA + tv.valueB) / 2) || 1) * 100; };
 // Get a player and Fix a position may pay a little over value for the player or the
 // help you're after (user, 2026-10-24: "if you're wanting to fix aren't you expecting
@@ -113,17 +102,6 @@ const coachValuePct = o => { const tv = Vault.tradeSideValues(o.give, o.get); re
 // Trades with one team too when you're the buyer, getting the best piece in the deal
 // (user, 2026-10-24: "The buyer doesn't set the price. Seller does").
 const COACH_PREMIUM_OK = new Set(['target', 'position', 'want', 'upgrade']), COACH_TARGET_PREMIUM = 6;
-const coachBuyer = o => Math.max(...o.get.map(a => a.value)) > Math.max(...o.give.map(a => a.value));
-// Only when the trade is still Slight edge or better for you (2026-10-24, user, after the
-// backtest: Toss-ups that also paid 2-6% over were the weakest group, 38% ahead later).
-const coachPremiumOK = (o, option) => (COACH_PREMIUM_OK.has(option) || (option === 'team' && coachBuyer(o))) && Vault.verdictTier(coachScore(o)).level === 'good';
-const coachKeepsValue = (o, option) => option === 'contend' || coachValuePct(o) >= -(coachPremiumOK(o, option) ? COACH_TARGET_PREMIUM : COACH_VALUE_FLOOR);
-// Lists where you picked the player, the team or the position (user, 2026-10-24): a
-// fair price there usually reads Toss-up for you (two contenders rarely both win a
-// trade), so Toss-ups show too, after the better trades and labeled. Get a player
-// listed nothing for Josh Allen, Puka Nacua or Fernando Mendoza, three teams had no
-// trades, and every RB depth add was a Toss-up.
-const COACH_TOSSUP_OK = new Set(['target', 'team', 'position', 'want', 'upgrade']);
 // The other team's verdict score for the same trade (memoized like coachScore).
 function coachTheirScore(o) {
   const id = `them:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
@@ -295,84 +273,16 @@ function coachJudged(me, partner, give, get) {
 // picking each target's offers (2026-10-23: it kept the first offer per target
 // and only then filtered, so James Cook was dropped for a package KTC calls
 // off while his third package passed everything).
-// The other team's side of coachListOK: their verdict at least the list's minimum,
+// The other team's side: their verdict at least the list's minimum,
 // and a fair price (coachPriceFair) where that applies. coachOffers checks it too.
 function coachTheyTake(o, option) {
   const theirMin = option === 'position' || option === 'contend' ? COACH_UPGRADE_THEIR_MIN : COACH_THEIR_MIN;
   return coachTheirScore(o) >= theirMin && (COACH_PRICE_PLAYS.has(option) || option === 'downtier' || coachPriceFair(o.give, o.get, option));
 }
-function coachListOK(o, option) {
-  if (!coachPiecesOK(o.give, o.get)) return false;
-  return (COACH_PRICE_PLAYS.has(option) || COACH_TOSSUP_OK.has(option) ? Vault.verdictTier(coachScore(o)).level !== 'bad' : coachImproves(o)) && coachKeepsValue(o, option) && coachTheyTake(o, option)
-    && (COACH_CORNERSTONE_OK.has(option) || !coachAsksCornerstone(o.partner, o.get)) && !coachSameSpotSwap(o);
-}
 
-/* ---------- Why it works, and who to call ----------
-   (2026-10-23, user: "I wanna be wowed by how awesome these trades are"; picked all
-   four: lead with the best move, cut the filler, sell the why, read the other
-   manager.) coachExplain works out each listed trade's lineup gain, title odds,
-   who starts over whom, the other team's situation, and how that manager trades
-   (Trade Grades history: Negotiation.styles, marketOverpay). coachShape then, for
-   a contender in season, ranks by title odds gained, drops trades that barely
-   move the team, and puts managers who've never traded after the rest. */
 // Filler: under 2 pts a week and under 2 points of title odds (1 is within the simulation's wobble).
 const COACH_FILLER_PTS = 2, COACH_FILLER_TITLE = 2, COACH_CONTENDER_PCT = 50;
 let coachPays = null, coachPaysFor = null;
-function coachManagerRead(partner, give) {
-  const st = Negotiation.styles && Negotiation.styles.get ? Negotiation.styles.get(partner.rosterId) : null;
-  if (!st) return null;
-  const all = [...Negotiation.styles.values()], avg = all.reduce((t, s) => t + (s.trades || 0), 0) / (all.length || 1);
-  const name = Vault.escapeHtml(partner.teamName), n = st.trades || 0;
-  if (Negotiation.graded && coachPaysFor !== Negotiation.graded && typeof marketOverpay === 'function') { coachPays = marketOverpay(league, Negotiation.graded); coachPaysFor = Negotiation.graded; }
-  const top = give.length ? give.reduce((m, a) => (a.value > m.value ? a : m)) : null, pos = top ? (top.type === 'pick' ? 'Pick' : top.pos) : null;
-  const pay = pos && coachPays ? coachPays.get(partner.rosterId)?.[pos] : null;
-  const paysUp = pay && pay.n >= PAYS_UP_MIN && pay.avg >= PAYS_UP_AT ? `${name} has paid about ${Math.round(pay.avg)}% over market for ${pos === 'Pick' ? 'picks' : pos + 's'} in your league (${pay.n} trades).` : '';
-  if (!n) return { never: true, tone: 'text-orange-300', text: `${name} hasn't made a trade in your league yet, so this is a long shot.` };
-  const active = n >= Math.max(3, avg * 1.5);
-  // Only when it says something: an ordinary trade count doesn't.
-  if (!paysUp && !active) return null;
-  return { never: false, tone: 'text-emerald-300', text: paysUp || `${name} trades a lot (${n} trades, league average ${avg.toFixed(1)}).` };
-}
-function coachExplain(me, o) {
-  const aft = coachAfter(me.rosterId, o.partner.rosterId, o.give, o.get);
-  const gain = aft.opt - me.opt, title = coachTitleOdds(o);
-  // Who starts over whom: new starters from the trade, and who they push out of the lineup.
-  const before = new Set((me.lineup || []).map(s => s.id).filter(Boolean)), after = new Set((aft.lineup || []).map(s => s.id).filter(Boolean));
-  const gave = new Set(o.give.map(a => a.key));
-  const inn = o.get.filter(a => a.type === 'player' && after.has(a.key.slice(2)));
-  const out = (me.lineup || []).filter(s => s.id && !after.has(s.id) && !gave.has('p_' + s.id)).map(s => s.name);
-  const starts = inn.map((a, i) => out[i] ? `${Vault.escapeHtml(a.name)} starts over ${Vault.escapeHtml(out[i])}` : `${Vault.escapeHtml(a.name)} starts for you`);
-  const p = o.partner, name = Vault.escapeHtml(p.teamName), rec = p.record ? `${p.record.wins}-${p.record.losses}${p.record.ties ? '-' + p.record.ties : ''}` : '';
-  const pc = v => (v < 1 && v > 0 ? 'under 1' : v > 99 && v < 100 ? 'over 99' : Math.round(v)) + '%';
-  let situation = '';
-  if (remainingWeeks.length && Number.isFinite(p.playoffPct)) {
-    if (p.playoffPct < VAULT_CONFIG.OUT_OF_RACE_PCT) situation = `${name} is ${rec} and out of the race (${pc(p.playoffPct)} playoff odds): teams that far out sell starters.`;
-    else if (p.playoffPct >= 85) situation = `${name} is a contender too (${pc(p.playoffPct)} playoff odds): contenders rarely sell starters.`;
-  }
-  if (!situation && Vault.teamMode(p) === 'rebuild') situation = `${name} is building for later, so picks and young players appeal to them.`;
-  return { gain, title, starts, situation, manager: coachManagerRead(p, o.give) };
-}
-// Contender in season: playing for this year's title, so that's the headline and the order.
-const coachContending = me => remainingWeeks.length > 0 && Number.isFinite(me.playoffPct) && me.playoffPct >= COACH_CONTENDER_PCT && Vault.teamMode(me) !== 'rebuild';
-function coachShape(me, list, option) {
-  // The same player twice (Fix a position and Go all-in keep two ways to pay for
-  // each): one card, the second way to pay shown on it, so more players fit the list.
-  if (option === 'contend' || option === 'position') {
-    const first = new Map();
-    list = list.filter(o => { const k = o.partner.rosterId + '<' + negKeys(o.get).join(); const f = first.get(k); if (f) { (f.alts ||= []).push(o); return false; } first.set(k, o); return true; });
-    // Up to 10 players, then Fix a position's depth adds after them (coachDepthAdds);
-    // the first COACH_SLOT_FIRST new #1s always make the 10 (coachSlotFor).
-    if (option === 'position') list.forEach(o => { o.slot = coachSlotFor(me, o, Coach.pos); });
-    const nd = list.filter(o => !o.depth), ones = nd.filter(o => o.slot && o.slot.group === 0).slice(0, COACH_SLOT_FIRST);
-    list = [...ones, ...nd.filter(o => !ones.includes(o)).slice(0, 10 - ones.length), ...list.filter(o => o.depth)];
-  }
-  list.forEach(o => { o.ctx = coachExplain(me, o); });
-  if (!coachContending(me) || !['best', 'team', 'contend', 'position'].includes(option)) return list;
-  const tGain = o => (o.ctx.title ? o.ctx.title.after - o.ctx.title.before : 0);
-  const real = list.filter(o => o.depth || o.ctx.gain >= COACH_FILLER_PTS || tGain(o) >= COACH_FILLER_TITLE);
-  const kept = real.length >= 3 ? real : list;
-  return kept.sort((x, y) => (x.depth ? 1 : 0) - (y.depth ? 1 : 0) || (x.ctx.manager?.never ? 1 : 0) - (y.ctx.manager?.never ? 1 : 0) || tGain(y) - tGain(x) || y.ctx.gain - x.ctx.gain);
-}
 /* ---------- Quick filters ----------
    Above the results (2026-10-23, user picked "Steer Coach searches"): pay with
    picks and bench only (coachOffLimits), at most N pieces each way, and a
@@ -381,7 +291,7 @@ function coachShape(me, list, option) {
 const coachPiecesOK = (give, get) => !Coach.maxPieces || (give.length <= Coach.maxPieces && get.length <= Coach.maxPieces);
 /* ---------- Closest deals ----------
    When a list comes up empty (2026-10-23, user picked "Closest deals when
-   empty"): the offers it built that failed coachListOK, each with why, and for
+   empty"): the offers it built that failed the read, each with why, and for
    one that's bad for the other team, the smallest of your other pieces that makes
    it at least a Toss-up for them. Up to COACH_NEAR_SHOW, fixable ones first. */
 const COACH_NEAR_SHOW = 3, COACH_NEAR_LOOK = 12;
@@ -672,20 +582,6 @@ function coachWorkHtml(me) {
 
 /* ---------- Render ---------- */
 
-// One Trade Coach option. Leads with the price you'd pay, said the way people talk about prices:
-// "5% under trade value" (you'd get more value than you send; over = you'd overpay), and, when
-// the pieces have market reads, the same against what managers actually pay ("31% under market
-// price"). Then the pieces, one line of why, and the button.
-// Your title odds before → after, in season (the calculator's This season box,
-// same simulation): for a team already headed to the playoffs, the title is where
-// a trade shows up. In accepted 2024-2025 trades (VaultValues coach-backtest.js),
-// contenders at 85%+ playoff odds won the title 1.35x as often as their odds said
-// after trades adding 6+ points a week, 1.12x (the same as any team that traded)
-// after ones adding about none. Hidden when both are under 1%.
-function coachTitleOdds(o) {
-  const s = coachSeasonOdds(o);
-  return s && !(s.before < 1 && s.after < 1) ? s : null;
-}
 function coachSeasonOdds(o) {
   if (!remainingWeeks.length || typeof tradeSeasonOdds !== 'function') return null;
   const me = coachMe(), { next } = tradeSeasonOdds(me, o.partner, o.give, o.get);
@@ -1310,7 +1206,7 @@ function coachSendHtml(me) {
   const isStarter = a => starters.some(s => 'p_' + s.id === a.key);
   const mine = me.assets.filter(x => x.type === 'player' && x.pos === P).sort((x, y) => (f.posGoal === 'upgrade' ? (y.key === weakKey) - (x.key === weakKey) : 0) || y.value - x.value);
   const rows = mine.map(a => coachChoice(`coachChooseSend('${a.key}')`, `${coachEsc(a.name)}${a.key === weakKey ? ' <span class="text-[12px] text-amber-200/90">weakest starter</span>' : ''}`,
-    [isStarter(a) ? 'Starter' : 'Bench', a.age ? `${Math.round(a.age)} years old` : '', a.ppg ? `${a.ppg.toFixed(1)} pts/game` : ''].filter(Boolean).join(' · '), `<span class="shrink-0 text-[12px] mono text-zinc-400">${n(a.value)}</span>`)).join('');
+    [isStarter(a) ? 'Starter' : 'Bench', a.age ? `${Math.floor(a.age)} years old` : '', a.ppg ? `${a.ppg.toFixed(1)} pts/game` : ''].filter(Boolean).join(' · '), `<span class="shrink-0 text-[12px] mono text-zinc-400">${n(a.value)}</span>`)).join('');
   const rest = me.assets.filter(a => !mine.includes(a) && a.value >= 300).sort((x, y) => y.value - x.value);
   const verb = { upgrade: 'upgrading', downtier: 'down-tiering', sell: 'selling' }[f.posGoal];
   return coachAsk(`Which ${P} are you ${verb}?`, 'You can add more on the next step.') + `<div class="grid gap-2">${rows || `<div class="text-[12px] text-zinc-500">You have no ${P} to send.</div>`}</div>
@@ -1330,7 +1226,7 @@ function coachPickHtml(me) {
       `${Vault.MODE_LABEL[Vault.teamMode(t)] || ''}${needs.length ? ` · thin at ${P(needs)}` : ''}${surpluses.length ? ` · deep at ${P(surpluses)}` : ''}`);
   };
   const playerRows = (rows, pickFn) => `<div class="grid gap-2">${rows.map(({ a, t }) => coachChoice(`${pickFn}('${a.key}')`, coachEsc(a.name),
-    `${coachEsc(t.teamName)}${a.age ? ` · ${Math.round(a.age)} years old` : ''}${a.ppg ? ` · ${a.ppg.toFixed(1)} pts/game` : ''}`, `<span class="shrink-0 text-[12px] mono text-zinc-400">${n(a.value)}</span>`)).join('') || '<div class="py-3 text-[12px] text-zinc-500">No one fits.</div>'}</div>`;
+    `${coachEsc(t.teamName)}${a.age ? ` · ${Math.floor(a.age)} years old` : ''}${a.ppg ? ` · ${a.ppg.toFixed(1)} pts/game` : ''}`, `<span class="shrink-0 text-[12px] mono text-zinc-400">${n(a.value)}</span>`)).join('') || '<div class="py-3 text-[12px] text-zinc-500">No one fits.</div>'}</div>`;
   const fold = (cls, summary, body) => `<details class="mt-4 group/${cls}"><summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">${summary}</summary><div class="mt-2">${body}</div></details>`;
 
   if (f.what === 'player') {

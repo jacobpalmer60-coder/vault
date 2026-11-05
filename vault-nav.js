@@ -2,7 +2,7 @@
    VAULT NAV
    Injects one consistent header/nav into every page.
    Requires vault-core.js to be loaded first.
-   Usage: <div id="vault-nav"></div> then <script src="js/vault-nav.js"></script>
+   Usage: <div id="vault-nav"></div> then <script src="vault-nav.js"></script>
    ============================================================ */
 (function () {
   // Five tabs (user, 2026-10-20: "a little convoluted"): the main row is one tab per

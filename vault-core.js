@@ -1872,6 +1872,7 @@ const Vault = {
      put them in the page, so anything that could become markup goes here, before any page
      sees it (2026-11-05: a script in a team name ran on Trade Grades). Apostrophes stay. */
   teamLabel(u, rosterId) { return String(u?.metadata?.team_name || u?.display_name || `Team ${rosterId}`).replace(/[<>"]/g, ''); },
+  posBadge(pos) { return `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`; },
   // One name for a pick everywhere: "2027 Mid 1st", or "2027 1st" with no tier known.
   pickName(a) {
     const round = [, '1st', '2nd', '3rd', '4th', '5th'][a.round] || `Round ${a.round}`, tier = a.tier ? `${a.tier[0].toUpperCase()}${a.tier.slice(1)} ` : '';

@@ -140,7 +140,7 @@ function negConcerns(out, inc, ctx, drops) {
     const pos = (i.pos || '').toLowerCase();
     if (i.type === 'player' && ctx.surpluses.includes(pos)) list.push({ w: -3, text: `They're already deep at ${i.pos}, so ${Vault.escapeHtml(i.name)} doesn't fill a hole.`, say: `I'm already deep at ${i.pos}. I don't need ${Vault.escapeHtml(i.name)}.` });
     else if (i.type === 'player' && ctx.needs.includes(pos)) list.push({ w: 3, text: `${i.pos} is a need for them — ${Vault.escapeHtml(i.name)} helps.`, say: `I could use a ${i.pos} like ${Vault.escapeHtml(i.name)}.` });
-    if (i.type === 'player' && ctx.lean === 'rebuild' && i.age >= 28) list.push({ w: -3, text: `At ${i.age.toFixed(0)}, ${Vault.escapeHtml(i.name)} doesn't fit a rebuild.`, say: `I'm rebuilding. ${Vault.escapeHtml(i.name)} at ${i.age.toFixed(0)} doesn't help me.` });
+    if (i.type === 'player' && ctx.lean === 'rebuild' && i.age >= 28) list.push({ w: -3, text: `At ${Math.floor(i.age)}, ${Vault.escapeHtml(i.name)} doesn't fit a rebuild.`, say: `I'm rebuilding. ${Vault.escapeHtml(i.name)} at ${i.age.toFixed(0)} doesn't help me.` });
     if (i.type === 'pick' && ctx.lean === 'contend') list.push({ w: -2, text: `${Vault.escapeHtml(i.name)} doesn't help a contender win now.`, say: `${Vault.escapeHtml(i.name)} doesn't help me win this year.` });
   });
   if (drops) list.push({ w: -2 * drops, text: `They'd have to drop ${drops} player${drops === 1 ? '' : 's'} to fit this.`, say: `I'd have to cut ${drops === 1 ? 'someone' : drops + ' players'} to fit this.` });

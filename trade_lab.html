@@ -103,12 +103,12 @@
 
 <div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
 
-<script src="vault-core.js?v=4b475ba6"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
+<script src="vault-core.js?v=b3a67fa5"></script>
+<script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=ef0a6bba"></script>
 <script>
-const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const POS_BADGE = Vault.posBadge;
 const esc = s => Vault.escapeHtml(String(s));
 const fmtInt = n => Math.round(n).toLocaleString();
 const pc = (v, d = 0) => (v == null ? '—' : `${(+v).toFixed(d)}%`);

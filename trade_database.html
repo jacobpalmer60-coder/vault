@@ -76,8 +76,8 @@
   <div class="text-[12px] text-zinc-400 mt-6">More: <a id="marketLink" href="market.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">who sells above or below KTC (Player Market)</a> · <a id="labLink" href="trade_lab.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">what 2.15 million trades show (Trade Lab)</a></div>
 </div>
 
-<script src="vault-core.js?v=4b475ba6"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
+<script src="vault-core.js?v=b3a67fa5"></script>
+<script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=ef0a6bba"></script>
 <script>
@@ -120,7 +120,7 @@ function assetLabel(id, playerMap, pickMap) {
 // Same colored position pill used elsewhere on the site (vault.css's
 // .pos-badge-*) — a bare player name with no position shown means a reader
 // can't tell what they're looking at without already knowing every player.
-const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const POS_BADGE = Vault.posBadge;
 function assetChips(ids, playerMap, pickMap) {
   if (!ids.length) return '<span class="text-zinc-400">Nothing</span>';
   return ids.map(id => {

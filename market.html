@@ -110,8 +110,8 @@
 
 <div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
 
-<script src="vault-core.js?v=4b475ba6"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
+<script src="vault-core.js?v=b3a67fa5"></script>
+<script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=ef0a6bba"></script>
 <script>
@@ -127,7 +127,7 @@
    - Rising and cooling: each player's last 30 days against the 30 before.
    - Market highs & lows: market-data.js, against same-position, same-value peers.
    ============================================================ */
-const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const POS_BADGE = Vault.posBadge;
 const POS_COLOR = { QB: '#e48ae0', RB: '#4ade9c', WR: '#5cb8e4', TE: '#f0a857', Pick: '#a8a8b1' }; // vault.css .pos-badge-*
 // Picks are tracked by year and round ('k:2027-1'): Sleeper trades don't say
 // early/mid/late and KTC's feed stores every pick as mid, so a pick's KTC value

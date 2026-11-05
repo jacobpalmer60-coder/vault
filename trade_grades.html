@@ -54,8 +54,8 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=4b475ba6"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
+<script src="vault-core.js?v=b3a67fa5"></script>
+<script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=ef0a6bba"></script>
 <script src="season-report.js?v=0596935e"></script>
@@ -70,8 +70,6 @@ const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc
 // Every grade wears its own color (Vault.BUCKET_STYLE), the same everywhere.
 // Verdict dots by level (Vault.tradeImprovement): good, toss-up, bad.
 const VERDICT_DOT = { good: 'bg-emerald-400', tossup: 'bg-amber-300', bad: 'bg-orange-400' };
-function verdictColor(tone, bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).text; }
-function verdictDot(tone, bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).dot; }
 const FAIR_FILTERS = ['All', 'Fair', 'Lopsided', 'Unfair'];
 const SORTS = { recent: 'Most Recent', lopsided: 'Most Lopsided' };
 
@@ -147,7 +145,7 @@ function synopsisColor(bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUC
 // Same colored position pill Player Rankings/Trade Calculator use (vault.css's
 // .pos-badge-*) — a bare player name with no position shown means a reader can't
 // tell what they're looking at without already knowing the league's rosters.
-const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const POS_BADGE = Vault.posBadge;
 // Signed, comma-grouped change with a color: green up, red down, grey flat.
 function deltaHtml(d) {
   const r = Math.round(d);
