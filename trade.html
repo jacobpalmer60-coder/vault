@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=57836541">
-<link rel="stylesheet" href="tailwind.css?v=23b36902">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -96,6 +96,14 @@
       <aside id="siteStatus" aria-label="How other sites read this trade" class="hidden min-w-0 rounded-xl bg-black/25 border border-white/5 p-3"></aside>
     </div>
     <!-- This season, both teams: playoff and title odds before → after, and who moves into each lineup (the card shows your title odds). -->
+    <!-- How the trade changes each team: on the card, as soon as there's a trade. -->
+    <section id="teamImpact" aria-label="How it changes each team" class="border-t border-white/5 px-4 sm:px-5 py-4">
+      <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">How it changes each team</div>
+      <div class="grid lg:grid-cols-2 gap-3">
+        <div id="analysisA" class="hidden min-w-0"></div>
+        <div id="analysisB" class="hidden min-w-0"></div>
+      </div>
+    </section>
     <details id="seasonWrap" class="group border-t border-white/5">
       <summary class="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">
         <span>This season: playoff and title odds, both lineups, and who steps in</span>
@@ -121,17 +129,6 @@
         <div id="gapClose" class="hidden pt-3 border-t border-white/5"></div>
       </div>
     </details>
-  <!-- How the trade changes each team: open on demand (hidden while there's no trade). -->
-  <details id="teamImpact" class="group border-t border-white/5">
-    <summary class="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">
-      <span>How it changes each team: value, age and window</span>
-      <span><span class="group-open:hidden">Show ▾</span><span class="hidden group-open:inline">Hide ▴</span></span>
-    </summary>
-    <div class="grid lg:grid-cols-2 gap-4 px-4 sm:px-5 pb-4">
-      <div id="analysisA" class="hidden min-w-0"></div>
-      <div id="analysisB" class="hidden min-w-0"></div>
-    </div>
-  </details>
     <div class="border-t border-white/5 bg-black/20 px-4 sm:px-5 py-3 flex flex-wrap items-center gap-3">
       <!-- Who's offering: picking one turns the verdict into accept-or-decline advice. -->
       <div id="offeredByWrap" class="hidden flex items-center gap-2 flex-wrap">
@@ -1187,38 +1184,6 @@ function renderSiteStatus(args = siteStatusArgs) {
   const el = document.getElementById('siteStatus'), show = !!(args && args.aAssets.length && args.bAssets.length);
   el.classList.toggle('hidden', !show);
   el.innerHTML = show ? siteStatusHtml(args) : '';
-}
-/* One line above the sites: how many KTC points The Vault and the sites put between the
-   two sides, on average, so a strong read counts for more than a barely (user,
-   2026-11-03) and a small trade reads small (2026-11-04: Darnell Washington for Stefon
-   Diggs read 40% off on about 200 points of KTC value). Each gap is signed like the
-   fairness bar, and a site with no read sits out. KTC's is the totals on its page.
-   A gap counts by its share of the trade (6% is the verdict's Toss-up band, 14% and 41%
-   the Fair and Lopsided lines) or its size, whichever reads closer: 1,000 points is
-   about the player KTC suggests to even a trade like that one, a waiver-level name. */
-const SITE_NEAR_EVEN_PCT = 6;
-const SITE_NEAR_EVEN_POINTS = 250;
-const SITE_NEAR_FAIR_POINTS = 1000;
-function siteConsensus(gaps) {
-  const known = gaps.filter(Number.isFinite);
-  if (known.length < 2) return null;
-  return { gap: known.reduce((s, x) => s + x, 0) / known.length, sites: known.length };
-}
-// The same read anywhere a trade is judged. Roster Audit counts as its values added up,
-// which is what its grade measures, so this costs nothing against its hourly limit.
-function tradeConsensus(teamA, teamB, aAssets, bAssets) {
-  const isSF = Vault.isSuperflex(league), tv = Vault.tradeSideValues(aAssets, bAssets), ktc = Vault.ktcSideValues(aAssets, bAssets);
-  const ra = Vault.rosterAuditRead(aAssets, bAssets, isSF, raValues), dd = Vault.dynastyDaddyRead(aAssets, bAssets, isSF, ddValues);
-  const noTe = Vault.rosterAuditTep(league) && [...aAssets, ...bAssets].some(a => a.pos === 'TE');
-  const found = siteConsensus([tv.valueA - tv.valueB, ktc.valueA - ktc.valueB, ra.priced ? ra.ktcGap : null, dd.priced && !noTe ? dd.ktcGap : null]);
-  return found && { ...found, ...siteConsensusRead(found.gap, (ktc.valueA + ktc.valueB) / 2, teamA, teamB) };
-}
-function siteConsensusRead(gap, size, teamA, teamB) {
-  const off = Math.abs(gap), pct = off / (size || 1) * 100, team = Vault.escapeHtml((gap > 0 ? teamB : teamA).teamName);
-  if (pct < SITE_NEAR_EVEN_PCT || off < SITE_NEAR_EVEN_POINTS) return { dot: 'good', band: 0, text: 'Fair' };
-  if (pct < VAULT_CONFIG.FAIR_PCT || off < SITE_NEAR_FAIR_POINTS) return { dot: 'good', band: 0, text: `Near fair, leans ${team}` };
-  if (pct < VAULT_CONFIG.LOPSIDED_PCT) return { dot: 'mid', band: 1, text: `Favors ${team}` };
-  return { dot: 'bad', band: 2, text: `Strongly favors ${team}` };
 }
 /* Every piece at each site's price, the totals, and KTC's adjustment, so the
    verdicts above can be checked piece by piece (user, 2026-11-03). KTC's verdict
@@ -2354,22 +2319,16 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
     const win = wins[side];
 
     document.getElementById(`analysis${side}`).innerHTML = `
-      <div class="card rounded-vault-sm p-4 min-w-0">
-        <div class="flex items-center justify-between gap-2 mb-3">
-          <div class="min-w-0">
-            <div class="text-[11px] text-zinc-400 uppercase tracking-wider break-words">Team ${side} · ${Vault.escapeHtml(bef.teamName)}</div>
-            <div class="text-[12px] mt-0.5 ${TONE.neutral}">${Vault.MODE_LABEL[res.mode]}${Vault.planOverride[bef.rosterId] ? ' · set by you' : ''}</div>
-          </div>
-          <div class="text-right shrink-0">
-            <div class="text-[13px] font-mono ${dValueAdj >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtSigned(dValueAdj)}</div>
-            <div class="text-[12px] text-zinc-400">net trade value</div>
-          </div>
+      <div class="rounded-xl bg-black/25 border border-white/5 p-3 sm:p-4 min-w-0">
+        <div class="flex items-baseline justify-between gap-2 mb-2">
+          <div class="min-w-0 text-[13px] font-medium text-zinc-100 truncate">${Vault.escapeHtml(bef.teamName)}</div>
+          <div class="shrink-0 text-[12px] ${TONE.neutral}">${Vault.MODE_LABEL[res.mode]}${Vault.planOverride[bef.rosterId] ? ' · set by you' : ''}</div>
         </div>
-        <div class="flex items-start gap-2 mb-4">
+        <div class="flex items-start gap-2 mb-3">
           <span class="size-2 rounded-full shrink-0 mt-1.5 ${TONE_DOT[head.tone]}"></span>
           <p class="text-[13px] ${TONE[head.tone]} leading-relaxed"><span class="font-medium">${head.text}.</span> <span class="font-normal">${Vault.buildSynopsis('', res.notes)}</span></p>
         </div>
-        ${res.notes.length ? `<details class="group mb-4">
+        ${res.notes.length ? `<details class="group mb-3">
           <summary class="flex items-center gap-1.5 py-1 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
             <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
             <span>Full breakdown (${res.notes.length})</span>
@@ -2379,7 +2338,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           </div>
         </details>` : ''}
         <div class="grid grid-cols-4 gap-2 text-center pt-3 border-t border-white/5">
-          <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">${Vault.term('age', 'Age')}</div></div>
+          <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 text-zinc-400">${Math.abs(aft.age - bef.age) >= 0.05 ? `was ${bef.age.toFixed(1)}` : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('age', 'Age')}</div></div>
           <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dOpt) > 0.05 ? Vault.signed(res.dOpt, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('lineupPpg', 'Lineup PPG')}</div></div>
           <div><div class="text-[14px] font-mono">${Vault.num1(aft.vorpTotal)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? Vault.signed(res.dVorp, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('vorpTeam', 'VORP')}</div></div>
           <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? Vault.windowYearsText(win) : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">${Vault.term('window', 'Window')}</div></div>
@@ -2395,6 +2354,6 @@ init();
 <script src="market-data.js?v=5f77dae0"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script src="market.js?v=83ca5fb1"></script>
-<script src="coach.js?v=78c05012"></script>
+<script src="coach.js?v=44c50bac"></script>
 </body>
 </html>
