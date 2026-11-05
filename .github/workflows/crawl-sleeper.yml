@@ -62,13 +62,37 @@ jobs:
         run: |
           gh release view sleeper-trades >/dev/null 2>&1 || gh release create sleeper-trades --title "Sleeper trade history (data)" --notes "Raw dynasty trades collected by scripts/crawl-sleeper-trades.js, one file per season. Updated hourly." --latest=false
           mkdir -p data/sleeper-trades
-          gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber || true
+          # No "|| true": a season that doesn't download would be rebuilt from nothing and saved
+          # over the real one (2026 lost 1.4M trades that way on 2026-11-04).
+          gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber
+          node scripts/crawl-guard.js check
+
+      # Restoring lost seasons: anything on the crawl-restore branch is merged in, every trade
+      # from both kept, so it's safe to run more than once. Delete the branch when it's done.
+      - name: Merge a restore, if there is one
+        run: |
+          git fetch --depth=1 origin crawl-restore 2>/dev/null || exit 0
+          mkdir -p "$RUNNER_TEMP/restore"
+          git archive FETCH_HEAD | tar -x -C "$RUNNER_TEMP/restore"
+          node scripts/crawl-guard.js merge "$RUNNER_TEMP/restore"
+          gh release upload sleeper-trades data/sleeper-trades/*.json.gz --clobber
+
+      # A day-old copy of everything, since the release keeps no earlier versions.
+      - name: Daily backup
+        run: |
+          gh release view sleeper-trades-backup >/dev/null 2>&1 || gh release create sleeper-trades-backup --title "Sleeper trade history, daily backup" --notes "A copy of the sleeper-trades assets, made once a day by the crawl after they pass the guard." --latest=false
+          last=$(gh release view sleeper-trades-backup --json assets --jq '[.assets[].updatedAt] | sort | last // ""')
+          [ "${last:0:10}" = "$(date -u +%F)" ] && exit 0
+          gh release upload sleeper-trades-backup data/sleeper-trades/*.json.gz --clobber
+
+      - run: node scripts/crawl-guard.js mark "$RUNNER_TEMP/crawl-counts.json"
 
       - run: node scripts/crawl-sleeper-trades.js
 
       - name: Save them back to the release
         run: |
           ls data/sleeper-trades/*.json.gz >/dev/null 2>&1 || exit 0
+          node scripts/crawl-guard.js same "$RUNNER_TEMP/crawl-counts.json"
           gh release upload sleeper-trades data/sleeper-trades/*.json.gz --clobber
 
       - uses: actions/cache/save@v4

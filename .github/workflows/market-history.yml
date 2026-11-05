@@ -35,6 +35,7 @@ jobs:
         run: |
           mkdir -p data/sleeper-trades
           gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber
+          node scripts/crawl-guard.js check
 
       - run: node scripts/market-history/build-seasonal.js
       - run: node --max-old-space-size=6144 scripts/market-history/build-player-history.js
