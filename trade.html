@@ -1914,7 +1914,7 @@ function parsePastedTrade(text) {
     s.found.forEach(f => (f.t === me || f.t === partner ? place(f.t, f.a) : missed.push(`${f.a.name} (${f.t.teamName})`)));
     const side = s.found.find(f => f.t === me || f.t === partner)?.t || (s.team === me || s.team === partner ? s.team : null);
     s.picks.forEach(p => {
-      const fits = t => (t ? t.assets : []).filter(a => a.type === 'pick' && a.season === p.season && (a.ktcRound ?? a.round) === p.round && !used.has(a.key) && (!p.tier || (a.tier || '').toLowerCase() === p.tier)).sort((x, y) => y.value - x.value);
+      const fits = t => (t ? t.assets : []).filter(a => a.type === 'pick' && a.season === p.season && a.round === p.round && !used.has(a.key) && (!p.tier || (a.tier || '').toLowerCase() === p.tier)).sort((x, y) => y.value - x.value);
       const own = side ? fits(side) : [], mine = fits(me), theirs = fits(partner);
       // Next to a team's players, it's that team's. Otherwise whichever team has one, if only one does.
       const pick = own[0] ? { t: side, a: own[0] } : mine[0] && !theirs[0] ? { t: me, a: mine[0] } : theirs[0] && !mine[0] ? { t: partner, a: theirs[0] } : null;
