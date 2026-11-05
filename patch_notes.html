@@ -47,13 +47,15 @@
 </div>
 
 <script src="vault-core.js?v=c980be9a"></script>
-<script src="vault-nav.js?v=7c21d9f0"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Trade Calculator', text: "Share image: a clean picture of a trade and its verdict to post in your league chat. Weekly Recap has one too." },
+    { kind: 'new', page: 'Your Team Today', text: "A new first stop after picking a league: your record and odds, what changed since your last visit, your next game, your injuries, your biggest value moves this week, and what your team needs with partners to start a trade with." },
     { kind: 'new', page: 'Trade Calculator', text: "Stress test: under the verdict's numbers, what your title odds would be if your best incoming player were lost for the season, against your odds without the trade." },
     { kind: 'changed', page: 'Trade Calculator', text: "On phones the trade card has tabs, Verdict, Teams, Season and Details, instead of one long page. The calculator also loads about twice as fast on a phone." },
     { kind: 'fixed', page: 'League Overview', text: "Sorting makes more sense. Team now starts A to Z and Age youngest first, the same on phones and desktop. An arrow shows the column and direction, Right now and Dynasty only light up when that's really the order, and ties fall to points for. Phones have a button to flip the order, which they never really could." },

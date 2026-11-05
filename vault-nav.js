@@ -11,6 +11,7 @@
   // removed; Season Report and the contend-or-rebuild plan live in the team view.
   const GROUPS = [
     { label: 'League', tabs: [
+      { key: 'today', short: 'Today', label: 'Your Team Today', href: 'today.html' },
       { key: 'overview', short: 'Overview', label: 'League Overview', href: 'app.html' },
       { key: 'analyzer', short: 'Teams', label: 'Team Analyzer', href: 'team-analyzer.html' },
       { key: 'playoffs', short: 'Playoff Race', label: 'Playoff Race', href: 'playoffs.html' },

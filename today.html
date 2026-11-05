@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>Your Team Today — The Vault</title>
+<meta name="description" content="Your dynasty team today: what changed, your next game, your injuries and what your team needs.">
+<meta property="og:title" content="Your Team Today — The Vault">
+<meta property="og:description" content="Your dynasty team today: what changed, your next game, your injuries and what your team needs.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/weekly_recap.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=8443268e">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<main class="max-w-[860px] mx-auto px-4 sm:px-6 py-4 lg:py-6" data-league-required>
+  <h1 id="title" class="display font-semibold gold-text">Your Team Today</h1>
+  <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading your team…</p>
+  <div id="sinceVisit" class="mt-4 empty:hidden"></div>
+  <div id="body" class="hidden">
+    <div id="tiles" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4"></div>
+    <section id="gameBox" class="mt-6 empty:hidden"></section>
+    <section id="hurtBox" class="mt-6 empty:hidden"></section>
+    <section id="moveBox" class="mt-6 empty:hidden"></section>
+    <section id="needBox" class="mt-6 empty:hidden"></section>
+  </div>
+</main>
+
+<script src="vault-core.js?v=c980be9a"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="market-data.js?v=ce438c45"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
+<script>
+/* ============================================================
+   YOUR TEAM TODAY (user, 2026-11-05)
+   Where you land after picking a league: what changed and what your team needs, from pieces
+   the other pages already work out. Nothing new is calculated here.
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const esc = s => Vault.escapeHtml(String(s ?? ''));
+const pct = v => (v == null ? '—' : v > 0 && v < 1 ? '<1%' : v > 99 && v < 100 ? '>99%' : `${Math.round(v)}%`);
+const ord = n => `${n}${['th', 'st', 'nd', 'rd'][n % 100 >= 11 && n % 100 <= 13 ? 0 : n % 10] || 'th'}`;
+const head = (t, help = '') => `<div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">${t}${help}</div>`;
+const tile = (label, big, sub = '') => `<div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0"><div class="text-[11px] text-zinc-400">${label}</div><div class="num text-[24px] text-zinc-100 mt-0.5">${big}</div>${sub ? `<div class="text-[12px] text-zinc-400 truncate">${sub}</div>` : ''}</div>`;
+const row = (left, right = '') => `<div class="flex items-baseline justify-between gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]"><span class="min-w-0 text-zinc-200">${left}</span><span class="shrink-0 text-right">${right}</span></div>`;
+const list = rows => `<div class="card rounded-vault-sm px-4 py-1">${rows.join('')}</div>`;
+
+function renderSinceVisit(teams) {
+  const me = Vault.myTeam(teams), box = document.getElementById('sinceVisit');
+  if (!me || !box) return;
+  const key = `vault_lastvisit_${Vault.getLeagueId()}`;
+  const rank = [...teams].sort((a, b) => b.overall - a.overall).indexOf(me) + 1;
+  const now = { at: Date.now(), value: Math.round(me.overall), rank, odds: me.projected?.playoffPct ?? null, hurt: me.plist.filter(p => p.value >= 500 && Vault.injuryText(p)).map(p => p.name) };
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
+  const fresh = saved?.last && now.at - saved.last.at < 12 * 36e5;
+  const prev = fresh ? saved.prev : saved?.last;
+  try { localStorage.setItem(key, JSON.stringify({ prev: prev || null, last: fresh ? saved.last : now })); } catch {}
+  if (!prev) return;
+  const parts = [], d = now.value - prev.value, ord = n => `${n}${['th', 'st', 'nd', 'rd'][n % 100 >= 11 && n % 100 <= 13 ? 0 : n % 10] || 'th'}`;
+  if (Math.abs(d) >= 1) parts.push(`Team value ${d > 0 ? 'up' : 'down'} <span class="mono ${d > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Math.abs(d).toLocaleString()}</span>`);
+  if (now.rank !== prev.rank) parts.push(`${ord(prev.rank)} to ${ord(now.rank)} in value`);
+  if (now.odds != null && prev.odds != null && Math.abs(now.odds - prev.odds) >= 1) parts.push(`Playoff odds ${Math.round(prev.odds)}% to ${Math.round(now.odds)}%`);
+  const hurt = now.hurt.filter(n => !prev.hurt.includes(n));
+  if (hurt.length) parts.push(`Newly hurt: ${hurt.map(n => Vault.playerLink(n)).join(', ')}`);
+  if (!parts.length) return;
+  const when = new Date(prev.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  box.innerHTML = `<div class="card rounded-vault-sm px-4 py-3 text-[13px] text-zinc-300"><span class="text-[11px] uppercase tracking-wider text-zinc-400 mr-2">Since ${when}</span>${parts.join('<span class="text-zinc-600 mx-1.5">·</span>')}</div>`;
+}
+
+function renderGame(me, teams, weeks) {
+  const w = weeks[0];
+  if (!w || w.guessed) return '';
+  const pair = w.pairs.find(p => p.includes(me.rosterId)), opp = pair && teams.find(t => t.rosterId === pair.find(id => id !== me.rosterId));
+  if (!opp) return '';
+  const pts = t => (t.optByWeek?.has(w.week) ? t.optByWeek.get(w.week) : t.opt), mine = pts(me), theirs = pts(opp), rec = t => (t.record ? ` (${t.record.wins}-${t.record.losses}${t.record.ties ? `-${t.record.ties}` : ''})` : '');
+  const tone = mine >= theirs ? 'text-emerald-300' : 'text-orange-300';
+  return head(`Week ${w.week}`) + list([row(`${Vault.teamLink(me)}${rec(me)} vs ${Vault.teamLink(opp)}${rec(opp)}`, `<span class="mono ${tone}">${mine.toFixed(1)}</span><span class="text-zinc-500"> to </span><span class="mono text-zinc-300">${theirs.toFixed(1)}</span><span class="text-[12px] text-zinc-500"> proj.</span>`)]);
+}
+function renderHurt(me) {
+  const hurt = me.plist.filter(p => p.value >= 500 && Vault.injuryText(p)).sort((a, b) => b.value - a.value);
+  if (!hurt.length) return '';
+  const starting = new Set((me.lineup || []).map(x => x.id).filter(Boolean));
+  return head('Your injuries') + list(hurt.slice(0, 8).map(p => {
+    const tag = Vault.injuryTag(p);
+    return row(`${Vault.playerLink(p.name)}${Vault.metaSpan(p)}${starting.has(p.id) ? ' <span class="text-[12px] text-zinc-500">starter</span>' : ''}`, `<span class="text-[12px] ${tag?.ink || 'text-zinc-300'}">${esc(tag?.text || Vault.injuryText(p))}</span>`);
+  }));
+}
+// Your biggest moves in KTC value over the last week.
+function renderMoves(me, hist, isSF, tep) {
+  const snaps = hist?.snapshots || [];
+  if (snaps.length < 8) return '';
+  const now = snaps[snaps.length - 1], then = snaps[snaps.length - 8];
+  const value = (s, key) => Vault.resolveHistoricalValue(s.players[key], isSF, tep);
+  const moves = me.plist.map(p => { const key = Vault.normalizeName(p.name), a = value(then, key), b = value(now, key); return a > 0 && b > 0 && a >= 1000 ? { p, change: 100 * (b - a) / a } : null; }).filter(m => m && Math.abs(m.change) >= 2).sort((x, y) => Math.abs(y.change) - Math.abs(x.change)).slice(0, 5);
+  if (!moves.length) return '';
+  return head('Moved in the last week') + list(moves.map(({ p, change }) => row(`${Vault.playerLink(p.name)}${Vault.metaSpan(p)}`, `<span class="mono text-[12px] ${change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Math.round(Math.abs(change))}% ${change > 0 ? 'up' : 'down'}</span>`)));
+}
+function renderNeeds(me, teams, leagueId) {
+  const avg = key => teams.reduce((s, x) => s + (x[key] || 0), 0) / teams.length;
+  const flaws = Vault.fatalFlaws(me, { qb: avg('qb'), rb: avg('rb'), wr: avg('wr'), te: avg('te'), picks: avg('picksValue'), age: avg('age') }, teams);
+  const partners = Vault.tradePartnerSuggestions(me, teams, 2);
+  if (!flaws.length && !partners.length) return '';
+  const link = p => Vault.linkTo(`trade.html?a=${me.rosterId}&b=${p.rosterId}`, leagueId);
+  return head('What your team needs') + list([
+    ...flaws.map(f => row(f)),
+    ...partners.map(p => row(`<span class="text-zinc-100">${Vault.teamLink(p)}</span><div class="text-[12px] text-zinc-400 mt-0.5">${esc(p.reasons[0] || '')}</div>`, `<a href="${link(p)}" class="text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25 whitespace-nowrap">Start a trade</a>`))
+  ]);
+}
+
+(async () => {
+  try {
+    const leagueId = Vault.getLeagueId();
+    const { league, teams, remainingWeeks, isSF } = await Vault.buildLeagueTeams(leagueId);
+    const me = Vault.myTeam(teams);
+    if (!me) { $('status').textContent = 'Pick your team on the home page to see this.'; return; }
+    $('title').textContent = me.teamName;
+    const played = me.record && me.record.wins + me.record.losses + me.record.ties > 0;
+    $('status').textContent = `Your team today · ${league.name}`;
+    const by = key => [...teams].sort((a, b) => (b[key] || 0) - (a[key] || 0)).indexOf(me) + 1;
+    $('tiles').innerHTML = [
+      tile('Record', played ? `${me.record.wins}-${me.record.losses}${me.record.ties ? `-${me.record.ties}` : ''}` : '0-0'),
+      tile('Playoff odds', pct(me.projected?.playoffPct)),
+      tile('Title odds', pct(me.projected?.championshipPct)),
+      tile('Team value', ord(by('overall')), `of ${teams.length}`)
+    ].join('');
+    $('gameBox').innerHTML = renderGame(me, teams, remainingWeeks || []);
+    $('hurtBox').innerHTML = renderHurt(me);
+    $('needBox').innerHTML = renderNeeds(me, teams, leagueId);
+    renderSinceVisit(teams);
+    $('body').classList.remove('hidden');
+    const tep = league.scoring_settings?.bonus_rec_te;
+    Vault.fetchPlayerValueHistory(isSF, tep).then(h => { $('moveBox').innerHTML = renderMoves(me, h, isSF, tep); }).catch(() => {});
+  } catch (e) { console.error(e); $('status').textContent = Vault.loadError(e); }
+})();
+</script>
+</body>
+</html>

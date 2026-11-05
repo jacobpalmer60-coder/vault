@@ -133,7 +133,7 @@
       const anyLeague = !!next && /^playoffs(\.html)?([?#]|$)/.test(next);
       const usable = l => anyLeague || Vault.isDynastyLeague(l);
       const dest = id => {
-        if (!next) return Vault.linkTo('app.html', id);
+        if (!next) return Vault.linkTo('today.html', id);
         const u = new URL(next, location.href);
         u.searchParams.set('league_id', id);
         return u.pathname.split('/').pop() + u.search + u.hash;

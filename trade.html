@@ -147,6 +147,7 @@
         <span id="offerBtn"></span>
         <button onclick="pinTrade()" title="Keep this trade to compare with others side by side" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors">Pin to compare</button>
         <button onclick="shareTrade(this)" title="Copy a link for the other manager: it opens on their side, as your offer to them, and they can adjust it and send it back" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Send offer link</button>
+        <button onclick="shareTradeImage(this)" title="Make a picture of this trade and its verdict for your league chat" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors">Share image</button>
         <button onclick="copyTradeText(this)" title="Copy the trade as plain text" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors">Copy text</button>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
@@ -232,7 +233,7 @@
 </div>
 
 <script src="vault-core.js?v=c980be9a"></script>
-<script src="vault-nav.js?v=7c21d9f0"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -636,6 +637,21 @@ function renderCompare() {
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">${pinned.map(card).join('')}</div>`;
 }
 
+async function shareTradeImage(btn) {
+  const teamA = teamOf('A'), teamB = teamOf('B');
+  if (!teamB || !lastImprovement) return;
+  const names = (set, t) => [...set].map(k => t.assets.find(x => x.key === k)?.name).filter(Boolean);
+  const color = v => ({ good: '#6ee7b7', tossup: '#fcd34d', bad: '#fb7185' })[v?.level];
+  const them = theirsOf(lastAnalysis);
+  const canvas = await VaultShare.draw({
+    kicker: league.name,
+    title: 'Trade grade',
+    columns: [{ head: `${teamA.teamName} gets`, items: names(selectedB, teamB) }, { head: `${teamB.teamName} gets`, items: names(selectedA, teamA) }],
+    verdicts: [{ who: teamA.teamName, label: lastImprovement.label, color: color(lastImprovement) }, ...(them ? [{ who: teamB.teamName, label: them.label, color: color(them) }] : [])],
+    foot: 'Graded on KTC values and real trades · jacobpalmer60-coder.github.io/vault'
+  });
+  VaultShare.send(canvas, 'the-vault-trade.png', btn);
+}
 async function copyTradeText(btn) {
   const teamA = teamOf('A'), teamB = teamOf('B');
   if (!teamB) return;
@@ -1388,7 +1404,7 @@ function seasonOdds(deltas) {
    timeline, which can be switched right there. One sentence says why. The price
    grade (fair for both teams?) sits under it as supporting detail. (2026-10-07:
    a trade at a fair price that made the league favorite worse read "Good".) */
-let seasonFor = new Map(), lastImprovement = null;
+let seasonFor = new Map(), lastImprovement = null, lastAnalysis = null;
 // In season with under VAULT_CONFIG.OUT_OF_RACE_PCT playoff odds: this season's
 // points don't count in the team's verdict (a sale that costs a 2-10 team its
 // lineup read as Bad for it, and Coach dropped trades teams that far out take).
@@ -1455,6 +1471,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const chosen = Vault.planOverride[teamA.rosterId] || '';
   const opt = (v, text) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${text}</option>`;
   const teamB = teamOf('B'), them = theirsOf(analysis);
+  lastAnalysis = analysis;
   // Good for you but Leans bad or worse for them: One-sided (user, 2026-10-19).
   const oneSided = !!them && imp.level === 'good' && them.level === 'bad';
   const both = !!them && imp.level === 'good' && them.level !== 'bad';
@@ -2544,6 +2561,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
+<script src="share-image.js?v=5461dbe7"></script>
 <script src="negotiation.js?v=74ef6b53"></script>
 <script src="market-data.js?v=ce438c45"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
