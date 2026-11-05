@@ -5,8 +5,9 @@ name: Crawl Sleeper trades
 # ~42 minutes at up to 500 calls a minute (Sleeper asks for under 1000 a minute).
 # Each successful run then starts the next one (workflow_dispatch), so it
 # crawls around the clock without waiting on GitHub's schedule, which is
-# only a backup. One run at a time (concurrency); a failed run doesn't
-# chain, so the hourly schedule picks it back up.
+# only a backup, and often hours late. One run at a time (concurrency). A failed run
+# tries once more by itself (2026-11-05: a crash stopped the crawl with the schedule hours
+# behind); a second failure in a row waits for the schedule, so a real problem can't loop.
 #
 # The raw trades (gzipped) live as assets on the "sleeper-trades"
 # GitHub Release, not in git, so the repo doesn't grow with them. The
@@ -136,3 +137,11 @@ jobs:
       - name: Start the next run
         if: success()
         run: gh workflow run crawl-sleeper.yml --ref main
+
+      - name: Try once more after a failure
+        if: failure()
+        run: |
+          before=$(gh run list --workflow crawl-sleeper.yml --limit 2 --json conclusion --jq '.[1].conclusion')
+          if [ "$before" = "failure" ]; then echo "Two failures in a row: waiting for the schedule"; exit 0; fi
+          sleep 300
+          gh workflow run crawl-sleeper.yml --ref main
