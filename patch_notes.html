@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=36a6b470">
-<link rel="stylesheet" href="tailwind.css?v=ee747c45">
+<link rel="stylesheet" href="tailwind.css?v=a6eb11ca">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,14 +46,17 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=4af1121a"></script>
-<script src="vault-nav.js?v=1cea3aa6"></script>
+<script src="vault-core.js?v=5186c6a0"></script>
+<script src="vault-nav.js?v=3ceeb967"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'improved', page: 'Everywhere', text: "If the daily data falls behind, a note says so. If Sleeper can't be reached, pages say that in plain words. Data status also shows injury details and season totals." },
+    { kind: 'new', page: 'Player Rankings', text: "Watchlist: star a player on Rankings or his card. Filter to your stars with the ★ button, and they're marked in the Trade Calculator." },
+    { kind: 'new', page: 'League Overview', text: "Since your last visit: what moved for your team, its value, rank, playoff odds and new injuries, saved in your browser." },
     { kind: 'new', page: 'Team Analyzer', text: "Schedule left: how hard your remaining games are, game by game, and how strong your lineup is in the playoff weeks. Picks by year: every team's picks in each draft." },
     { kind: 'new', page: 'Player card', text: "The card now says who holds him in your league, his best and worst weeks and how often he beat a starter's line, and his latest completed trades." },
     { kind: 'new', page: 'Everywhere', text: "Explanations on hover, or a tap on a phone. A dotted line under a word like VORP or PPG says what it means, and a small ? beside a section says what it's showing." },

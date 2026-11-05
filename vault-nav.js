@@ -196,6 +196,16 @@
     try { sessionStorage.setItem(key, found ? JSON.stringify(found) : '-'); } catch {}
     return found;
   }
+  // The daily jobs normally keep these under a day old. Only speaks up when one really fell behind.
+  async function dataAgeNotice() {
+    const box = document.getElementById('vnNotices');
+    if (!box) return;
+    const read = url => fetch(url).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    const [ktc, proj] = await Promise.all([read('data/ktc-values.json'), read('data/projections.json')]);
+    const days = iso => (iso ? (Date.now() - new Date(iso).getTime()) / 864e5 : 0);
+    const old = [['KTC values', days(ktc?.updated)], ['Projections', days(proj?.updated)]].filter(([, d]) => d > 2);
+    if (old.length) box.insertAdjacentHTML('beforeend', notice(`<span>${old.map(([what, d]) => `${what} are ${Math.floor(d)} days old`).join(', ')}: the daily update is behind, so numbers here may be out of date.</span><a href="status.html" class="text-amber-200 hover:text-amber-100 underline underline-offset-2 decoration-amber-200/30">Data status</a>`));
+  }
   async function leagueNotices(league, users) {
     const box = document.getElementById('vnNotices');
     if (!box || !league) return;
@@ -268,5 +278,5 @@
   });
   new MutationObserver(enhance).observe(document.documentElement, { childList: true, subtree: true });
 
-  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); });
+  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); dataAgeNotice(); });
 })();

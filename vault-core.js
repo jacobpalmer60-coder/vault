@@ -1952,6 +1952,22 @@ const Vault = {
   term(key, label) { return `<span data-term="${key}">${label}</span>`; },
   // A small ? beside a heading that says what the section is showing.
   info(key) { return `<span class="term-i" data-term="${key}" tabindex="0" role="note" aria-label="${Vault.escapeHtml(Vault.GLOSSARY[key]?.[1] || '')}">?</span>`; },
+  // What to show when a page can't load. Our own messages pass through; a dropped connection or a bad response doesn't.
+  loadError(e) {
+    const m = String(e?.message || '');
+    if (!m || e instanceof TypeError || e instanceof ReferenceError || e instanceof SyntaxError || /^Sleeper \d|^HTTP|status|fetch/i.test(m)) return "Couldn't reach Sleeper or The Vault's data just now. Check your connection and refresh the page.";
+    return m;
+  },
+  // Players you're keeping an eye on, kept in this browser, the same list in every league.
+  watchList() { try { return new Set(JSON.parse(localStorage.getItem('vault_watchlist') || '[]')); } catch { return new Set(); } },
+  isWatched(norm) { return Vault.watchList().has(norm); },
+  toggleWatch(norm) {
+    const list = Vault.watchList();
+    if (!list.delete(norm)) list.add(norm);
+    try { localStorage.setItem('vault_watchlist', JSON.stringify([...list])); } catch {}
+    return list.has(norm);
+  },
+  watchMark(name) { return Vault.isWatched(Vault.normalizeName(name)) ? '<span class="text-amber-300 text-[11px] ml-1" title="On your watchlist">★</span>' : ''; },
   // One name for a pick everywhere: "2027 Mid 1st", or "2027 1st" with no tier known.
   pickName(a) {
     const round = [, '1st', '2nd', '3rd', '4th', '5th'][a.round] || `Round ${a.round}`, tier = a.tier ? `${a.tier[0].toUpperCase()}${a.tier.slice(1)} ` : '';
@@ -5443,7 +5459,7 @@ const Vault = {
   function target(node) {
     const el = node.closest?.('[data-tip], [data-term], [title]');
     if (!el || el.dataset.tip || el.dataset.term) return el;
-    return el.matches(CONTROL) || node.closest(CONTROL) ? null : el;
+    return el.matches('tr') || el.matches(CONTROL) || node.closest(CONTROL) ? null : el;
   }
   function show(el) {
     if (!tip) {

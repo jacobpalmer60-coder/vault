@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=36a6b470">
-<link rel="stylesheet" href="tailwind.css?v=ee747c45">
+<link rel="stylesheet" href="tailwind.css?v=a6eb11ca">
 <style>
   /* Phones: tighter cells, so value, market price and projected points fit without scrolling sideways (2026-10-23). */
   @media (max-width: 639px) { table th, #tbody td { padding-left: 0.5rem !important; padding-right: 0.5rem !important; } }
@@ -66,6 +66,7 @@
           <button data-pos="TE" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">TE</button>
           <button data-pos="FLEX" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">FLEX</button>
           <button data-pos="PICK" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">Picks</button>
+          <button data-pos="WATCH" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5" title="Players you've starred">★</button>
         </div>
         <div class="flex items-center gap-1.5">
           <span class="text-xs text-zinc-400">Trend:</span>
@@ -110,10 +111,10 @@
   </footer>
 </div>
 
-<script src="vault-core.js?v=4af1121a"></script>
-<script src="vault-nav.js?v=1cea3aa6"></script>
+<script src="vault-core.js?v=5186c6a0"></script>
+<script src="vault-nav.js?v=3ceeb967"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=b4ccd993"></script>
+<script src="player-card.js?v=5f432077"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -246,13 +247,14 @@
     } catch (e) {
       console.error(e);
       log(e.message, 'error');
-      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-red-400">Failed to load data: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-16 text-center text-zinc-300">${Vault.escapeHtml(Vault.loadError(e))}</td></tr>`;
     }
   }
 
   function applyFiltersAndRender() {
     const q = searchQuery.toLowerCase().trim();
     filteredRows = allRows.filter(r => {
+      if (posFilter === 'WATCH') { if (!Vault.isWatched(r.norm)) return false; } else
       if (posFilter === 'FLEX' ? !['RB', 'WR', 'TE'].includes(r.pos) : posFilter !== 'ALL' && r.pos !== posFilter) return false;
       if (q) {
         const hay = `${r.player} ${r.team} ${r.pos}`.toLowerCase();
@@ -319,13 +321,12 @@
     filteredRows.forEach((r, i) => {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-white/[0.03] transition cursor-pointer';
-      tr.title = r.isPick ? 'View pick card' : 'View player card';
       tr.dataset.kbd = ''; // Tab + Enter opens it too (vault-nav.js)
       tr.setAttribute('aria-label', `${r.player}: open ${r.isPick ? 'pick' : 'player'} card`);
       tr.addEventListener('click', () => PlayerCard.open(r.norm));
       tr.innerHTML = `
         <td class="hidden sm:table-cell px-4 py-3 text-zinc-400 mono text-xs">${i + 1}</td>
-        <td class="px-4 py-2.5"><div class="font-medium text-zinc-100">${Vault.escapeHtml(r.player)}</div>
+        <td class="px-4 py-2.5"><div class="font-medium text-zinc-100">${r.isPick ? '' : `<button type="button" data-watch="${Vault.escapeHtml(r.norm)}" aria-label="${Vault.isWatched(r.norm) ? 'Remove from' : 'Add to'} watchlist" aria-pressed="${Vault.isWatched(r.norm)}" class="-ml-1 mr-1 px-1 ${Vault.isWatched(r.norm) ? 'text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}">★</button>`}${Vault.escapeHtml(r.player)}</div>
           <div class="mt-0.5 flex items-center gap-1.5"><span class="inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold border ${posColor(r.pos)}">${r.pos || '—'}</span>${r.isPick ? '' : `<span class="text-zinc-500 mono text-[11px]">${Vault.escapeHtml(r.team) || 'FA'}</span>`}</div></td>
         <td class="hidden sm:table-cell px-4 py-3 text-right mono text-xs text-zinc-400">${r.age != null ? fmtFloat(r.age, 1) : '—'}</td>
         <td class="px-4 py-3 text-right mono font-medium text-zinc-100">${fmtInt(r.value)}</td>
@@ -345,6 +346,17 @@
     tbody.appendChild(frag);
   }
 
+  // The star on a row: it marks the player, so it mustn't open his card too.
+  tbody.addEventListener('click', e => {
+    const star = e.target.closest('[data-watch]');
+    if (!star) return;
+    e.stopPropagation();
+    const on = Vault.toggleWatch(star.dataset.watch);
+    if (posFilter === 'WATCH') { applyFiltersAndRender(); return; }
+    star.className = `-ml-1 mr-1 px-1 ${on ? 'text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`;
+    star.setAttribute('aria-pressed', on);
+    star.setAttribute('aria-label', `${on ? 'Remove from' : 'Add to'} watchlist`);
+  }, true); // capture: the row's own click opens his card
   document.querySelectorAll('th.sortable').forEach(th => {
     th.addEventListener('click', e => {
       const key = th.dataset.key, found = sortKeys.find(s => s.key === key);

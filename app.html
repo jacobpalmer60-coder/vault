@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=36a6b470">
-<link rel="stylesheet" href="tailwind.css?v=ee747c45">
+<link rel="stylesheet" href="tailwind.css?v=a6eb11ca">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -43,6 +43,7 @@
     <button id="refresh" class="self-start sm:self-auto shrink-0 btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
   </div>
 
+  <div id="sinceVisit" class="mb-6 empty:hidden"></div>
   <!-- Right now (title odds) or Dynasty (total value): which ranking the table shows. -->
   <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
     <div id="viewToggle" class="inline-flex rounded-lg border border-white/10 overflow-hidden" role="group" aria-label="Ranking"></div>
@@ -130,10 +131,10 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=4af1121a"></script>
-<script src="vault-nav.js?v=1cea3aa6"></script>
+<script src="vault-core.js?v=5186c6a0"></script>
+<script src="vault-nav.js?v=3ceeb967"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=b4ccd993"></script>
+<script src="player-card.js?v=5f432077"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 };
 
@@ -465,6 +466,7 @@ async function load() {
       const lo = Math.min(...allYears), hi = Math.max(...allYears);
       document.getElementById('picksLegend').textContent = ` — Total KTC value of every future draft pick this team owns, ${lo}-${String(hi).slice(-2)} R1-4, live from Sleeper. Each pick is priced at the slot it should land in: next year's by projected final record, later years' by lineup strength. Every page prices picks this way.`;
     }
+    renderSinceVisit(teams);
     Vault.buildTeamValueHistory(Vault.getLeagueId(), { teams }).then(h => renderValueHistory(h, teams)).catch(e => { console.error(e); renderValueHistory({ snapshots: [] }, teams); });
 
     // Career record walks the league's season-history chain — a handful of extra
@@ -478,7 +480,7 @@ async function load() {
     }).catch(() => {});
   } catch (e) {
     console.error(e);
-    status.innerHTML = `<div class="size-2 rounded-full bg-rose-400"></div><span>${Vault.escapeHtml(e.message)}</span>`;
+    status.innerHTML = `<div class="size-2 rounded-full bg-rose-400"></div><span>${Vault.escapeHtml(Vault.loadError(e))}</span>`;
   }
 }
 
@@ -492,6 +494,31 @@ function youTag(t) {
 
 // The table's sorts, for phones (the table and its headers are hidden there).
 // Each pick sorts best-first; the same pick again flips the order.
+/* What moved since you last came (user's list, 2026-11-05), saved in this browser. A visit within
+   12 hours compares with the same earlier one, so a refresh doesn't empty the card. */
+function renderSinceVisit(teams) {
+  const me = Vault.myTeam(teams), box = document.getElementById('sinceVisit');
+  if (!me || !box) return;
+  const key = `vault_lastvisit_${Vault.getLeagueId()}`;
+  const rank = [...teams].sort((a, b) => b.overall - a.overall).indexOf(me) + 1;
+  const now = { at: Date.now(), value: Math.round(me.overall), rank, odds: me.projected?.playoffPct ?? null, hurt: me.plist.filter(p => p.value >= 500 && Vault.injuryText(p)).map(p => p.name) };
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
+  const fresh = saved?.last && now.at - saved.last.at < 12 * 36e5;
+  const prev = fresh ? saved.prev : saved?.last;
+  try { localStorage.setItem(key, JSON.stringify({ prev: prev || null, last: fresh ? saved.last : now })); } catch {}
+  if (!prev) return;
+  const parts = [], d = now.value - prev.value, ord = n => `${n}${['th', 'st', 'nd', 'rd'][n % 100 >= 11 && n % 100 <= 13 ? 0 : n % 10] || 'th'}`;
+  if (Math.abs(d) >= 1) parts.push(`Team value ${d > 0 ? 'up' : 'down'} <span class="mono ${d > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Math.abs(d).toLocaleString()}</span>`);
+  if (now.rank !== prev.rank) parts.push(`${ord(prev.rank)} to ${ord(now.rank)} in value`);
+  if (now.odds != null && prev.odds != null && Math.abs(now.odds - prev.odds) >= 1) parts.push(`Playoff odds ${Math.round(prev.odds)}% to ${Math.round(now.odds)}%`);
+  const hurt = now.hurt.filter(n => !prev.hurt.includes(n));
+  if (hurt.length) parts.push(`Newly hurt: ${hurt.map(n => Vault.playerLink(n)).join(', ')}`);
+  if (!parts.length) return;
+  const when = new Date(prev.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  box.innerHTML = `<div class="card rounded-vault-sm px-4 py-3 text-[13px] text-zinc-300"><span class="text-[11px] uppercase tracking-wider text-zinc-400 mr-2">Since ${when}</span>${parts.join('<span class="text-zinc-600 mx-1.5">·</span>')}</div>`;
+}
+
 const MOBILE_SORTS = [['nowScore', 'Right now'], ['overall', 'Dynasty value'], ['actualSort', 'Points per game'], ['last3Sort', 'Last 3 games'], ['playoffPct', 'Playoff odds'], ['recordWinPct', 'Record'], ['total', 'Player value'], ['picksValue', 'Pick value'], ['next4', 'Next 4 weeks proj.'], ['vorpTotal', 'VORP'], ['longevity', 'Longevity'], ['age', 'Age'], ['teamName', 'Team name']];
 function renderMobileSort() {
   const sel = document.getElementById('mobileSort');

@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=36a6b470">
-<link rel="stylesheet" href="tailwind.css?v=ee747c45">
+<link rel="stylesheet" href="tailwind.css?v=a6eb11ca">
 <style>
   /* Up to four series, in the dataviz reference order for dark surfaces
      (blue, orange, aqua, yellow), validated on this card surface for adjacent
@@ -120,10 +120,10 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=4af1121a"></script>
-<script src="vault-nav.js?v=1cea3aa6"></script>
+<script src="vault-core.js?v=5186c6a0"></script>
+<script src="vault-nav.js?v=3ceeb967"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=b4ccd993"></script>
+<script src="player-card.js?v=5f432077"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -216,7 +216,7 @@ async function init() {
     renderAll();
   } catch (e) {
     console.error(e);
-    $('status').textContent = e.message || 'Failed to load';
+    $('status').textContent = Vault.loadError(e);
     $('status').className = 'text-[13px] text-rose-400 mt-1';
   }
 }

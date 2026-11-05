@@ -282,7 +282,8 @@
     const name = encodeURIComponent(r.norm);
     return [r.pid ? link(`${Vault.linkTo('trade.html')}&coach=player&player=p_${r.pid}`, 'Build a trade') : '',
       link(`${Vault.linkTo('market.html')}&p=${name}`, 'Market page'),
-      link(`${Vault.linkTo('compare.html')}&p=${name}`, 'Compare')].join('');
+      link(`${Vault.linkTo('compare.html')}&p=${name}`, 'Compare'),
+      `<button type="button" data-card-watch="${Vault.escapeHtml(r.norm)}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">${Vault.isWatched(r.norm) ? '★ Watching' : '☆ Watch'}</button>`].join('');
   }
   // His projection in each playoff week: byes and injuries show, which the season average hides.
   function playoffHtml(r) {
@@ -720,6 +721,10 @@
       if (cardOpen === want) body().innerHTML = '<div class="text-[13px] text-zinc-400 py-16 text-center">The team card couldn\'t load. Try again in a moment.</div>';
     }
   }
+  document.addEventListener('click', e => {
+    const b = e.target.closest?.('[data-card-watch]');
+    if (b) b.textContent = Vault.toggleWatch(b.dataset.cardWatch) ? '★ Watching' : '☆ Watch';
+  });
   // Capture, because a name often sits in a row that does something else when clicked.
   document.addEventListener('click', e => {
     const el = e.target.closest?.('[data-player], [data-team]');
