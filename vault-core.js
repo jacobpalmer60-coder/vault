@@ -1142,11 +1142,15 @@ const Vault = {
       if (p.stats?.gp) ppgByPid.set(pid, Vault.scoreStats(p.stats, league.scoring_settings) / p.stats.gp);
     });
 
-    // ---- Roster replay: who held which player on which day ----
+    /* ---- Roster replay: who held which player on which day ----
+       Backward from today's real rosters, undoing each move (user, 2026-11-05). Replaying forward
+       from the drafts drifted: a draft pick's roster_id isn't who holds the player. Rosters 3 and
+       9 were swapped in one startup draft and a traded rookie pick files under its original
+       team, so Bye Week read 213,000 at 154,000 because its trades never left the replay. */
     const events = [];
     realDrafts.forEach(({ draft, picks }) => {
       const date = new Date(draft.start_time);
-      picks.forEach(pk => { if (pk.player_id) events.push({ date, rosterId: pk.roster_id, add: String(pk.player_id) }); });
+      picks.forEach(pk => { if (pk.player_id) events.push({ date, drafted: String(pk.player_id) }); });
     });
     transactions.forEach(t => {
       const date = new Date(t.created);
@@ -1161,7 +1165,18 @@ const Vault = {
     const todayDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     const DAY_MS = 24 * 60 * 60 * 1000;
 
-    const rosterOfPid = new Map(rosters.map(r => [r.roster_id, new Set()]));
+    const rosterOnDay = new Map(); // day -> Map(rosterId -> Set of player ids)
+    const held = new Map(rosters.map(r => [r.roster_id, new Set((r.players || []).map(String))]));
+    let undo = events.length - 1;
+    for (let day = todayDay; day >= startDay; day -= DAY_MS) {
+      for (; undo >= 0 && +events[undo].date >= day + DAY_MS; undo--) {
+        const e = events[undo], set = held.get(e.rosterId);
+        if (e.drafted) held.forEach(s => s.delete(e.drafted));
+        if (set && e.add) set.delete(e.add);
+        if (set && e.drop) set.add(e.drop);
+      }
+      rosterOnDay.set(day, new Map([...held].map(([id, set]) => [id, new Set(set)])));
+    }
 
     // ---- Pick replay: who held which pick on which day ----
     const pickYears = Vault.futurePickYears(league, drafts);
@@ -1222,16 +1237,10 @@ const Vault = {
 
     // ---- Day-by-day replay ----
     const snapshots = [];
-    let eventIdx = 0, pickEventIdx = 0;
+    let pickEventIdx = 0;
     for (let dayStart = startDay; dayStart <= todayDay; dayStart += DAY_MS) {
       const isToday = dayStart === todayDay;
       const cursor = dayStart + DAY_MS - 1;
-      while (eventIdx < events.length && +events[eventIdx].date <= cursor) {
-        const e = events[eventIdx];
-        const set = rosterOfPid.get(e.rosterId);
-        if (set) { if (e.add) set.add(e.add); if (e.drop) set.delete(e.drop); }
-        eventIdx++;
-      }
       while (pickEventIdx < pickEvents.length && +pickEvents[pickEventIdx].date <= cursor) {
         const e = pickEvents[pickEventIdx];
         if (ownerOf.has(e.key)) ownerOf.set(e.key, e.newOwner);
@@ -1247,7 +1256,7 @@ const Vault = {
       const teams = rosters.map(r => {
         const u = userMap.get(r.owner_id) || {};
         const teamName = u.metadata?.team_name || u.display_name || 'Team';
-        const pidSet = isToday ? new Set((r.players || []).map(String)) : (rosterOfPid.get(r.roster_id) || new Set());
+        const pidSet = rosterOnDay.get(dayStart).get(r.roster_id);
         let playerValue = 0;
         const plist = [];
         pidSet.forEach(pid => {
@@ -1276,18 +1285,6 @@ const Vault = {
       });
       snapshots.push({ date, teams });
     }
-
-    // Replay drift is a real gap in what Sleeper's public API exposes (an admin
-    // action with no transaction record, etc.), not something worth breaking a
-    // visitor's page over — today's row already uses real state regardless, so
-    // this only affects how precise PAST days are. Log it and move on.
-    rosters.forEach(r => {
-      const real = new Set((r.players || []).map(String));
-      const replayed = rosterOfPid.get(r.roster_id) || new Set();
-      if (replayed.size !== real.size || [...real].some(pid => !replayed.has(pid))) {
-        console.warn(`Vault.buildTeamValueHistory: roster ${r.roster_id} (${(userMap.get(r.owner_id) || {}).display_name || 'unknown'}) replay drifted from Sleeper's real current roster — historical days may be slightly off for this team.`);
-      }
-    });
 
     return { snapshots };
   },
