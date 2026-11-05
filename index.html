@@ -102,11 +102,11 @@
           <dd class="text-zinc-300 leading-relaxed">A trade calculator with a coach that finds deals the other manager would likely take, plus grades for every trade in your league.</dd>
         </div>
       </dl>
-      <p class="mt-8 text-center text-[11px] text-zinc-500 leading-relaxed">Player values from KeepTradeCut. League data from Sleeper. The Vault is a free, independent fan project, not affiliated with either.</p>
+      <p class="mt-8 text-center text-[11px] text-zinc-500 leading-relaxed">Player values from KeepTradeCut. League data from Sleeper. Injury details from ESPN. The Vault is a free, independent fan project, not affiliated with any of them.</p>
     </div>
   </main>
 
-  <script src="vault-core.js?v=1c75a5fe"></script>
+  <script src="vault-core.js?v=a6039f3f"></script>
   <script>
     /* The way in (user, 2026-10-20): every tool needs your league and your team.
        Username: pick one of your dynasty leagues; your team there is found from your
@@ -156,7 +156,7 @@
         const byUser = new Map((users || []).map(u => [u.user_id, u]));
         const teams = (rosters || []).map(r => {
           const u = byUser.get(r.owner_id) || {};
-          return { rosterId: String(r.roster_id), owners: [r.owner_id, ...(r.co_owners || [])].filter(Boolean), name: u.metadata?.team_name || u.display_name || `Team ${r.roster_id}`, who: u.display_name || '' };
+          return { rosterId: String(r.roster_id), owners: [r.owner_id, ...(r.co_owners || [])].filter(Boolean), name: Vault.teamLabel(u, r.roster_id), who: u.display_name || '' };
         }).sort((a, b) => a.name.localeCompare(b.name));
         if (!teams.length) return fail(`"${league.name}" has no teams yet.`);
         const uid = user || Vault.getSleeperUserId();

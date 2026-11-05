@@ -1266,7 +1266,7 @@ const Vault = {
 
       const teams = rosters.map(r => {
         const u = userMap.get(r.owner_id) || {};
-        const teamName = u.metadata?.team_name || u.display_name || 'Team';
+        const teamName = Vault.teamLabel(u, r.roster_id);
         const pidSet = rosterOnDay.get(dayStart).get(r.roster_id);
         let playerValue = 0;
         const plist = [];
@@ -1868,6 +1868,10 @@ const Vault = {
     (index.get(Vault.normalizeName(name)) || []).forEach(([id, p]) => { if (score(p) > top) { top = score(p); best = id; } });
     return best;
   },
+  /* A team's name, from one place. League members type these, and sentences like "Favored X"
+     put them in the page, so anything that could become markup goes here, before any page
+     sees it (2026-11-05: a script in a team name ran on Trade Grades). Apostrophes stay. */
+  teamLabel(u, rosterId) { return String(u?.metadata?.team_name || u?.display_name || `Team ${rosterId}`).replace(/[<>"]/g, ''); },
   // A player's name that opens his card when clicked (player-card.js). label is what shows.
   playerLink(name, label = name) { return `<span class="player-link" data-player="${Vault.escapeHtml(name)}">${Vault.escapeHtml(label)}</span>`; },
   // A trade piece: a player's name opens his card, a pick is plain text. Pass anything with name and pos.
@@ -2046,7 +2050,7 @@ const Vault = {
 
     const built = rosters.map(r => {
       const u = userMap.get(r.owner_id) || {};
-      const tn = u.metadata?.team_name || u.display_name || 'Team';
+      const tn = Vault.teamLabel(u, r.roster_id);
       // Sleeper's league-users endpoint returns display_name, never username.
       const un = u.display_name || u.username || '';
       const plist = (r.players || []).map(pid => {

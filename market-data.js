@@ -274,7 +274,9 @@ function marketPlayer(league, name, pos) {
   // under KTC" reads the same on every page; the read keeps its range and trades.
   // "Vs similar players" moves with it (his price against what players like him
   // go for), so it never contradicts the price beside it.
-  const g = Vault._gradeMarket && Vault._gradeMarket.has(key) ? Vault._gradeMarket.get(key) : null;
+  // A piece the table leaves out with enough trades is one within 0.5% of even, so it reads even
+  // (2026-11-05: Love showed 4% under here while the grade had him at KTC, like 37 others).
+  const g = Vault._gradeMarket ? Vault._gradeMarket.get(key) ?? (read.like ? 0 : null) : null;
   const clamp = x => Math.max(-MARKET_ADJ_CAP, Math.min(MARKET_ADJ_CAP, x));
   const atGrade = g == null ? read : { ...read, premium: g, vsPeers: read.vsPeers != null ? read.vsPeers + g - read.premium : null };
   const out = read.like ? { adj: clamp(g ?? read.premium), read: atGrade } : g != null ? { adj: clamp(g), read: null } : none;

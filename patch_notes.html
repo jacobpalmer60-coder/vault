@@ -46,14 +46,16 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=1c75a5fe"></script>
-<script src="vault-nav.js?v=dae2b099"></script>
+<script src="vault-core.js?v=a6039f3f"></script>
+<script src="vault-nav.js?v=99fe2395"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'fixed', page: 'Trade Grades', text: "Closed a security gap: text typed into a team name can no longer run as code on the page." },
+    { kind: 'fixed', page: 'Everywhere', text: "One market price: about 40 players showed a price on some pages while the grade counted them as even. Teams with no owner are now Team 3, Team 7 and so on on every page, not just Playoff Race." },
     { kind: 'fixed', page: 'Everywhere', text: "A player's age now reads the same on every page: some were a year behind on the calculator and in search lists." },
     { kind: 'changed', page: 'How We Grade', text: "Brought up to date with how Trade Coach works now, including that cornerstones are tagged rather than hidden, and added how Push now prices its example." },
     { kind: 'fixed', page: 'Site', text: "Wording brought up to date: how often projections refresh, how injuries and return weeks work, and the Trade Lab trade count. Notes that say to hover no longer show on phones." },

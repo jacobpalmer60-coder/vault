@@ -253,7 +253,7 @@
       const u = userById.get(r.owner_id) || {};
       return {
         rosterId: r.roster_id, ownerId: r.owner_id,
-        name: u.metadata?.team_name || u.display_name || `Team ${r.roster_id}`,
+        name: Vault.teamLabel(u, r.roster_id),
         taxi: new Set((r.taxi || []).map(String)),
         weeks: [], h2h: { w: 0, l: 0, t: 0 }, med: { w: 0, l: 0, t: 0 }, allPlay: { w: 0, l: 0, t: 0 }, close: { w: 0, l: 0, t: 0 },
         expWins: 0, actWins: 0, variance: 0, pf: 0, pa: 0, games: 0,

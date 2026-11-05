@@ -110,7 +110,7 @@
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">QB, RB, WR, TE, Picks</span><span class="text-zinc-400"> — The team's rank in the league at each position by the value of its players there (and its picks), 1 = best. Green is among the strongest, yellow the middle of the league, red a need</span></div>
             <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Picks</span><span id="picksLegend" class="text-zinc-400"> — Total KTC value of every future draft pick this team owns, R1-4 live from Sleeper</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">PPG</span><span class="text-zinc-400"> — Points actually scored per game so far (Sleeper's points for), then over the last three games (orange when 10% or more under the season average), and below it the projection: points per game if you started the best possible lineup from your full roster over the next 4 weeks, on Sleeper's projections in your league's scoring. The projection updates about every hour as rosters, injuries and projections change; playoff and title odds blend both, leaning more on actual points as the season goes</span></div>
-      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Lineup PPG, but each starter's points are measured against "replacement level" at their position (the best player still sitting on waivers) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
+      <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">VORP</span><span class="text-zinc-400"> (Value Over Replacement Player) — Same lineup as Lineup PPG, but each starter's points are measured against "replacement level" at their position (the best player who wouldn't start for any team in your league) instead of from zero. Raw PPG always favors QBs since they score more at every tier, even on waivers — VORP strips that out, so a team's hard-to-replace edge is comparable across QB/RB/WR/TE instead of just rewarding whoever plays the highest-scoring position. Per-player breakdown on Player Rankings.</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Longevity</span><span class="text-zinc-400"> — How many of the next 5 years this roster is projected to stay good enough for the playoffs, as players age and picks arrive. Not age or pick count — a young, pick-poor roster that's already elite can out-project a pick-rich one that hasn't hit yet.</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Archetype</span><span class="text-zinc-400"> — Build type, from how you stand now vs. how long that lasts (see guide below)</span></div>
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Career</span><span class="text-zinc-400"> — All-time W-L-T for this manager, across every past season of this league on Sleeper</span></div>
@@ -130,9 +130,9 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=1c75a5fe"></script>
-<script src="vault-nav.js?v=dae2b099"></script>
-<script src="market-data.js?v=682a679f"></script>
+<script src="vault-core.js?v=a6039f3f"></script>
+<script src="vault-nav.js?v=99fe2395"></script>
+<script src="market-data.js?v=c2ea5f8f"></script>
 <script src="player-card.js?v=34c6b48d"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 };

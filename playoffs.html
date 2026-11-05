@@ -100,7 +100,7 @@
     <section id="you" class="card pr-you" hidden></section>
     <h2 class="pr-h2">Standings</h2>
     <div id="list" class="card pr-list"></div>
-    <p class="pr-sub">Tap a team for what it needs.</p>
+    <p class="pr-sub">Click or tap a team for what it needs.</p>
     <section id="weekSec" hidden>
       <h2 class="pr-h2" id="weekTitle" style="margin-top:24px">This week's big games</h2>
       <div id="week" class="pr-games" style="margin-top:0"></div>
@@ -109,9 +109,9 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=1c75a5fe"></script>
-<script src="vault-nav.js?v=dae2b099"></script>
-<script src="market-data.js?v=682a679f"></script>
+<script src="vault-core.js?v=a6039f3f"></script>
+<script src="vault-nav.js?v=99fe2395"></script>
+<script src="market-data.js?v=c2ea5f8f"></script>
 <script src="player-card.js?v=34c6b48d"></script>
 <script>
 /* ============================================================
@@ -234,7 +234,7 @@ async function load() {
     const wins = s.wins || 0, losses = s.losses || 0, ties = s.ties || 0;
     return {
       rid: r.roster_id, ownerId: r.owner_id,
-      name: u.metadata?.team_name || u.display_name || `Team ${r.roster_id}`,
+      name: Vault.teamLabel(u, r.roster_id),
       mgr: u.display_name || '',
       avatar: u.metadata?.avatar || (u.avatar ? `https://sleepercdn.com/avatars/thumbs/${u.avatar}` : ''),
       wins, losses, ties, w: wins + ties / 2,

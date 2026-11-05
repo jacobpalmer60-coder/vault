@@ -234,7 +234,7 @@
       const userById = new Map((users || []).map(u => [u.user_id, u]));
       const teams = (rosters || []).map(r => {
         const u = userById.get(r.owner_id) || {};
-        return { rosterId: r.roster_id, ownerId: r.owner_id, name: u.metadata?.team_name || u.display_name || `Team ${r.roster_id}` };
+        return { rosterId: r.roster_id, ownerId: r.owner_id, name: Vault.teamLabel(u, r.roster_id) };
       }).sort((a, b) => a.name.localeCompare(b.name));
       if (!teams.length) return; // no such league: the page says so itself
       const mine = Vault.myTeam(teams, leagueId);
