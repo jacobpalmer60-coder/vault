@@ -53,7 +53,7 @@ async function visit(browser, url, label, [sizeName, width, height, mobile], key
     const main = document.querySelector('main') || document.body, text = main.innerText;
     const loading = [...main.querySelectorAll('*')].filter(e => e.children.length === 0 && e.offsetParent && /^(Loading|Syncing)\b/.test(e.textContent.trim())).map(e => e.textContent.trim().slice(0, 40));
     return { hits: (text.match(/.{0,36}(\bundefined\b|\bNaN\b|\[object Object\]|\bnull\b(?! ))[^\n]{0,24}/g) || []).slice(0, 4), wide: document.documentElement.scrollWidth - innerWidth, loading: loading.slice(0, 3) };
-  });
+  }).catch(e => { problems.push(`page moved while being read: ${page.url()} (${String(e.message).slice(0, 60)})`); return { hits: [], wide: 0, loading: [] }; });
   if (!SKIP_TEXT.has(key)) seen.hits.forEach(h => problems.push(`on the page: "${h.trim()}"`));
   if (seen.wide > 1) problems.push(`${seen.wide}px wider than the screen`);
   seen.loading.forEach(t => problems.push(`still says "${t}"`));
