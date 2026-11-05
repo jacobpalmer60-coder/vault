@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=45c9ae57">
-<link rel="stylesheet" href="tailwind.css?v=fc6761d9">
+<link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -47,13 +47,14 @@
 </div>
 
 <script src="vault-core.js?v=2d232e89"></script>
-<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="vault-nav.js?v=02da1afa"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Does It Work?', text: "A new page on how the verdict did on 2026 trades it never saw, side by side with KTC's calculator, including the tests KTC won and where the verdict falls short. It's in the ... menu." },
     { kind: 'new', page: 'Grade a Trade', text: "Grade any trade with no league connected: pick Superflex or 1QB and TE premium, add both sides, and get the same price the Trade Calculator gives. Connect a league for the full verdict." },
     { kind: 'new', page: 'Trade Calculator', text: "How the other manager trades, on their team card: for example \"gets older in 5 of 6 trades\", and whether this trade fits that. Trade Coach says when an offer fits how they trade. It only shows habits that repeat in real trades; which position someone buys and whether they overpay don't, so those aren't shown." },
     { kind: 'changed', page: 'Trade Calculator', text: "A player whose KTC value jumped 20% or more since his recent trades now grades at KTC value, because managers paid about 6% under the old market read on 18,405 trades like that. The card also says when a player in the trade went on IR or was ruled out after most of the trades behind his price." },

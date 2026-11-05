@@ -48,6 +48,7 @@
   const TAB_NAME = { 'Trade Calculator': 'Calculator', 'League Trades': 'Trades', 'Trade Lab': 'Lab' };
   const INFO = [
     { key: 'method', label: 'How We Grade', href: 'how_we_grade.html' },
+    { key: 'proof', label: 'Does It Work?', href: 'proof.html' },
     { key: 'patch', label: 'Patch Notes', href: 'patch_notes.html' },
     { key: 'status', label: 'Data status', href: 'status.html' }
   ];
