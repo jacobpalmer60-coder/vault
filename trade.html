@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
-<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+<link rel="stylesheet" href="vault.css?v=48bfbf25">
+<link rel="stylesheet" href="tailwind.css?v=271dcf09">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -145,6 +145,7 @@
         <span id="offerBtn"></span>
         <button onclick="pinTrade()" title="Keep this trade to compare with others side by side" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors">Pin to compare</button>
         <button onclick="shareTrade(this)" title="Copy a link for the other manager: it opens on their side, as your offer to them, and they can adjust it and send it back" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Send offer link</button>
+        <button onclick="copyTradeText(this)" title="Copy the trade as plain text" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors">Copy text</button>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
@@ -238,8 +239,8 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=a6039f3f"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
+<script src="vault-core.js?v=d2b7083f"></script>
+<script src="vault-nav.js?v=c411b0a5"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -310,7 +311,7 @@ function assetsFor(team) {
   const players = team.plist.filter(p => p.value > 0).map(p => ({ type: 'player', key: 'p_' + p.id, ...p, trend: playerTrend.get(Vault.normalizeName(p.name)) ?? null, volatilityPct: playerVolatility.get(Vault.normalizeName(p.name)) ?? null }));
   // Picks already carry volatilityPct from Vault.buildLeagueTeams (the round's own
   // early/late spread this year — see Vault.pickVolatilityPct) via the ...p spread.
-  const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, name: `${p.season} R${p.round}`, pos: 'PICK', ...p, trend: pickTrendFor(p.season, p.ktcRound ?? p.round, p.ktcTier ?? p.tier) }));
+  const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, pos: 'PICK', ...p, name: Vault.pickName(p), trend: pickTrendFor(p.season, p.ktcRound ?? p.round, p.ktcTier ?? p.tier) }));
   return [...players, ...picks].sort((a, b) => b.value - a.value);
 }
 
@@ -494,6 +495,11 @@ async function init() {
         // any other option opens the Coach at its first step.
         if (coachParam === 'team' && withParam && teams.some(t => String(t.rosterId) === withParam)) return coachPickTeam(withParam);
         if (coachParam === 'shop' && playerParam && (teamOf('A')?.assets || []).some(a => a.key === playerParam)) return coachShopFor(playerParam);
+        // From a player card: yours to move, or someone else's to get.
+        if (coachParam === 'player' && playerParam) {
+          if ((teamOf('A')?.assets || []).some(a => a.key === playerParam)) return coachShopFor(playerParam);
+          if (teams.some(t => t.assets.some(a => a.key === playerParam))) return coachGetFor(playerParam);
+        }
         openCoach('coach');
       };
       const btn = document.getElementById('loadRostersBtn');
@@ -505,7 +511,7 @@ async function init() {
       }
     }
   } catch (e) {
-    document.getElementById('status').textContent = e.message || 'Failed to load';
+    document.getElementById('status').textContent = Vault.loadError(e);
     document.getElementById('status').className = 'text-[13px] text-rose-400 mt-1';
     console.error(e);
   }
@@ -636,6 +642,14 @@ function renderCompare() {
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">${pinned.map(card).join('')}</div>`;
 }
 
+async function copyTradeText(btn) {
+  const teamA = teamOf('A'), teamB = teamOf('B');
+  if (!teamB) return;
+  const list = (set, t) => [...set].map(k => t.assets.find(x => x.key === k)?.name).filter(Boolean).join(', ') || 'nothing';
+  const text = `${teamA.teamName} gets: ${list(selectedB, teamB)}\n${teamB.teamName} gets: ${list(selectedA, teamA)}`;
+  try { await navigator.clipboard.writeText(text); flashButtonMessage(btn, 'Copied'); } catch { window.prompt('Copy this:', text); }
+}
+
 async function shareTrade(btn) {
   syncTradeUrl();
   // Sent as your offer: it opens on their side, as offered to them (applyTradeFromUrl).
@@ -645,7 +659,10 @@ async function shareTrade(btn) {
   // Phones get the native share sheet (text it straight to the other manager);
   // everywhere else the link goes to the clipboard.
   if (navigator.share && matchMedia('(pointer: coarse)').matches) {
-    try { await navigator.share({ title: 'Trade on The Vault', url }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    const names = list => list.map(a => a.name).join(', ') || 'nothing';
+    const pieces = (set, side) => [...set].map(k => teamOf(side)?.assets.find(x => x.key === k)).filter(Boolean);
+    const aAssets = pieces(selectedA, 'A'), bAssets = pieces(selectedB, 'B');
+    try { await navigator.share({ title: 'Trade on The Vault', text: `Trade offer: ${names(aAssets)} for ${names(bAssets)}`, url }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
   try { await navigator.clipboard.writeText(url); flashButtonMessage(btn, 'Link copied'); }
   catch { window.prompt('Copy this link:', url); }
@@ -654,7 +671,7 @@ async function shareTrade(btn) {
 // Same colored position pill Player Rankings already uses (vault.css's
 // .pos-badge-*), instead of plain grey position text — one consistent color
 // system across the site instead of one page having it and the rest not.
-const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const POS_BADGE = Vault.posBadge;
 // Injury tag (Vault.injuryTag), e.g. "Q", "Out, back week 8 (hamstring)" or "IR, out for
 // the season (knee)". This season's lineups skip the weeks he's projected to miss.
 function injuryBadge(a) {
@@ -662,7 +679,7 @@ function injuryBadge(a) {
   return t ? `<span class="text-[11px] px-1 py-px rounded border ${t.cls} whitespace-nowrap cursor-help" data-tip="${Vault.escapeHtml(Vault.injuryCard(a))}">${t.text}</span>` : '';
 }
 function assetRow(side, a, isSelected, extra) {
-  const sub = a.type === 'pick' ? `<span class="text-[12px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>`;
+  const sub = a.type === 'pick' ? '<span class="text-[12px] text-zinc-500">Pick</span>' : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>`;
   // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
   // enough to actually mean something, not turn into visual noise on half the roster.
   // Picks use their own thresholds (Vault.pickVolatilityLabel) — reusing the
@@ -695,7 +712,7 @@ function assetRow(side, a, isSelected, extra) {
     <div class="group/item ${extra || ''}">
       <div onclick="toggle('${side}','${a.key}')" role="button" tabindex="0" aria-pressed="${isSelected}" aria-label="${Vault.escapeHtml(a.name)}${a.type === 'player' ? ', ' + a.pos : ''}, ${Math.round(a.value).toLocaleString()} value${isSelected ? ', in the trade' : ''}" class="px-3 py-2.5 mx-1 my-0.5 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'hover:bg-white/[0.03]'}">
         <div class="flex items-center gap-2">
-          <span class="text-[14px] truncate flex-1 min-w-0 ${isSelected ? 'text-white' : 'text-zinc-100 group-hover/item:text-white'}" title="${Vault.escapeHtml(a.name)}">${Vault.assetLink(a)}</span>
+          <span class="text-[14px] truncate flex-1 min-w-0 ${isSelected ? 'text-white' : 'text-zinc-100 group-hover/item:text-white'}" title="${Vault.escapeHtml(a.name)}">${Vault.assetLink(a)}${a.type === 'player' ? Vault.watchMark(a.name) : ''}</span>
           <div class="text-[13px] mono font-medium shrink-0 ${isSelected ? 'text-white' : 'text-zinc-400'}">${Math.round(a.value).toLocaleString()}</div>
           <div class="w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-amber-400 border-amber-400' : 'border-white/10 group-hover/item:border-amber-500/40'}">
             ${isSelected ? '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 6l2 2 4-4" stroke="black" stroke-width="2" stroke-linecap="round"/></svg>' : ''}
@@ -745,7 +762,7 @@ function renderNeeds(side, team) {
   const el = document.getElementById(`needs${side}`);
   const chosen = Vault.planOverride[team.rosterId] || '';
   const opt = (v, label) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${label}</option>`;
-  const parts = [`<label class="inline-flex items-center gap-1 text-zinc-400" title="Whether this team is graded as contending or rebuilding. Auto reads it from the roster; pick one if the team has decided otherwise.">Timeline
+  const parts = [`<label class="inline-flex items-center gap-1 text-zinc-400" title="Whether this team is graded as contending or rebuilding. Auto reads it from the roster; pick one if the team has decided otherwise."><span class="term">Timeline</span>
       <select onchange="setTeamTimeline(${team.rosterId}, this.value)" aria-label="Timeline" class="bg-black/40 border rounded px-1 py-1 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300'}">
         ${opt('', `Auto · ${Vault.MODE_LABEL[autoTimeline(team)]}`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}
       </select></label>`];
@@ -807,119 +824,8 @@ function resetTrade() {
   render('A'); render('B');
 }
 
-// Filters a roster down to assets actually worth anchoring a trade around — skips
-// deep-bench chaff so the search stays fast and the results stay realistic (nobody
-// is trading their QB4 as the headline of a deal).
-function tradeableAssets(team) {
-  const floor = Math.max(300, team.total * 0.02);
-  return team.assets.filter(a => a.value >= floor).sort((a, b) => b.value - a.value).slice(0, 15);
-}
 
-// Closest-to-even pair from `pool` for one `single` asset, by real consolidation-
-// adjusted % off — null unless it already reads Fair. `singleIsMine` says which
-// side of the trade the single asset sits on (tradeSideValues is order-sensitive).
-// Pairs whose raw sum is nowhere near the single piece are skipped before any
-// real math runs.
-function bestPairFor(single, pool, singleIsMine) {
-  let best = null, bestPct = Infinity;
-  for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) {
-    const pair = [pool[i], pool[j]];
-    const raw = pair[0].value + pair[1].value;
-    if (raw < single.value * 0.8 || raw > single.value * 2.2) continue;
-    const { valueA, valueB } = singleIsMine ? Vault.tradeSideValues([single], pair) : Vault.tradeSideValues(pair, [single]);
-    const pct = Math.abs(valueA - valueB) / (((valueA + valueB) / 2) || 1) * 100;
-    if (pct < bestPct) { bestPct = pct; best = pair; }
-  }
-  return bestPct < VAULT_CONFIG.FAIR_PCT ? best : null;
-}
 
-// Every fair-looking trade between your team and each other team, deduped and
-// sorted most-even first (pick-for-pick last). Trade Coach's Best trades then
-// keeps the ones the other manager would actually accept.
-// analyze (optional): how to get a trade's analysis; Trade Coach passes its
-// cache (coachJudged), so trades it grades later aren't analyzed twice.
-function suggestionPool(myTeam, onlyPartner, analyze) {
-  const partners = onlyPartner ? [onlyPartner] : teams.filter(t => t.rosterId !== myTeam.rosterId);
-  const myAnchors = tradeableAssets(myTeam);
-  const candidates = [];
-  // Computed once per team, not per candidate — positionalProfile loops the whole
-  // league itself, and this search already runs it against up to ~9 partners x
-  // ~15-30 anchors each.
-  const myProfile = Vault.positionalProfile(myTeam, teams);
-
-  const consider = (partner, giveA, giveB) => {
-    let result;
-    if (analyze) result = analyze(partner, giveA, giveB);
-    else { const { valueA: aValAdj, valueB: bValAdj } = Vault.tradeSideValues(giveA, giveB); result = computeTradeAnalysis(myTeam, partner, giveA, giveB, aValAdj, bValAdj); }
-    if (result.verdict.tone !== 'bad') candidates.push({ partner, giveA, giveB, result });
-  };
-
-  partners.forEach(partner => {
-    const partnerProfile = Vault.positionalProfile(partner, teams);
-    // Direction 1: Team A sends one meaningful asset, gets back the partner's best
-    // matching package (mirrors the "Find" shop-out flow, run automatically). The
-    // package flows to ME, so it's searched against MY profile — a package that
-    // actually fills my need can settle for less sticker value and still get found.
-    myAnchors.forEach(mine => {
-      const combo = bestCombo(partner.assets, mine.value, myProfile);
-      if (combo) consider(partner, [mine], combo.combo);
-    });
-    // Direction 2: Team A acquires one of the partner's meaningful assets, sending
-    // its own best matching package — this
-    // package flows to THEM, so it's searched against their profile instead.
-    tradeableAssets(partner).forEach(theirs => {
-      const combo = bestCombo(myTeam.assets, theirs.value, partnerProfile);
-      if (combo) consider(partner, combo.combo, [theirs]);
-    });
-
-    // Explicit 1-for-2s, both directions — the searches above lean 1-for-1 (every
-    // extra piece carries COMBO_SIZE_PENALTY_PCT), so a genuinely fair 2-for-1
-    // rarely surfaced on its own. Scored with the real two-sided KTC math
-    // (Vault.tradeSideValues), since the consolidation premium is exactly what
-    // decides whether two pieces really match one.
-    const myTop = tradeableAssets(myTeam), theirTop = tradeableAssets(partner);
-    myTop.forEach(mine => {
-      const pair = bestPairFor(mine, theirTop, true);
-      if (pair) consider(partner, [mine], pair);
-    });
-    theirTop.forEach(theirs => {
-      const pair = bestPairFor(theirs, myTop, false);
-      if (pair) consider(partner, pair, [theirs]);
-    });
-  });
-
-  // The two search directions (send-an-anchor vs. acquire-an-anchor) can converge
-  // on the exact same give/get pair from different starting points — dedupe by the
-  // actual assets moved before ranking, or the same trade can show up twice.
-  const seen = new Set();
-  const deduped = candidates.filter(c => {
-    const key = c.partner.rosterId + '|' + [...c.giveA.map(a => a.key)].sort().join(',') + '|' + [...c.giveB.map(a => a.key)].sort().join(',');
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  // Ranked purely by fairness (raw value-diff % — see computeTradeAnalysis's
-  // pctDiff, the same number that gates the Fair/Lopsided/Unfair verdict) —
-  // most fair first. Every candidate here
-  // already cleared the "not bad" bar in consider() above, so this ordering is
-  // specifically "which of these genuinely-viable trades is closest to even", not a
-  // blend with fit/archetype scoring (that's still visible per-card via the verdict
-  // label, just not what determines the order). Pick-for-pick trades sort last
-  // within that — they're trivial to price almost perfectly even (two same-asset-
-  // class items of similar cost), so "closest to fair" isn't a meaningful quality
-  // signal for them the way it is for a real trade moving rostered talent, and
-  // ranking by raw fairness alone would let them claim the top spots on that
-  // technicality alone.
-  const isPickForPick = c => c.giveA.every(a => a.type === 'pick') && c.giveB.every(a => a.type === 'pick');
-  deduped.sort((x, y) => {
-    const px = isPickForPick(x) ? 1 : 0, py = isPickForPick(y) ? 1 : 0;
-    if (px !== py) return px - py;
-    return x.result.overallPct - y.result.overallPct;
-  });
-
-  return deduped;
-}
 
 
 // Swaps a button's own label for a short message, then restores it — used for the
@@ -1006,39 +912,8 @@ function comboSearchAdj(pool, targetAdj, profile) {
    value. `sum` is the raw KTC total (for display); `pctOff` is how far off in
    adjusted-space terms, the same basis the trade bar and headline use — need-
    weighted when `profile` is given, same as comboValue above. */
-// Same enumeration as comboSearchAdj, but keeps every combo considered instead of
-// only the single best, then returns up to N of them — skipping any combo that's
-// mostly the same assets as one already picked (>50% overlap), so the results are
-// genuinely different packages rather than "same core plus a different throw-in".
-// Returns a few real options instead of picking
-// one for you.
-function comboSearchTopN(pool, targetAdj, n, profile) {
-  const all = [];
-  const consider = combo => {
-    const diff = Math.abs(comboValue(combo, profile) - targetAdj);
-    all.push({ combo, diff, score: comboScore(diff, combo.length, targetAdj, comboVorp(combo)) });
-  };
-  pool.forEach(a => consider([a]));
-  for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) consider([pool[i], pool[j]]);
-  if (pool.length <= 40) for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) for (let k = j + 1; k < pool.length; k++) consider([pool[i], pool[j], pool[k]]);
-  all.sort((a, b) => a.score - b.score);
 
-  const picked = [];
-  for (const r of all) {
-    const keys = new Set(r.combo.map(a => a.key));
-    const tooSimilar = picked.some(p => {
-      const pKeys = new Set(p.combo.map(a => a.key));
-      const shared = [...keys].filter(k => pKeys.has(k)).length;
-      return shared / Math.max(keys.size, pKeys.size) > 0.5;
-    });
-    if (tooSimilar) continue;
-    picked.push(r);
-    if (picked.length >= n) break;
-  }
-  return picked;
-}
-
-/* The search above (comboSearchAdj/comboSearchTopN/comboValue) scores thousands of
+/* The search above (comboSearchAdj/comboValue) scores thousands of
    candidate combos per call using per-asset VBA — cheap enough to brute-force a
    40-asset pool, but the same single-sided approximation this app's real trade
    verdict moved away from earlier (Vault.needAdjustedTradeValues): VBA has no
@@ -1138,7 +1013,7 @@ function matchTarget(side, key) {
   if (combo) {
     let picked = combo.combo;
     // Local refinement pass — bestCombo (via bestFit/comboSearchAdj) ranks
-    // candidates with the same cheap VBA-based proxy comboSearchTopN uses (see
+    // candidates with a cheap VBA-based proxy (see
     // balanceSide's own comment for the full reasoning), which can leave the
     // actual best combo out of consideration entirely, not just rank it low: a
     // real case (Ja'Marr Chase anchored against Puka Nacua + a 2027 1st) came
@@ -1332,7 +1207,7 @@ function siteConsensusRead(gap, size, teamA, teamB) {
 /* Every piece at each site's price, the totals, and KTC's adjustment, so the
    verdicts above can be checked piece by piece (user, 2026-11-03). KTC's verdict
    counts its adjustment even when its page doesn't show one. */
-const sitePieceName = a => (a.type === 'pick' ? `${a.season} ${String(a.ktcTier ?? a.tier ?? 'mid').replace(/^./, c => c.toUpperCase())} ${[, '1st', '2nd', '3rd', '4th', '5th'][a.ktcRound ?? a.round] || `R${a.round}`}` : a.name);
+const sitePieceName = a => a.name;
 function siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc) {
   const isSF = Vault.isSuperflex(league), esc = Vault.escapeHtml;
   const n = v => (v == null ? '—' : Math.round(v).toLocaleString());
@@ -1455,14 +1330,14 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
   const favored = fairness.roster + fairness.timeline > 0 ? partner.teamName : me.teamName; // who fit leans toward (positive = partner)
   return `<div class="grid grid-cols-[auto_auto_auto_auto] gap-x-4 gap-y-1 items-baseline text-right tabular-nums">
       <span></span>
-      <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.escapeHtml(me.teamName)} sends</span>
+      <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.teamLink(me)} sends</span>
       <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.escapeHtml(me.teamName)} gets</span>
       <span class="text-[11px] uppercase tracking-wider text-zinc-400">Net</span>
-      <span class="text-[12px] text-zinc-400 text-left cursor-help" title="${PRICE_TIP.trade}">Trade value</span>
+      <span class="term text-[12px] text-zinc-400 text-left" title="${PRICE_TIP.trade}">Trade value</span>
       <span class="text-[14px] text-zinc-100">${n(giveVal)}</span>
       <span class="text-[14px] text-zinc-100">${n(getVal)}</span>
       <span class="text-[14px] font-medium">${d(getVal - giveVal)}</span>
-      ${ktc ? `<span class="text-[12px] text-zinc-400 text-left cursor-help" title="${PRICE_TIP.ktc}">KTC's calculator</span>
+      ${ktc ? `<span class="term text-[12px] text-zinc-400 text-left" title="${PRICE_TIP.ktc}">KTC's calculator</span>
       <span class="text-[14px] text-zinc-400">${n(ktc.valueA)}</span>
       <span class="text-[14px] text-zinc-400">${n(ktc.valueB)}</span>
       <span class="text-[14px] font-medium">${d(ktc.valueB - ktc.valueA)}</span>` : ''}
@@ -1517,7 +1392,6 @@ function improvementOf(an, side = 'A') {
   // pricePct: the price on its own (the sentence and Coach's price checks read it); the score reads the blend.
   return { ...Vault.tradeImprovement({ valuePct: blended ?? price, rosterFit: an.rosterFit[side], timelineFit: an.timelineFit[side], mode: an['res' + side].mode, ptsPerWeek: pts, valueTilt: tilt.pct }), tiltWhy: tilt.why, tilt, pricePct: price, outOfRace: out };
 }
-const VERDICT_STYLE = { good: { text: 'text-emerald-300', tone: 'good' }, tossup: { text: 'text-amber-300', tone: 'neutral' }, bad: { text: 'text-orange-300', tone: 'bad' } };
 // "You get 9% more value, but it costs you 3.9 points a week this season (title odds 32% → 27%)."
 function improvementReason(imp, s) {
   const r = Math.round, pc = v => (v < 1 && v > 0 ? '<1' : r(v)) + '%', n = v => Math.abs(v).toFixed(1);
@@ -1579,8 +1453,8 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const offered = offeredBy === 'B';
   const yourLabel = offered ? { good: 'Worth accepting', tossup: 'Worth a counter', bad: 'Decline' }[imp.level] : imp.label;
   // The team name on one line (2026-10-24 phone pass: long names took three).
-  const tile = (who, label, cls, sub, close = '') => `<div class="rounded-xl bg-black/25 border border-white/5 px-3 sm:px-4 py-3 min-w-0">
-      <div class="text-[11px] uppercase tracking-wider text-zinc-500 truncate" title="${who}">${who}</div>
+  const tile = (who, label, cls, sub, close = '', help = '') => `<div class="rounded-xl bg-black/25 border border-white/5 px-3 sm:px-4 py-3 min-w-0">
+      <div class="flex items-center justify-between gap-1"><div class="text-[11px] uppercase tracking-wider text-zinc-500 truncate min-w-0" title="${who}">${who}</div>${help}</div>
       <div class="num text-[26px] leading-tight mt-0.5 ${cls}">${label}</div>${close}${sub ? `<div class="text-[12px] text-zinc-400 mt-1">${sub}</div>` : ''}</div>`;
   const yourSub = offered ? `<span class="${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span>` : '';
   // Your timeline under the tiles, on its own line (2026-10-24: in the tile it was cut off on phones).
@@ -1589,7 +1463,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const theirSub = '';
   el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Works for both'}</span></div>` : ''}
     <div class="grid grid-cols-2 gap-3 max-w-[640px]">
-      ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp))}
+      ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp), Vault.info('verdict'))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
     </div>
     ${timelineRow}
@@ -1837,7 +1711,7 @@ function pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp, side = 'A') {
       <div class="text-[11px] uppercase tracking-wider text-zinc-500">What each piece does to ${team}'s lineup this season</div>
       ${bAssets.map(a => row(a, true)).join('')}${aAssets.map(a => row(a, false)).join('')}
       <div class="text-[11px] text-zinc-500">Each on its own, so they don't add up exactly. Together:</div>
-      ${total('Starting lineup', lineup)}${total('Depth (bye and injury weeks)', depth)}${total('This season, in all', lineup + depth, true)}
+      ${total('Starting lineup', lineup)}${total(Vault.term('depth', 'Depth (bye and injury weeks)'), depth)}${total('This season, in all', lineup + depth, true)}
       ${imp.outOfRace ? `<div class="text-[11px] text-zinc-500">${team} is out of the playoff race, so the verdict doesn't count these points.</div>` : ''}
     </div>`;
 }
@@ -1976,7 +1850,7 @@ function renderLineups(teamA, teamB, analysis) {
    what was picked from the old one) and goes on their side. */
 function fillQuickAdd() {
   const me = teamOf('A'), sel = document.getElementById('quickAdd');
-  const label = a => a.type === 'pick' ? `${a.name}${a.tier ? ` (${a.tier})` : ''}` : `${a.name} (${Vault.playerSearchInfo(a)})`;
+  const label = a => (a.type === 'pick' ? a.name : `${a.name} (${Vault.playerSearchInfo(a)})`);
   const group = (t, name) => `<optgroup label="${Vault.escapeHtml(name)}">${t.assets.map(a => `<option value="${t.rosterId}|${a.key}">${Vault.escapeHtml(label(a))}</option>`).join('')}</optgroup>`;
   sel.innerHTML = '<option value=""></option>' + [me, ...teams.filter(t => t !== me)].map(t => group(t, t === me ? `Your team · ${t.teamName}` : t.teamName)).join('');
   sel.value = '';
@@ -2033,15 +1907,15 @@ function updateTrade() {
   const giveChip = (side, a) => `<div class="flex items-center gap-2 min-w-0">
       <span class="text-[11px] font-semibold w-9 text-center py-0.5 rounded border shrink-0 ${POS_BADGE(a.type === 'pick' ? '' : a.pos)}">${a.type === 'pick' ? 'Pick' : a.pos}</span>
       <span class="min-w-0 flex-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-        <span class="text-[14px] font-medium text-zinc-100 truncate min-w-0 max-w-full">${Vault.assetLink(a)}${a.type === 'pick' && a.tier ? ` <span class="text-[12px] font-normal text-zinc-500">${a.tier}</span>` : ''}</span>${a.type === 'player' ? `<span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>` : ''}
+        <span class="text-[14px] font-medium text-zinc-100 truncate min-w-0 max-w-full">${Vault.assetLink(a)}${a.type === 'player' ? Vault.watchMark(a.name) : ''}</span>${a.type === 'player' ? `<span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>` : ''}
         ${injuryBadge(a)}
       </span>
       <span class="text-[13px] mono text-zinc-400 shrink-0">${Math.round(a.value).toLocaleString()}</span>
       <button onclick="toggle('${side}','${a.key}')" title="Remove from trade" aria-label="Remove ${Vault.escapeHtml(a.name)} from the trade" class="size-7 shrink-0 grid place-items-center rounded-md text-zinc-500 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"><span aria-hidden="true">✕</span></button>
     </div>`;
   const nothing = side => `<div class="text-[13px] text-zinc-500 py-1">Nothing yet. Pick from ${side === 'A' ? 'your roster' : 'their roster'} below.</div>`;
-  document.getElementById('giveALabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.escapeHtml(teamA.teamName)}</span> sends`;
-  document.getElementById('giveBLabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.escapeHtml(teamB.teamName)}</span> sends`;
+  document.getElementById('giveALabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.teamLink(teamA)}</span> sends`;
+  document.getElementById('giveBLabel').innerHTML = `<span class="text-zinc-100 font-medium">${Vault.teamLink(teamB)}</span> sends`;
   document.getElementById('giveA').innerHTML = aAssets.length ? aAssets.map(a => giveChip('A', a)).join('') : nothing('A');
   document.getElementById('giveB').innerHTML = bAssets.length ? bAssets.map(a => giveChip('B', a)).join('') : nothing('B');
 
@@ -2464,10 +2338,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           </div>
         </details>` : ''}
         <div class="grid grid-cols-4 gap-2 text-center pt-3 border-t border-white/5">
-          <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">Age</div></div>
-          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dOpt) > 0.05 ? Vault.signed(res.dOpt, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">Lineup PPG</div></div>
-          <div title="Optimal lineup's total VORP — real, scarcity-adjusted edge over readily-available replacements, not just raw points"><div class="text-[14px] font-mono">${Vault.num1(aft.vorpTotal)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? Vault.signed(res.dVorp, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
-          <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? Vault.windowYearsText(win) : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">Window</div></div>
+          <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">${Vault.term('age', 'Age')}</div></div>
+          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dOpt) > 0.05 ? Vault.signed(res.dOpt, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('lineupPpg', 'Lineup PPG')}</div></div>
+          <div><div class="text-[14px] font-mono">${Vault.num1(aft.vorpTotal)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? Vault.signed(res.dVorp, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('vorpTeam', 'VORP')}</div></div>
+          <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? Vault.windowYearsText(win) : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">${Vault.term('window', 'Window')}</div></div>
         </div>
       </div>`;
   });
@@ -2476,10 +2350,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=35059c45"></script>
-<script src="market-data.js?v=c2ea5f8f"></script>
-<script src="player-card.js?v=34c6b48d"></script>
-<script src="market.js?v=92af03f6"></script>
-<script src="coach.js?v=9f57c82e"></script>
+<script src="negotiation.js?v=74ef6b53"></script>
+<script src="market-data.js?v=a619b6b9"></script>
+<script src="player-card.js?v=9a548ef1"></script>
+<script src="market.js?v=bfa5ee54"></script>
+<script src="coach.js?v=3657ed83"></script>
 </body>
 </html>

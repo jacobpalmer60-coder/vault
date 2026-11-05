@@ -214,7 +214,7 @@
       seasonRows = seasons.map(yr => {
         const s = r.seasonHistory[yr];
         return `<tr>
-          <td class="py-1.5 text-zinc-400">${yr}</td>
+          <td class="py-1.5 text-zinc-400">${yr}${+yr === +leagueObj?.season ? ' so far' : ''}</td>
           <td class="py-1.5 text-right mono text-zinc-200">${fmtFloat(s.points, 1)}</td>
           <td class="py-1.5 text-right mono text-zinc-400">${fmtFloat(s.ppg, 1)}</td>
           <td class="py-1.5 text-right mono text-zinc-400">${s.gp}</td>
@@ -253,23 +253,97 @@
             <div class="text-[12px] text-zinc-400 mt-1">${Vault.escapeHtml(r.team) || '—'} • Age ${r.age != null ? fmtFloat(r.age, 1) : '—'}${r.yearsExp != null ? ' • ' + (r.yearsExp === 0 ? 'Rookie' : `${r.yearsExp} yr${r.yearsExp === 1 ? '' : 's'} in NFL`) : ''}</div>
           </div>
         </div>
-        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 ${posColor(r.pos)}">${r.pos || '—'}</span>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 mr-6 ${posColor(r.pos)}">${r.pos || '—'}</span>
       </div>
+      <div class="flex flex-wrap gap-2 mb-3">${cardActions(r)}</div>
+      <div id="pcHolder" class="text-[12px] text-zinc-400 mb-3 empty:hidden"></div>
       <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">
-        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Value</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="value">Value</span></div></div>
         <div><div class="mono text-[15px] text-zinc-100">${r.posRank ? '#' + r.posRank + ' of ' + r.posCount : '—'}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">${r.pos || 'Pos'} Rank</div></div>
-        <div><div class="mono text-[15px] ${r.out ? 'text-rose-300' : r.bench ? 'text-zinc-500' : 'text-zinc-100'}"${r.out || r.bench ? ` title="${outTip(r)}"` : ''}>${r.out ? 'Out' : r.bench ? 'Bench' : fmtFloat(r.ppg, 2)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">PPG</div></div>
-        <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}" title="Points per game above the best player at ${r.pos || 'this position'} who wouldn't start anywhere in your league">${fmtSigned(r.vorp)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">VORP</div></div>
+        <div><div class="mono text-[15px] ${r.out ? 'text-rose-300' : r.bench ? 'text-zinc-500' : 'text-zinc-100'}"${r.out || r.bench ? ` title="${outTip(r)}"` : ''}>${r.out ? 'Out' : r.bench ? 'Bench' : fmtFloat(r.ppg, 2)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="projPpg">PPG</span></div></div>
+        <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}">${fmtSigned(r.vorp)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="vorp">VORP</span></div></div>
       </div>
       ${injuryHtml(r)}
+      ${playoffHtml(r)}
+      <div id="pcWeekly" class="mb-4"></div>
       <div id="pcMarket" class="mb-4"></div>
-      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time</div>
+      <div id="pcTrades" class="mb-4 empty:hidden"></div>
+      <div id="pcMoves" class="mb-4">${r.pid ? `<button type="button" data-moves="${r.pid}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">His trades in this league</button>` : ''}</div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time${Vault.info('valueOverTime')}</div>
       <div id="pcValueChart">${valueChart}</div>
-      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time</div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time${Vault.info('ppgOverTime')}</div>
       ${ppgChart}
       ${historySection}
-      <a href="compare.html?league_id=${encodeURIComponent(Vault.getLeagueId())}&p=${encodeURIComponent(r.norm)}" class="mt-4 inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">Compare with another player →</a>
     `;
+  }
+
+  // From the card, straight to what you'd do next (user, 2026-11-05).
+  function cardActions(r) {
+    const link = (href, text) => `<a href="${href}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">${text}</a>`;
+    const name = encodeURIComponent(r.norm);
+    return [r.pid ? link(`${Vault.linkTo('trade.html')}&coach=player&player=p_${r.pid}`, 'Build a trade') : '',
+      link(`${Vault.linkTo('market.html')}&p=${name}`, 'Market page'),
+      link(`${Vault.linkTo('compare.html')}&p=${name}`, 'Compare'),
+      `<button type="button" data-card-watch="${Vault.escapeHtml(r.norm)}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">${Vault.isWatched(r.norm) ? '★ Watching' : '☆ Watch'}</button>`].join('');
+  }
+  // His projection in each playoff week: byes and injuries show, which the season average hides.
+  function playoffHtml(r) {
+    if (!r.playoff?.length) return '';
+    const cell = w => `<div><div class="mono text-[15px] ${w.pts == null ? 'text-zinc-500' : 'text-zinc-100'}">${w.pts == null ? 'Out' : w.pts.toFixed(1)}</div><div class="text-[11px] text-zinc-400 mt-0.5">Week ${w.week}</div></div>`;
+    return `<div class="rounded-xl border border-white/10 bg-black/20 p-3.5 mb-4">
+        <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Playoff weeks${Vault.info('playoffWeeks')} <span class="normal-case tracking-normal text-zinc-500">· projected points</span></div>
+        <div class="grid gap-2 text-center" style="grid-template-columns:repeat(${r.playoff.length},minmax(0,1fr))">${r.playoff.map(cell).join('')}</div>
+      </div>`;
+  }
+  // What he really scored each week, in this league's scoring. Loaded with the first card.
+  let weeklyLoad = null;
+  // Who holds him in this league (user's list, 2026-11-05). Sleeper's rosters, so it works before the page's teams are built.
+  function renderHolder(r) {
+    const box = document.getElementById('pcHolder'), id = leagueObj?.league_id;
+    if (!box || !r.pid || !id) return;
+    const url = what => `https://api.sleeper.app/v1/league/${id}/${what}`;
+    Promise.all([Vault.sleeperJson(url('rosters'), 5), Vault.sleeperJson(url('users'), 5)]).then(([rosters, users]) => {
+      if (document.getElementById('pcHolder') !== box) return;
+      const held = rosters.find(x => (x.players || []).includes(String(r.pid)));
+      if (!held) { box.textContent = 'Free agent in your league'; return; }
+      if (String(held.roster_id) === String(Vault.getMyTeamId(id))) { box.textContent = 'On your team'; return; }
+      const u = users.find(x => x.user_id === held.owner_id);
+      box.innerHTML = `On ${Vault.teamLink({ rosterId: held.roster_id, teamName: Vault.teamLabel(u, held.roster_id) })}`;
+    }).catch(() => {});
+  }
+  const loadWeekly = () => (weeklyLoad ||= fetch(`data/weekly/${leagueObj?.season}.json`).then(res => (res.ok ? res.json() : null)).catch(() => null));
+  function boomBust(played, r) {
+    if (played.length < 3) return '';
+    const pts = played.map(w => w.pts), line = Number.isFinite(r.ppg) && Number.isFinite(r.vorp) ? r.ppg - r.vorp : null;
+    const stat = (v, label) => `<div><div class="mono text-[14px] text-zinc-100">${v}</div><div class="text-[11px] text-zinc-400 mt-0.5">${label}</div></div>`;
+    return `<div class="grid grid-cols-3 gap-2 text-center mt-2">${stat(Math.max(...pts).toFixed(1), 'Best')}${stat(Math.min(...pts).toFixed(1), 'Worst')}${line != null ? stat(`${pts.filter(p => p > line).length} of ${pts.length}`, Vault.term('starterLine', 'Over a starter')) : ''}</div>`;
+  }
+  function renderWeekly(r) {
+    const box = document.getElementById('pcWeekly');
+    if (!box || !r.pid || !leagueObj) return;
+    loadWeekly().then(file => {
+      const pl = file?.players?.[r.pid], snaps = file?.keys.indexOf('off_snp') ?? -1;
+      if (!pl || document.getElementById('pcWeekly') !== box) return;
+      const last = Math.max(...Object.values(file.players).flatMap(p => Object.keys(p.w).map(Number)));
+      const weeks = Array.from({ length: last }, (_, i) => {
+        const week = i + 1, row = pl.w[week];
+        if (!row) return { week };
+        const st = {}; file.keys.forEach((k, j) => { st[k] = row[j + 3]; });
+        return { week, opp: row[1], pts: Vault.scoreStats(st, scoringSettings), played: row[snaps + 3] > 0 || st.gp > 0 };
+      });
+      const played = weeks.filter(w => w.played);
+      if (!played.length) return;
+      const avg = l => l.reduce((s, w) => s + w.pts, 0) / l.length, recent = played.slice(-4);
+      const W = 460, H = 96, B = 16, T = 12, max = Math.max(...played.map(w => w.pts), 1), step = W / weeks.length, y = v => T + (1 - v / max) * (H - B - T);
+      const bars = weeks.map((w, i) => {
+        const x = i * step + step / 2, label = `<text x="${x}" y="${H - 3}" text-anchor="middle" font-size="9" fill="currentColor" class="text-zinc-500">${w.week}</text>`;
+        if (!w.played) return `<g><title>Week ${w.week}: didn't play</title><rect x="${x - 3}" y="${H - B - 2}" width="6" height="2" fill="currentColor" class="text-zinc-600"/>${label}</g>`;
+        const on = recent.includes(w), top = y(Math.max(w.pts, 0));
+        return `<g><title>Week ${w.week}${w.opp ? ` vs ${Vault.escapeHtml(w.opp)}` : ''}: ${w.pts.toFixed(1)} points</title><rect x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent"/><rect x="${x - 7}" y="${top}" width="14" height="${Math.max(1, H - B - top)}" rx="2" fill="#fbbf24" opacity="${on ? 1 : 0.45}"/>${w.pts === Math.max(...played.map(p => p.pts)) || w === played[played.length - 1] ? `<text x="${x}" y="${top - 3}" text-anchor="middle" font-size="9" fill="currentColor" class="text-zinc-300">${w.pts.toFixed(1)}</text>` : ''}${label}</g>`;
+      }).join('');
+      box.innerHTML = `<div class="flex items-baseline justify-between gap-3 mb-2"><div class="text-[11px] text-zinc-400 uppercase tracking-wider whitespace-nowrap shrink-0">Points by week${Vault.info('pointsByWeek')}</div><div class="text-[12px] text-zinc-400">${recent.length > 1 ? `Last ${recent.length}: <span class="mono text-zinc-200">${avg(recent).toFixed(1)}</span> · ` : ''}Season: <span class="mono text-zinc-200">${avg(played).toFixed(1)}</span> a game</div></div>
+        <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${Vault.escapeHtml(r.player)}'s points each week this season">${bars}</svg>${boomBust(played, r)}`;
+    });
   }
 
   // Injured or questionable: the same details as the tag's hover card (user, 2026-11-05).
@@ -295,11 +369,49 @@
     }
     return dailyMarketLoading;
   }
+  async function renderMoves(pid) {
+    const box = document.getElementById('pcMoves');
+    box.innerHTML = '<div class="text-[12px] text-zinc-400">Reading every season of this league…</div>';
+    try {
+      const [chain, db] = await Promise.all([Vault.fetchSeasonChain(leagueObj.league_id, leagueObj), Vault.fetchSleeperPlayers()]);
+      const nameOf = id => { const p = db[id]; return p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'a player'; };
+      const seasons = await Promise.all(chain.map(async s => {
+        const url = what => `https://api.sleeper.app/v1/league/${s.leagueId}/${what}`;
+        const [rosters, users, ...weeks] = await Promise.all([Vault.sleeperJson(url('rosters'), 60), Vault.sleeperJson(url('users'), 60), ...Array.from({ length: 18 }, (_, i) => Vault.sleeperJson(url(`transactions/${i + 1}`), 60).catch(() => []))]);
+        const team = id => Vault.teamLabel(users.find(u => u.user_id === rosters.find(x => x.roster_id === +id)?.owner_id), id);
+        return weeks.flat().filter(t => t.type === 'trade' && t.status === 'complete' && (t.adds || {})[pid] != null).map(t => {
+          const to = +t.adds[pid], from = +(t.drops || {})[pid];
+          const gave = [...Object.entries(t.adds).filter(([, r2]) => +r2 === from).map(([id]) => nameOf(id)), ...(t.draft_picks || []).filter(pk => +pk.owner_id === from).map(pk => Vault.pickName({ season: pk.season, round: pk.round }))];
+          return { at: t.created || t.status_updated, to: team(to), from: team(from), gave };
+        });
+      }));
+      const moves = seasons.flat().sort((a, b) => b.at - a.at);
+      if (document.getElementById('pcMoves') !== box) return;
+      box.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">His trades in this league</div>${moves.length ? moves.map(m => `<div class="py-2 border-t border-white/5 text-[12px]"><div class="text-[11px] text-zinc-500">${new Date(m.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div><div class="text-zinc-200">${Vault.escapeHtml(m.from)} to ${Vault.escapeHtml(m.to)}</div><div class="text-zinc-400">for ${Vault.escapeHtml(m.gave.join(', ') || 'nothing')}</div></div>`).join('') : '<div class="text-[12px] text-zinc-400">He hasn\'t been traded in this league.</div>'}`;
+    } catch (e) { console.error(e); box.innerHTML = `<div class="text-[12px] text-zinc-400">${Vault.escapeHtml(Vault.loadError(e))}</div>`; }
+  }
+  document.addEventListener('click', e => { const b = e.target.closest?.('[data-moves]'); if (b) renderMoves(b.dataset.moves); });
+  function renderRecentTrades(r) {
+    const box = document.getElementById('pcTrades'), { like, pool } = marketPool(leagueObj, r.player);
+    if (!box || !like || !pool.length) return;
+    const name = a => Vault.escapeHtml(a.type === 'pick' ? Vault.pickName(a) : a.name);
+    const side = (s, him) => [...s].sort((x, y) => y.value - x.value).map(a => `<span class="${a === him ? 'text-zinc-100 font-medium' : 'text-zinc-300'}">${name(a)}</span>`).join('<span class="text-zinc-600">, </span>');
+    const rows = [...pool].sort((a, b) => b.t.date.localeCompare(a.t.date)).slice(0, 3).map(c => {
+      const p = marketPremium(c);
+      return `<div class="py-2 border-t border-white/5 flex items-start gap-3">
+        <div class="min-w-0 flex-1"><div class="text-[11px] text-zinc-500">${new Date(c.t.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+          <div class="flex text-[12px] mt-0.5 leading-relaxed"><span class="text-zinc-500 w-9 shrink-0">Got</span><span class="min-w-0">${side(c.ps, c.him)}</span></div>
+          <div class="flex text-[12px] leading-relaxed"><span class="text-zinc-500 w-9 shrink-0">Sent</span><span class="min-w-0">${side(c.os, null)}</span></div></div>
+        <div class="text-right shrink-0"><div class="mono text-[13px] ${Math.abs(p) < 5 ? 'text-zinc-200' : p > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Math.round(Math.abs(p))}% ${p > 0 ? 'over' : 'under'}</div><div class="text-[11px] text-zinc-500">paid vs KTC</div></div>
+      </div>`;
+    }).join('');
+    box.innerHTML = `<div class="flex items-baseline justify-between gap-3 mb-1"><div class="text-[11px] text-zinc-400 uppercase tracking-wider">Recent trades${Vault.info('recentTrades')}</div><div class="text-[12px] text-zinc-500">${pool.length} in all</div></div>${rows}`;
+  }
   function renderPlayerMarket(r) {
     const box = document.getElementById('pcMarket');
     if (!box || !leagueObj || !r.value) return;
     const shell = inner => `<div class="rounded-xl border border-white/10 bg-black/20 p-3.5">
-        <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Market value <span class="normal-case tracking-normal text-zinc-500">· what managers actually pay</span></div>${inner}</div>`;
+        <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Market value${Vault.info('market')} <span class="normal-case tracking-normal text-zinc-500">· what managers actually pay</span></div>${inner}</div>`;
     box.innerHTML = shell('<div class="text-[12px] text-zinc-500 mt-1.5">Checking completed trades…</div>');
     loadDailyMarket().then(daily => {
       const line = daily && daily.players[r.norm], chart = document.getElementById('pcValueChart');
@@ -315,6 +427,7 @@
     });
     marketLoad(leagueObj).then(() => {
       if (document.getElementById('pcMarket') !== box) return; // a different card opened meanwhile
+      renderRecentTrades(r);
       // His market value (market-data.js marketPlayer): the same number as the Player Market page and "At market prices".
       const mp = marketPlayer(leagueObj, r.player, r.pos), m = mp.read;
       // How easy he is to move: trades he was in lately, next to players at his position and value.
@@ -352,7 +465,7 @@
         <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 ${posColor(r.pos)}">PICK</span>
       </div>
       <div class="grid grid-cols-3 gap-2 text-center py-3 border-y border-white/10 mb-4">
-        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Value</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="value">Value</span></div></div>
         <div><div class="mono text-[15px] text-zinc-100">#${r.posRank} of ${r.posCount}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Among picks</div></div>
         <div><div class="mono text-[15px] text-zinc-100">#${r.overallRank}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Overall</div></div>
       </div>
@@ -462,6 +575,9 @@
       const trendSeries = trendMap.get(norm) || [];
       const sp = sleeperPlayers?.[pid];
       const yearsExp = sp?.years_exp ?? null;
+      const start = +leagueObj?.settings?.playoff_week_start || 15, playoffWeeks = weeksLeft.filter(w => w >= start && w < start + 3);
+      const projected = healthyPpg != null && playoffWeeks.length ? { ppg: healthyPpg, ...Vault.availOf(projData.players?.[pid], sp, undefined, weeksLeft) } : null;
+      const playoff = projected ? Vault.weekPpgs(projected, playoffWeeks).map((pts, i) => ({ week: playoffWeeks[i], pts })) : null;
       const inj = sp?.injury_status ? { name: p.name, weeks: weeksLeft, ...Vault.injuryOf(sp), ...Vault.availOf(projData.players?.[pid], sp, undefined, weeksLeft) } : null;
       const rawSeasons = pid ? playerHistory.players?.[pid]?.seasons : null;
       let seasonHistory = null;
@@ -474,7 +590,7 @@
         });
         if (!Object.keys(seasonHistory).length) seasonHistory = null;
       }
-      return { player: p.name, norm, inj, pos: p.pos, team: sp?.team || TEAM_ALIAS[p.team] || p.team, age: p.age, value, ppg, vorp, trendSeries, yearsExp, seasonHistory, pid, out, bench, gamesLeft, weeksLeft: weeksLeft.length, healthyPpg };
+      return { player: p.name, norm, inj, playoff, pos: p.pos, team: sp?.team || TEAM_ALIAS[p.team] || p.team, age: p.age, value, ppg, vorp, trendSeries, yearsExp, seasonHistory, pid, out, bench, gamesLeft, weeksLeft: weeksLeft.length, healthyPpg };
     });
 
     // Draft picks, ranked among the players (2026-10-25, user: "i want picks to be
@@ -574,7 +690,7 @@
   function drawCard(r) {
     body().innerHTML = r.isPick ? renderPickCard(r) : renderPlayerCard(r);
     box.firstElementChild.scrollTop = 0;
-    if (!r.isPick) renderPlayerMarket(r);
+    if (!r.isPick) { renderPlayerMarket(r); renderWeekly(r); renderHolder(r); }
   }
   async function open(norm, name = '') {
     show();
@@ -597,14 +713,88 @@
     drawCard(r);
     if (!r.isPick) loadCardStats();
   }
+  // The team card: the standing, the shape of the roster, and where to go next (user, 2026-11-05).
+  let teamsLoad = null;
+  const leagueTeams = () => (typeof teams !== 'undefined' && teams?.length && teams[0].plist ? Promise.resolve(teams)
+    : (teamsLoad ||= Vault.buildLeagueTeams(Vault.getLeagueId()).then(b => b.teams).catch(e => { teamsLoad = null; throw e; })));
+  function teamCardHtml(t, all) {
+    const rank = all.filter(x => x.overall > t.overall).length + 1, ppg = [...all].sort((a, b) => b.opt - a.opt).indexOf(t) + 1, p = t.projected;
+    const stat = (v, label) => `<div><div class="mono text-[15px] text-zinc-100">${v}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">${label}</div></div>`;
+    const pct = v => (v == null ? '—' : `${v > 0 && v < 1 ? '<1' : v > 99 && v < 100 ? '>99' : Math.round(v)}%`);
+    const needs = Vault.positionalProfile(t, all).needs.map(x => x.toUpperCase());
+    const best = [...t.plist].sort((a, b) => b.value - a.value).slice(0, 6);
+    const link = (href, text) => `<a href="${href}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">${text}</a>`;
+    const rec = t.record ? `${t.record.wins}-${t.record.losses}${t.record.ties ? `-${t.record.ties}` : ''}` : '';
+    return `<div class="pr-8 mb-4"><div class="text-[20px] font-bold text-zinc-100 truncate">${Vault.escapeHtml(t.teamName)}</div>
+        <div class="text-[12px] text-zinc-400 mt-1">${[rec, Vault.MODE_LABEL[Vault.teamMode(t)], needs.length ? `Thin at ${needs.join(', ')}` : ''].filter(Boolean).join(' • ')}</div></div>
+      <div class="flex flex-wrap gap-2 mb-4">${link(`${Vault.linkTo('team-analyzer.html')}&team=${t.rosterId}`, 'Open team')}${link(`${Vault.linkTo('trade.html')}&coach=team&with=${t.rosterId}`, 'Start a trade')}</div>
+      <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">${stat(`#${rank}`, Vault.term('overall', 'Value'))}${stat(t.opt ? t.opt.toFixed(1) : '—', Vault.term('lineupPpg', `Lineup #${ppg}`))}${stat(pct(p?.playoffPct ?? t.playoffPct), Vault.term('playoffs', 'Playoffs'))}${stat(pct(p?.championshipPct), Vault.term('title', 'Title'))}</div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Most valuable players</div>
+      <div class="space-y-1.5 text-[13px]">${best.map(a => `<div class="flex items-baseline justify-between gap-3"><span class="min-w-0 text-zinc-200">${Vault.playerLink(a.name)} <span class="text-[12px] text-zinc-500">${Vault.posMeta(a)}</span></span><span class="mono text-zinc-400">${fmtInt(a.value)}</span></div>`).join('')}</div>`;
+  }
+  async function openTeam(id) {
+    show();
+    const want = `team-${id}`;
+    cardOpen = want;
+    body().innerHTML = '<div class="text-[13px] text-zinc-400 py-16 text-center">Loading the team…</div>';
+    try {
+      const all = await leagueTeams(), t = all.find(x => String(x.rosterId) === String(id));
+      if (cardOpen === want && t) { body().innerHTML = teamCardHtml(t, all); box.firstElementChild.scrollTop = 0; }
+    } catch {
+      if (cardOpen === want) body().innerHTML = '<div class="text-[13px] text-zinc-400 py-16 text-center">The team card couldn\'t load. Try again in a moment.</div>';
+    }
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest?.('[data-card-watch]');
+    if (b) b.textContent = Vault.toggleWatch(b.dataset.cardWatch) ? '★ Watching' : '☆ Watch';
+  });
   // Capture, because a name often sits in a row that does something else when clicked.
   document.addEventListener('click', e => {
-    const el = e.target.closest?.('[data-player]');
+    const el = e.target.closest?.('[data-player], [data-team]');
     if (!el) return;
     e.preventDefault();
     e.stopPropagation();
-    open(Vault.normalizeName(el.dataset.player), el.dataset.player);
+    if (el.dataset.team) openTeam(el.dataset.team);
+    else open(Vault.normalizeName(el.dataset.player), el.dataset.player);
   }, true);
 
+  /* Search any player or team from any page: Ctrl+K, or the nav's search button (user's list,
+     2026-11-05). A result is a [data-player] or [data-team] button, so it opens the card over this. */
+  let searchList = null;
+  async function loadSearch() {
+    if (searchList) return searchList;
+    const ktc = await fetch('data/ktc-values.json').then(r => r.json());
+    const id = Vault.getLeagueId(), url = what => `https://api.sleeper.app/v1/league/${id}/${what}`;
+    const [rosters, users] = id ? await Promise.all([Vault.sleeperJson(url('rosters'), 5), Vault.sleeperJson(url('users'), 5)]).catch(() => [[], []]) : [[], []];
+    const teams = rosters.map(r => ({ team: r.roster_id, name: Vault.teamLabel(users.find(u => u.user_id === r.owner_id), r.roster_id) }));
+    const sf = !leagueObj || Vault.isSuperflex(leagueObj);
+    return (searchList = [...teams, ...ktc.players.map(p => ({ name: p.name, pos: p.pos, nfl: p.team, age: p.age, value: sf ? p.sf : p.oneQB }))]);
+  }
+  function searchRows(q) {
+    const words = Vault.normalizeName(q).split(' ').filter(Boolean);
+    if (!words.length) return '<div class="text-[13px] text-zinc-500 py-3">Type a player or a team.</div>';
+    const hits = searchList.filter(x => { const n = Vault.normalizeName(x.name); return words.every(w => n.includes(w)); })
+      .sort((a, b) => (b.team ? 1e6 : b.value || 0) - (a.team ? 1e6 : a.value || 0)).slice(0, 8);
+    if (!hits.length) return '<div class="text-[13px] text-zinc-500 py-3">No player or team matches that.</div>';
+    return hits.map(x => `<button type="button" ${x.team ? `data-team="${x.team}"` : `data-player="${Vault.escapeHtml(x.name)}"`} class="w-full flex items-baseline justify-between gap-3 text-left px-2 py-2.5 rounded-lg hover:bg-white/5 focus:bg-white/5 outline-none">
+        <span class="text-[14px] text-zinc-100 truncate min-w-0">${Vault.escapeHtml(x.name)}</span><span class="text-[12px] text-zinc-500 whitespace-nowrap">${x.team ? 'Team' : [x.pos, x.nfl, x.age ? Math.floor(x.age) : ''].filter(Boolean).join(' · ')}</span></button>`).join('');
+  }
+  async function openSearch() {
+    Vault.popup({ title: 'Find a player or team', html: `<input id="vaultSearch" type="search" autocomplete="off" aria-label="Player or team" placeholder="Name…" class="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2.5 mb-3 text-[16px] text-zinc-100"><div id="vaultSearchHits"></div>` });
+    const input = document.getElementById('vaultSearch'), hits = document.getElementById('vaultSearchHits');
+    input.focus();
+    try { await loadSearch(); } catch { hits.innerHTML = `<div class="text-[13px] text-zinc-400 py-3">${Vault.escapeHtml(Vault.loadError(new TypeError()))}</div>`; return; }
+    const draw = () => { hits.innerHTML = searchRows(input.value); };
+    input.oninput = draw;
+    input.onkeydown = e => { if (e.key === 'Enter') hits.querySelector('button')?.click(); if (e.key === 'ArrowDown') { e.preventDefault(); hits.querySelector('button')?.focus(); } };
+    hits.onkeydown = e => {
+      const list = [...hits.querySelectorAll('button')], i = list.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' && list[i + 1]) { e.preventDefault(); list[i + 1].focus(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); (list[i - 1] || input).focus(); }
+    };
+    draw();
+  }
+  document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); } });
+  document.addEventListener('click', e => { if (e.target.closest?.('#vnSearch')) openSearch(); });
   window.PlayerCard = { load, open, outTip, setWindow(days) { trendWindowDays = days; applyTrendWindow(); } };
 })();

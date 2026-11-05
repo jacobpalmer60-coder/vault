@@ -2,7 +2,7 @@
    VAULT NAV
    Injects one consistent header/nav into every page.
    Requires vault-core.js to be loaded first.
-   Usage: <div id="vault-nav"></div> then <script src="js/vault-nav.js"></script>
+   Usage: <div id="vault-nav"></div> then <script src="vault-nav.js"></script>
    ============================================================ */
 (function () {
   // Five tabs (user, 2026-10-20: "a little convoluted"): the main row is one tab per
@@ -13,7 +13,9 @@
     { label: 'League', tabs: [
       { key: 'overview', short: 'Overview', label: 'League Overview', href: 'app.html' },
       { key: 'analyzer', short: 'Teams', label: 'Team Analyzer', href: 'team-analyzer.html' },
-      { key: 'playoffs', short: 'Playoff Race', label: 'Playoff Race', href: 'playoffs.html' }
+      { key: 'playoffs', short: 'Playoff Race', label: 'Playoff Race', href: 'playoffs.html' },
+      { key: 'recap', short: 'Weekly Recap', label: 'Weekly Recap', href: 'weekly_recap.html' },
+      { key: 'history', short: 'History', label: 'League History', href: 'league_history.html' }
     ] },
     { label: 'Trade Calculator', tabs: [
       { key: 'trade', short: 'Trade Calculator', label: 'Trade Calculator', href: 'trade.html' }
@@ -139,6 +141,7 @@
           </a>
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
             ${infoHtml}
+            ${typeof PlayerCard !== 'undefined' ? '<button id="vnSearch" type="button" aria-label="Find a player or team" title="Find a player or team (Ctrl+K)" class="btn-ghost size-8 grid place-items-center"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>' : ''}
             <select id="myTeamPick" data-search="Your team…" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden max-w-[190px] bg-[#14161a] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-zinc-200"></select>
             <a href="${leagueId ? 'index.html' : Vault.escapeHtml(Vault.pickLeagueLink())}" class="btn-ghost text-[12px] px-3 py-1.5">${leagueId ? 'Switch League' : 'Pick your league'}</a>
           </div>
@@ -196,6 +199,25 @@
     try { sessionStorage.setItem(key, found ? JSON.stringify(found) : '-'); } catch {}
     return found;
   }
+  // The daily jobs normally keep these under a day old. Only speaks up when one really fell behind.
+  async function dataAgeNotice() {
+    const box = document.getElementById('vnNotices');
+    if (!box) return;
+    const read = url => fetch(url).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    const [ktc, proj] = await Promise.all([read('data/ktc-values.json'), read('data/projections.json')]);
+    const days = iso => (iso ? (Date.now() - new Date(iso).getTime()) / 864e5 : 0);
+    const old = [['KTC values', days(ktc?.updated)], ['Projections', days(proj?.updated)]].filter(([, d]) => d > 2);
+    if (old.length) box.insertAdjacentHTML('beforeend', notice(`<span>${old.map(([what, d]) => `${what} are ${Math.floor(d)} days old`).join(', ')}: the daily update is behind, so numbers here may be out of date.</span><a href="status.html" class="text-amber-200 hover:text-amber-100 underline underline-offset-2 decoration-amber-200/30">Data status</a>`));
+  }
+  function firstVisitTips() {
+    const box = document.getElementById('vnNotices'), key = 'vault_tips_seen';
+    let seen = true;
+    try { seen = !!localStorage.getItem(key); } catch {}
+    if (!box || seen || !isTool) return;
+    const act = matchMedia('(hover: none)').matches ? 'Tap' : 'Click';
+    box.insertAdjacentHTML('beforeend', notice(`<span>${act} any player or team name for its card. Dotted words and a small ? explain themselves. The magnifying glass finds anyone.</span><button id="vnTipsOk" class="text-amber-200 hover:text-amber-100 underline underline-offset-2 decoration-amber-200/30">Got it</button>`, 'vnTips'));
+    document.getElementById('vnTipsOk').onclick = () => { try { localStorage.setItem(key, '1'); } catch {} document.getElementById('vnTips')?.remove(); };
+  }
   async function leagueNotices(league, users) {
     const box = document.getElementById('vnNotices');
     if (!box || !league) return;
@@ -250,7 +272,7 @@
   // reaches them, and Enter or Space clicks them. Pages re-render these, so it
   // re-runs whenever the page changes.
   const NATIVE = 'a[href], button, input, select, textarea, summary, label, option, details';
-  const CLICKABLE = '[onclick], th.sortable, tr.team-row, .mobile-team-card, [data-kbd]';
+  const CLICKABLE = '[onclick], th.sortable, tr.team-row, .mobile-team-card, [data-kbd], [data-player], [data-team]';
   function enhance() {
     document.querySelectorAll(CLICKABLE.split(', ').map(s => s + ':not([tabindex])').join(', ')).forEach(el => {
       if (el.matches(NATIVE)) return;
@@ -268,5 +290,5 @@
   });
   new MutationObserver(enhance).observe(document.documentElement, { childList: true, subtree: true });
 
-  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); });
+  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); dataAgeNotice(); firstVisitTips(); });
 })();

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jacobpalmer60-coder.github.io/vault/sitemap.xml

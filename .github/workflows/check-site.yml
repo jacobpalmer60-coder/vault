@@ -1,0 +1,29 @@
+name: Check site code
+
+# vault-core.js also runs in Node, for the crawl's pricing and the nightly update, so code that
+# only works in a browser can stop both (2026-11-05). This turns the commit red and emails the
+# owner the moment that happens, instead of it showing up as a stopped crawl hours later.
+on:
+  push:
+    branches: [main]
+    paths:
+      - vault-core.js
+      - market-data.js
+      - scripts/**
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/check-core-loads.js
+      - run: node scripts/check-math.js
+      - name: Every script parses
+        run: for f in vault-core.js market-data.js scripts/*.js scripts/market-history/*.js; do node --check "$f" || exit 1; done

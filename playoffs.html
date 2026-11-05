@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
-<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+<link rel="stylesheet" href="vault.css?v=48bfbf25">
+<link rel="stylesheet" href="tailwind.css?v=271dcf09">
 <style>
   /* Playoff Race: a Sleeper-style standings list with one plain status per team.
      Built on the vault.css tokens; green/red mean in/out, gold marks your team and the lines. */
@@ -49,6 +49,9 @@
   .pr-rank { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 20px; color: var(--text-2); text-align: center; font-variant-numeric: tabular-nums; }
   .pr-av { width: 40px; height: 40px; border-radius: 50%; background: var(--surface-2); object-fit: cover; display: grid; place-items: center; font-weight: 600; color: var(--text-2); font-size: 15px; overflow: hidden; }
   .pr-name { min-width: 0; }
+  .pr-odds { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--text-dim, #a1a1aa); white-space: nowrap; }
+  .pr-odds .bar { flex: 1; max-width: 180px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+  .pr-odds .bar i { display: block; height: 100%; border-radius: 3px; background: #e3b04b; }
   .pr-name .t { display: flex; align-items: center; min-width: 0; font-weight: 600; font-size: 15px; color: var(--text); }
   .pr-name .t span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .pr-name .s { font-size: 13px; color: var(--text-2); margin-top: 2px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -98,7 +101,7 @@
   <div id="prBody" hidden>
     <p id="rules" class="pr-rules"></p>
     <section id="you" class="card pr-you" hidden></section>
-    <h2 class="pr-h2">Standings</h2>
+    <h2 class="pr-h2">Standings<span class="term-i" data-term="standings" tabindex="0" role="note">?</span></h2>
     <div id="list" class="card pr-list"></div>
     <p class="pr-sub">Click or tap a team for what it needs.</p>
     <section id="weekSec" hidden>
@@ -109,10 +112,10 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=a6039f3f"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
-<script src="market-data.js?v=c2ea5f8f"></script>
-<script src="player-card.js?v=34c6b48d"></script>
+<script src="vault-core.js?v=d2b7083f"></script>
+<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="market-data.js?v=a619b6b9"></script>
+<script src="player-card.js?v=9a548ef1"></script>
 <script>
 /* ============================================================
    PLAYOFF RACE
@@ -271,6 +274,10 @@ async function load() {
   S.mine = mine ? mine.rid : null;
   S.open = new Set();
   render();
+  Vault.buildLeagueTeams(league.league_id).then(({ teams: built }) => {
+    S.odds = new Map(built.filter(t => t.playoffPct != null).map(t => [t.rosterId, { playoffs: t.playoffPct, title: t.championshipPct ?? t.projected?.championshipPct ?? 0 }]));
+    render();
+  }).catch(() => {}); // the race reads fine without them
 }
 
 /* ---------- plain-language status ---------- */
@@ -375,6 +382,14 @@ function render() {
   }
 
   const rows = [];
+  // Everyone's odds at a glance (user, 2026-11-05), the same numbers as League Overview. They
+  // arrive after the page: a slow simulation never holds up the race itself.
+  const oddsBar = t => {
+    const o = S.odds?.get(t.rid);
+    if (!o) return '';
+    const pct = v => (v > 0 && v < 1 ? '<1' : v > 99 && v < 100 ? '>99' : Math.round(v)) + '%';
+    return `<div class="pr-odds"><span class="bar"><i style="width:${Math.min(100, o.playoffs)}%"></i></span><span>${pct(o.playoffs)} playoffs · ${pct(o.title)} title</span></div>`;
+  };
   teams.forEach(t => {
     const wk = S.thisWeek?.get(t.rid);
     const wkTxt = wk?.pc ? '<div class="wk">Can clinch this week</div>' : wk?.pe ? '<div class="wk">Can be out this week</div>' : '';
@@ -383,7 +398,7 @@ function render() {
     const byeTag = B && t.rank <= B && t.pe !== 0 ? `<span class="tagbye">${t.bc === 0 ? 'BYE ✓' : 'BYE'}</span>` : '';
     rows.push(`<button type="button" class="pr-row ${t.rid === S.mine ? 'me' : ''}" data-rid="${t.rid}" aria-expanded="${S.open.has(t.rid)}">
       <span class="pr-rank">${t.rank}</span>${av}
-      <span class="pr-name"><div class="t"><span>${esc(t.name)}</span>${byeTag}</div><div class="need">${needLine(t)}</div>${howLine(t) ? `<div class="how">${howLine(t)}</div>` : ''}${wkTxt}</span>
+      <span class="pr-name"><div class="t"><span>${esc(t.name)}</span>${byeTag}</div><div class="need">${needLine(t)}</div>${howLine(t) ? `<div class="how">${howLine(t)}</div>` : ''}${wkTxt}${oddsBar(t)}</span>
       <span class="pr-rec">${rec(t)}<small>${t.pf.toFixed(1)} PF</small></span>
     </button>`);
     if (S.open.has(t.rid)) {
@@ -418,7 +433,7 @@ function render() {
   }
   $('weekSec').hidden = !big.length;
   if (big.length) {
-    $('weekTitle').textContent = `Week ${next.week}: games that matter`;
+    $('weekTitle').innerHTML = `Week ${next.week}: games that matter${Vault.info('bigGames')}`;
     $('week').innerHTML = big.map(g => `<div class="card pr-game"><div class="why">${g.why}</div>${esc(g.hi.name)} <span class="rec">${rec(g.hi)}</span> vs ${esc(g.lo.name)} <span class="rec">${rec(g.lo)}</span></div>`).join('');
   }
 

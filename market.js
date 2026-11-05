@@ -117,7 +117,7 @@ function renderMarketRead(aAssets, bAssets) {
       <span class="absolute top-[9px] size-[15px] -ml-[7.5px] rounded-full bg-zinc-100 ring-2 ring-black/60" style="left:${x(m.ours)}%" title="This trade: ${marketSigned(m.ours)}"></span>
       <div class="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-zinc-500 leading-none"><span>Paid under KTC</span><span>KTC value</span><span>Paid over KTC</span></div>
     </div>`;
-  const chip = a => `${Vault.assetLink(a)}${a.type === 'pick' && a.tier ? ` <span class="text-zinc-500">(${a.tier})</span>` : ''}`;
+  const chip = a => Vault.assetLink(a);
   const day = s => new Date(String(s).slice(0, 10) + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
   const examples = m.examples.map(c => `<div class="flex items-baseline justify-between gap-3 py-1.5 border-t border-white/5 first:border-t-0">
       <span class="min-w-0 text-zinc-300"><span class="text-zinc-100">${c.ps.map(chip).join(', ')}</span> <span class="text-zinc-500">for</span> ${c.os.map(chip).join(', ')}</span>

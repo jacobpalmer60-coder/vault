@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
-<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+<link rel="stylesheet" href="vault.css?v=48bfbf25">
+<link rel="stylesheet" href="tailwind.css?v=271dcf09">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -54,10 +54,10 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=a6039f3f"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
-<script src="market-data.js?v=c2ea5f8f"></script>
-<script src="player-card.js?v=34c6b48d"></script>
+<script src="vault-core.js?v=d2b7083f"></script>
+<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="market-data.js?v=a619b6b9"></script>
+<script src="player-card.js?v=9a548ef1"></script>
 <script src="season-report.js?v=0596935e"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
@@ -70,8 +70,6 @@ const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc
 // Every grade wears its own color (Vault.BUCKET_STYLE), the same everywhere.
 // Verdict dots by level (Vault.tradeImprovement): good, toss-up, bad.
 const VERDICT_DOT = { good: 'bg-emerald-400', tossup: 'bg-amber-300', bad: 'bg-orange-400' };
-function verdictColor(tone, bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).text; }
-function verdictDot(tone, bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUCKET_STYLE.Fair).dot; }
 const FAIR_FILTERS = ['All', 'Fair', 'Lopsided', 'Unfair'];
 const SORTS = { recent: 'Most Recent', lopsided: 'Most Lopsided' };
 
@@ -147,7 +145,7 @@ function synopsisColor(bucket) { return (Vault.BUCKET_STYLE[bucket] || Vault.BUC
 // Same colored position pill Player Rankings/Trade Calculator use (vault.css's
 // .pos-badge-*) — a bare player name with no position shown means a reader can't
 // tell what they're looking at without already knowing the league's rosters.
-const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const POS_BADGE = Vault.posBadge;
 // Signed, comma-grouped change with a color: green up, red down, grey flat.
 function deltaHtml(d) {
   const r = Math.round(d);
@@ -322,12 +320,12 @@ function renderGrade(g) {
       <div class="max-w-lg mb-4">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`, null)}</div>
       <div class="grid md:grid-cols-2 gap-4 mb-3">
         <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamA.teamName)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.teamLink(g.teamA)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toA)}</div>
           ${sideValueLine(g.toA)}
         </div>
         <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.escapeHtml(g.teamB.teamName)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.teamLink(g.teamB)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toB)}</div>
           ${sideValueLine(g.toB)}
         </div>
@@ -365,7 +363,7 @@ const FAIR_FILTER_TITLE = {
 function renderFilters() {
   document.getElementById('posFilter').innerHTML = FAIR_FILTERS.map(f =>
     `<button onclick="setFairFilter('${f}')" title="${FAIR_FILTER_TITLE[f]}" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${fairFilter === f ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${f}</button>`
-  ).join('');
+  ).join('') + Vault.info('price');
   document.getElementById('sortToggle').innerHTML = Object.entries(SORTS).map(([k, label]) =>
     `<button onclick="setSort('${k}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${sortKey === k ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`
   ).join('');
@@ -443,7 +441,7 @@ async function init() {
     Vault.seasonReport(leagueId).then(report => { if (Vault.markOutOfRace(allGraded, report, ctx)) renderList(); }).catch(e => console.warn('Out-of-race check unavailable', e));
   } catch (e) {
     console.error(e);
-    status.textContent = e.message || 'Failed to load';
+    status.textContent = Vault.loadError(e);
     status.className = 'text-[13px] text-rose-400 mt-1';
   }
 }

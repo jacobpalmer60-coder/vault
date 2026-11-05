@@ -89,8 +89,10 @@ const DAILY_KEEP_DAYS = 400; // day-by-day market points kept; older ones by mon
 const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 const tepSuffix = b => (b < 0.25 ? '' : b < 0.75 ? '_tep' : '_tepp'); // mirrors Vault.ktcTepSuffix
 // Mirrors Vault.normalizeName: how KTC's name-keyed history matches Sleeper's players.
-const normalizeName = s => !s ? '' : s.toString().toLowerCase().replace(/\./g, '').replace(/'/g, '')
-  .replace(/ jr$| sr$| ii$| iii$| iv$| v$/, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+// With the spellings that differ from KTC's (name-aliases.json, the same list as the site's).
+const NAME_ALIASES = require('./name-aliases.json');
+const normalizeName = s => { if (!s) return ''; const name = s.toString().toLowerCase().replace(/\./g, '').replace(/'/g, '')
+  .replace(/ jr$| sr$| ii$| iii$| iv$| v$/, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' '); return NAME_ALIASES[name] || name; };
 const monday = d => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); };
 
 // Index of the last date <= d in a sorted list, or -1.

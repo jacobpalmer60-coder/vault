@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
-<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+<link rel="stylesheet" href="vault.css?v=48bfbf25">
+<link rel="stylesheet" href="tailwind.css?v=271dcf09">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -43,14 +43,15 @@
 
   <div id="summary" class="hidden mb-8"></div>
   <!-- Who pays up: what each manager has paid over (or under) KTC value, by the position of what they got. -->
+  <div id="yourRecord" class="hidden mb-8"></div>
   <div id="paysUp" class="hidden mb-8"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=a6039f3f"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
-<script src="market-data.js?v=c2ea5f8f"></script>
-<script src="player-card.js?v=34c6b48d"></script>
+<script src="vault-core.js?v=d2b7083f"></script>
+<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="market-data.js?v=a619b6b9"></script>
+<script src="player-card.js?v=9a548ef1"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc-400' };
@@ -155,14 +156,14 @@ function renderSummaryTable(rows, teams) {
   const mine = Vault.myTeam(teams || []);
   box.classList.remove('hidden');
   box.innerHTML = `
-    <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Every manager</div>
+    <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Every manager${Vault.info('everyManager')}</div>
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-[13px] sm:min-w-[720px]">
           <thead class="bg-black/40 border-b border-white/5">
             <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
               ${th('Manager', 'teamName', 'text-left', '', 'px-4')}
-              <th class="hidden sm:table-cell text-left px-3 py-2.5">Trading style</th>
+              <th class="hidden sm:table-cell text-left px-3 py-2.5">${Vault.term('tradeStyle', 'Trading style')}</th>
               ${th('Trades', 'trades', 'text-right')}
               ${th('Won then', 'wlThen', 'hidden sm:table-cell text-right', "Trades they came out ahead in, at the prices on each trade's date")}
               ${th('Won now', 'wlNow', 'hidden sm:table-cell text-right', "The same, at today's prices")}
@@ -213,7 +214,7 @@ function renderPaysUp(stats, allGraded, league) {
     const v = Math.round(c.avg), tone = Math.abs(v) < 3 ? 'text-zinc-300' : v > 0 ? 'text-orange-300' : 'text-sky-300';
     return `<span class="mono ${tone} ${c.n < 2 ? 'opacity-60' : ''}" title="${c.n} trade${c.n === 1 ? '' : 's'}">${v ? `${Math.abs(v)}% ${v > 0 ? 'over' : 'under'}` : 'even'}</span><span class="hidden sm:inline text-[11px] text-zinc-500"> (${c.n})</span>`;
   };
-  box.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Who pays up</div>
+  box.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Who pays up${Vault.info('whoPaysUp')}</div>
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="px-4 pt-3 text-[12px] text-zinc-400 leading-relaxed">What each manager paid <span class="text-orange-300">over</span> KTC value or got <span class="text-sky-300">under</span> it (a bargain) in this league's trades (trade value, as Trade Grades grades them), by the position of the best piece they got. Managers who pay up are who to sell to: Trade Coach's Sell high puts them first.</div>
       <div class="overflow-x-auto"><table class="w-full text-[12px] sm:text-[13px]">
@@ -222,6 +223,29 @@ function renderPaysUp(stats, allGraded, league) {
       </table></div>
       <div class="px-4 pb-3 text-[11px] text-zinc-500">(n) = trades (tap or hover a number on a phone). Faded: only one trade. Each trade at the KTC values of its own day.</div>
     </div>`;
+  box.classList.remove('hidden');
+}
+
+/* Your own record (user, 2026-11-05): what the verdict said about each of your trades at the
+   time, and whether it held up on value since. Trades with a piece we can't price are left out. */
+function renderYourRecord(allGraded, teams) {
+  const box = document.getElementById('yourRecord'), me = Vault.myTeam(teams);
+  if (!me) return;
+  const groups = [['Good or better', ['great', 'good', 'slight'], 'text-emerald-300'], ['Toss-up', ['tossup'], 'text-amber-300'], ['Leans bad or worse', ['leansbad', 'bad', 'terrible'], 'text-orange-300']]
+    .map(([label, tiers, tone]) => ({ label, tiers, tone, n: 0, ahead: 0 }));
+  allGraded.forEach(g => {
+    const side = g.teamA.rosterId === me.rosterId ? 'A' : g.teamB.rosterId === me.rosterId ? 'B' : null;
+    if (!side || g.anyMissingValue) return;
+    const group = groups.find(x => x.tiers.includes(Vault.gradedImprovement(g, side).tier));
+    if (!group) return;
+    group.n++;
+    if ((side === 'A' ? g.dValueAdjAToday : -g.dValueAdjAToday) > 0) group.ahead++;
+  });
+  const total = groups.reduce((s, x) => s + x.n, 0);
+  if (!total) return;
+  const row = x => `<div class="flex items-baseline justify-between gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]"><span class="${x.tone}">${x.label}</span><span class="text-zinc-300">${x.n ? `<span class="mono text-zinc-100">${x.ahead} of ${x.n}</span> ahead on value today` : '<span class="text-zinc-500">none yet</span>'}</span></div>`;
+  box.innerHTML = `<div class="card rounded-vault-sm px-5 py-4"><div class="text-[15px] font-semibold text-zinc-100">Your record</div>
+    <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">What the verdict said about ${Vault.escapeHtml(me.teamName)}'s trades when you made them, and how they've held up.</div>${groups.map(row).join('')}</div>`;
   box.classList.remove('hidden');
 }
 
@@ -236,10 +260,11 @@ async function init() {
     status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
     render(stats, teams);
+    renderYourRecord(allGraded, teams);
     renderPaysUp(stats, allGraded, league);
   } catch (e) {
     console.error(e);
-    status.textContent = e.message || 'Failed to load';
+    status.textContent = Vault.loadError(e);
     status.className = 'text-[13px] text-rose-400 mt-1';
   }
 }

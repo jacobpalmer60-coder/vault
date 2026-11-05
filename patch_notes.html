@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
-<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+<link rel="stylesheet" href="vault.css?v=48bfbf25">
+<link rel="stylesheet" href="tailwind.css?v=271dcf09">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,14 +46,43 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=a6039f3f"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
+<script src="vault-core.js?v=d2b7083f"></script>
+<script src="vault-nav.js?v=c411b0a5"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Trade Lab', text: "What your picks have landed: for your next draft's picks, who went at the same spot in the latest rookie class and what they were worth." },
+    { kind: 'new', page: 'Player card', text: "His trades in this league: every time he moved, between which teams, and what came back." },
+    { kind: 'new', page: 'Home', text: "If you're in several leagues, the home page shows how each is going: record, standing, team value and playoff odds." },
+    { kind: 'new', page: 'Team Analyzer', text: "What if he's out: pick a starter to see your playoff odds, title odds and weekly points without him. Print report: a one-page sheet of your team, or save it as a PDF." },
+    { kind: 'new', page: 'League History', text: "A new page with every season of your league: champions, all-time records, and head to head between any two managers." },
+    { kind: 'new', page: 'Weekly Recap', text: "A new page for each finished week: results, top and low scores, the biggest swings in playoff odds, best and worst lineup calls, and that week's trades." },
+    { kind: 'new', page: 'Everywhere', text: "Copy a trade as text from the Trade Calculator, or a roster as CSV from Team Analyzer. First-time visitors get three short tips, gone for good once closed." },
+    { kind: 'new', page: 'League Trades', text: "Trade Search filters: a position in the trade, the size of its best piece, and how recent." },
+    { kind: 'new', page: 'Player Rankings', text: "Tier breaks: when sorted by value, a line marks where value really drops off." },
+    { kind: 'new', page: 'Compare', text: "Points by week on one chart, above the game log. A missed game breaks the line instead of reading as zero." },
+    { kind: 'improved', page: 'Everywhere', text: "Player and team names can be reached with the Tab key. On a phone, sharing a trade now names the pieces in the message." },
+    { kind: 'new', page: 'Everywhere', text: "Search: press Ctrl+K or the magnifying glass on any page to find a player or team and open its card." },
+    { kind: 'improved', page: 'Everywhere', text: "If the daily data falls behind, a note says so. If Sleeper can't be reached, pages say that in plain words. Data status also shows injury details and season totals." },
+    { kind: 'new', page: 'Player Rankings', text: "Watchlist: star a player on Rankings or his card. Filter to your stars with the ★ button, and they're marked in the Trade Calculator." },
+    { kind: 'new', page: 'League Overview', text: "Since your last visit: what moved for your team, its value, rank, playoff odds and new injuries, saved in your browser." },
+    { kind: 'new', page: 'Team Analyzer', text: "Schedule left: how hard your remaining games are, game by game, and how strong your lineup is in the playoff weeks. Picks by year: every team's picks in each draft." },
+    { kind: 'new', page: 'Player card', text: "The card now says who holds him in your league, his best and worst weeks and how often he beat a starter's line, and his latest completed trades." },
+    { kind: 'new', page: 'Everywhere', text: "Explanations on hover, or a tap on a phone. A dotted line under a word like VORP or PPG says what it means, and a small ? beside a section says what it's showing." },
+    { kind: 'new', page: 'Managers', text: "Your record: what the verdict said about your trades at the time, and how many are ahead on value today." },
+    { kind: 'improved', page: 'Everywhere', text: "Pages open faster when you move between them, and injury details refresh through game days instead of once a night." },
+    { kind: 'improved', page: 'How We Grade', text: "Each section now leads with a short plain answer, with the full detail one click away. Nothing was taken out." },
+    { kind: 'new', page: 'Everywhere', text: "Team cards: click a team's name on Trade Grades or in the calculator's trade summary for its standing, odds, best players, and links to the team or a trade." },
+    { kind: 'new', page: 'Playoff Race', text: "An odds bar on every team: its playoff and title odds at a glance, the same numbers as League Overview." },
+    { kind: 'improved', page: 'League Overview', text: "Value Over Time: your team stands out and the rest fade until you hover one, with rings on your line where you traded." },
+    { kind: 'new', page: 'Player Card', text: "Points by week: what a player really scored each game this season, in your scoring, with his last four against his season average." },
+    { kind: 'new', page: 'Player Card', text: "Playoff weeks: his projected points in each playoff week. Team Analyzer's best lineup shows the same for the team." },
+    { kind: 'new', page: 'Player Card', text: "Build a trade, Market page and Compare buttons on the card, and a small card button on Player Market rows." },
+    { kind: 'changed', page: 'Everywhere', text: "One name for a pick on every page: 2027 Mid 1st, not 2027 R1." },
+    { kind: 'improved', page: 'Player Card', text: "Season History now includes this season so far, updated every Tuesday, and about 100 more players have one." },
     { kind: 'fixed', page: 'Trade Grades', text: "Closed a security gap: text typed into a team name can no longer run as code on the page." },
     { kind: 'fixed', page: 'Everywhere', text: "One market price: about 40 players showed a price on some pages while the grade counted them as even. Teams with no owner are now Team 3, Team 7 and so on on every page, not just Playoff Race." },
     { kind: 'fixed', page: 'Everywhere', text: "A player's age now reads the same on every page: some were a year behind on the calculator and in search lists." },

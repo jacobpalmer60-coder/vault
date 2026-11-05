@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="vault.css?v=464321da">
-  <link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+  <link rel="stylesheet" href="vault.css?v=48bfbf25">
+  <link rel="stylesheet" href="tailwind.css?v=271dcf09">
 </head>
 <body class="min-h-screen text-zinc-100 antialiased">
   <div class="vault-bg"></div>
@@ -71,6 +71,7 @@
         <div id="step-league" class="hidden mt-8 pt-8 border-t border-white/5">
           <label class="block text-sm font-medium text-zinc-300 mb-2">Select League</label>
           <select id="leagueSelect" class="w-full h-12 px-4 rounded-xl bg-black/40 border border-white/10"></select>
+          <div id="leagueCards" class="mt-3 space-y-2 empty:hidden"></div>
         </div>
 
         <!-- Your team: every tool opens on it (required, with the league, to use the tools). -->
@@ -106,7 +107,7 @@
     </div>
   </main>
 
-  <script src="vault-core.js?v=a6039f3f"></script>
+  <script src="vault-core.js?v=d2b7083f"></script>
   <script>
     /* The way in (user, 2026-10-20): every tool needs your league and your team.
        Username: pick one of your dynasty leagues; your team there is found from your
@@ -178,6 +179,34 @@
         location.href = dest(current.id);
       };
 
+      /* Someone in several leagues sees how each is going (user's list, 2026-11-05): the standing
+         straight away, then odds and value league by league, since those take a full league build. */
+      async function leagueCards(leagues, uid) {
+        const box = $('leagueCards'), ord = n => n + (['th', 'st', 'nd', 'rd'][n % 100 >= 11 && n % 100 <= 13 ? 0 : n % 10] || 'th');
+        box.innerHTML = '';
+        if (leagues.length < 2) return;
+        const rows = (await Promise.all(leagues.map(async l => {
+          const rosters = await getJson(`https://api.sleeper.app/v1/league/${l.league_id}/rosters`);
+          const mine = (rosters || []).find(r => [r.owner_id, ...(r.co_owners || [])].includes(uid));
+          if (!mine) return null;
+          const points = r => (r.settings?.fpts || 0) + (r.settings?.fpts_decimal || 0) / 100, wins = r => r.settings?.wins || 0;
+          const rank = [...rosters].sort((a, b) => wins(b) - wins(a) || points(b) - points(a)).indexOf(mine) + 1;
+          return { l, mine, text: `${l.status === 'in_season' ? '' : `${l.season}: `}${wins(mine)}-${mine.settings?.losses || 0}${mine.settings?.ties ? `-${mine.settings.ties}` : ''} · ${ord(rank)} of ${rosters.length}` };
+        }))).filter(Boolean);
+        box.innerHTML = rows.map(({ l, text }) => `<button type="button" data-league="${esc(l.league_id)}" class="w-full text-left rounded-xl bg-black/25 border border-white/5 hover:border-white/20 px-3 py-2.5 transition-colors"><div class="text-[14px] text-zinc-100 truncate">${esc(l.name)}</div><div class="text-[12px] text-zinc-400 mt-0.5">${text}<span data-more="${esc(l.league_id)}"></span></div></button>`).join('');
+        box.onclick = e => { const b = e.target.closest('[data-league]'); if (!b) return; leagueSelect.value = b.dataset.league; activate(b.dataset.league, { user: uid }); };
+        for (const { l, mine } of rows) {
+          try {
+            const { teams } = await Vault.buildLeagueTeams(l.league_id);
+            const me = teams.find(t => t.rosterId === mine.roster_id), rank = [...teams].sort((a, b) => b.overall - a.overall).indexOf(me) + 1, odds = me?.projected?.playoffPct;
+            const el = box.querySelector(`[data-more="${l.league_id}"]`);
+            // Odds mean something only with a season under way: games played, none of it finished.
+            const live = l.status === 'in_season' && (mine.settings?.wins || 0) + (mine.settings?.losses || 0) + (mine.settings?.ties || 0) > 0;
+            if (el && me) el.textContent = ` · ${ord(rank)} in value${live && Number.isFinite(odds) ? ` · ${Math.round(odds)}% playoff odds` : ''}`;
+          } catch { /* the standing is still there */ }
+        }
+      }
+
       // Username: their dynasty leagues, each once (its newest season).
       async function loadLeagues() {
         const user = username.value.trim();
@@ -206,6 +235,7 @@
           leagueSelect.innerHTML = (leagues.length > 1 ? '<option value="">Pick a league…</option>' : '') + leagues.map(l => `<option value="${l.league_id}">${esc(l.name)} • ${l.season}</option>`).join('');
           stepLeague.classList.remove('hidden');
           stepTeam.classList.add('hidden'); stepActions.classList.add('hidden'); current = null;
+          leagueCards(leagues, u.user_id);
           if (leagues.length === 1) activate(leagues[0].league_id, { user: u.user_id });
           else leagueSelect.focus();
         } catch (e) { fail(e.message); }

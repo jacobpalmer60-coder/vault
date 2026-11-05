@@ -1118,7 +1118,7 @@ const Vault = {
 
     const [weeks, draftPickSets, playerHist, pickHist, projData] = await Promise.all([
       Promise.all([...Array(18)].map((_, i) =>
-        fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))),
+        Vault.sleeperJson(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`, 5).catch(() => []))),
       Promise.all((drafts || []).map(d =>
         fetch(`https://api.sleeper.app/v1/draft/${d.draft_id}/picks`).then(r => r.json()).catch(() => []).then(picks => ({ draft: d, picks })))),
       Vault.fetchPlayerValueHistory(isSF, bonusRecTe),
@@ -1297,7 +1297,14 @@ const Vault = {
       snapshots.push({ date, teams });
     }
 
-    return { snapshots };
+    // Who gave what, for the marks on Value Over Time.
+    const nameOf = pid => { const p = players[pid]; return p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'a player'; };
+    const trades = transactions.filter(t => t.type === 'trade').map(t => ({
+      date: new Date(t.created).toISOString().slice(0, 10), rosters: t.roster_ids || [],
+      moves: [...Object.entries(t.adds || {}).map(([pid, to]) => ({ to: +to, from: +(t.drops || {})[pid], what: nameOf(pid) })),
+        ...(t.draft_picks || []).map(pk => ({ to: +pk.owner_id, from: +pk.previous_owner_id, what: Vault.pickName({ season: pk.season, round: pk.round }) }))]
+    }));
+    return { snapshots, trades };
   },
 
   /* KTC's pick grid rolls forward each spring after that year's rookie draft, so its
@@ -1872,6 +1879,105 @@ const Vault = {
      put them in the page, so anything that could become markup goes here, before any page
      sees it (2026-11-05: a script in a team name ran on Trade Grades). Apostrophes stay. */
   teamLabel(u, rosterId) { return String(u?.metadata?.team_name || u?.display_name || `Team ${rosterId}`).replace(/[<>"]/g, ''); },
+  posBadge(pos) { return `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`; },
+  /* Sleeper data that won't change for a while, kept in the browser for keepMinutes, so moving
+     between pages doesn't ask for the same weeks again (League Overview made 91 calls). Each
+     league's weeks are their own address. Refresh clears it. Falls back to a plain fetch. */
+  async sleeperJson(url, keepMinutes) {
+    const get = async () => { const r = await fetch(url); if (!r.ok) throw new Error(`Sleeper ${r.status}`); return r.text(); };
+    if (!keepMinutes || !globalThis.caches) return JSON.parse(await get());
+    const box = await caches.open('vault-sleeper-v1'), hit = await box.match(url);
+    if (hit && Date.now() - +hit.headers.get('x-saved') < keepMinutes * 60000) return hit.json();
+    const body = await get();
+    box.put(url, new Response(body, { headers: { 'x-saved': String(Date.now()) } })).catch(() => {});
+    return JSON.parse(body);
+  },
+  /* One meaning for each word on every page (user, 2026-11-05). Vault.term puts a dotted line under
+     a label and Vault.info adds a small ? beside a heading; both open this text on hover, or on a
+     tap on a phone. Static HTML can use the data-term attribute. Keep these matching How We Grade. */
+  GLOSSARY: {
+    vorp: ['VORP', "Value Over Replacement Player: points per game above the best player at his position who wouldn't start for any team in your league. QBs always score more, so this is the fair way to compare positions."],
+    vorpTeam: ['VORP', "Your best lineup's points a game above the best players who wouldn't start for any team in your league. It shows how hard your starters are to replace, on a scale that compares positions fairly."],
+    ppg: ['PPG', 'Points per game.'],
+    ppgTeam: ['PPG', "Top number: points actually scored per game so far. Then the last three games, orange when 10% or more under the season average. Bottom number: points a week if you start your best lineup over the next 4 weeks."],
+    projPpg: ['Proj. PPG', "Projected points per game in the games he plays, from Sleeper's rest-of-season projections in your league's scoring."],
+    lineupPpg: ['Lineup PPG', "Points a week if you start your best possible lineup, on Sleeper's projections in your league's scoring."],
+    last3: ['Last 3', 'Points per game over the last three games.'],
+    value: ['Value', "KeepTradeCut's value for him in your league's format: 1QB or Superflex, with any TE premium."],
+    ktc: ['KTC', "KeepTradeCut's value in your league's format."],
+    market: ['Market value', "What managers actually pay for him: his KTC value, moved by the middle price of the completed trades he headlined in your format over the last 45 days. With fewer than 5 such trades he stays at his KTC value."],
+    marketRank: ['Market #', 'His rank by market value. The arrow shows how far that is from his rank by KTC value.'],
+    vsSimilar: ['vs similar', 'How his market value compares with players at his position and about the same KTC value.'],
+    marketTrades: ['Trades', 'How many completed trades his market value comes from.'],
+    trend: ['Trend', "How far his value moved over the window you picked above the table. Tracked for players rostered in your league."],
+    overall: ['Overall', "The team's total dynasty value at KTC prices, players and picks added up. The big number is its rank in the league."],
+    players: ['Players', "The team's total KTC value in players, without picks."],
+    picks: ['Picks', 'Total KTC value of the future draft picks this team owns.'],
+    age: ['Age', "The roster's average age, with more valuable players counting for more."],
+    record: ['Record', 'Current record, with the projected final record below it.'],
+    projRecord: ['Proj. record', 'Where your final record is projected to land when your remaining schedule is played out 4,000 times.'],
+    playoffs: ['Playoff odds', "How often you make the playoffs when your remaining schedule is played out 4,000 times, with injuries and byes counted. Title odds are how often you win it all. An estimate, not a guarantee."],
+    title: ['Title odds', 'How often you win the title when your remaining schedule is played out 4,000 times.'],
+    window: ['Window', 'How many of the next 5 seasons this roster is projected to stay good enough for the playoffs, as players age and picks arrive.'],
+    archetype: ['Archetype', "The team's build: how strong it is now against how long that lasts. The guide under the table lists each one."],
+    timeline: ['Timeline', "Whether a team is judged as contending or rebuilding. Contending weighs this season's lineup heavily, rebuilding weighs long-term value. Auto reads it from the roster."],
+    verdict: ['The verdict', "One answer for this team: is the trade good for them? Judged on value, roster fit, timeline and, for a contender, this season's points. It runs Great trade, Good trade, Slight edge, Toss-up, Leans bad, Bad trade, Terrible trade."],
+    price: ['Fair, Lopsided, Unfair', 'Whether the price is fair, based on what managers really accept. This is separate from the verdict, which says whether the trade is good for your team.'],
+    depth: ['Depth', "What your lineup loses when a starter misses a game: bye weeks and injuries, refilled from your bench using your league's real slots."],
+    share27: ['27+ share', 'How much of your player value is in RBs, WRs and TEs aged 27 or older.'],
+    hardness: ['How hard', 'How hard this path is in your league, from how many other teams could make the trades it needs.'],
+    tradeStyle: ['Trading style', "A label from simple rules on this manager's own trades."],
+    everyManager: ['Every manager', "Each manager's completed trades in this league, graded at the prices on the day of each trade (then) and at today's prices (now)."],
+    whoPaysUp: ['Who pays up', 'What each manager has paid over or under KTC value, by the position of the best piece they got.'],
+    standings: ['Standings', "Each team's odds come from playing the remaining schedule 4,000 times from today's record, with injuries and byes counted. Real scores count for more as the season goes."],
+    bigGames: ['Games that matter', 'Your own game, and games between teams close to each other at the playoff line or the bye.'],
+    whatItTakes: ['What it takes', 'The packages managers really sent for him in completed trades, grouped by kind. Mainly trades where he was most of what came back, so a package buys him and not a second starter.'],
+    tradeHistory: ['Trade history', 'Every completed Sleeper trade he was in since 2024, across all leagues, by month.'],
+    tradesBehind: ['The trades behind it', "The completed trades his market value comes from, newest first. The most extreme tenth at each end is faded, since a middle price barely moves for them."],
+    valueOverTime: ['Value Over Time', "His KTC value by day, in your league's format."],
+    ppgOverTime: ['PPG Over Time', 'His season points per game at each date, in your scoring.'],
+    pointsByWeek: ['Points by week', 'What he really scored each week this season, in your scoring.'],
+    playoffWeeks: ['Playoff weeks', "Sleeper's projected points for him in weeks 15 to 17, in your scoring."],
+    starterLine: ['Over a starter', "Games where he beat his position's replacement level: what the best player who wouldn't start in your league scores a game."],
+    recentTrades: ['Recent trades', 'The latest completed trades he headlined, in leagues like yours. Paid vs KTC is what the team getting him sent over or under his KTC value.'],
+    scheduleLeft: ['Schedule left', "Each game left before the playoffs, with the opponent's projected lineup that week: who's available, byes and matchups included. Green is easier than the league's average that week, orange harder."],
+    picksByYear: ['Picks by year', "Each team's future picks at KTC value, year by year, with its 1sts counted. Darker means more value that year."],
+    whatIf: ['What if he\'s out?', "Your remaining schedule played out 4,000 times with him gone for the rest of the season and your best lineup rebuilt each week, on the same random games as your real odds so the difference is the player."],
+    window5: ['Contention window', 'Each bar is one of the next seasons: how much value this roster is projected to have then. Green seasons are good enough for the playoffs.'],
+  },
+  glossaryHtml(key) {
+    const g = Vault.GLOSSARY[key];
+    return g ? `<div class="font-semibold text-zinc-100 mb-0.5">${g[0]}</div><div class="text-zinc-300">${g[1]}</div>` : '';
+  },
+  // A word with an explanation behind it: dotted line, hover or tap.
+  term(key, label) { return `<span data-term="${key}">${label}</span>`; },
+  // A small ? beside a heading that says what the section is showing.
+  info(key) { return `<span class="term-i" data-term="${key}" tabindex="0" role="note" aria-label="${Vault.escapeHtml(Vault.GLOSSARY[key]?.[1] || '')}">?</span>`; },
+  // What to show when a page can't load. Our own messages pass through; a dropped connection or a bad response doesn't.
+  loadError(e) {
+    const m = String(e?.message || '');
+    if (!m || e instanceof TypeError || e instanceof ReferenceError || e instanceof SyntaxError || /^Sleeper \d|^HTTP|status|fetch/i.test(m)) return "Couldn't reach Sleeper or The Vault's data just now. Check your connection and refresh the page.";
+    return m;
+  },
+  // Players you're keeping an eye on, kept in this browser, the same list in every league.
+  watchList() { try { return new Set(JSON.parse(localStorage.getItem('vault_watchlist') || '[]')); } catch { return new Set(); } },
+  isWatched(norm) { return Vault.watchList().has(norm); },
+  toggleWatch(norm) {
+    const list = Vault.watchList();
+    if (!list.delete(norm)) list.add(norm);
+    try { localStorage.setItem('vault_watchlist', JSON.stringify([...list])); } catch {}
+    return list.has(norm);
+  },
+  watchMark(name) { return Vault.isWatched(Vault.normalizeName(name)) ? '<span class="text-amber-300 text-[11px] ml-1" title="On your watchlist">★</span>' : ''; },
+  // One name for a pick everywhere: "2027 Mid 1st", or "2027 1st" with no tier known.
+  pickName(a) {
+    const round = [, '1st', '2nd', '3rd', '4th', '5th'][a.round] || `Round ${a.round}`, tier = a.tier ? `${a.tier[0].toUpperCase()}${a.tier.slice(1)} ` : '';
+    return `${a.season} ${tier}${round}`;
+  },
+  // A team's name that opens its card when clicked (player-card.js).
+  teamLink(t) { return `<span class="player-link" data-team="${t.rosterId}">${Vault.escapeHtml(t.teamName)}</span>`; },
+  // A small button for his card, where clicking the name does something else.
+  cardIcon(name) { return `<span data-player="${Vault.escapeHtml(name)}" role="button" title="Open player card" aria-label="Open player card" class="inline-grid place-items-center align-middle size-5 ml-1 rounded text-zinc-500 hover:text-amber-300 cursor-pointer"><svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16c.6-1.2 1.6-1.8 3-1.8s2.4.6 3 1.8"/></svg></span>`; },
   // A player's name that opens his card when clicked (player-card.js). label is what shows.
   playerLink(name, label = name) { return `<span class="player-link" data-player="${Vault.escapeHtml(name)}">${Vault.escapeHtml(label)}</span>`; },
   // A trade piece: a player's name opens his card, a pick is plain text. Pass anything with name and pos.
@@ -4207,7 +4313,7 @@ const Vault = {
     (tx.draft_picks || []).forEach(pk => {
       if (pk.owner_id !== sideRosterId) return;
       const info = pickValueByKey.get(`${pk.season}-${pk.round}-${pk.roster_id}`);
-      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}${info?.became ? ` (${info.became})` : ''}`, pos: 'PICK', age: 0, season: +pk.season, round: +pk.round, ktcRound: info?.ktcRound, ktcTier: info?.ktcTier, tier: info?.became ? '' : info?.tier, became: info?.became, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
+      assets.push({ type: 'pick', name: `${Vault.pickName({ season: pk.season, round: pk.round })}${info?.became ? ` (${info.became})` : ''}`, pos: 'PICK', age: 0, season: +pk.season, round: +pk.round, ktcRound: info?.ktcRound, ktcTier: info?.ktcTier, tier: info?.became ? '' : info?.tier, became: info?.became, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
     });
     return assets;
   },
@@ -4472,7 +4578,7 @@ const Vault = {
     const seasonTrades = await Promise.all(seasonChain.map(async s => {
       const [seasonRosters, ...weeks] = await Promise.all([
         s.leagueId === leagueId ? Promise.resolve(rosters) : fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/rosters`).then(r => r.json()).catch(() => []),
-        ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
+        ...[...Array(18)].map((_, i) => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i + 1}`, 5).catch(() => []))
       ]);
       const ownerByOldRoster = new Map((seasonRosters || []).map(ro => [ro.roster_id, ro.owner_id]));
       const translateRoster = oldRid => currentRosterIdForOwner.get(ownerByOldRoster.get(oldRid));
@@ -5166,7 +5272,9 @@ const Vault = {
     const lineupTip = W
       ? `Points per week averaged over weeks ${weeks[0]}–${weeks[W - 1]} (playoffs included), from who Sleeper projects to play each week, so byes and injuries count. Each player's number is per game he plays.`
       : "Projected points per game for the best lineup.";
-    const lineupHead = `<div title="${lineupTip}" class="cursor-help">${head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${Vault.num1(t.vorpTotal)} VORP` : ''}`)}${W ? `<div class="text-[11px] text-zinc-500 -mt-1.5 mb-2">Avg per week, wks ${weeks[0]}–${weeks[W - 1]}</div>` : ''}</div>`;
+    const playoffWeeks = [...(t.optByWeek?.keys() || [])].filter(w => w >= (t.playoffStart || 15));
+    const playoffPpg = playoffWeeks.length ? playoffWeeks.reduce((s, w) => s + t.optByWeek.get(w), 0) / playoffWeeks.length : null;
+    const lineupHead = `<div title="${lineupTip}" class="cursor-help">${head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${Vault.num1(t.vorpTotal)} VORP` : ''}${playoffPpg ? ` · ${playoffPpg.toFixed(1)} in playoff weeks` : ''}`)}${W ? `<div class="text-[11px] text-zinc-500 -mt-1.5 mb-2">Avg per week, wks ${weeks[0]}–${weeks[W - 1]}</div>` : ''}</div>`;
     const positions = ['QB', 'RB', 'WR', 'TE'].map(pos => {
       // Every player at the position, so real depth shows (not just the top few).
       const ps = (t.plist || []).filter(p => p.pos === pos).sort((a, b) => b.value - a.value);
@@ -5178,8 +5286,8 @@ const Vault = {
     const nameOf = id => (teams.find(x => x.rosterId === id) || {}).teamName;
     const pickRows = picks.map(p => {
       const via = p.original !== t.rosterId && nameOf(p.original) ? `<span class="text-zinc-500"> via ${esc(nameOf(p.original))}</span>` : '';
-      const full = `${p.season} R${p.round}${via ? ` via ${nameOf(p.original)}` : ''}`;
-      return `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate" title="${esc(full)}">${p.season} R${p.round}${via}</span><span class="mono text-zinc-400 shrink-0">${n(p.value)}${p.tier ? ` <span class="${TIER_COLOR[p.tier] || 'text-zinc-400'}">${p.tier}</span>` : ''}</span></div>`;
+      const full = `${Vault.pickName(p)}${via ? ` via ${nameOf(p.original)}` : ''}`;
+      return `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate" title="${esc(full)}">${Vault.pickName(p)}${via}</span><span class="mono text-zinc-400 shrink-0">${n(p.value)}${p.tier ? ` <span class="${TIER_COLOR[p.tier] || 'text-zinc-400'}">${p.tier}</span>` : ''}</span></div>`;
     }).join('');
     return `<div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,1.5fr)_repeat(5,minmax(0,1fr))] gap-6">
         <div>${lineupHead}<div class="space-y-1.5">${lineup || none}</div></div>
@@ -5335,23 +5443,33 @@ const Vault = {
       return seen.get(key);
     };
   });
-  Vault.freshData = () => seen.clear();
+  Vault.freshData = () => { seen.clear(); globalThis.caches?.delete('vault-sleeper-v1'); };
 })();
 
-/* Hover card: give any element data-tip="<escaped HTML>" (Vault.injuryCard for injury tags).
-   On a phone there's no hover, so a tap opens it and stops there, because tags sit inside
-   rows that add a player to the trade. */
+/* Hover card: give any element data-tip="<escaped HTML>" (Vault.injuryCard for injury tags), or
+   data-term="<glossary key>". A plain title on anything that isn't a control opens the same card,
+   so the browser's slow tooltip isn't the only way to read it and phones get it too.
+   On a phone there's no hover, so a tap opens it and stops there, because tags sit inside rows
+   that add a player to the trade. Inside a table header or a button the tap still does its job. */
 (function () {
   let tip = null, on = null;
   const noHover = () => matchMedia('(hover: none)').matches;
   const hide = () => { tip?.classList.add('hidden'); on = null; };
+  const CONTROL = 'button, a, input, select, textarea, summary, option';
+  // What a pointer is on: a term or tip first, and a plain title unless a control is in the way.
+  function target(node) {
+    const el = node.closest?.('[data-tip], [data-term], [title]');
+    if (!el || el.dataset.tip || el.dataset.term) return el;
+    return el.matches('tr') || el.matches(CONTROL) || node.closest(CONTROL) ? null : el;
+  }
   function show(el) {
     if (!tip) {
       tip = document.createElement('div');
       tip.className = 'hidden fixed z-[70] w-[290px] max-w-[calc(100vw-16px)] rounded-lg border border-white/10 bg-[#121418] shadow-xl px-3 py-2.5 text-[12px] font-normal text-left whitespace-normal pointer-events-none';
       document.body.append(tip);
     }
-    tip.innerHTML = el.dataset.tip;
+    if (el.title) { el.dataset.tip = Vault.escapeHtml(el.title); el.removeAttribute('title'); }
+    tip.innerHTML = el.dataset.term ? Vault.glossaryHtml(el.dataset.term) : el.dataset.tip;
     tip.classList.remove('hidden');
     on = el;
     const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
@@ -5360,14 +5478,21 @@ const Vault = {
   }
   document.addEventListener('mouseover', e => {
     if (noHover()) return;
-    const el = e.target.closest?.('[data-tip]');
+    const el = target(e.target);
     if (el) { if (el !== on) show(el); } else if (on) hide();
   });
   document.addEventListener('click', e => {
-    const el = e.target.closest?.('[data-tip]');
-    if (el && noHover()) { e.preventDefault(); e.stopPropagation(); if (on === el) hide(); else show(el); return; }
+    const el = target(e.target);
+    if (el && noHover() && !e.target.closest?.('[data-player], [data-team]')) {
+      const passes = el.matches('[title]') || el.closest('th, button');
+      if (!passes) { e.preventDefault(); e.stopPropagation(); }
+      if (on === el) hide(); else show(el);
+      return;
+    }
     hide();
   }, true);
+  document.addEventListener('focusin', e => { if (e.target.matches?.('.term-i:focus-visible')) show(e.target); }); // the Tab key; a tap opens it above
+  document.addEventListener('focusout', e => { if (e.target.matches?.('.term-i')) hide(); });
   globalThis.addEventListener?.('scroll', hide, true); // the data scripts load this file outside a browser
 })();
 

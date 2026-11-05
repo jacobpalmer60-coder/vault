@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
-<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+<link rel="stylesheet" href="vault.css?v=48bfbf25">
+<link rel="stylesheet" href="tailwind.css?v=271dcf09">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -110,10 +110,10 @@
 
 <div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
 
-<script src="vault-core.js?v=a6039f3f"></script>
-<script src="vault-nav.js?v=99fe2395"></script>
-<script src="market-data.js?v=c2ea5f8f"></script>
-<script src="player-card.js?v=34c6b48d"></script>
+<script src="vault-core.js?v=d2b7083f"></script>
+<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="market-data.js?v=a619b6b9"></script>
+<script src="player-card.js?v=9a548ef1"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -127,7 +127,7 @@
    - Rising and cooling: each player's last 30 days against the 30 before.
    - Market highs & lows: market-data.js, against same-position, same-value peers.
    ============================================================ */
-const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
+const POS_BADGE = Vault.posBadge;
 const POS_COLOR = { QB: '#e48ae0', RB: '#4ade9c', WR: '#5cb8e4', TE: '#f0a857', Pick: '#a8a8b1' }; // vault.css .pos-badge-*
 // Picks are tracked by year and round ('k:2027-1'): Sleeper trades don't say
 // early/mid/late and KTC's feed stores every pick as mid, so a pick's KTC value
@@ -235,7 +235,7 @@ function tradeHistoryHtml(norm, who) {
   const buyLine = b ? `Teams that got him as the headliner were <span class="${b[1] >= 55 ? 'text-emerald-300' : b[1] <= 45 ? 'text-orange-300' : 'text-zinc-200'}">ahead a year later ${b[1]}% of the time</span> (${b[0].toLocaleString()} trades with a year since)${b[2] != null ? `; his own KTC value moved ${sg(b[2])} over that year (median)` : ''}.` : 'Not enough of his trades are a year old yet to say how buyers did.';
   return `<div class="mt-5 rounded-xl bg-black/25 border border-white/5 p-4">
       <div class="flex items-baseline justify-between gap-3 flex-wrap">
-        <h3 class="text-[13px] font-medium text-zinc-200">Trade history</h3>
+        <h3 class="text-[13px] font-medium text-zinc-200">Trade history${Vault.info('tradeHistory')}</h3>
         <span class="text-[11px] text-zinc-500">every Sleeper dynasty league we crawled, since ${label(months[0][0])}</span>
       </div>
       <p class="text-[12px] text-zinc-400 mt-0.5">In <span class="text-zinc-200">${total.toLocaleString()}</span> completed trades, the headliner in ${heads.toLocaleString()}; busiest in ${label(peak[0])}. ${buyLine}</p>
@@ -349,7 +349,7 @@ function renderMoves() {
   if (rows.length < 2) { box.innerHTML = (valueMin || Number.isFinite(valueMax) ? `<div class="mb-3">${valueFilterHtml()}</div><div class="text-[12px] text-zinc-500 py-3">No players in this value range had a market price both now and a month ago. Try a wider range.</div>` : collecting(`Players appear here once they have a market price both now and a month ago.`)); return; }
   const item = r => `<button onclick="openLookup('${encodeURIComponent(r.norm)}')" class="w-full text-left grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0 hover:bg-white/[0.02]">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
-      <span class="min-w-0"><span class="block text-[13px] text-zinc-100 truncate">${esc(r.name)}${Vault.metaSpan(r)}</span>
+      <span class="min-w-0"><span class="block text-[13px] text-zinc-100 truncate">${esc(r.name)}${Vault.metaSpan(r)}${Vault.cardIcon(r.name)}</span>
         <span class="block text-[11px] text-zinc-400">From <span class="mono">${signed(r.then)}</span> to <span class="mono text-zinc-300">${signed(r.now)}</span> vs KTC</span></span>
       <span class="text-[13px] mono font-semibold ${r.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${r.change > 0 ? '+' : '−'}${Math.abs(Math.round(r.change))} pts</span>
     </button>`;
@@ -489,7 +489,7 @@ function packagesHtml(who, pool) {
       <div class="text-right"><div class="mono text-[13px] text-zinc-200">${Math.round(100 * g.n / n)}%</div><div class="text-[11px] text-zinc-500">${g.n} trade${g.n === 1 ? '' : 's'} · ${Math.round(100 * med(g.ratios))}% of ${pick ? 'its' : 'his'} KTC</div></div>
     </div>`).join('');
   return `<div class="mt-5 rounded-xl bg-black/25 border border-white/5 p-4">
-      <h3 class="text-[13px] font-medium text-zinc-200">What it takes to get ${it}</h3>
+      <h3 class="text-[13px] font-medium text-zinc-200">What it takes to get ${it}${Vault.info('whatItTakes')}</h3>
       <p class="text-[12px] text-zinc-400 mt-0.5 mb-1">Typically <span class="text-zinc-200">${pieces} piece${pieces === 1 ? '' : 's'}</span>, the best one about <span class="text-zinc-200">${Math.round(100 * bestBack)}%</span> of ${pick ? 'its' : 'his'} value${withFirst ? `; a 1st was in <span class="text-zinc-200">${Math.round(100 * withFirst / n)}%</span> of deals` : ''}. The packages sent for ${it} in ${n} completed trade${n === 1 ? '' : 's'}, most common first (% of ${pick ? 'its' : 'his'} KTC: what was sent, added up plainly).</p>
       ${rows}
     </div>`;
@@ -520,7 +520,7 @@ function renderComps(who) {
   }).join('');
   box.innerHTML = `${packagesHtml(who, pool)}${tradeHistoryHtml(lookupNorm, who)}<div class="mt-5">
       <div class="flex items-baseline justify-between gap-3 flex-wrap">
-        <h3 class="text-[13px] font-medium text-zinc-200">The trades behind it</h3>
+        <h3 class="text-[13px] font-medium text-zinc-200">The trades behind it${Vault.info('tradesBehind')}</h3>
         <span class="text-[11px] text-zinc-500">${pool.length} completed trade${pool.length === 1 ? '' : 's'} ${who.pos === 'Pick' ? 'it' : 'he'} headlined · leagues like yours (${esc(like)})</span>
       </div>
       <p class="text-[11px] text-zinc-500 mt-0.5 mb-1">Newest first. Values are KTC's on the trade's own day for Sleeper trades, and today's for KTC's trade database (its last few days). Paid vs KTC: what the team getting ${who.pos === 'Pick' ? 'it' : 'him'} sent over what it got, on KTC's numbers counted the way trade value counts them (extra pieces, the best piece). ${who.pos === 'Pick' ? 'Its' : 'His'} market price is the one trade value uses: the median of every completed trade ${who.pos === 'Pick' ? 'it' : 'he'} headlined in your format over the last 45 days, rebuilt daily, so the faded outliers (the most extreme tenth at each end) barely move it.</p>
@@ -570,7 +570,7 @@ function drawMovers() {
     return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0" title="KTC ${Math.round(r.value).toLocaleString()}, market ${market.toLocaleString()} (usually ${Math.round(r.value * (1 + r.m.low / 100)).toLocaleString()} to ${Math.round(r.value * (1 + r.m.high / 100)).toLocaleString()}) · leagues like yours (${r.m.like})">
         <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
         <div class="min-w-0">
-          <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(r.name)}${Vault.metaSpan(r)}</div>
+          <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(r.name)}${Vault.metaSpan(r)}${Vault.cardIcon(r.name)}</div>
           <div class="text-[11px] text-zinc-400">Paid <span class="mono text-zinc-300">${signed(r.m.premium)}</span> KTC value; ${r.pos === 'Pick' ? 'picks at its' : r.pos + 's at his'} value <span class="mono">${signed(peer)}</span> <span class="text-zinc-500">· ${r.m.n} trades</span></div>
         </div>
         <span class="text-[13px] mono font-semibold ${up ? 'text-emerald-300' : 'text-orange-300'}" title="Against players at the same position and KTC value">${signed(r.m.vsPeers)} <span class="text-[11px] font-normal text-zinc-500">vs similar</span></span>
@@ -627,7 +627,7 @@ function drawAll() {
     .sort((a, b) => (a[key] == null) - (b[key] == null) || dir * ((a[key] ?? 0) - (b[key] ?? 0)) || b.value - a.value);
   // [sort key, label, align]; the Market # column sorts by market value.
   // [sort key, label, align, hide on phones]. On a phone KTC moves under the name so Market and vs KTC fit.
-  const cols = [['market', 'Market #', 'right'], [null, 'Player', 'left'], ['value', 'KTC', 'right', true], ['market', 'Market', 'right'], ['peer', 'vs similar', 'right', true], ['n', 'Trades', 'right', true]];
+  const cols = [['market', Vault.term('marketRank', 'Market #'), 'right'], [null, 'Player', 'left'], ['value', Vault.term('ktc', 'KTC'), 'right', true], ['market', Vault.term('market', 'Market'), 'right'], ['peer', Vault.term('vsSimilar', 'vs similar'), 'right', true], ['n', Vault.term('marketTrades', 'Trades'), 'right', true]];
   document.getElementById('allHead').innerHTML = `<tr class="text-[11px] uppercase tracking-wider text-zinc-500">${cols.map(([k, l, al, wide]) => !k
     ? `<th class="font-normal pb-2 pr-3 text-left">${l}</th>`
     : `<th class="font-normal pb-2 pr-3 text-${al}${wide ? ' hidden sm:table-cell' : ''}" aria-sort="${key === k ? (dir < 0 ? 'descending' : 'ascending') : 'none'}"><button onclick="sortAll('${k}')" class="uppercase tracking-wider hover:text-zinc-200 ${key === k ? 'text-amber-200' : ''}">${l}${key === k ? (dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`).join('')}</tr>`;
@@ -638,7 +638,7 @@ function drawAll() {
     const move = r.mktRank && r.ktcRank ? r.ktcRank - r.mktRank : 0;
     return `<tr class="border-t border-white/5 hover:bg-white/[0.02] cursor-pointer" onclick="openLookup('${encodeURIComponent(r.norm)}')">
       <td class="py-2 pr-3 text-right mono text-zinc-300 whitespace-nowrap">${r.mktRank ? '#' + r.mktRank : dash}${move ? ` <span class="text-[10px] ${move > 0 ? 'text-emerald-300' : 'text-orange-300'}" title="KTC rank #${r.ktcRank}">${move > 0 ? '▲' : '▼'}${Math.abs(move)}</span>` : ''}</td>
-      <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="min-w-0"><span class="block text-zinc-100 truncate">${esc(r.name)}${Vault.metaSpan(r)}</span><span class="sm:hidden block text-[11px] text-zinc-500 mono">KTC ${Vault.fmtInt(r.value)}</span></span></span></td>
+      <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="min-w-0"><span class="block text-zinc-100 truncate">${esc(r.name)}${Vault.metaSpan(r)}${Vault.cardIcon(r.name)}</span><span class="sm:hidden block text-[11px] text-zinc-500 mono">KTC ${Vault.fmtInt(r.value)}</span></span></span></td>
       <td class="hidden sm:table-cell py-2 pr-3 text-right mono text-zinc-300">${Vault.fmtInt(r.value)}</td>
       <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market) + (Math.abs(r.raw) > MARKET_ADJ_CAP ? '+' : '')}<span class="sm:hidden block text-[11px]">${r.peer == null ? '' : `<span class="${tone(r.peer)}">${marketPeerPhrase({ read: r.read })}</span>`}</span></td>
       <td class="hidden sm:table-cell py-2 pr-3 text-right mono" title="${r.read ? `${MARKET_PEER_TIP} Paid vs KTC: median ${signed(r.read.premium)}, usually ${signed(r.read.low)} to ${signed(r.read.high)}.` : ''}">${r.peer == null ? dash : `<span class="${tone(r.peer)}">${marketPeerText({ read: r.read })}</span>`}</td>
@@ -814,7 +814,7 @@ async function init() {
     buildAll();
   } catch (e) {
     console.error(e);
-    status.textContent = e.message || 'Failed to load';
+    status.textContent = Vault.loadError(e);
     status.className = 'text-[13px] text-rose-400 mt-1';
   }
 }
