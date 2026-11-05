@@ -225,7 +225,7 @@
 </div>
 
 <script src="vault-core.js?v=b83fc55f"></script>
-<script src="vault-nav.js?v=5dd4083d"></script>
+<script src="vault-nav.js?v=7c21d9f0"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -376,6 +376,19 @@ function resolveDup(newVal, otherEl, prevOfChanged) {
   return false;
 }
 
+// The trend and volatile marks on roster rows. They fill in after the page is up: price history is
+// the biggest file here and nothing else waits on it.
+function loadPriceMarks(isSF, bonusRecTe) {
+  Promise.all([Vault.fetchPlayerValueHistory(isSF, bonusRecTe), Vault.fetchPickValueHistory()]).then(([playerHist, pickHist]) => {
+    playerTrend = buildTrendDeltas(playerHist.snapshots, 'players', isSF, bonusRecTe);
+    pickTrend = buildTrendDeltas(pickHist.snapshots, 'picks', isSF, bonusRecTe);
+    playerVolatility = Vault.buildPlayerVolatilityMap(playerHist.snapshots, isSF, bonusRecTe);
+    teams.forEach(t => { const fresh = new Map(assetsFor(t).map(a => [a.key, a])); t.assets.forEach(a => { const f = fresh.get(a.key); if (f) { a.trend = f.trend; a.volatilityPct = f.volatilityPct; } }); });
+    if (teamOf('A')) render('A');
+    if (teamOf('B')) render('B');
+  }).catch(e => console.warn('Price marks unavailable', e));
+}
+
 async function init() {
   try {
     const built = await Vault.buildLeagueTeams(Vault.getLeagueId());
@@ -394,10 +407,7 @@ async function init() {
     rosterCap = (league.roster_positions || []).filter(s => s !== 'IR' && s !== 'TAXI').length;
 
     const bonusRecTe = league.scoring_settings?.bonus_rec_te;
-    const [playerHist, pickHist] = await Promise.all([Vault.fetchPlayerValueHistory(built.isSF, bonusRecTe), Vault.fetchPickValueHistory()]);
-    playerTrend = buildTrendDeltas(playerHist.snapshots, 'players', built.isSF, bonusRecTe);
-    pickTrend = buildTrendDeltas(pickHist.snapshots, 'picks', built.isSF, bonusRecTe);
-    playerVolatility = Vault.buildPlayerVolatilityMap(playerHist.snapshots, built.isSF, bonusRecTe);
+    loadPriceMarks(built.isSF, bonusRecTe);
 
     // Other sites' values fill in the bars when they land; the page never waits on them.
     fetch('data/market-history/age-curve.json').then(r => (r.ok ? r.json() : null)).then(d => { ageCurve = d?.[built.isSF ? 'sf' : 'oneQB'] || null; if (selectedA.size + selectedB.size) updateTrade(); }).catch(() => {});
@@ -2493,9 +2503,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js?v=74ef6b53"></script>
-<script src="market-data.js?v=5f77dae0"></script>
+<script src="market-data.js?v=ce438c45"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
-<script src="market.js?v=83ca5fb1"></script>
+<script src="market.js?v=12df7e61"></script>
 <script src="coach.js?v=44c50bac"></script>
 </body>
 </html>

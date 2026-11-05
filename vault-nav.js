@@ -294,5 +294,6 @@ body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}#verdictDock{bottom
   });
   new MutationObserver(enhance).observe(document.documentElement, { childList: true, subtree: true });
 
-  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); dataAgeNotice(); firstVisitTips(); });
+  // The age check waits its turn: it reads files the page is already fetching, and those win.
+  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); setTimeout(dataAgeNotice, 6000); firstVisitTips(); });
 })();

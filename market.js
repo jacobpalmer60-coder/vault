@@ -79,9 +79,9 @@ function marketRange(lo, hi) {
 let marketToken = 0;
 // Under the verdict's numbers: how unusual this trade is, and the closest real one.
 function realTradesHtml(aAssets, bAssets, m) {
-  const g = marketGapShare(aAssets, bAssets), n = g ? g.n.toLocaleString() : '';
+  const g = marketGapShare(aAssets, bAssets), n = g ? `about ${(Math.round(g.n / 1000) * 1000).toLocaleString()}` : '';
   const pc = v => (v < 0.01 ? 'under 1%' : `${Math.round(v * 100)}%`);
-  const line = !g ? '' : g.share <= 0.25 ? `${g.share < 0.1 ? 'Only ' : ''}${pc(g.share)} of ${n} recent completed trades were this far apart on trade value`
+  const line = !g ? '' : g.share <= 0.25 ? `${g.share < 0.1 ? "Only " : ""}${pc(g.share)} of ${n} recent completed trades were this far apart on trade value`
     : g.share >= 0.5 ? `Closer to even than ${pc(g.share)} of ${n} recent completed trades` : `About ${pc(g.share)} of ${n} recent completed trades were at least this far apart`;
   const c = m?.examples?.[0];
   const close = c ? `Closest real trade: <span class="text-zinc-300">${c.ps.map(a => Vault.assetLink(a)).join(', ')}</span> for <span class="text-zinc-300">${c.os.map(a => Vault.assetLink(a)).join(', ')}</span>, paid ${marketSigned(c.paid)}` : '';

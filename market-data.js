@@ -522,14 +522,17 @@ function marketGaps() {
   const d = Market.data;
   if (!d || d.failed) return null;
   if (d.gaps) return d.gaps;
+  // Every 8th trade: the share reads the same to the percent, and pricing all 47,000 froze a phone for two seconds.
   const seen = new Set(), out = [];
   d.byPlayer.forEach(list => list.forEach(t => {
     if (seen.has(t)) return;
     seen.add(t);
+    if (seen.size % 8) return;
     const { valueA, valueB } = Vault.tradeSideValues(t.s1, t.s2, { market: false });
     if (valueA > 0 && valueB > 0) out.push(200 * Math.abs(valueA - valueB) / (valueA + valueB));
   }));
   d.gaps = Float64Array.from(out).sort();
+  d.gapTrades = seen.size;
   return d.gaps;
 }
 // This trade against them: { share of completed trades at least this far apart, n }.
@@ -539,7 +542,7 @@ function marketGapShare(send, get) {
   const { valueA, valueB } = Vault.tradeSideValues(send, get, { market: false }), gap = 200 * Math.abs(valueA - valueB) / ((valueA + valueB) || 1);
   let lo = 0, hi = gaps.length;
   while (lo < hi) { const mid = (lo + hi) >> 1; if (gaps[mid] < gap) lo = mid + 1; else hi = mid; }
-  return { share: (gaps.length - lo) / gaps.length, n: gaps.length };
+  return { share: (gaps.length - lo) / gaps.length, n: Market.data.gapTrades };
 }
 
 // The same read as a tile on Player Market.
