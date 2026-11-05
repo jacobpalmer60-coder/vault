@@ -1821,7 +1821,24 @@ const Vault = {
   // trade asset built from one).
   injuryOf(p) {
     if (!p || !p.injury_status) return {};
-    return { injury: p.injury_status, injuryPart: p.injury_body_part || '' };
+    return { injury: p.injury_status, injuryPart: p.injury_body_part || '', injuryNote: p.injury_notes || '', injuryNews: p.news_updated || 0, injurySince: p.injury_since || '' };
+  },
+  /* The card behind an injury tag (user, 2026-11-04): a little more than the tag has room
+     for. What it is, how long the player has been listed, when back, the last news. */
+  injuryCard(a, weeks = Vault._lineupWeeks) {
+    const esc = Vault.escapeHtml, day = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const status = { IR: 'Injured reserve', PUP: 'PUP list', Sus: 'Suspended', DNR: 'Not reporting', NA: 'Not with team' }[a.injury] || a.injury;
+    const rows = [];
+    if (a.injuryPart) rows.push(['Injury', a.injuryPart.replace(' - ', ': ')]);
+    if (a.injuryNote) rows.push(['Note', a.injuryNote]);
+    rows.push(['Status', a.injurySince ? `${status} since ${day(a.injurySince + 'T12:00:00')}` : status]);
+    if (a.avail && !a.availGuess && weeks?.length) {
+      const next = weeks.find(w => Vault.availableIn(a, w));
+      rows.push(['Back', next == null ? 'Not this season' : `Week ${next}`]);
+    }
+    if (a.injuryNews) rows.push(['Last news', day(a.injuryNews)]);
+    return `<div class="font-medium text-zinc-100 mb-1.5">${esc(a.name)}</div>
+      <div class="grid grid-cols-[72px_1fr] gap-x-3 gap-y-1">${rows.map(([k, v]) => `<span class="text-zinc-500">${k}</span><span class="text-zinc-200">${esc(v)}</span>`).join('')}</div>`;
   },
   // injuryText cut down for narrow lists: "Out for season", "Back wk 8", "IR".
   injuryShort(a) {
@@ -5000,7 +5017,7 @@ const Vault = {
     // so narrow columns never squeeze the name itself.
     const tag = p => {
       const short = p && Vault.injuryShort(p);
-      return short ? `<span class="block text-[11px] text-rose-300 truncate" title="${esc(Vault.injuryText(p))}, from Sleeper's weekly projections">${short}</span>` : '';
+      return short ? `<span class="block text-[11px] text-rose-300 truncate cursor-help" data-tip="${esc(Vault.injuryCard(p))}">${short}</span>` : '';
     };
     const named = (name, sub) => `<span class="min-w-0 flex-1"><span class="block text-zinc-300 truncate" title="${esc(name)}">${esc(name) || '—'}</span>${sub}</span>`;
     const lineup = [...(t.lineup || [])].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)).map(s => {
@@ -5124,6 +5141,15 @@ const Vault = {
     }
 
     input.addEventListener('focus', () => { input.select(); open(''); });
+    // The whole box opens the list, not just the text field inside its padding (user,
+    // 2026-11-04). mousedown, so a click on the padding or arrow never takes focus away first.
+    const reopen = () => { if (list.classList.contains('hidden')) { input.select(); open(''); } };
+    wrap.addEventListener('mousedown', e => {
+      if (e.target === input || list.contains(e.target) || input.disabled) return;
+      e.preventDefault();
+      if (document.activeElement === input) reopen(); else input.focus();
+    });
+    input.addEventListener('click', reopen); // already focused after a pick or Esc
     input.addEventListener('input', () => open(input.value));
     input.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== input) close(); }, 120));
     input.addEventListener('keydown', e => {
@@ -5177,6 +5203,39 @@ const Vault = {
     };
   });
   Vault.freshData = () => seen.clear();
+})();
+
+/* Hover card: give any element data-tip="<escaped HTML>" (Vault.injuryCard for injury tags).
+   On a phone there's no hover, so a tap opens it and stops there, because tags sit inside
+   rows that add a player to the trade. */
+(function () {
+  let tip = null, on = null;
+  const noHover = () => matchMedia('(hover: none)').matches;
+  const hide = () => { tip?.classList.add('hidden'); on = null; };
+  function show(el) {
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.className = 'hidden fixed z-[70] w-[290px] max-w-[calc(100vw-16px)] rounded-lg border border-white/10 bg-[#121418] shadow-xl px-3 py-2.5 text-[12px] font-normal text-left whitespace-normal pointer-events-none';
+      document.body.append(tip);
+    }
+    tip.innerHTML = el.dataset.tip;
+    tip.classList.remove('hidden');
+    on = el;
+    const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = `${Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8))}px`;
+    tip.style.top = `${r.bottom + 6 + h > innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6}px`;
+  }
+  document.addEventListener('mouseover', e => {
+    if (noHover()) return;
+    const el = e.target.closest?.('[data-tip]');
+    if (el) { if (el !== on) show(el); } else if (on) hide();
+  });
+  document.addEventListener('click', e => {
+    const el = e.target.closest?.('[data-tip]');
+    if (el && noHover()) { e.preventDefault(); e.stopPropagation(); if (on === el) hide(); else show(el); return; }
+    hide();
+  }, true);
+  addEventListener('scroll', hide, true);
 })();
 
 // Tab buttons in the site's style: tabs is [[key, label]], onclick is the page's function.

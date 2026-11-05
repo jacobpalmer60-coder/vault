@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=2aa92458">
+<link rel="stylesheet" href="tailwind.css?v=63957046">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=de34ff89"></script>
+<script src="vault-core.js?v=28d96d01"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-04', items: [
+    { kind: 'new', page: 'Trade Calculator', text: "Hover over an injury tag, or tap it on a phone, for a little more: the specific injury, any note like surgery, how long the player has been listed, the week back and the date of the last news." },
+    { kind: 'fixed', page: 'Site', text: "Search boxes now open wherever you click on them, including the edges and the arrow, on Trade Coach and everywhere else." },
     { kind: 'improved', page: 'Site', text: "Projections now refresh about every 50 minutes instead of every several hours, so injury news reaches lineups, proj. and playoff odds much sooner." },
     { kind: 'improved', page: 'League Overview', text: "The proj. number under PPG now covers the next 4 weeks instead of the whole rest of the season, so it shows what a team actually faces with who's available." },
     { kind: 'new', page: 'League Overview', text: "Last 3: each team's points a game over its last three games now shows under PPG, in orange when it's 10% or more under the season average, so a team that lost its players no longer looks fine. Sort by it from the column header, or from Sort by on a phone." },

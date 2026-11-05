@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=2aa92458">
+<link rel="stylesheet" href="tailwind.css?v=63957046">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -238,7 +238,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=de34ff89"></script>
+<script src="vault-core.js?v=28d96d01"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -659,7 +659,7 @@ const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? p
 // week 8". This season's lineups skip the weeks he's projected to miss.
 function injuryBadge(a) {
   const t = Vault.injuryText(a);
-  return t ? `<span class="text-[11px] px-1 py-px rounded border border-rose-500/30 text-rose-300 whitespace-nowrap" title="From Sleeper's weekly projections. His KTC value already reflects it; this season's lineups only count the weeks he's projected to play.">${t}</span>` : '';
+  return t ? `<span class="text-[11px] px-1 py-px rounded border border-rose-500/30 text-rose-300 whitespace-nowrap cursor-help" data-tip="${Vault.escapeHtml(Vault.injuryCard(a))}">${t}</span>` : '';
 }
 function assetRow(side, a, isSelected, extra) {
   const sub = a.type === 'pick' ? `<span class="text-[12px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400">${a.team || ''}</span>`;

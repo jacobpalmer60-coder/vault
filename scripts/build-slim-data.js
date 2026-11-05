@@ -33,6 +33,7 @@ const DATA = path.join(__dirname, '..', 'data');
 const HISTORY_DIR = path.join(DATA, 'history');
 const FIELDS = [['sf', null], ['oneQB', null], ['sf_tep', 'sf'], ['sf_tepp', 'sf'], ['oneQB_tep', 'oneQB'], ['oneQB_tepp', 'oneQB']];
 const SLEEPER_FIELDS = ['first_name', 'last_name', 'position', 'age', 'team', 'years_exp', 'injury_status', 'injury_body_part'];
+const INJURY_FIELDS = ['injury_notes', 'news_updated']; // injured players only, for the injury card
 
 function encodeSeries(values) {
   // values: array aligned to dates, null where missing. Returns [start, first, ...deltas]
@@ -85,14 +86,37 @@ async function buildHistory() {
   console.log(`player-stats.json: ${Object.keys(stats).length} players`);
 }
 
+/* When a player's current listing began, for the injury card (user, 2026-11-04). Sleeper's
+   injury_start_date is always empty, so this walks back through our daily snapshots. Moving
+   between Out, IR and so on is the same injury, but Questionable turning into Out is new.
+   A player listed since the first snapshot gets nothing: we don't know when that began. */
+async function listedSince() {
+  const now = new Date(), season = now.getUTCMonth() >= 2 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  const text = await fs.readFile(path.join(HISTORY_DIR, `injuries-${season}.jsonl`), 'utf8').catch(() => '');
+  const days = text.split('\n').filter(Boolean).map(l => JSON.parse(l));
+  const kind = s => (s === 'Questionable' ? 'Q' : 'out');
+  return (id, status) => {
+    let i = days.length;
+    while (i > 0 && days[i - 1].s[id] && kind(days[i - 1].s[id]) === kind(status)) i--;
+    if (i === 0) return null;
+    return i === days.length ? now.toISOString().slice(0, 10) : days[i].date; // new today: not in the snapshots yet
+  };
+}
+
 async function buildSleeperPlayers() {
   const res = await fetch('https://api.sleeper.app/v1/players/nfl');
   if (!res.ok) throw new Error('Sleeper players fetch failed: ' + res.status);
   const all = await res.json();
+  const since = await listedSince();
   const slim = {};
   for (const [id, p] of Object.entries(all)) {
     const o = {};
     for (const f of SLEEPER_FIELDS) if (p[f] != null) o[f] = p[f];
+    if (p.injury_status) {
+      for (const f of INJURY_FIELDS) if (p[f] != null) o[f] = p[f];
+      const d = since(id, p.injury_status);
+      if (d) o.injury_since = d;
+    }
     slim[id] = o;
   }
   await fs.writeFile(path.join(DATA, 'sleeper-players.json'), JSON.stringify(slim));
