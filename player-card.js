@@ -735,5 +735,43 @@
     else open(Vault.normalizeName(el.dataset.player), el.dataset.player);
   }, true);
 
+  /* Search any player or team from any page: Ctrl+K, or the nav's search button (user's list,
+     2026-11-05). A result is a [data-player] or [data-team] button, so it opens the card over this. */
+  let searchList = null;
+  async function loadSearch() {
+    if (searchList) return searchList;
+    const ktc = await fetch('data/ktc-values.json').then(r => r.json());
+    const id = Vault.getLeagueId(), url = what => `https://api.sleeper.app/v1/league/${id}/${what}`;
+    const [rosters, users] = id ? await Promise.all([Vault.sleeperJson(url('rosters'), 5), Vault.sleeperJson(url('users'), 5)]).catch(() => [[], []]) : [[], []];
+    const teams = rosters.map(r => ({ team: r.roster_id, name: Vault.teamLabel(users.find(u => u.user_id === r.owner_id), r.roster_id) }));
+    const sf = !leagueObj || Vault.isSuperflex(leagueObj);
+    return (searchList = [...teams, ...ktc.players.map(p => ({ name: p.name, pos: p.pos, nfl: p.team, age: p.age, value: sf ? p.sf : p.oneQB }))]);
+  }
+  function searchRows(q) {
+    const words = Vault.normalizeName(q).split(' ').filter(Boolean);
+    if (!words.length) return '<div class="text-[13px] text-zinc-500 py-3">Type a player or a team.</div>';
+    const hits = searchList.filter(x => { const n = Vault.normalizeName(x.name); return words.every(w => n.includes(w)); })
+      .sort((a, b) => (b.team ? 1e6 : b.value || 0) - (a.team ? 1e6 : a.value || 0)).slice(0, 8);
+    if (!hits.length) return '<div class="text-[13px] text-zinc-500 py-3">No player or team matches that.</div>';
+    return hits.map(x => `<button type="button" ${x.team ? `data-team="${x.team}"` : `data-player="${Vault.escapeHtml(x.name)}"`} class="w-full flex items-baseline justify-between gap-3 text-left px-2 py-2.5 rounded-lg hover:bg-white/5 focus:bg-white/5 outline-none">
+        <span class="text-[14px] text-zinc-100 truncate min-w-0">${Vault.escapeHtml(x.name)}</span><span class="text-[12px] text-zinc-500 whitespace-nowrap">${x.team ? 'Team' : [x.pos, x.nfl, x.age ? Math.floor(x.age) : ''].filter(Boolean).join(' · ')}</span></button>`).join('');
+  }
+  async function openSearch() {
+    Vault.popup({ title: 'Find a player or team', html: `<input id="vaultSearch" type="search" autocomplete="off" aria-label="Player or team" placeholder="Name…" class="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2.5 mb-3 text-[16px] text-zinc-100"><div id="vaultSearchHits"></div>` });
+    const input = document.getElementById('vaultSearch'), hits = document.getElementById('vaultSearchHits');
+    input.focus();
+    try { await loadSearch(); } catch { hits.innerHTML = `<div class="text-[13px] text-zinc-400 py-3">${Vault.escapeHtml(Vault.loadError(new TypeError()))}</div>`; return; }
+    const draw = () => { hits.innerHTML = searchRows(input.value); };
+    input.oninput = draw;
+    input.onkeydown = e => { if (e.key === 'Enter') hits.querySelector('button')?.click(); if (e.key === 'ArrowDown') { e.preventDefault(); hits.querySelector('button')?.focus(); } };
+    hits.onkeydown = e => {
+      const list = [...hits.querySelectorAll('button')], i = list.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' && list[i + 1]) { e.preventDefault(); list[i + 1].focus(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); (list[i - 1] || input).focus(); }
+    };
+    draw();
+  }
+  document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); } });
+  document.addEventListener('click', e => { if (e.target.closest?.('#vnSearch')) openSearch(); });
   window.PlayerCard = { load, open, outTip, setWindow(days) { trendWindowDays = days; applyTrendWindow(); } };
 })();

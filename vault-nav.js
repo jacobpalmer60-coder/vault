@@ -139,6 +139,7 @@
           </a>
           <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
             ${infoHtml}
+            ${typeof PlayerCard !== 'undefined' ? '<button id="vnSearch" type="button" aria-label="Find a player or team" title="Find a player or team (Ctrl+K)" class="btn-ghost size-8 grid place-items-center"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>' : ''}
             <select id="myTeamPick" data-search="Your team…" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden max-w-[190px] bg-[#14161a] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-zinc-200"></select>
             <a href="${leagueId ? 'index.html' : Vault.escapeHtml(Vault.pickLeagueLink())}" class="btn-ghost text-[12px] px-3 py-1.5">${leagueId ? 'Switch League' : 'Pick your league'}</a>
           </div>
@@ -260,7 +261,7 @@
   // reaches them, and Enter or Space clicks them. Pages re-render these, so it
   // re-runs whenever the page changes.
   const NATIVE = 'a[href], button, input, select, textarea, summary, label, option, details';
-  const CLICKABLE = '[onclick], th.sortable, tr.team-row, .mobile-team-card, [data-kbd]';
+  const CLICKABLE = '[onclick], th.sortable, tr.team-row, .mobile-team-card, [data-kbd], [data-player], [data-team]';
   function enhance() {
     document.querySelectorAll(CLICKABLE.split(', ').map(s => s + ':not([tabindex])').join(', ')).forEach(el => {
       if (el.matches(NATIVE)) return;

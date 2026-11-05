@@ -1,0 +1,424 @@
+{
+ "trades": {
+  "even 1 for 1": {
+   "valueA": 7000,
+   "valueB": 7000,
+   "bucket": "Fair",
+   "verdictPctA": 0,
+   "tiltContend": {
+    "pct": 0,
+    "why": null,
+    "pick": 0,
+    "cons": 0,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   },
+   "tiltRebuild": {
+    "pct": 0,
+    "why": null,
+    "pick": 0,
+    "cons": 0,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   }
+  },
+  "small gap 1 for 1": {
+   "valueA": 7000,
+   "valueB": 6500,
+   "bucket": "Fair",
+   "verdictPctA": -9.26,
+   "tiltContend": {
+    "pct": 0,
+    "why": null,
+    "pick": 0,
+    "cons": 0,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   },
+   "tiltRebuild": {
+    "pct": 0,
+    "why": null,
+    "pick": 0,
+    "cons": 0,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   }
+  },
+  "big gap 1 for 1": {
+   "valueA": 8000,
+   "valueB": 5000,
+   "bucket": "Unfair",
+   "verdictPctA": -57.12,
+   "tiltContend": {
+    "pct": 0,
+    "why": null,
+    "pick": 0,
+    "cons": 0,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   },
+   "tiltRebuild": {
+    "pct": 0,
+    "why": null,
+    "pick": 0,
+    "cons": 0,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   }
+  },
+  "star for two starters": {
+   "valueA": 11766.76,
+   "valueB": 9500,
+   "bucket": "Lopsided",
+   "verdictPctA": -34.17,
+   "tiltContend": {
+    "pct": 0.3755317588381986,
+    "why": "cheap",
+    "pick": 0,
+    "cons": 0.3755317588381986,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   },
+   "tiltRebuild": {
+    "pct": 6.375531758838199,
+    "why": "fewer",
+    "pick": 0,
+    "cons": 0.3755317588381986,
+    "age": 0,
+    "wr": 0,
+    "fewer": 6,
+    "oldGot": null,
+    "oldGave": null
+   }
+  },
+  "star for a pile": {
+   "valueA": 17815.36,
+   "valueB": 13000,
+   "bucket": "Lopsided",
+   "verdictPctA": -59.52,
+   "tiltContend": {
+    "pct": -2.6244682411618014,
+    "why": "wr",
+    "pick": 0,
+    "cons": 0.3755317588381986,
+    "age": 0,
+    "wr": -3,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   },
+   "tiltRebuild": {
+    "pct": 3.3755317588381986,
+    "why": "fewer",
+    "pick": 0,
+    "cons": 0.3755317588381986,
+    "age": 0,
+    "wr": -3,
+    "fewer": 6,
+    "oldGot": null,
+    "oldGave": null
+   }
+  },
+  "2 for 1 close pieces": {
+   "valueA": 11800,
+   "valueB": 11700.18,
+   "bucket": "Fair",
+   "verdictPctA": 5.94,
+   "tiltContend": {
+    "pct": -0.4674891858885833,
+    "why": "cheap",
+    "pick": 0,
+    "cons": -0.4674891858885833,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   },
+   "tiltRebuild": {
+    "pct": -6.467489185888583,
+    "why": "fewer",
+    "pick": 0,
+    "cons": -0.4674891858885833,
+    "age": 0,
+    "wr": 0,
+    "fewer": -6,
+    "oldGot": null,
+    "oldGave": null
+   }
+  },
+  "player for picks": {
+   "valueA": 7085.71,
+   "valueB": 6500,
+   "bucket": "Fair",
+   "verdictPctA": -24.5,
+   "tiltContend": {
+    "pct": 11.649484536082474,
+    "why": "picks",
+    "pick": 5,
+    "cons": 1.6494845360824741,
+    "age": 5,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": "RB 6000"
+   },
+   "tiltRebuild": {
+    "pct": 22.649484536082475,
+    "why": "age",
+    "pick": 5,
+    "cons": 1.6494845360824741,
+    "age": 10,
+    "wr": 0,
+    "fewer": 6,
+    "oldGot": null,
+    "oldGave": "RB 6000"
+   }
+  },
+  "picks only": {
+   "valueA": 5500,
+   "valueB": 6371.65,
+   "bucket": "Lopsided",
+   "verdictPctA": 21.58,
+   "tiltContend": {
+    "pct": -2.905788876276958,
+    "why": "cheap",
+    "pick": 0,
+    "cons": -2.905788876276958,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   },
+   "tiltRebuild": {
+    "pct": -8.905788876276958,
+    "why": "fewer",
+    "pick": 0,
+    "cons": -2.905788876276958,
+    "age": 0,
+    "wr": 0,
+    "fewer": -6,
+    "oldGot": null,
+    "oldGave": null
+   }
+  },
+  "old RB for young WR": {
+   "valueA": 5500,
+   "valueB": 5500,
+   "bucket": "Fair",
+   "verdictPctA": -8,
+   "tiltContend": {
+    "pct": 2,
+    "why": "age",
+    "pick": 0,
+    "cons": 0,
+    "age": 5,
+    "wr": -3,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": "RB 5500"
+   },
+   "tiltRebuild": {
+    "pct": 7,
+    "why": "age",
+    "pick": 0,
+    "cons": 0,
+    "age": 10,
+    "wr": -3,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": "RB 5500"
+   }
+  },
+  "TE for QB": {
+   "valueA": 4500,
+   "valueB": 4800,
+   "bucket": "Fair",
+   "verdictPctA": 23.56,
+   "tiltContend": {
+    "pct": 0,
+    "why": null,
+    "pick": 0,
+    "cons": 0,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   },
+   "tiltRebuild": {
+    "pct": 0,
+    "why": null,
+    "pick": 0,
+    "cons": 0,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   }
+  },
+  "four for three": {
+   "valueA": 14000,
+   "valueB": 16042.8,
+   "bucket": "Fair",
+   "verdictPctA": 19.16,
+   "tiltContend": {
+    "pct": -1.6494845360824741,
+    "why": "cheap",
+    "pick": 0,
+    "cons": -1.6494845360824741,
+    "age": 0,
+    "wr": 0,
+    "fewer": 0,
+    "oldGot": null,
+    "oldGave": null
+   },
+   "tiltRebuild": {
+    "pct": -7.649484536082474,
+    "why": "fewer",
+    "pick": 0,
+    "cons": -1.6494845360824741,
+    "age": 0,
+    "wr": 0,
+    "fewer": -6,
+    "oldGot": null,
+    "oldGave": null
+   }
+  }
+ },
+ "verdicts": {
+  "contend value -30 points -2": {
+   "score": -14.5,
+   "tier": "leansbad"
+  },
+  "contend value -12 points 0": {
+   "score": -4.2,
+   "tier": "tossup"
+  },
+  "contend value -4 points 1": {
+   "score": 0.6,
+   "tier": "tossup"
+  },
+  "contend value 0 points 0": {
+   "score": 0,
+   "tier": "tossup"
+  },
+  "contend value 4 points -1": {
+   "score": -0.6,
+   "tier": "tossup"
+  },
+  "contend value 12 points 0": {
+   "score": 4.2,
+   "tier": "tossup"
+  },
+  "contend value 12 points 2": {
+   "score": 8.2,
+   "tier": "slight"
+  },
+  "contend value 30 points 3": {
+   "score": 16.5,
+   "tier": "good"
+  },
+  "flexible value -30 points -2": {
+   "score": -17.75,
+   "tier": "bad"
+  },
+  "flexible value -12 points 0": {
+   "score": -6.3,
+   "tier": "leansbad"
+  },
+  "flexible value -4 points 1": {
+   "score": -1.1,
+   "tier": "tossup"
+  },
+  "flexible value 0 points 0": {
+   "score": 0,
+   "tier": "tossup"
+  },
+  "flexible value 4 points -1": {
+   "score": 1.1,
+   "tier": "tossup"
+  },
+  "flexible value 12 points 0": {
+   "score": 6.3,
+   "tier": "slight"
+  },
+  "flexible value 12 points 2": {
+   "score": 8.3,
+   "tier": "slight"
+  },
+  "flexible value 30 points 3": {
+   "score": 18.75,
+   "tier": "good"
+  },
+  "rebuild value -30 points -2": {
+   "score": -21,
+   "tier": "bad"
+  },
+  "rebuild value -12 points 0": {
+   "score": -8.4,
+   "tier": "leansbad"
+  },
+  "rebuild value -4 points 1": {
+   "score": -2.8,
+   "tier": "tossup"
+  },
+  "rebuild value 0 points 0": {
+   "score": 0,
+   "tier": "tossup"
+  },
+  "rebuild value 4 points -1": {
+   "score": 2.8,
+   "tier": "tossup"
+  },
+  "rebuild value 12 points 0": {
+   "score": 8.4,
+   "tier": "slight"
+  },
+  "rebuild value 12 points 2": {
+   "score": 8.4,
+   "tier": "slight"
+  },
+  "rebuild value 30 points 3": {
+   "score": 21,
+   "tier": "good"
+  }
+ },
+ "buckets": {
+  "0": "Fair",
+  "5": "Fair",
+  "10": "Fair",
+  "15": "Lopsided",
+  "20": "Lopsided",
+  "30": "Lopsided",
+  "50": "Unfair",
+  "4.9": "Fair",
+  "9.9": "Fair",
+  "14.9": "Lopsided",
+  "19.9": "Lopsided",
+  "29.9": "Lopsided"
+ }
+}

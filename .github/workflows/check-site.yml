@@ -24,5 +24,6 @@ jobs:
         with:
           node-version: '20'
       - run: node scripts/check-core-loads.js
+      - run: node scripts/check-math.js
       - name: Every script parses
         run: for f in vault-core.js market-data.js scripts/*.js scripts/market-history/*.js; do node --check "$f" || exit 1; done
