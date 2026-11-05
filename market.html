@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=464321da">
-<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+<link rel="stylesheet" href="tailwind.css?v=c5080799">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -110,10 +110,10 @@
 
 <div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
 
-<script src="vault-core.js?v=b3a67fa5"></script>
+<script src="vault-core.js?v=0d06919b"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=ef0a6bba"></script>
+<script src="player-card.js?v=b03660f3"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -349,7 +349,7 @@ function renderMoves() {
   if (rows.length < 2) { box.innerHTML = (valueMin || Number.isFinite(valueMax) ? `<div class="mb-3">${valueFilterHtml()}</div><div class="text-[12px] text-zinc-500 py-3">No players in this value range had a market price both now and a month ago. Try a wider range.</div>` : collecting(`Players appear here once they have a market price both now and a month ago.`)); return; }
   const item = r => `<button onclick="openLookup('${encodeURIComponent(r.norm)}')" class="w-full text-left grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0 hover:bg-white/[0.02]">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
-      <span class="min-w-0"><span class="block text-[13px] text-zinc-100 truncate">${esc(r.name)}${Vault.metaSpan(r)}</span>
+      <span class="min-w-0"><span class="block text-[13px] text-zinc-100 truncate">${esc(r.name)}${Vault.metaSpan(r)}${Vault.cardIcon(r.name)}</span>
         <span class="block text-[11px] text-zinc-400">From <span class="mono">${signed(r.then)}</span> to <span class="mono text-zinc-300">${signed(r.now)}</span> vs KTC</span></span>
       <span class="text-[13px] mono font-semibold ${r.change > 0 ? 'text-emerald-300' : 'text-orange-300'}">${r.change > 0 ? '+' : '−'}${Math.abs(Math.round(r.change))} pts</span>
     </button>`;
@@ -570,7 +570,7 @@ function drawMovers() {
     return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 border-t border-white/5 first:border-t-0" title="KTC ${Math.round(r.value).toLocaleString()}, market ${market.toLocaleString()} (usually ${Math.round(r.value * (1 + r.m.low / 100)).toLocaleString()} to ${Math.round(r.value * (1 + r.m.high / 100)).toLocaleString()}) · leagues like yours (${r.m.like})">
         <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos}</span>
         <div class="min-w-0">
-          <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(r.name)}${Vault.metaSpan(r)}</div>
+          <div class="text-[13px] text-zinc-100 truncate">${Vault.escapeHtml(r.name)}${Vault.metaSpan(r)}${Vault.cardIcon(r.name)}</div>
           <div class="text-[11px] text-zinc-400">Paid <span class="mono text-zinc-300">${signed(r.m.premium)}</span> KTC value; ${r.pos === 'Pick' ? 'picks at its' : r.pos + 's at his'} value <span class="mono">${signed(peer)}</span> <span class="text-zinc-500">· ${r.m.n} trades</span></div>
         </div>
         <span class="text-[13px] mono font-semibold ${up ? 'text-emerald-300' : 'text-orange-300'}" title="Against players at the same position and KTC value">${signed(r.m.vsPeers)} <span class="text-[11px] font-normal text-zinc-500">vs similar</span></span>
@@ -638,7 +638,7 @@ function drawAll() {
     const move = r.mktRank && r.ktcRank ? r.ktcRank - r.mktRank : 0;
     return `<tr class="border-t border-white/5 hover:bg-white/[0.02] cursor-pointer" onclick="openLookup('${encodeURIComponent(r.norm)}')">
       <td class="py-2 pr-3 text-right mono text-zinc-300 whitespace-nowrap">${r.mktRank ? '#' + r.mktRank : dash}${move ? ` <span class="text-[10px] ${move > 0 ? 'text-emerald-300' : 'text-orange-300'}" title="KTC rank #${r.ktcRank}">${move > 0 ? '▲' : '▼'}${Math.abs(move)}</span>` : ''}</td>
-      <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="min-w-0"><span class="block text-zinc-100 truncate">${esc(r.name)}${Vault.metaSpan(r)}</span><span class="sm:hidden block text-[11px] text-zinc-500 mono">KTC ${Vault.fmtInt(r.value)}</span></span></span></td>
+      <td class="py-2 pr-3"><span class="inline-flex items-center gap-2 min-w-0"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(r.pos)}">${r.pos || '—'}</span><span class="min-w-0"><span class="block text-zinc-100 truncate">${esc(r.name)}${Vault.metaSpan(r)}${Vault.cardIcon(r.name)}</span><span class="sm:hidden block text-[11px] text-zinc-500 mono">KTC ${Vault.fmtInt(r.value)}</span></span></span></td>
       <td class="hidden sm:table-cell py-2 pr-3 text-right mono text-zinc-300">${Vault.fmtInt(r.value)}</td>
       <td class="py-2 pr-3 text-right mono text-zinc-100">${r.market == null ? dash : Vault.fmtInt(r.market) + (Math.abs(r.raw) > MARKET_ADJ_CAP ? '+' : '')}<span class="sm:hidden block text-[11px]">${r.peer == null ? '' : `<span class="${tone(r.peer)}">${marketPeerPhrase({ read: r.read })}</span>`}</span></td>
       <td class="hidden sm:table-cell py-2 pr-3 text-right mono" title="${r.read ? `${MARKET_PEER_TIP} Paid vs KTC: median ${signed(r.read.premium)}, usually ${signed(r.read.low)} to ${signed(r.read.high)}.` : ''}">${r.peer == null ? dash : `<span class="${tone(r.peer)}">${marketPeerText({ read: r.read })}</span>`}</td>

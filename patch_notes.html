@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=464321da">
-<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+<link rel="stylesheet" href="tailwind.css?v=c5080799">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=b3a67fa5"></script>
+<script src="vault-core.js?v=0d06919b"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Player Card', text: "Points by week: what a player really scored each game this season, in your scoring, with his last four against his season average." },
+    { kind: 'new', page: 'Player Card', text: "Playoff weeks: his projected points in each playoff week. Team Analyzer's best lineup shows the same for the team." },
+    { kind: 'new', page: 'Player Card', text: "Build a trade, Market page and Compare buttons on the card, and a small card button on Player Market rows." },
     { kind: 'changed', page: 'Everywhere', text: "One name for a pick on every page: 2027 Mid 1st, not 2027 R1." },
     { kind: 'improved', page: 'Player Card', text: "Season History now includes this season so far, updated every Tuesday, and about 100 more players have one." },
     { kind: 'fixed', page: 'Trade Grades', text: "Closed a security gap: text typed into a team name can no longer run as code on the page." },

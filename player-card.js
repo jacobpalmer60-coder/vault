@@ -253,8 +253,9 @@
             <div class="text-[12px] text-zinc-400 mt-1">${Vault.escapeHtml(r.team) || '—'} • Age ${r.age != null ? fmtFloat(r.age, 1) : '—'}${r.yearsExp != null ? ' • ' + (r.yearsExp === 0 ? 'Rookie' : `${r.yearsExp} yr${r.yearsExp === 1 ? '' : 's'} in NFL`) : ''}</div>
           </div>
         </div>
-        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 ${posColor(r.pos)}">${r.pos || '—'}</span>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 mr-6 ${posColor(r.pos)}">${r.pos || '—'}</span>
       </div>
+      <div class="flex flex-wrap gap-2 mb-4">${cardActions(r)}</div>
       <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">
         <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Value</div></div>
         <div><div class="mono text-[15px] text-zinc-100">${r.posRank ? '#' + r.posRank + ' of ' + r.posCount : '—'}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">${r.pos || 'Pos'} Rank</div></div>
@@ -262,14 +263,63 @@
         <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}" title="Points per game above the best player at ${r.pos || 'this position'} who wouldn't start anywhere in your league">${fmtSigned(r.vorp)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">VORP</div></div>
       </div>
       ${injuryHtml(r)}
+      ${playoffHtml(r)}
+      <div id="pcWeekly" class="mb-4"></div>
       <div id="pcMarket" class="mb-4"></div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time</div>
       <div id="pcValueChart">${valueChart}</div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time</div>
       ${ppgChart}
       ${historySection}
-      <a href="compare.html?league_id=${encodeURIComponent(Vault.getLeagueId())}&p=${encodeURIComponent(r.norm)}" class="mt-4 inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">Compare with another player →</a>
     `;
+  }
+
+  // From the card, straight to what you'd do next (user, 2026-11-05).
+  function cardActions(r) {
+    const link = (href, text) => `<a href="${href}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">${text}</a>`;
+    const name = encodeURIComponent(r.norm);
+    return [r.pid ? link(`${Vault.linkTo('trade.html')}&coach=player&player=p_${r.pid}`, 'Build a trade') : '',
+      link(`${Vault.linkTo('market.html')}&p=${name}`, 'Market page'),
+      link(`${Vault.linkTo('compare.html')}&p=${name}`, 'Compare')].join('');
+  }
+  // His projection in each playoff week: byes and injuries show, which the season average hides.
+  function playoffHtml(r) {
+    if (!r.playoff?.length) return '';
+    const cell = w => `<div><div class="mono text-[15px] ${w.pts == null ? 'text-zinc-500' : 'text-zinc-100'}">${w.pts == null ? 'Out' : w.pts.toFixed(1)}</div><div class="text-[11px] text-zinc-400 mt-0.5">Week ${w.week}</div></div>`;
+    return `<div class="rounded-xl border border-white/10 bg-black/20 p-3.5 mb-4">
+        <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Playoff weeks <span class="normal-case tracking-normal text-zinc-500">· projected points</span></div>
+        <div class="grid gap-2 text-center" style="grid-template-columns:repeat(${r.playoff.length},minmax(0,1fr))">${r.playoff.map(cell).join('')}</div>
+      </div>`;
+  }
+  // What he really scored each week, in this league's scoring. Loaded with the first card.
+  let weeklyLoad = null;
+  const loadWeekly = () => (weeklyLoad ||= fetch(`data/weekly/${leagueObj?.season}.json`).then(res => (res.ok ? res.json() : null)).catch(() => null));
+  function renderWeekly(r) {
+    const box = document.getElementById('pcWeekly');
+    if (!box || !r.pid || !leagueObj) return;
+    loadWeekly().then(file => {
+      const pl = file?.players?.[r.pid], snaps = file?.keys.indexOf('off_snp') ?? -1;
+      if (!pl || document.getElementById('pcWeekly') !== box) return;
+      const last = Math.max(...Object.values(file.players).flatMap(p => Object.keys(p.w).map(Number)));
+      const weeks = Array.from({ length: last }, (_, i) => {
+        const week = i + 1, row = pl.w[week];
+        if (!row) return { week };
+        const st = {}; file.keys.forEach((k, j) => { st[k] = row[j + 3]; });
+        return { week, opp: row[1], pts: Vault.scoreStats(st, scoringSettings), played: row[snaps + 3] > 0 || st.gp > 0 };
+      });
+      const played = weeks.filter(w => w.played);
+      if (!played.length) return;
+      const avg = l => l.reduce((s, w) => s + w.pts, 0) / l.length, recent = played.slice(-4);
+      const W = 460, H = 96, B = 16, T = 12, max = Math.max(...played.map(w => w.pts), 1), step = W / weeks.length, y = v => T + (1 - v / max) * (H - B - T);
+      const bars = weeks.map((w, i) => {
+        const x = i * step + step / 2, label = `<text x="${x}" y="${H - 3}" text-anchor="middle" font-size="9" fill="currentColor" class="text-zinc-500">${w.week}</text>`;
+        if (!w.played) return `<g><title>Week ${w.week}: didn't play</title><rect x="${x - 3}" y="${H - B - 2}" width="6" height="2" fill="currentColor" class="text-zinc-600"/>${label}</g>`;
+        const on = recent.includes(w), top = y(Math.max(w.pts, 0));
+        return `<g><title>Week ${w.week}${w.opp ? ` vs ${Vault.escapeHtml(w.opp)}` : ''}: ${w.pts.toFixed(1)} points</title><rect x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent"/><rect x="${x - 7}" y="${top}" width="14" height="${Math.max(1, H - B - top)}" rx="2" fill="#fbbf24" opacity="${on ? 1 : 0.45}"/>${w.pts === Math.max(...played.map(p => p.pts)) || w === played[played.length - 1] ? `<text x="${x}" y="${top - 3}" text-anchor="middle" font-size="9" fill="currentColor" class="text-zinc-300">${w.pts.toFixed(1)}</text>` : ''}${label}</g>`;
+      }).join('');
+      box.innerHTML = `<div class="flex items-baseline justify-between gap-3 mb-2"><div class="text-[11px] text-zinc-400 uppercase tracking-wider">Points by week</div><div class="text-[12px] text-zinc-400">${recent.length > 1 ? `Last ${recent.length}: <span class="mono text-zinc-200">${avg(recent).toFixed(1)}</span> · ` : ''}Season: <span class="mono text-zinc-200">${avg(played).toFixed(1)}</span> a game</div></div>
+        <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${Vault.escapeHtml(r.player)}'s points each week this season">${bars}</svg>`;
+    });
   }
 
   // Injured or questionable: the same details as the tag's hover card (user, 2026-11-05).
@@ -462,6 +512,9 @@
       const trendSeries = trendMap.get(norm) || [];
       const sp = sleeperPlayers?.[pid];
       const yearsExp = sp?.years_exp ?? null;
+      const start = +leagueObj?.settings?.playoff_week_start || 15, playoffWeeks = weeksLeft.filter(w => w >= start && w < start + 3);
+      const projected = healthyPpg != null && playoffWeeks.length ? { ppg: healthyPpg, ...Vault.availOf(projData.players?.[pid], sp, undefined, weeksLeft) } : null;
+      const playoff = projected ? Vault.weekPpgs(projected, playoffWeeks).map((pts, i) => ({ week: playoffWeeks[i], pts })) : null;
       const inj = sp?.injury_status ? { name: p.name, weeks: weeksLeft, ...Vault.injuryOf(sp), ...Vault.availOf(projData.players?.[pid], sp, undefined, weeksLeft) } : null;
       const rawSeasons = pid ? playerHistory.players?.[pid]?.seasons : null;
       let seasonHistory = null;
@@ -474,7 +527,7 @@
         });
         if (!Object.keys(seasonHistory).length) seasonHistory = null;
       }
-      return { player: p.name, norm, inj, pos: p.pos, team: sp?.team || TEAM_ALIAS[p.team] || p.team, age: p.age, value, ppg, vorp, trendSeries, yearsExp, seasonHistory, pid, out, bench, gamesLeft, weeksLeft: weeksLeft.length, healthyPpg };
+      return { player: p.name, norm, inj, playoff, pos: p.pos, team: sp?.team || TEAM_ALIAS[p.team] || p.team, age: p.age, value, ppg, vorp, trendSeries, yearsExp, seasonHistory, pid, out, bench, gamesLeft, weeksLeft: weeksLeft.length, healthyPpg };
     });
 
     // Draft picks, ranked among the players (2026-10-25, user: "i want picks to be
@@ -574,7 +627,7 @@
   function drawCard(r) {
     body().innerHTML = r.isPick ? renderPickCard(r) : renderPlayerCard(r);
     box.firstElementChild.scrollTop = 0;
-    if (!r.isPick) renderPlayerMarket(r);
+    if (!r.isPick) { renderPlayerMarket(r); renderWeekly(r); }
   }
   async function open(norm, name = '') {
     show();

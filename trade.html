@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=464321da">
-<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
+<link rel="stylesheet" href="tailwind.css?v=c5080799">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -238,7 +238,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=b3a67fa5"></script>
+<script src="vault-core.js?v=0d06919b"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -494,6 +494,11 @@ async function init() {
         // any other option opens the Coach at its first step.
         if (coachParam === 'team' && withParam && teams.some(t => String(t.rosterId) === withParam)) return coachPickTeam(withParam);
         if (coachParam === 'shop' && playerParam && (teamOf('A')?.assets || []).some(a => a.key === playerParam)) return coachShopFor(playerParam);
+        // From a player card: yours to move, or someone else's to get.
+        if (coachParam === 'player' && playerParam) {
+          if ((teamOf('A')?.assets || []).some(a => a.key === playerParam)) return coachShopFor(playerParam);
+          if (teams.some(t => t.assets.some(a => a.key === playerParam))) return coachGetFor(playerParam);
+        }
         openCoach('coach');
       };
       const btn = document.getElementById('loadRostersBtn');
@@ -2335,7 +2340,7 @@ init();
 </script>
 <script src="negotiation.js?v=74ef6b53"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=ef0a6bba"></script>
+<script src="player-card.js?v=b03660f3"></script>
 <script src="market.js?v=bfa5ee54"></script>
 <script src="coach.js?v=3657ed83"></script>
 </body>

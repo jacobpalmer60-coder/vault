@@ -1878,6 +1878,8 @@ const Vault = {
     const round = [, '1st', '2nd', '3rd', '4th', '5th'][a.round] || `Round ${a.round}`, tier = a.tier ? `${a.tier[0].toUpperCase()}${a.tier.slice(1)} ` : '';
     return `${a.season} ${tier}${round}`;
   },
+  // A small button for his card, where clicking the name does something else.
+  cardIcon(name) { return `<span data-player="${Vault.escapeHtml(name)}" role="button" title="Open player card" aria-label="Open player card" class="inline-grid place-items-center align-middle size-5 ml-1 rounded text-zinc-500 hover:text-amber-300 cursor-pointer"><svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16c.6-1.2 1.6-1.8 3-1.8s2.4.6 3 1.8"/></svg></span>`; },
   // A player's name that opens his card when clicked (player-card.js). label is what shows.
   playerLink(name, label = name) { return `<span class="player-link" data-player="${Vault.escapeHtml(name)}">${Vault.escapeHtml(label)}</span>`; },
   // A trade piece: a player's name opens his card, a pick is plain text. Pass anything with name and pos.
@@ -5172,7 +5174,9 @@ const Vault = {
     const lineupTip = W
       ? `Points per week averaged over weeks ${weeks[0]}–${weeks[W - 1]} (playoffs included), from who Sleeper projects to play each week, so byes and injuries count. Each player's number is per game he plays.`
       : "Projected points per game for the best lineup.";
-    const lineupHead = `<div title="${lineupTip}" class="cursor-help">${head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${Vault.num1(t.vorpTotal)} VORP` : ''}`)}${W ? `<div class="text-[11px] text-zinc-500 -mt-1.5 mb-2">Avg per week, wks ${weeks[0]}–${weeks[W - 1]}</div>` : ''}</div>`;
+    const playoffWeeks = [...(t.optByWeek?.keys() || [])].filter(w => w >= (t.playoffStart || 15));
+    const playoffPpg = playoffWeeks.length ? playoffWeeks.reduce((s, w) => s + t.optByWeek.get(w), 0) / playoffWeeks.length : null;
+    const lineupHead = `<div title="${lineupTip}" class="cursor-help">${head('Best lineup', `${(t.opt || 0).toFixed(1)} PPG${Number.isFinite(t.vorpTotal) ? ` · ${Vault.num1(t.vorpTotal)} VORP` : ''}${playoffPpg ? ` · ${playoffPpg.toFixed(1)} in playoff weeks` : ''}`)}${W ? `<div class="text-[11px] text-zinc-500 -mt-1.5 mb-2">Avg per week, wks ${weeks[0]}–${weeks[W - 1]}</div>` : ''}</div>`;
     const positions = ['QB', 'RB', 'WR', 'TE'].map(pos => {
       // Every player at the position, so real depth shows (not just the top few).
       const ps = (t.plist || []).filter(p => p.pos === pos).sort((a, b) => b.value - a.value);
