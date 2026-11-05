@@ -1940,6 +1940,8 @@ const Vault = {
     playoffWeeks: ['Playoff weeks', "Sleeper's projected points for him in weeks 15 to 17, in your scoring."],
     starterLine: ['Over a starter', "Games where he beat his position's replacement level: what the best player who wouldn't start in your league scores a game."],
     recentTrades: ['Recent trades', 'The latest completed trades he headlined, in leagues like yours. Paid vs KTC is what the team getting him sent over or under his KTC value.'],
+    scheduleLeft: ['Schedule left', "Each game left before the playoffs, with the opponent's projected lineup that week: who's available, byes and matchups included. Green is easier than the league's average that week, orange harder."],
+    picksByYear: ['Picks by year', "Each team's future picks at KTC value, year by year, with its 1sts counted. Darker means more value that year."],
     window5: ['Contention window', 'Each bar is one of the next seasons: how much value this roster is projected to have then. Green seasons are good enough for the playoffs.'],
   },
   glossaryHtml(key) {

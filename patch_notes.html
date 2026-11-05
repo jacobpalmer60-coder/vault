@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=36a6b470">
-<link rel="stylesheet" href="tailwind.css?v=c54f6235">
+<link rel="stylesheet" href="tailwind.css?v=ee747c45">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=5b2217a5"></script>
+<script src="vault-core.js?v=4af1121a"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Team Analyzer', text: "Schedule left: how hard your remaining games are, game by game, and how strong your lineup is in the playoff weeks. Picks by year: every team's picks in each draft." },
     { kind: 'new', page: 'Player card', text: "The card now says who holds him in your league, his best and worst weeks and how often he beat a starter's line, and his latest completed trades." },
     { kind: 'new', page: 'Everywhere', text: "Explanations on hover, or a tap on a phone. A dotted line under a word like VORP or PPG says what it means, and a small ? beside a section says what it's showing." },
     { kind: 'new', page: 'Managers', text: "Your record: what the verdict said about your trades at the time, and how many are ahead on value today." },

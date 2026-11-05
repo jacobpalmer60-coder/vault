@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=36a6b470">
-<link rel="stylesheet" href="tailwind.css?v=c54f6235">
+<link rel="stylesheet" href="tailwind.css?v=ee747c45">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -52,7 +52,7 @@
   <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=5b2217a5"></script>
+<script src="vault-core.js?v=4af1121a"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="season-report.js?v=0596935e"></script>
 <script src="market-data.js?v=a619b6b9"></script>
@@ -114,7 +114,7 @@ async function loadLeague(id) {
     .then(() => { renderSeason(+$('#teamSelect').value || null); Timeline.setSeason(season); });
   try {
     const { isSF, league, slots, remainingWeeks, teams: built } = await Vault.buildLeagueTeams(id);
-    window._allTeams = built; window._slots = slots;
+    window._allTeams = built; window._slots = slots; window._weeksLeft = remainingWeeks || []; window._playoffStart = league.settings?.playoff_week_start || 15;
     // Contend or rebuild? (timeline.js): the four paths, under This season.
     Timeline.init({ league, slots, teams: built, remainingWeeks });
 
@@ -230,7 +230,8 @@ function renderSingle(t) {
             ${isMine ? `<a href="${Vault.linkTo('trade.html')}&coach=team&with=${p.rosterId}" class="inline-block mt-1.5 text-[12px] text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20">Start a trade with them</a>` : ''}
           </div>`).join('')}</div>
       </div>
-    </div>`;
+    </div>
+    ${scheduleCard(t, all)}${picksGrid(t, all)}`;
   renderGlance();
   $('#rosterCard').innerHTML = Vault.teamRosterPanel(t, all);
 }
@@ -323,6 +324,54 @@ function leagueMap(t, all) {
         <text transform="translate(${narrow ? 11 : 14} ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle" class="fill-zinc-400" font-size="12">Dynasty value →</text>
         ${dots}
       </svg></div>
+    </div>`;
+}
+
+/* What's left this season (user's list, 2026-11-05): each game's opponent at that week's projected
+   lineup, the same numbers the odds play out, and how strong this team's lineup is in the playoff
+   weeks. Green is an easier opponent than the league's average that week, orange a harder one. */
+function scheduleCard(t, all) {
+  const weeks = (window._weeksLeft || []).filter(w => w.week < window._playoffStart);
+  const at = (x, w) => (x.optByWeek?.has(w) ? x.optByWeek.get(w) : x.opt);
+  const gamesOf = x => weeks.flatMap(w => {
+    const pair = w.pairs.find(p => p.includes(x.rosterId)), opp = pair && all.find(y => y.rosterId === pair.find(id => id !== x.rosterId));
+    return opp ? [{ week: w.week, opp, pts: at(opp, w.week), avg: all.reduce((s, y) => s + at(y, w.week), 0) / all.length }] : [];
+  });
+  const games = gamesOf(t);
+  const avg = l => l.reduce((s, v) => s + v, 0) / l.length;
+  const hardness = all.map(x => ({ x, v: gamesOf(x).map(g => g.pts) })).filter(r => r.v.length).map(r => ({ x: r.x, v: avg(r.v) })).sort((a, b) => b.v - a.v);
+  const po = x => { const w = [...(x.optByWeek?.keys() || [])].filter(k => k >= window._playoffStart); return w.length ? avg(w.map(k => x.optByWeek.get(k))) : null; };
+  const poRank = all.map(x => ({ x, v: po(x) })).filter(r => r.v != null).sort((a, b) => b.v - a.v);
+  if (!games.length && !poRank.length) return '';
+  const rankOf = (list, x) => list.findIndex(r => r.x === x) + 1;
+  const stat = (v, label, sub) => `<div><div class="num text-[22px] text-zinc-100">${v}</div><div class="text-[12px] text-zinc-300">${label}</div><div class="text-[12px] text-zinc-500">${sub}</div></div>`;
+  const chip = g => { const d = g.pts - g.avg, tone = Math.abs(d) < 4 ? 'text-zinc-300' : d > 0 ? 'text-orange-300' : 'text-emerald-300';
+    return `<div class="rounded-lg bg-black/25 border border-white/5 px-2.5 py-1.5 min-w-0"><div class="text-[11px] text-zinc-500">Week ${g.week}</div><div class="text-[12px] text-zinc-200 truncate">${Vault.teamLink(g.opp)}</div><div class="mono text-[12px] ${tone}">${g.pts.toFixed(1)}</div></div>`; };
+  const tp = po(t);
+  return `<div class="card rounded-vault p-5 mt-4">
+      <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-3">Schedule left${Vault.info('scheduleLeft')}</div>
+      <div class="grid grid-cols-2 gap-4 mb-3">
+        ${games.length ? stat(`#${rankOf(hardness, t)} of ${hardness.length}`, 'hardest schedule left', `opponents average ${avg(games.map(g => g.pts)).toFixed(1)} a week`) : ''}
+        ${tp != null ? stat(`#${rankOf(poRank, t)} of ${poRank.length}`, 'lineup in the playoff weeks', `${tp.toFixed(1)} a week from week ${window._playoffStart}`) : ''}
+      </div>
+      ${games.length ? `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${games.map(chip).join('')}</div>` : ''}
+    </div>`;
+}
+
+/* Picks by year for every team, so you can see who's loaded in which draft (user's list,
+   2026-11-05). Shade is the year's KTC value in picks, the small line its 1sts. */
+function picksGrid(t, all) {
+  const years = [...new Set(all.flatMap(x => (x.picks || []).map(p => +p.season)))].sort((a, b) => a - b);
+  if (!years.length) return '';
+  const inYear = (x, y) => (x.picks || []).filter(p => +p.season === y);
+  const worth = l => l.reduce((s, p) => s + (p.value || 0), 0);
+  const top = Math.max(...all.flatMap(x => years.map(y => worth(inYear(x, y)))), 1);
+  const cell = (x, y) => { const l = inYear(x, y), v = worth(l), firsts = l.filter(p => p.round === 1).length;
+    return `<td class="py-1 px-0.5"><div class="rounded-md px-1 py-1 text-center" style="background:rgba(227,176,75,${(0.05 + 0.4 * v / top).toFixed(2)})" title="${l.length} pick${l.length === 1 ? '' : 's'} in ${y}: ${Vault.escapeHtml(l.map(p => Vault.pickName(p)).join(', ') || 'none')}"><div class="mono text-[12px] text-zinc-100">${v ? (v / 1000).toFixed(1) + 'k' : '—'}</div><div class="text-[10px] text-zinc-400">${firsts ? `${firsts} 1st${firsts === 1 ? '' : 's'}` : '&nbsp;'}</div></div></td>`; };
+  const rows = [...all].sort((a, b) => b.picksValue - a.picksValue).map(x => `<tr class="${x === t ? 'text-amber-200' : 'text-zinc-300'}"><td class="py-1 pr-2 text-[12px] max-w-[110px] sm:max-w-[200px] truncate">${Vault.teamLink(x)}</td>${years.map(y => cell(x, y)).join('')}</tr>`).join('');
+  return `<div class="card rounded-vault p-5 mt-4">
+      <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-3">Picks by year${Vault.info('picksByYear')}</div>
+      <div class="overflow-x-auto"><table class="w-full table-fixed text-left"><thead><tr class="text-[11px] text-zinc-500"><th class="font-normal pb-1 w-[34%]">Team</th>${years.map(y => `<th class="font-normal pb-1 text-center">${y}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
 }
 
