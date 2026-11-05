@@ -1893,6 +1893,8 @@ function parsePastedTrade(text) {
   const parts = clean.split(/\n+|<->|<>|↔|⇄|→|->|;|\bfor\b|\breceives?\b|\bgets?\b|\bsends?\b/i).map(s => s.trim()).filter(Boolean);
   const segments = parts.map(part => {
     let rest = ` ${pasteNorm(part.replace(/'(\d\d)\b/g, '20$1'))} `;
+    // A team name isn't a player: Skat Happens Chase Love mustn't find Ja'Marr Chase.
+    teams.forEach(t => { const n = pasteNorm(t.teamName); if (n) rest = rest.split(` ${n} `).join(' '); });
     const picks = [], found = [];
     rest = rest.replace(/\b(20\d\d)\s+(?:(early|mid|late)\s+)?(?:round\s*)?(\d)(?:st|nd|rd|th)?(?:\s*round)?(?:\s*(\d{1,2}))?\b/g, (m, y, tier, r) => { picks.push({ season: +y, round: +r, tier, text: m.trim() }); return ' '; });
     [...players.keys()].sort((x, y) => y.length - x.length).forEach(n => {
@@ -1914,7 +1916,8 @@ function parsePastedTrade(text) {
     s.picks.forEach(p => {
       const fits = t => (t ? t.assets : []).filter(a => a.type === 'pick' && a.season === p.season && (a.ktcRound ?? a.round) === p.round && !used.has(a.key) && (!p.tier || (a.tier || '').toLowerCase() === p.tier)).sort((x, y) => y.value - x.value);
       const own = side ? fits(side) : [], mine = fits(me), theirs = fits(partner);
-      const pick = own[0] ? { t: side, a: own[0] } : !side && mine[0] && !theirs[0] ? { t: me, a: mine[0] } : !side && theirs[0] && !mine[0] ? { t: partner, a: theirs[0] } : null;
+      // Next to a team's players, it's that team's. Otherwise whichever team has one, if only one does.
+      const pick = own[0] ? { t: side, a: own[0] } : mine[0] && !theirs[0] ? { t: me, a: mine[0] } : theirs[0] && !mine[0] ? { t: partner, a: theirs[0] } : null;
       if (pick) place(pick.t, pick.a); else missed.push(p.text);
     });
   });
