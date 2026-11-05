@@ -854,7 +854,7 @@ const Vault = {
      the compact per-format file scripts/slim-ktc-trades.js writes daily, in the
      full file's shape: { updated, count (all formats), trades: [{ date, t1, t2,
      teams, qbs, ppr, tep, starters }] } with ids as strings. Falls back to the
-     full data/ktc-trades.json (every format, ~3 MB) if the slim one is missing. */
+     nothing if the slim one is missing (the full file isn't published since 2026-11-05). */
   async fetchKtcTrades(qbs) {
     try {
       const res = await fetch(`data/ktc-trades-${qbs === 2 ? 'sf' : 'oneQB'}.json`);
@@ -863,8 +863,7 @@ const Vault = {
         return { updated: s.updated, count: s.total, trades: s.trades.map(([d, teams, ppr, tep, starters, t1, t2]) => ({ date: s.dates[d], teams, qbs, ppr, tep, starters, t1: t1.map(String), t2: t2.map(String) })) };
       }
     } catch (e) { console.warn('Slim KTC trades unavailable, loading the full file', e); }
-    const full = await (await fetch('data/ktc-trades.json')).json();
-    return { ...full, trades: (full.trades || []).filter(t => t.qbs === qbs) };
+    return { trades: [] };
   },
 
   // KTC values (data/ktc-values.json). The site used to offer our own values behind a
@@ -983,8 +982,8 @@ const Vault = {
   // 6 MB) and rebuilds the same { snapshots: [{ date, players: { name: entry } }] }
   // shape the full file has, so every caller and Vault.resolveHistoricalValue
   // work unchanged. withStats also attaches the projected stats a few snapshots
-  // carry (Player Rankings only). Falls back to the full file if the slim one
-  // isn't there.
+  // carry (Player Rankings only). The full file isn't published since 2026-11-05: it lives on the
+  // data-history release, and the daily update builds these from it.
   async fetchPlayerValueHistory(isSF, bonusRecTe, { withStats = false } = {}) {
     if (isSF !== undefined) {
       try {
@@ -1019,13 +1018,9 @@ const Vault = {
           }
           return { snapshots };
         }
-      } catch (e) { console.warn('Slim value history unavailable, loading the full file', e); }
+      } catch (e) { console.warn('Value history unavailable', e); }
     }
-    try {
-      const res = await fetch('data/player-value-history.json');
-      if (!res.ok) return { snapshots: [] };
-      return res.json();
-    } catch { return { snapshots: [] }; }
+    return { snapshots: [] };
   },
   // Sleeper's player list, cut to the fields the site reads (built daily by
   // scripts/build-slim-data.js — ~0.2 MB compressed instead of 2.6 MB). Falls

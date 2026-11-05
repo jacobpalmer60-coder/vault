@@ -1,3 +1,6 @@
 # Sleeper crawl to-do list (holds Sleeper user/league ids); kept by the Action's cache, never committed.
 .crawl/
 data/sleeper-trades/
+# Rebuilt by update-data.yml; the pages read the small files made from them.
+data/ktc-trades.json
+data/player-value-history.json

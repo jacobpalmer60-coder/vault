@@ -37,6 +37,7 @@ Sleeper username leads to a league, and a league id to a team. Every tool needs 
 
 | Job | When | Does |
 |---|---|---|
+| Update data, full value history | daily | `player-value-history.json` lives on the `data-history` release, not in git; pages read `data/history/` |
 | Crawl Sleeper trades | hourly, prices saved about every 6 hours | New completed trades, priced at KTC values of their own day |
 | Refresh projections | every 3 hours | Sleeper projections, and injury details on game days |
 | Update data | nightly | KTC values, value history, grade prices, slim files, season totals on Tuesdays |
