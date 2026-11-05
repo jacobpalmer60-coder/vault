@@ -21,7 +21,7 @@ if (!leagues.length || !CHROME) { console.error('Usage: node scripts/smoke.js <l
 
 // [page, tab or section to open]. League pages take the league in the address.
 const PAGES = [['app'], ['team-analyzer', 'overview'], ['team-analyzer', 'roster'], ['team-analyzer', 'season'], ['team-analyzer', 'future'],
-  ['trade'], ['trade_grades'], ['trade_database'], ['trade_lab'], ['market'], ['player_rankings'], ['compare'], ['managers'], ['playoffs']];
+  ['trade'], ['trade_grades'], ['trade_database'], ['trade_lab'], ['market'], ['player_rankings'], ['compare'], ['managers'], ['playoffs'], ['weekly_recap'], ['league_history']];
 const FREE = ['how_we_grade', 'patch_notes', 'status', 'index'];
 const SIZES = [['desktop', 1280, 900, false], ['phone', 375, 812, true]];
 // Long prose can use these words on purpose. The page text is checked outside these.
