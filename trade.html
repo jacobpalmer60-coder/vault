@@ -1259,7 +1259,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const ra = Vault.rosterAuditRead(aAssets, bAssets, isSF, raValues);
   const raGrade = rosterAuditGrade(aAssets, bAssets, isSF);
   const raFavors = raGrade && { side_a: teamA, side_b: teamB }[raGrade.winner];
-  // Its public values have no TE premium: say so when that could matter here (the consensus leaves it out).
+  // Its public values have no TE premium: say so when that could matter here .
   const ddNoTe = Vault.rosterAuditTep(league) && [...aAssets, ...bAssets].some(a => a.pos === 'TE');
   const raBy = ra.priced ? amount(ra) : '';
   const raRow = raGrade
@@ -1271,20 +1271,15 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
     // Each list is what the other team receives, so the bigger list favors that team.
     { name: 'KTC (Crowd + Trades)', href: 'https://keeptradecut.com/trade-calculator', ...verdict(ktc.fair, ktc.bigger === 'A' ? teamB : teamA, by(ktc.gap)), title: "KeepTradeCut's calculator with Value Source set to Crowd + Trades" },
     { name: 'Roster Audit', href: 'https://rosteraudit.com/trade-calculator/', ...raRow },
-    { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd)), note: ddNoTe ? "doesn't factor in TE premium, so it's left out of the consensus" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? `No value for ${esc((dd.missing || []).map(sitePieceName).join(', '))}` : 'Loading…', title: 'It has no value for this piece, so it sits out the consensus. Open this trade on its site.' }) }
+    { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd)), note: ddNoTe ? "doesn't factor in TE premium" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? `No value for ${esc((dd.missing || []).map(sitePieceName).join(', '))}` : 'Loading…', title: 'It has no value for this piece. Open this trade on its site.' }) }
   ];
-  const consensus = tradeConsensus(teamA, teamB, aAssets, bAssets), read = consensus;
-  return `${read ? `<div class="flex items-baseline gap-2 text-[14px] leading-snug mb-2.5 pb-2.5 border-b border-white/5" title="The average gap across The Vault and ${consensus.sites - 1} other sites, in KTC points">
-      <span class="size-2 shrink-0 rounded-full self-center ${DOT[read.dot]}" aria-hidden="true"></span>
-      <span class="min-w-0 font-medium text-zinc-100">Consensus: ${read.text}${Math.abs(consensus.gap) < 5 ? '' : ` <span class="text-zinc-400 font-normal">· about ${(Math.round(Math.abs(consensus.gap) / 10) * 10).toLocaleString()} KTC</span>`}</span>
-    </div>` : ''}
-    <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Other sites</div>
+  return `<div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Other sites</div>
     <ul class="space-y-1.5">${rows.map(r => `<li class="flex items-baseline gap-2 text-[13px] leading-snug" title="${r.title || ''}">
       <span class="size-2 shrink-0 rounded-full self-center ${DOT[r.dot] || 'bg-zinc-600'}" aria-hidden="true"></span>
       <span class="min-w-0"><a href="${r.href}" target="_blank" rel="noopener" class="font-medium text-zinc-200 underline decoration-white/20 underline-offset-2 hover:text-white">${r.name}</a>: <span class="text-zinc-300">${r.text}</span>${r.note ? ` <span class="text-zinc-500">(${r.note})</span>` : ''}</span>
     </li>`).join('')}</ul>
     ${siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc)}
-    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Consensus averages the gap between the sides across The Vault and the sites, on KTC's scale, with Roster Audit and Dynasty Daddy matched to KTC by rank. KTC's own verdict counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
+    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Roster Audit's and Dynasty Daddy's gaps are also shown on KTC's scale, matched by rank. KTC's own verdict counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
 }
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (!aAssets.length || !bAssets.length || ktcSameCall(tradeEdge, ktcEdge)) return '';
@@ -2400,6 +2395,6 @@ init();
 <script src="market-data.js?v=5f77dae0"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script src="market.js?v=83ca5fb1"></script>
-<script src="coach.js?v=3657ed83"></script>
+<script src="coach.js?v=78c05012"></script>
 </body>
 </html>
