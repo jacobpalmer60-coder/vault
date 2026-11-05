@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=57836541">
-<link rel="stylesheet" href="tailwind.css?v=ec27b765">
+<link rel="stylesheet" href="tailwind.css?v=23b36902">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -225,7 +225,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=4b5b682d"></script>
+<script src="vault-core.js?v=ec379773"></script>
 <script src="vault-nav.js?v=5dd4083d"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -655,7 +655,23 @@ function injuryBadge(a) {
   const t = Vault.injuryTag(a);
   return t ? `<span class="text-[11px] px-1 py-px rounded border ${t.cls} whitespace-nowrap cursor-help" data-tip="${Vault.escapeHtml(Vault.injuryCard(a))}">${t.text}</span>` : '';
 }
+// Points a week a player would add to a team's best lineup, on his own, for the rest of the season.
+const lineupGainMemo = new Map();
+function lineupGain(to, a) {
+  if (a.type !== 'player' || !remainingWeeks.length || !to) return 0;
+  const key = `${to.rosterId}|${a.key}`;
+  if (lineupGainMemo.has(key)) return lineupGainMemo.get(key);
+  const x = teams.flatMap(t => t.plist || []).find(p => `p_${p.id}` === a.key);
+  const base = lineupGainMemo.get(`${to.rosterId}|base`) ?? Vault.seasonLineupDetail(to.plist, slots).total;
+  lineupGainMemo.set(`${to.rosterId}|base`, base);
+  const gain = x ? Vault.seasonLineupDetail([...to.plist, x], slots).total - base : 0;
+  lineupGainMemo.set(key, gain);
+  return gain;
+}
+let wouldStartOpen = true;
 function assetRow(side, a, isSelected, extra) {
+  const gain = side === 'B' ? lineupGain(teamOf('A'), a) : 0;
+  const gainTag = gain >= 0.5 ? `<span class="text-[12px] text-emerald-300 whitespace-nowrap">adds ${gain.toFixed(1)} a week</span>` : '';
   const sub = a.type === 'pick' ? '<span class="text-[12px] text-zinc-500">Pick</span>' : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>`;
   // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
   // enough to actually mean something, not turn into visual noise on half the roster.
@@ -697,7 +713,7 @@ function assetRow(side, a, isSelected, extra) {
         </div>
         <div class="flex items-center justify-between gap-2 mt-1">
           <div class="flex items-center gap-1.5 flex-wrap min-w-0">
-            ${sub}
+            ${sub}${gainTag}
             ${injuryBadge(a)}
             ${volBadge}
           </div>
@@ -772,14 +788,25 @@ function render(side) {
   archEl.className = `text-[12px] px-2 py-0.5 rounded-full border inline-block mt-1 ${team.archCls.replace(/from-\S+|to-\S+/g, '').trim()}`;
   renderNeeds(side, team);
 
-  container.innerHTML = ROSTER_SECTIONS.map(sec => {
-    const items = team.assets.filter(sec.has);
-    const open = openSections[side].has(sec.key) && items.length > 0;
+  // Their players who'd start for you, best first, above the positions.
+  const me = teamOf('A');
+  const starters = side === 'B' && me ? team.assets.filter(a => a.type === 'player' && !selected.has(a.key) && lineupGain(me, a) >= 1).sort((x, y) => lineupGain(me, y) - lineupGain(me, x)).slice(0, 5) : [];
+  const sections = starters.length ? [{ key: 'FIT', items: starters }, ...ROSTER_SECTIONS] : ROSTER_SECTIONS;
+  container.innerHTML = sections.map(sec => {
+    const items = sec.items || team.assets.filter(sec.has);
+    const open = sec.key === 'FIT' ? wouldStartOpen : openSections[side].has(sec.key) && items.length > 0;
     const picked = items.filter(a => selected.has(a.key)).length;
     const total = items.reduce((s, a) => s + a.value, 0);
     const tag = ['QB', 'RB', 'WR', 'TE'].includes(sec.key)
       ? `<span class="text-[11px] font-semibold w-11 text-center py-0.5 rounded-md border pos-badge-${sec.key}">${sec.label}</span>`
       : `<span class="text-[13px] font-medium w-11 text-zinc-200">${sec.label}</span>`;
+    if (sec.key === 'FIT') return `<div>
+      <button onclick="toggleSection('B','FIT')" aria-expanded="${open}" class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]">
+        <span class="min-w-0 truncate text-[13px] font-medium text-zinc-100">Would start for ${Vault.escapeHtml(me.teamName)}</span>${Vault.info('wouldStart')}
+        <svg class="size-4 shrink-0 ml-auto text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      ${open ? `<div class="p-1 pt-0">${items.map(a => assetRow(side, a, selected.has(a.key))).join('')}</div>` : ''}
+    </div>`;
     return `<div>
       <button onclick="toggleSection('${side}','${sec.key}')" ${items.length ? '' : 'disabled'} aria-expanded="${open}" class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${items.length ? 'hover:bg-white/[0.03]' : 'opacity-40 cursor-default'}">
         ${tag}
@@ -795,6 +822,7 @@ function render(side) {
 }
 
 function toggleSection(side, key) {
+  if (key === 'FIT') { wouldStartOpen = !wouldStartOpen; render(side); return; }
   const open = openSections[side];
   open.has(key) ? open.delete(key) : open.add(key);
   render(side);
@@ -1474,7 +1502,8 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const wb = document.getElementById('workBoth');
   const fixFor = them && them.level === 'bad' ? 'them' : imp.level === 'bad' ? 'you' : null;
   const fix = evenFixLive() ? evenFix : null;
-  if (wb) wb.innerHTML = fix ? (fix.options.length > 1 ? `<button onclick="evenItOutNext()" title="Swap in another way to even out the trade you started with" class="mt-3 text-[13px] px-3.5 py-2 rounded-lg border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 transition-colors">Try another (${fix.at + 1} of ${fix.options.length})</button>` : '') : fixFor ? `<button onclick="evenItOut(this)" title="${fixFor === 'them' ? 'The smallest change that makes it at least a Toss-up for them, keeping it as good as possible for you' : 'The smallest change that makes it at least a Toss-up for you, keeping it fine for them'}" class="mt-3 text-[13px] px-3.5 py-2 rounded-lg border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 transition-colors">Even it out</button>` : '';
+  if (wb) wb.innerHTML = fix ? (fix.options.length > 1 ? `<button onclick="evenItOutNext()" title="Swap in another way to even out the trade you started with" class="mt-3 text-[13px] px-3.5 py-2 rounded-lg border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 transition-colors">Try another (${fix.at + 1} of ${fix.options.length})</button>` : '') : fixFor ? '<div id="evenLine" class="mt-3 empty:hidden"></div>' : '';
+  if (fixFor && !fix) scheduleEvenLine();
 }
 
 /* ---------- Even it out (user, 2026-10-20) ----------
@@ -1507,12 +1536,13 @@ function evenItOutNext() {
   evenFix.at = (evenFix.at + 1) % evenFix.options.length;
   evenApply();
 }
-function evenItOut(btn) {
+function evenPlan() {
   const teamA = teamOf('A'), teamB = teamOf('B');
-  if (!teamA || !teamB) return;
+  if (!teamA || !teamB) return null;
   const A0 = [...selectedA].map(k => teamA.assets.find(x => x.key === k)).filter(Boolean);
   const B0 = [...selectedB].map(k => teamB.assets.find(x => x.key === k)).filter(Boolean);
   const judge = (A, B) => { const { valueA, valueB } = Vault.tradeSideValues(A, B); const an = computeTradeAnalysis(teamA, teamB, A, B, valueA, valueB); return { A: improvementOf(an, 'A'), B: improvementOf(an, 'B') }; };
+  const context = negContextFor(teamB);
   const now = judge(A0, B0);
   // Who needs help: the team that's worse off (them first, when both are).
   const helpB = now.B.level === 'bad' || now.A.level !== 'bad';
@@ -1531,17 +1561,45 @@ function evenItOut(btn) {
     const B = helpB ? B0.filter(b => !c.drop.includes(b)) : [...B0, ...c.add];
     const j = judge(A, B);
     if (j.A.score < -6 || j.B.score < -6) continue;
-    found.push({ ...c, key: (helpB ? j.A.score : j.B.score) - (c.add.length + c.drop.length - 1) * 4 });
+    found.push({ ...c, A, B, after: j, key: (helpB ? j.A.score : j.B.score) - (c.add.length + c.drop.length - 1) * 4 });
   }
-  if (!found.length) { flashButtonMessage(btn, 'No small change gets there'); return; }
+  if (!found.length) return null;
   const seen = new Map(), options = [];
   for (const o of found.sort((x, y) => y.key - x.key)) {
     const pieces = [...o.add, ...o.drop];
     if (options.length >= EVEN_OPTIONS || pieces.some(p => (seen.get(p.key) || 0) >= EVEN_PIECE_REPEATS)) continue;
+    // Only what their manager would take (the same check Trade Coach's offers pass).
+    if (!negJudgeFor(teamA, o.A, teamB, o.B, context).accepts) continue;
     pieces.forEach(p => seen.set(p.key, (seen.get(p.key) || 0) + 1));
     options.push(o);
   }
-  evenFix = { baseA: [...selectedA], baseB: [...selectedB], helpB, options, at: 0 };
+  return options.length ? { baseA: [...selectedA], baseB: [...selectedB], helpB, options, at: 0, teamA, teamB } : null;
+}
+// The first fix in words, worked out a moment after the trade settles, so typing a trade stays quick.
+let evenLine = null, evenLineTimer = 0;
+function scheduleEvenLine() {
+  const key = [[...selectedA].sort(), [...selectedB].sort(), teamOf('B')?.rosterId, JSON.stringify(Vault.planOverride || {})].join('|');
+  if (evenLine?.key === key) return paintEvenLine();
+  clearTimeout(evenLineTimer);
+  evenLineTimer = setTimeout(() => { evenLine = { key, plan: evenPlan() }; paintEvenLine(); }, 150);
+}
+function paintEvenLine() {
+  const box = document.getElementById('evenLine');
+  if (!box) return;
+  const f = evenLine.plan, esc = Vault.escapeHtml;
+  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-500">No small change evens this one out.</div>'; return; }
+  const o = f.options[0], giver = f.helpB ? f.teamA : f.teamB, names = l => l.map(a => esc(a.name)).join(' and ');
+  const change = [o.add.length ? `${esc(giver.teamName)} adds <span class="text-zinc-100">${names(o.add)}</span>` : '', o.drop.length ? `<span class="text-zinc-100">${names(o.drop)}</span> comes out` : ''].filter(Boolean).join(' and ');
+  const read = `<span class="${Vault.VERDICT_TIER_TEXT[o.after.A.tier]}">${o.after.A.label}</span> for ${esc(f.teamA.teamName)}, <span class="${Vault.VERDICT_TIER_TEXT[o.after.B.tier]}">${o.after.B.label}</span> for ${esc(f.teamB.teamName)}`;
+  box.innerHTML = `<div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2.5">
+      <div class="min-w-0 flex-1 basis-[260px] text-[13px] text-zinc-300">${change}: ${read}.</div>
+      <button onclick="evenItOut()" class="shrink-0 text-[13px] px-3.5 py-1.5 rounded-lg btn-gold-solid">Use this</button>
+    </div>`;
+}
+function evenItOut() {
+  if (!evenLine?.plan) return;
+  const { teamA, teamB, ...plan } = evenLine.plan;
+  evenFix = plan;
   evenApply();
 }
 
@@ -1941,7 +1999,7 @@ function updateTrade() {
   // Two by two on phones (2026-10-24: four rows took a whole screen), one row from sm up.
   const cardNumbers = aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 grid grid-cols-2 gap-x-4 sm:flex sm:flex-wrap sm:gap-x-10 gap-y-3">
       <div id="titleStat" class="empty:hidden"></div>
-      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · trade value`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}<div id="marketStat" class="empty:hidden"></div></div>` : '';
+      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · trade value`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}<div id="marketStat" class="empty:hidden"></div></div><div id="realTrades" class="mt-3 text-[12px] leading-relaxed text-zinc-400 empty:hidden"></div>` : '';
   diffLabelEl.innerHTML = `<div id="forYou"></div>${cardNumbers}${aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 max-w-[640px]">${Vault.fairnessPanelHtml(fairness, diffBandPct, teamA.teamName, teamB.teamName, `${offPct.toFixed(0)}% off`, accept)}</div>` : ''}<div id="workBoth"></div>
     ${aAssets.length && bAssets.length ? `<details class="group mt-3 max-w-[640px]" id="whyBox"><summary class="inline-flex items-center gap-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200"><span>Why</span><span class="group-open:hidden">▾</span><span class="hidden group-open:inline">▴</span></summary><div class="mt-2 space-y-1.5"><div id="whyVerdict"></div>
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
@@ -2339,9 +2397,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js?v=74ef6b53"></script>
-<script src="market-data.js?v=cd4873e7"></script>
+<script src="market-data.js?v=5f77dae0"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
-<script src="market.js?v=bfa5ee54"></script>
+<script src="market.js?v=83ca5fb1"></script>
 <script src="coach.js?v=3657ed83"></script>
 </body>
 </html>

@@ -77,6 +77,21 @@ function marketRange(lo, hi) {
 }
 
 let marketToken = 0;
+// Under the verdict's numbers: how unusual this trade is, and the closest real one.
+function realTradesHtml(aAssets, bAssets, m) {
+  const g = marketGapShare(aAssets, bAssets), n = g ? g.n.toLocaleString() : '';
+  const pc = v => (v < 0.01 ? 'under 1%' : `${Math.round(v * 100)}%`);
+  const line = !g ? '' : g.share <= 0.25 ? `${g.share < 0.1 ? 'Only ' : ''}${pc(g.share)} of ${n} recent completed trades were this far apart on trade value`
+    : g.share >= 0.5 ? `Closer to even than ${pc(g.share)} of ${n} recent completed trades` : `About ${pc(g.share)} of ${n} recent completed trades were at least this far apart`;
+  const c = m?.examples?.[0];
+  const close = c ? `Closest real trade: <span class="text-zinc-300">${c.ps.map(a => Vault.assetLink(a)).join(', ')}</span> for <span class="text-zinc-300">${c.os.map(a => Vault.assetLink(a)).join(', ')}</span>, paid ${marketSigned(c.paid)}` : '';
+  if (!line && !close) return '';
+  return `<div class="max-w-[640px] space-y-0.5">${line ? `<div>${line}${Vault.info('realTrades')}</div>` : ''}${close ? `<div>${close}</div>` : ''}</div>`;
+}
+function paintRealTrades(aAssets, bAssets, m) {
+  const box = document.getElementById('realTrades');
+  if (box) box.innerHTML = aAssets.length && bAssets.length ? realTradesHtml(aAssets, bAssets, m) : '';
+}
 function renderMarketRead(aAssets, bAssets) {
   const box = document.getElementById('marketRead');
   if (!box) return;
@@ -97,6 +112,7 @@ function renderMarketRead(aAssets, bAssets) {
   const m = marketRead(aAssets, bAssets);
   const stat = document.getElementById('marketStat');
   if (stat) stat.innerHTML = '';
+  paintRealTrades(aAssets, bAssets, m);
   if (!m) { box.innerHTML = check; return; }
   const name = Vault.escapeHtml(m.player.name);
   const payer = Vault.escapeHtml((m.youGet ? teamOf('A') : teamOf('B'))?.teamName || (m.youGet ? 'you' : 'they'));

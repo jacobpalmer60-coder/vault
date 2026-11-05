@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=57836541">
-<link rel="stylesheet" href="tailwind.css?v=ec27b765">
+<link rel="stylesheet" href="tailwind.css?v=23b36902">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=4b5b682d"></script>
+<script src="vault-core.js?v=ec379773"></script>
 <script src="vault-nav.js?v=5dd4083d"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,7 +54,10 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
-    { kind: 'changed', page: 'Trade Calculator', text: "Less to scroll past. Each side of the trade has its own Add box, so you can add from either team without going down to the rosters. This season's odds and both lineups are now one section, How it changes each team moved up into the trade, and the three bars behind the overall bar and the values on each site open when you want them." },
+    { kind: 'new', page: 'Trade Calculator', text: "Would start for you: pick a partner and their roster shows who'd add the most to your lineup, with points a week beside each player." },
+    { kind: 'new', page: 'Trade Calculator', text: "Real trades beside the verdict: how many recent completed trades were this far apart, and the closest real trade." },
+    { kind: 'changed', page: 'Trade Calculator', text: "When a trade reads bad for a team, the fix now shows right on it: what to add or take out and how it would read for both teams, with one tap to use it. It only suggests what their manager would take." },
+    { kind: 'changed', page: 'Trade Calculator', text: "Less to scroll past. Each side of the trade has its own Add box, so you can add from either team without going down to the rosters. This season's odds and both lineups are now one section, How it changes each team moved up into the trade, and and the values on each site open when you want them." },
     { kind: 'changed', page: 'Site', text: "A cleaner look. On phones the pages now sit in a bar along the bottom, and the header is one row everywhere. Page tops are shorter, with each page's description behind a ? by its title. How We Grade, Patch Notes, Data status and Switch League moved into the ... menu at the top right." },
     { kind: 'changed', page: 'Team Analyzer', text: "Overview now leads with the verdict, weak spots and trade partners. What if he's out and Schedule left moved to This season; Picks by year moved to Contend or rebuild?." },
     { kind: 'changed', page: 'Charts', text: "Value Over Time has team names at the line ends, round numbers and no dot on every day. Market charts use one blue for prices, and gold is kept for your own team and the main button." },

@@ -516,6 +516,32 @@ function marketLiquidityText(l, pos) {
   return `<span class="text-zinc-200">${head}:</span> he was ${count}; ${plural} were typically in ${l.typical}.`;
 }
 
+// How far apart completed trades were on trade value, smallest first: the gap between the two
+// sides as a percent of their average, KTC prices only, so anyone can check it.
+function marketGaps() {
+  const d = Market.data;
+  if (!d || d.failed) return null;
+  if (d.gaps) return d.gaps;
+  const seen = new Set(), out = [];
+  d.byPlayer.forEach(list => list.forEach(t => {
+    if (seen.has(t)) return;
+    seen.add(t);
+    const { valueA, valueB } = Vault.tradeSideValues(t.s1, t.s2, { market: false });
+    if (valueA > 0 && valueB > 0) out.push(200 * Math.abs(valueA - valueB) / (valueA + valueB));
+  }));
+  d.gaps = Float64Array.from(out).sort();
+  return d.gaps;
+}
+// This trade against them: { share of completed trades at least this far apart, n }.
+function marketGapShare(send, get) {
+  const gaps = marketGaps();
+  if (!gaps || gaps.length < 500) return null;
+  const { valueA, valueB } = Vault.tradeSideValues(send, get, { market: false }), gap = 200 * Math.abs(valueA - valueB) / ((valueA + valueB) || 1);
+  let lo = 0, hi = gaps.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (gaps[mid] < gap) lo = mid + 1; else hi = mid; }
+  return { share: (gaps.length - lo) / gaps.length, n: gaps.length };
+}
+
 // The same read as a tile on Player Market.
 function marketLiquidityFact(l, pos) {
   if (!l) return null;
