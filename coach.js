@@ -611,7 +611,7 @@ function coachWorkShare(btn) { coachWorkToBuilder(); shareTrade(btn); }
 function coachSlipHtml(me, w) {
   const n = v => Math.round(v).toLocaleString(), off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
   const piece = (a, side) => `<div class="flex items-center justify-between gap-2 py-1.5 border-t border-white/[0.05] first:border-t-0">
-      <span class="min-w-0 truncate text-[13px] text-zinc-100">${Vault.assetLink(a)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : Vault.posMeta(a)}</span></span>
+      <span class="min-w-0 truncate text-[13px] text-zinc-100">${Vault.assetLink(a)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? 'pick' : Vault.posMeta(a)}</span></span>
       <span class="flex items-center gap-2 shrink-0"><span class="text-[11px] mono text-zinc-500">${n(a.value)}</span><button onclick="coachWorkEdit('${side}', '${a.key}', false)" aria-label="Take ${coachEsc(a.name)} off" class="px-1 text-zinc-500 hover:text-white">×</button></span>
     </div>`;
   const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${coachEsc(Vault.playerSearchInfo(a))})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;

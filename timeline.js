@@ -64,7 +64,7 @@ const PATH_PAST = { push: 'bought', reload: 'got younger at about the same point
 const sum = (xs, f = x => x) => xs.reduce((s, x) => s + (f(x) || 0), 0);
 const pk = p => `${p.season}-${p.round}-${p.original}`;
 const ord = r => r + ({ 1: 'st', 2: 'nd', 3: 'rd' }[r] || 'th');
-const pickName = p => `${p.season} ${ord(p.round)}`;
+const pickName = p => Vault.pickName(p);
 // A team with players and picks moved in or out: the same fields buildLeagueTeams
 // and simulateTrade set, recomputed (lineup by week, value, age, picks).
 function modTeam(team, { out = [], add = [], outPicks = [], addPicks = [] }) {

@@ -37,7 +37,7 @@ function marketLoad(league) {
     const fieldFor = tep => base + (tep >= 2 ? '_tepp' : tep === 1 ? '_tep' : '');
     const byId = new Map();
     (ktc.players || []).forEach(p => { if (p.ktcId != null) byId.set(String(p.ktcId), { type: 'player', name: p.name, pos: p.pos, row: p }); });
-    (ktc.picks || []).forEach(p => { if (p.ktcId != null) byId.set(String(p.ktcId), { type: 'pick', name: `${p.season} R${p.round}`, tier: p.slot, season: +p.season, round: +p.round, row: p }); });
+    (ktc.picks || []).forEach(p => { if (p.ktcId != null) byId.set(String(p.ktcId), { type: 'pick', name: Vault.pickName({ season: p.season, round: p.round, tier: p.slot }), tier: p.slot, season: +p.season, round: +p.round, row: p }); });
     const priced = (id, field) => {
       const a = byId.get(id), value = a && (a.row[field] ?? a.row[base]);
       if (!(value > 0)) return null;
@@ -68,7 +68,7 @@ function marketLoad(league) {
     (recent?.trades || []).forEach(([date, a, b, f]) => {
       if (date >= ktcFrom) return;
       const side = s => s.map(([id, value]) => {
-        if (id[0] === 'p') { const [season, round] = id.slice(1).split('-'); return { type: 'pick', id, name: `${season} R${round}`, season: +season, round: +round, value }; }
+        if (id[0] === 'p') { const [season, round] = id.slice(1).split('-'); return { type: 'pick', id, name: Vault.pickName({ season, round }), season: +season, round: +round, value }; }
         const [name, pos] = recent.names[id] || [];
         return { type: 'player', id, name: name || 'Unknown player', pos, value };
       });

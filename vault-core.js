@@ -1872,6 +1872,11 @@ const Vault = {
      put them in the page, so anything that could become markup goes here, before any page
      sees it (2026-11-05: a script in a team name ran on Trade Grades). Apostrophes stay. */
   teamLabel(u, rosterId) { return String(u?.metadata?.team_name || u?.display_name || `Team ${rosterId}`).replace(/[<>"]/g, ''); },
+  // One name for a pick everywhere: "2027 Mid 1st", or "2027 1st" with no tier known.
+  pickName(a) {
+    const round = [, '1st', '2nd', '3rd', '4th', '5th'][a.round] || `Round ${a.round}`, tier = a.tier ? `${a.tier[0].toUpperCase()}${a.tier.slice(1)} ` : '';
+    return `${a.season} ${tier}${round}`;
+  },
   // A player's name that opens his card when clicked (player-card.js). label is what shows.
   playerLink(name, label = name) { return `<span class="player-link" data-player="${Vault.escapeHtml(name)}">${Vault.escapeHtml(label)}</span>`; },
   // A trade piece: a player's name opens his card, a pick is plain text. Pass anything with name and pos.
@@ -4207,7 +4212,7 @@ const Vault = {
     (tx.draft_picks || []).forEach(pk => {
       if (pk.owner_id !== sideRosterId) return;
       const info = pickValueByKey.get(`${pk.season}-${pk.round}-${pk.roster_id}`);
-      assets.push({ type: 'pick', name: `${pk.season} R${pk.round}${info?.became ? ` (${info.became})` : ''}`, pos: 'PICK', age: 0, season: +pk.season, round: +pk.round, ktcRound: info?.ktcRound, ktcTier: info?.ktcTier, tier: info?.became ? '' : info?.tier, became: info?.became, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
+      assets.push({ type: 'pick', name: `${Vault.pickName({ season: pk.season, round: pk.round })}${info?.became ? ` (${info.became})` : ''}`, pos: 'PICK', age: 0, season: +pk.season, round: +pk.round, ktcRound: info?.ktcRound, ktcTier: info?.ktcTier, tier: info?.became ? '' : info?.tier, became: info?.became, value: info ? info.value : 0, volatilityPct: info ? (info.volatilityPct ?? null) : null });
     });
     return assets;
   },
@@ -5178,8 +5183,8 @@ const Vault = {
     const nameOf = id => (teams.find(x => x.rosterId === id) || {}).teamName;
     const pickRows = picks.map(p => {
       const via = p.original !== t.rosterId && nameOf(p.original) ? `<span class="text-zinc-500"> via ${esc(nameOf(p.original))}</span>` : '';
-      const full = `${p.season} R${p.round}${via ? ` via ${nameOf(p.original)}` : ''}`;
-      return `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate" title="${esc(full)}">${p.season} R${p.round}${via}</span><span class="mono text-zinc-400 shrink-0">${n(p.value)}${p.tier ? ` <span class="${TIER_COLOR[p.tier] || 'text-zinc-400'}">${p.tier}</span>` : ''}</span></div>`;
+      const full = `${Vault.pickName(p)}${via ? ` via ${nameOf(p.original)}` : ''}`;
+      return `<div class="flex justify-between gap-2 text-[12px]"><span class="text-zinc-300 truncate" title="${esc(full)}">${Vault.pickName(p)}${via}</span><span class="mono text-zinc-400 shrink-0">${n(p.value)}${p.tier ? ` <span class="${TIER_COLOR[p.tier] || 'text-zinc-400'}">${p.tier}</span>` : ''}</span></div>`;
     }).join('');
     return `<div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,1.5fr)_repeat(5,minmax(0,1fr))] gap-6">
         <div>${lineupHead}<div class="space-y-1.5">${lineup || none}</div></div>

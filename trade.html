@@ -238,7 +238,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=a6039f3f"></script>
+<script src="vault-core.js?v=4b475ba6"></script>
 <script src="vault-nav.js?v=99fe2395"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -310,7 +310,7 @@ function assetsFor(team) {
   const players = team.plist.filter(p => p.value > 0).map(p => ({ type: 'player', key: 'p_' + p.id, ...p, trend: playerTrend.get(Vault.normalizeName(p.name)) ?? null, volatilityPct: playerVolatility.get(Vault.normalizeName(p.name)) ?? null }));
   // Picks already carry volatilityPct from Vault.buildLeagueTeams (the round's own
   // early/late spread this year — see Vault.pickVolatilityPct) via the ...p spread.
-  const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, name: `${p.season} R${p.round}`, pos: 'PICK', ...p, trend: pickTrendFor(p.season, p.ktcRound ?? p.round, p.ktcTier ?? p.tier) }));
+  const picks = team.picks.map(p => ({ type: 'pick', key: `k_${p.season}-${p.round}-${p.original}`, pos: 'PICK', ...p, name: Vault.pickName(p), trend: pickTrendFor(p.season, p.ktcRound ?? p.round, p.ktcTier ?? p.tier) }));
   return [...players, ...picks].sort((a, b) => b.value - a.value);
 }
 
@@ -662,7 +662,7 @@ function injuryBadge(a) {
   return t ? `<span class="text-[11px] px-1 py-px rounded border ${t.cls} whitespace-nowrap cursor-help" data-tip="${Vault.escapeHtml(Vault.injuryCard(a))}">${t.text}</span>` : '';
 }
 function assetRow(side, a, isSelected, extra) {
-  const sub = a.type === 'pick' ? `<span class="text-[12px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>`;
+  const sub = a.type === 'pick' ? '<span class="text-[12px] text-zinc-500">Pick</span>' : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>`;
   // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
   // enough to actually mean something, not turn into visual noise on half the roster.
   // Picks use their own thresholds (Vault.pickVolatilityLabel) — reusing the
@@ -1332,7 +1332,7 @@ function siteConsensusRead(gap, size, teamA, teamB) {
 /* Every piece at each site's price, the totals, and KTC's adjustment, so the
    verdicts above can be checked piece by piece (user, 2026-11-03). KTC's verdict
    counts its adjustment even when its page doesn't show one. */
-const sitePieceName = a => (a.type === 'pick' ? `${a.season} ${String(a.ktcTier ?? a.tier ?? 'mid').replace(/^./, c => c.toUpperCase())} ${[, '1st', '2nd', '3rd', '4th', '5th'][a.ktcRound ?? a.round] || `R${a.round}`}` : a.name);
+const sitePieceName = a => a.name;
 function siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc) {
   const isSF = Vault.isSuperflex(league), esc = Vault.escapeHtml;
   const n = v => (v == null ? '—' : Math.round(v).toLocaleString());
@@ -1976,7 +1976,7 @@ function renderLineups(teamA, teamB, analysis) {
    what was picked from the old one) and goes on their side. */
 function fillQuickAdd() {
   const me = teamOf('A'), sel = document.getElementById('quickAdd');
-  const label = a => a.type === 'pick' ? `${a.name}${a.tier ? ` (${a.tier})` : ''}` : `${a.name} (${Vault.playerSearchInfo(a)})`;
+  const label = a => (a.type === 'pick' ? a.name : `${a.name} (${Vault.playerSearchInfo(a)})`);
   const group = (t, name) => `<optgroup label="${Vault.escapeHtml(name)}">${t.assets.map(a => `<option value="${t.rosterId}|${a.key}">${Vault.escapeHtml(label(a))}</option>`).join('')}</optgroup>`;
   sel.innerHTML = '<option value=""></option>' + [me, ...teams.filter(t => t !== me)].map(t => group(t, t === me ? `Your team · ${t.teamName}` : t.teamName)).join('');
   sel.value = '';
@@ -2033,7 +2033,7 @@ function updateTrade() {
   const giveChip = (side, a) => `<div class="flex items-center gap-2 min-w-0">
       <span class="text-[11px] font-semibold w-9 text-center py-0.5 rounded border shrink-0 ${POS_BADGE(a.type === 'pick' ? '' : a.pos)}">${a.type === 'pick' ? 'Pick' : a.pos}</span>
       <span class="min-w-0 flex-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-        <span class="text-[14px] font-medium text-zinc-100 truncate min-w-0 max-w-full">${Vault.assetLink(a)}${a.type === 'pick' && a.tier ? ` <span class="text-[12px] font-normal text-zinc-500">${a.tier}</span>` : ''}</span>${a.type === 'player' ? `<span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>` : ''}
+        <span class="text-[14px] font-medium text-zinc-100 truncate min-w-0 max-w-full">${Vault.assetLink(a)}</span>${a.type === 'player' ? `<span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>` : ''}
         ${injuryBadge(a)}
       </span>
       <span class="text-[13px] mono text-zinc-400 shrink-0">${Math.round(a.value).toLocaleString()}</span>
@@ -2476,10 +2476,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="negotiation.js?v=35059c45"></script>
-<script src="market-data.js?v=c2ea5f8f"></script>
+<script src="negotiation.js?v=28ebee72"></script>
+<script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=ef0a6bba"></script>
-<script src="market.js?v=92af03f6"></script>
-<script src="coach.js?v=9f57c82e"></script>
+<script src="market.js?v=bfa5ee54"></script>
+<script src="coach.js?v=632ba144"></script>
 </body>
 </html>
