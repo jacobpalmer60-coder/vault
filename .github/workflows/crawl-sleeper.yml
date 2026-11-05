@@ -34,10 +34,12 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 58
+    # 2 minutes of setup, ~44 crawling, ~1 saving, and pricing, which passed 13 minutes with 4.9M trades
+    # (at 58 the job was killed mid-publish, 2026-11-05). A run ends before the next starts, so a long one costs nothing.
+    timeout-minutes: 85
     env:
       GH_TOKEN: ${{ github.token }}
-      # 42 leaves ~15 minutes to save, price and publish inside the job's 58
+      # 42 leaves room to save, price and publish inside the job's limit
       # (pricing every season takes 5-10 minutes now; at 48 most runs timed out
       # mid-publish, 2026-10-20).
       RUN_MINUTES: '42'
