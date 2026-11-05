@@ -205,7 +205,7 @@ function save(state) {
   fs.mkdirSync(path.dirname(STATE), { recursive: true });
   fs.writeFileSync(STATE, JSON.stringify(state));
   fs.mkdirSync(OUT, { recursive: true });
-  seasonFiles.forEach((doc, season) => fs.writeFileSync(path.join(OUT, `${season}.json.gz`), zlib.gzipSync(JSON.stringify(doc), { level: 9 })));
+  seasonFiles.forEach((doc, season) => fs.writeFileSync(path.join(OUT, `${season}.json.gz`), zlib.gzipSync(JSON.stringify(doc), { level: 6 })));
 }
 
 // Once a day: the Sleeper leagues behind this week's trades in KTC's feed go to the front.
@@ -241,12 +241,14 @@ async function main() {
   const start = Date.now();
   await seedFromKtc(state);
   await revisitDue(state, nfl);
-  let lastSave = calls;
+  let lastSave = Date.now();
   while (!budgetSpent() && !stopped) {
     if (state.leagues.length) await crawlLeague(state, state.leagues.shift(), nfl);
     else if (state.users.length) await expandUser(state, state.users.shift(), nfl);
     else break;
-    if (calls - lastSave >= 200) { save(state); lastSave = calls; } // survive a timeout mid-run
+    // Every 15 minutes, not every 200 calls: with 5M trades a save takes a minute or more, and at
+    // 200 calls most of each run went to saving (about 110 calls a minute, 2026-11-05).
+    if (Date.now() - lastSave >= 900000) { save(state); lastSave = Date.now(); }
   }
   save(state);
   writeStats(state, { calls, seconds: Math.round((Date.now() - start) / 1000), stopped, retries, startedAt: new Date(start).toISOString() });
