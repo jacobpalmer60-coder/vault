@@ -1864,6 +1864,13 @@ const Vault = {
   },
   // The earliest week back from IR under the four-game rule (scripts/fetch-injury-details.js).
   injuryMin(a) { return (a.injury === 'IR' && a.injuryFacts?.min) || null; },
+  // The expected week back from IR, or null for unknown: ESPN's return when the rule allows it
+  // (Adams: ESPN week 11, minimum 12), otherwise a later week from Sleeper's projections.
+  injuryExpected(a, weeks = Vault._lineupWeeks) {
+    const f = a.injuryFacts, min = Vault.injuryMin(a), back = Vault.injuryBack(a, weeks);
+    if (f?.week >= min) return { week: f.week, date: f.back };
+    return back?.week && back.week !== min ? { week: back.week } : null;
+  },
   /* The tag (user, 2026-11-04): Q, Out and IR are very different news, so each looks different
      and leads with its status. Q and D are a letter in amber and orange, Out a red outline,
      IR filled red. { text, short for narrow lists, cls for a boxed tag, ink for plain text }. */
@@ -1883,9 +1890,8 @@ const Vault = {
     if (back?.season) return { ...style, text: `${word === 'Out' ? 'Out' : `${word}, out`} for the season${of}`, short: word === 'Out' ? 'Out for season' : `${word}, season` };
     const min = Vault.injuryMin(a);
     if (min) {
-      const exp = back?.week && back.week !== min ? back.week : back?.date ? min : null; // a date means someone expects it
-      const floor = min > weeks[0] ? `min wk ${min}` : 'eligible';
-      return { ...style, text: `IR (${floor}${exp ? `, exp wk ${exp}` : ''})`, short: exp ? `IR, exp wk ${exp}` : min > weeks[0] ? `IR, min wk ${min}` : 'IR' };
+      const exp = Vault.injuryExpected(a, weeks)?.week, floor = min > weeks[0] ? `min wk ${min}` : 'eligible';
+      return { ...style, text: `IR (${floor}, ${exp ? `exp wk ${exp}` : 'exp unknown'})`, short: exp ? `IR, exp wk ${exp}` : min > weeks[0] ? `IR, min wk ${min}` : 'IR' };
     }
     if (back?.week) return { ...style, text: `${word}, back week ${back.week}${of}`, short: `${word}, back wk ${back.week}` };
     return { ...style, text: word.length > 1 ? `${word}${of}` : word, short: word };
@@ -1903,11 +1909,13 @@ const Vault = {
     if (main) rows.push(['Injury', what]);
     if (a.injuryNote && !f.detail) rows.push(['Note', a.injuryNote]);
     rows.push(['Status', a.injurySince ? `${status} since ${day(a.injurySince)}` : status]);
-    const min = !back?.season && Vault.injuryMin(a), when = back?.week ? `Week ${back.week}${back.date ? ` (${day(back.date)})` : ''}` : '';
+    const min = !back?.season && Vault.injuryMin(a);
+    const when = b => `Week ${b.week}${b.date ? ` (${day(b.date)})` : ''}`;
     if (min) {
+      const exp = Vault.injuryExpected(a, weeks);
       rows.push(['Minimum', min > weeks[0] ? `Week ${min}, after 4 games on IR` : 'Eligible to return now']);
-      if (back?.week && (back.week !== min || back.date)) rows.push(['Expected', when]);
-    } else if (back) rows.push(['Back', back.season ? 'Not this season' : when]);
+      rows.push(['Expected', exp ? when(exp) : 'Unknown']);
+    } else if (back) rows.push(['Back', back.season ? 'Not this season' : when(back)]);
     if (f.last) rows.push(['Last played', `Week ${f.last}, ${f.games} game${f.games === 1 ? '' : 's'} this season`]);
     if (updated) rows.push(['Updated', day(updated)]);
     return `<div class="font-medium text-zinc-100 mb-1.5">${esc(a.name)}</div>
