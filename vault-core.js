@@ -5016,6 +5016,18 @@ const Vault = {
     const results = await Promise.all(weeks.map(w =>
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/matchups/${w}`).then(r => r.json()).catch(() => [])
     ));
+    // Sleeper has no schedule until after the draft, and with no games every team would keep its
+    // place in a 0-0 tie: 100% or 0% (found 2026-11-05). Until it does, each week plays a round robin.
+    if (!results.some(l => (l || []).some(m => m.matchup_id != null))) {
+      const ids = Array.from({ length: league.total_rosters || 0 }, (_, k) => k + 1);
+      if (ids.length % 2) ids.push(null);
+      const rest = ids.slice(1), n = rest.length;
+      return weeks.map((w, r) => {
+        const round = [ids[0], ...rest.map((_, k) => rest[(k + r) % n])];
+        const pairs = round.slice(0, round.length / 2).map((a, k) => [a, round[round.length - 1 - k]]).filter(p => p.every(x => x != null));
+        return { week: w, pairs, guessed: true };
+      }).filter(x => x.pairs.length);
+    }
     return weeks.map((w, i) => {
       const entries = results[i] || [];
       const played = completedWeeks == null && entries.some(m => (m.points || 0) > 0);

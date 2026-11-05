@@ -53,7 +53,7 @@
   <section data-tab="future" role="tabpanel" id="futureExtras" class="hidden mb-10 [&>*:first-child]:mt-0"></section>
 </main>
 
-<script src="vault-core.js?v=b5bd930a"></script>
+<script src="vault-core.js?v=55ef1f33"></script>
 <script src="vault-nav.js?v=5dd4083d"></script>
 <script src="season-report.js?v=18c77b80"></script>
 <script src="market-data.js?v=5f77dae0"></script>
@@ -384,7 +384,8 @@ function printReport(t, all) {
    lineup, the same numbers the odds play out, and how strong this team's lineup is in the playoff
    weeks. Green is an easier opponent than the league's average that week, orange a harder one. */
 function scheduleCard(t, all) {
-  const weeks = (window._weeksLeft || []).filter(w => w.week < window._playoffStart);
+  // A stand-in schedule (none from Sleeper until after the draft) plays out the odds, but its opponents aren't real.
+  const weeks = (window._weeksLeft || []).filter(w => w.week < window._playoffStart && !w.guessed);
   const at = (x, w) => (x.optByWeek?.has(w) ? x.optByWeek.get(w) : x.opt);
   const gamesOf = x => weeks.flatMap(w => {
     const pair = w.pairs.find(p => p.includes(x.rosterId)), opp = pair && all.find(y => y.rosterId === pair.find(id => id !== x.rosterId));
