@@ -1838,6 +1838,10 @@ const Vault = {
     return { total: total / weeks.length, vorpTotal: vorpTotal / weeks.length, starters: typical.starters.map(s => ({ ...s, starts: starts.get(s.id) || 0 })), starts, weeks: weeks.length, byWeek };
   },
 
+  // "GB · 27": a player's NFL team and age, for rows and search lists (user, 2026-11-04).
+  playerInfo(a) { return [a.nfl || 'FA', a.age ? Math.floor(a.age) : ''].filter(Boolean).join(' · '); },
+  // "WR, GB, 27" in a search list. The list matches on it, so a team or age finds players.
+  playerSearchInfo(a) { return [a.pos, a.nfl || 'FA', a.age ? Math.floor(a.age) : ''].filter(Boolean).join(', '); },
   // A Sleeper player's injury tag, carried on each roster entry (and so on every
   // trade asset built from one).
   injuryOf(p) {

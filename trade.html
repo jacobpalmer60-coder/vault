@@ -238,7 +238,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=1c878640"></script>
+<script src="vault-core.js?v=3371c1a7"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -662,7 +662,7 @@ function injuryBadge(a) {
   return t ? `<span class="text-[11px] px-1 py-px rounded border ${t.cls} whitespace-nowrap cursor-help" data-tip="${Vault.escapeHtml(Vault.injuryCard(a))}">${t.text}</span>` : '';
 }
 function assetRow(side, a, isSelected, extra) {
-  const sub = a.type === 'pick' ? `<span class="text-[12px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400">${a.team || ''}</span>`;
+  const sub = a.type === 'pick' ? `<span class="text-[12px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>`;
   // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
   // enough to actually mean something, not turn into visual noise on half the roster.
   // Picks use their own thresholds (Vault.pickVolatilityLabel) — reusing the
@@ -1976,7 +1976,7 @@ function renderLineups(teamA, teamB, analysis) {
    what was picked from the old one) and goes on their side. */
 function fillQuickAdd() {
   const me = teamOf('A'), sel = document.getElementById('quickAdd');
-  const label = a => a.type === 'pick' ? `${a.name}${a.tier ? ` (${a.tier})` : ''}` : `${a.name} · ${a.pos}`;
+  const label = a => a.type === 'pick' ? `${a.name}${a.tier ? ` (${a.tier})` : ''}` : `${a.name} (${Vault.playerSearchInfo(a)})`;
   const group = (t, name) => `<optgroup label="${Vault.escapeHtml(name)}">${t.assets.map(a => `<option value="${t.rosterId}|${a.key}">${Vault.escapeHtml(label(a))}</option>`).join('')}</optgroup>`;
   sel.innerHTML = '<option value=""></option>' + [me, ...teams.filter(t => t !== me)].map(t => group(t, t === me ? `Your team · ${t.teamName}` : t.teamName)).join('');
   sel.value = '';
@@ -2032,7 +2032,7 @@ function updateTrade() {
 
   const giveChip = (side, a) => `<div class="flex items-center gap-2 min-w-0">
       <span class="text-[11px] font-semibold w-9 text-center py-0.5 rounded border shrink-0 ${POS_BADGE(a.type === 'pick' ? '' : a.pos)}">${a.type === 'pick' ? 'Pick' : a.pos}</span>
-      <span class="text-[14px] font-medium text-zinc-100 truncate min-w-0 flex-1">${Vault.escapeHtml(a.name)}${a.type === 'pick' && a.tier ? ` <span class="text-[12px] font-normal text-zinc-500">${a.tier}</span>` : ''}</span>
+      <span class="text-[14px] font-medium text-zinc-100 truncate min-w-0 flex-1">${Vault.escapeHtml(a.name)}${a.type === 'pick' && a.tier ? ` <span class="text-[12px] font-normal text-zinc-500">${a.tier}</span>` : ''}${a.type === 'player' ? ` <span class="text-[12px] font-normal text-zinc-400">${Vault.escapeHtml(Vault.playerInfo(a))}</span>` : ''}</span>
       ${injuryBadge(a)}
       <span class="text-[13px] mono text-zinc-400 shrink-0">${Math.round(a.value).toLocaleString()}</span>
       <button onclick="toggle('${side}','${a.key}')" title="Remove from trade" aria-label="Remove ${Vault.escapeHtml(a.name)} from the trade" class="size-7 shrink-0 grid place-items-center rounded-md text-zinc-500 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"><span aria-hidden="true">✕</span></button>
@@ -2477,6 +2477,6 @@ init();
 <script src="negotiation.js?v=35059c45"></script>
 <script src="market-data.js?v=682a679f"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=99985218"></script>
+<script src="coach.js?v=6a959d72"></script>
 </body>
 </html>

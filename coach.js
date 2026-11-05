@@ -614,7 +614,7 @@ function coachSlipHtml(me, w) {
       <span class="min-w-0 truncate text-[13px] text-zinc-100">${coachEsc(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span></span>
       <span class="flex items-center gap-2 shrink-0"><span class="text-[11px] mono text-zinc-500">${n(a.value)}</span><button onclick="coachWorkEdit('${side}', '${a.key}', false)" aria-label="Take ${coachEsc(a.name)} off" class="px-1 text-zinc-500 hover:text-white">×</button></span>
     </div>`;
-  const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;
+  const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${coachEsc(Vault.playerSearchInfo(a))})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;
   const side = (word, list, key, add) => `<div class="p-3 rounded-lg bg-black/30 border border-white/5 min-w-0"><div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1 truncate">${word}</div>${list.map(a => piece(a, key)).join('') || '<div class="py-2 text-[12px] text-zinc-500">Nothing yet.</div>'}${add}</div>`;
   return `<div class="grid gap-3 sm:grid-cols-2">
       ${side(`${coachEsc(me.teamName)} sends`, w.give, 'give', addSel('give', me.assets.filter(a => !inGive.has(a.key) && !off.has(a.key) && a.value >= 100), '+ Add one of yours…'))}
@@ -854,7 +854,7 @@ function coachUpPickerHtml(me, list) {
   const up = new Set(coachFlow().upKeys || []), n = v => Math.round(v).toLocaleString();
   const chips = coachUpAssets().map(a => `<span class="inline-flex items-center gap-1 text-[12px] pl-2.5 pr-1 py-1 rounded-lg border bg-amber-400/10 border-amber-400/40 text-amber-100">${coachEsc(a.name)} <span class="opacity-60">${a.type === 'pick' ? 'pick' : a.pos} · ${n(a.value)}</span><button onclick="coachUpToggle('${a.key}')" aria-label="Take ${coachEsc(a.name)} off" class="px-1 text-amber-200/70 hover:text-white">×</button></span>`).join('');
   const rest = [...list, ...me.assets.filter(a => !list.includes(a)).sort((x, y) => y.value - x.value)].filter(a => a.value >= 300 && !up.has(a.key));
-  return `<div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[12px] text-zinc-500 mr-1">Sending</span>${chips || '<span class="text-[12px] text-zinc-500">nobody yet</span>'}<select data-search="+ Add another of yours…" onchange="if (this.value) coachUpToggle(this.value)" aria-label="Add another of your players" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[220px]"><option value="">+ Add another of yours…</option>${rest.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${n(a.value)}</option>`).join('')}</select></div>`;
+  return `<div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[12px] text-zinc-500 mr-1">Sending</span>${chips || '<span class="text-[12px] text-zinc-500">nobody yet</span>'}<select data-search="+ Add another of yours…" onchange="if (this.value) coachUpToggle(this.value)" aria-label="Add another of your players" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[220px]"><option value="">+ Add another of yours…</option>${rest.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${coachEsc(Vault.playerSearchInfo(a))})` : ''} · ${n(a.value)}</option>`).join('')}</select></div>`;
 }
 
 /* ---------- Recommended fits ----------
@@ -1054,10 +1054,10 @@ function coachWhatHtml(me) {
   return `${coachAsk('Who or what do you want to trade around?')}
     <select data-search="Type a player, a position (RB) or a team…" onchange="coachStartFrom(this.value)" aria-label="Start from a player, a position or a team" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-[14px] outline-none focus:border-amber-400/40">
       <option value="">Type a player, a position (RB) or a team…</option>
-      <optgroup label="Your players and picks">${mine.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · yours · ${n(a.value)}</option>`).join('')}</optgroup>
+      <optgroup label="Your players and picks">${mine.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${coachEsc(Vault.playerSearchInfo(a))})` : ''} · yours · ${n(a.value)}</option>`).join('')}</optgroup>
       <optgroup label="Positions">${['QB', 'RB', 'WR', 'TE'].map(posOpt).join('')}</optgroup>
       <optgroup label="Teams">${others.map(teamOpt).join('')}</optgroup>
-      <optgroup label="Other teams' players">${theirs.map(({ a, t }) => `<option value="${a.key}">${coachEsc(a.name)} (${a.pos}) · ${coachEsc(t.teamName)} · ${n(a.value)}</option>`).join('')}</optgroup>
+      <optgroup label="Other teams' players">${theirs.map(({ a, t }) => `<option value="${a.key}">${coachEsc(a.name)} (${coachEsc(Vault.playerSearchInfo(a))}) · ${coachEsc(t.teamName)} · ${n(a.value)}</option>`).join('')}</optgroup>
     </select>
     <div class="text-[12px] text-zinc-500 mt-5 mb-2">Or start from a position</div>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${['QB', 'RB', 'WR', 'TE'].map(p => coachChoice(`coachStartFrom('pos:${p}')`, p, coachPosNeed(me, p) ? '<span class="text-rose-300">You\'re thin here</span>' : '')).join('')}</div>
@@ -1315,7 +1315,7 @@ function coachSendHtml(me) {
   const verb = { upgrade: 'upgrading', downtier: 'down-tiering', sell: 'selling' }[f.posGoal];
   return coachAsk(`Which ${P} are you ${verb}?`, 'You can add more on the next step.') + `<div class="grid gap-2">${rows || `<div class="text-[12px] text-zinc-500">You have no ${P} to send.</div>`}</div>
     <div class="text-[12px] text-zinc-500 mt-4 mb-2">Or send someone else</div>
-    <select data-search="Type one of your players or picks…" onchange="coachChooseSend(this.value)" aria-label="Send someone else" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-amber-400/40"><option value="">Type one of your players or picks…</option>${rest.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${a.pos})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;
+    <select data-search="Type one of your players or picks…" onchange="coachChooseSend(this.value)" aria-label="Send someone else" class="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-amber-400/40"><option value="">Type one of your players or picks…</option>${rest.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${coachEsc(Vault.playerSearchInfo(a))})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;
 }
 
 /* ---------- Step 3: the match ---------- */
