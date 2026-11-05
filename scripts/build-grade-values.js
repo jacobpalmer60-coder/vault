@@ -17,7 +17,12 @@
    Tested on 275,273 Sleeper trades from June to October 2026, prices rebuilt
    weekly from the 45 days before (VaultValues market-blend-test.js): the full
    market price called 77.2% Fair against 75.0% on KTC values (1-for-1s 57.0%
-   against 53.9%); 60% of it, 76.7%. node scripts/build-grade-values.js */
+   against 53.9%); 60% of it, 76.7%.
+
+   A piece whose KTC is up 20%+ on the trades behind its premium gets none (2026-11-05): on 18,405
+   such trades, June to October, managers paid about 6% under the premium and plain KTC read them
+   closer (VaultValues news-check-test.js). Every other move read fine: KTC moves the value, and
+   the premium held, even after KTC falls of 20%+. node scripts/build-grade-values.js */
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -38,6 +43,7 @@ vm.runInContext(read('vault-core.js') + '\n;this.Vault = Vault; this.VAULT_CONFI
 vm.runInContext(read('market-data.js') + '\n;this.Market = Market; this.marketLoad = marketLoad; this.marketComps = marketComps; this.marketPremium = marketPremium;', sandbox);
 const { Vault } = sandbox;
 const MIN = vm.runInContext('MARKET_MIN_COMPS', sandbox), NARROW = vm.runInContext('MARKET_MIN_NARROW', sandbox), CAP = vm.runInContext('MARKET_ADJ_CAP', sandbox);
+const RISEN = 1.2;
 const median = l => { const s = [...l].sort((a, b) => a - b); return s[Math.floor((s.length - 1) / 2)]; };
 
 (async () => {
@@ -51,16 +57,19 @@ const median = l => { const s = [...l].sort((a, b) => a - b); return s[Math.floo
     const base = qbs === 2 ? 'sf' : 'oneQB';
     for (const [suffix, tep] of [['', 0], ['_tep', 1], ['_tepp', 2]]) {
       const prem = {};
+      let risen = 0;
       for (const key of data.byPlayer.keys()) {
         const main = sandbox.marketComps(key).filter(c => c.main);
         const same = main.filter(c => (c.t.fmt?.tep ?? 0) === tep);
         const pool = same.length >= NARROW ? same : main;
         if (pool.length < MIN) continue;
+        const now = data.nowValue(key, tep);
+        if (now && now >= median(pool.map(c => c.him.value)) * RISEN) { risen++; continue; }
         const p = Math.max(-CAP, Math.min(CAP, median(pool.map(sandbox.marketPremium))));
         if (Math.abs(p) >= 0.5) prem[key] = Math.round(p * 10) / 10;
       }
       out.formats[base + suffix] = prem;
-      console.log(`${base + suffix}: ${Object.keys(prem).length} players and picks priced off KTC (${data.byPlayer.size} traded in ${data.days} days)`);
+      console.log(`${base + suffix}: ${Object.keys(prem).length} players and picks priced off KTC, ${risen} left at KTC after a rise (${data.byPlayer.size} traded in ${data.days} days)`);
     }
   }
   fs.writeFileSync(path.join(ROOT, 'data', 'grade-values.json'), JSON.stringify(out));

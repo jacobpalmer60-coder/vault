@@ -781,7 +781,8 @@ function coachForThem(t, give, r) {
   const later = !thin.length && Vault.teamMode(t) === 'rebuild' && give.some(a => a.type === 'pick' || (a.age > 0 && a.age <= 24));
   const why = thin.length ? `, they're thin at ${thin.join(' and ')}` : later ? `, they're building for later` : '';
   const short = coachLeavesShort(t, give, r.o.get) ? ', <span class="text-orange-300">leaves them short at QB</span>' : '';
-  return `<span class="${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</span> for them${why}${short}`;
+  const habit = typeof negHabitFit === 'function' && negHabitFit(t.rosterId, give, r.o.get).fit > 0 ? ', fits how they trade' : '';
+  return `<span class="${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</span> for them${why}${habit}${short}`;
 }
 function coachRecSpec(me) {
   const f = coachFlow(), others = teams.filter(t => t !== me);

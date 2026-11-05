@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>Grade a Trade — The Vault</title>
+<meta name="description" content="Grade any dynasty trade free, no league needed: Superflex or 1QB, with KeepTradeCut values and what players actually trade for.">
+<meta property="og:title" content="Grade a Trade — The Vault">
+<meta property="og:description" content="Grade any dynasty trade free, no league needed: Superflex or 1QB, with KeepTradeCut values and what players actually trade for.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/status.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=fc6761d9">
+</head>
+<body class="text-zinc-100 antialiased">
+<main class="max-w-[720px] mx-auto px-4 sm:px-6 py-4 lg:py-6">
+  <a href="index.html" class="inline-flex items-center gap-2 mb-3 text-[13px] text-zinc-300 hover:text-white"><img src="brand/vault-dial-128.png" alt="" class="size-6"> The Vault</a>
+  <h1 class="display font-semibold gold-text">Grade a Trade</h1>
+  <p class="text-[13px] text-zinc-400 mt-1">No league needed. Pick your format and add both sides.</p>
+
+  <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-[12px] text-zinc-400">
+    <div class="flex items-center gap-2"><span>QBs</span><div id="qbPick" role="group" aria-label="QB format" class="flex gap-1"></div></div>
+    <div class="flex items-center gap-2"><span>TE premium</span><div id="tepPick" role="group" aria-label="TE premium" class="flex gap-1"></div></div>
+  </div>
+
+  <div class="grid sm:grid-cols-2 gap-3 mt-4">
+    <section aria-label="You send" class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0">
+      <h2 class="text-[13px] font-medium text-zinc-100 mb-2">You send</h2>
+      <div id="sendList"></div>
+      <select id="addSend" data-search="Add a player or pick" aria-label="Add a player or pick you send" onchange="addPiece('send', this)" class="w-full bg-transparent text-[14px] text-zinc-100 outline-none"></select>
+    </section>
+    <section aria-label="You get" class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0">
+      <h2 class="text-[13px] font-medium text-zinc-100 mb-2">You get</h2>
+      <div id="getList"></div>
+      <select id="addGet" data-search="Add a player or pick" aria-label="Add a player or pick you get" onchange="addPiece('get', this)" class="w-full bg-transparent text-[14px] text-zinc-100 outline-none"></select>
+    </section>
+  </div>
+
+  <section id="result" class="hidden mt-4 card rounded-2xl p-4 sm:p-5" aria-live="polite"></section>
+
+  <section class="mt-4 rounded-xl border border-white/5 p-4">
+    <h2 class="text-[14px] font-medium text-zinc-100">Want to know if it's good for your team?</h2>
+    <p class="text-[13px] text-zinc-400 mt-1">This grades the price. Connect your Sleeper league and the Trade Calculator adds roster fit, your timeline, title odds and how the other manager trades.</p>
+    <a href="index.html" class="inline-block mt-3 btn-gold-solid px-4 py-2 rounded-xl text-[13px]">Connect your league</a>
+  </section>
+  <p id="status" class="text-[12px] text-zinc-500 mt-3"></p>
+</main>
+
+<script src="vault-core.js?v=2d232e89"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="market-data.js?v=9e9371ed"></script>
+<script>
+/* ============================================================
+   GRADE A TRADE (user, 2026-11-05)
+   The Trade Calculator's price, for someone with no league connected. Same math (trade value,
+   market prices, KTC's calculator, the Fair and Unfair cutoffs), so a price can't read differently
+   here. No roster means no fit, timeline or odds, so this gives a price word, not a verdict.
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const esc = s => Vault.escapeHtml(String(s ?? ''));
+const QBS = [['sf', 'Superflex'], ['oneQB', '1QB']], TEPS = [['', 'None'], ['_tep', 'TE+'], ['_tepp', 'TE++']];
+const pick = { qb: 'sf', tep: '' }, sides = { send: [], get: [] };
+let ktc = null, gradeData = null, token = 0;
+const field = () => pick.qb + pick.tep;
+const ROUND = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
+const SLOT = s => (s ? `${s[0].toUpperCase()}${s.slice(1)} ` : '');
+
+function allAssets() {
+  const f = field();
+  const players = ktc.players.filter(p => p[f] > 0).map(p => ({ key: `p${p.ktcId}`, type: 'player', name: p.name, pos: p.pos, team: p.team, age: p.age, value: p[f] }));
+  const picks = ktc.picks.filter(p => p[f] > 0).map(p => ({ key: `k${p.ktcId}`, type: 'pick', name: `${p.season} ${SLOT(p.slot)}${ROUND[p.round] || p.round}`, pos: 'Pick', season: p.season, round: p.round, value: p[f] }));
+  return [...players, ...picks].sort((a, b) => b.value - a.value);
+}
+function fillSelects() {
+  const chosen = new Set([...sides.send, ...sides.get].map(a => a.key));
+  const opts = allAssets().filter(a => !chosen.has(a.key)).map(a => `<option value="${a.key}">${esc(a.type === 'pick' ? a.name : `${a.name} (${a.pos} · ${a.team || 'FA'})`)}</option>`).join('');
+  for (const id of ['addSend', 'addGet']) { const s = $(id); s.innerHTML = `<option value=""></option>${opts}`; s.value = ''; }
+}
+function addPiece(side, sel) {
+  const a = allAssets().find(x => x.key === sel.value);
+  if (!a) return;
+  sides[side].push(a);
+  fillSelects();
+  paint();
+}
+function dropPiece(side, key) {
+  sides[side] = sides[side].filter(a => a.key !== key);
+  fillSelects();
+  paint();
+}
+function setFormat(kind, value) {
+  pick[kind] = value;
+  const now = new Map(allAssets().map(a => [a.key, a]));
+  for (const s of ['send', 'get']) sides[s] = sides[s].map(a => now.get(a.key)).filter(Boolean);
+  if (kind === 'qb') { Market.data = null; Market.loading = null; }
+  fillSelects();
+  paintFormat();
+  paint();
+}
+function paintFormat() {
+  const chip = (kind, value, label) => `<button type="button" aria-pressed="${pick[kind] === value}" onclick="setFormat('${kind}', '${value}')" class="px-2.5 py-1 rounded-lg border transition-colors ${pick[kind] === value ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-zinc-200'}">${label}</button>`;
+  $('qbPick').innerHTML = QBS.map(([v, l]) => chip('qb', v, l)).join('');
+  $('tepPick').innerHTML = TEPS.map(([v, l]) => chip('tep', v, l)).join('');
+}
+function rowHtml(side, a) {
+  const meta = a.type === 'pick' ? '' : ` <span class="text-[12px] text-zinc-500">${esc(a.pos)} · ${esc(a.team || 'FA')} · ${Math.floor(a.age)}</span>`;
+  return `<div class="flex items-center gap-2 py-1.5 border-b border-white/5 text-[13px]"><span class="min-w-0 flex-1 text-zinc-100">${esc(a.name)}${meta}</span><span class="mono text-zinc-300">${a.value.toLocaleString()}</span><button type="button" aria-label="Remove ${esc(a.name)}" onclick="dropPiece('${side}', '${a.key}')" class="size-6 shrink-0 text-zinc-500 hover:text-zinc-200">×</button></div>`;
+}
+function edgeOf(a, b) { return ((b - a) / (((a + b) / 2) || 1)) * 100; }
+const priceText = v => (Math.abs(v) < 1 ? 'even' : `${Math.round(Math.abs(v))}% ${v > 0 ? 'under' : 'over'}`);
+const WORD_TONE = { Fair: 'text-emerald-300', Lopsided: 'text-orange-300', Unfair: 'text-rose-400' };
+
+function paint() {
+  $('sendList').innerHTML = sides.send.map(a => rowHtml('send', a)).join('');
+  $('getList').innerHTML = sides.get.map(a => rowHtml('get', a)).join('');
+  const box = $('result'), { send, get } = sides;
+  if (!send.length || !get.length) { box.classList.add('hidden'); return; }
+  Vault._gradeMarket = new Map(Object.entries(gradeData?.formats?.[field()] || {}));
+  box.classList.remove('hidden');
+  const v = Vault.tradeSideValues(send, get), k = Vault.ktcSideValues(send, get), edge = edgeOf(v.valueA, v.valueB), ktcEdge = edgeOf(k.valueA, k.valueB);
+  const word = Vault.priceWord(Vault.fairnessBucket(Math.abs(edge), 0, 0));
+  const who = Math.abs(edge) < 3 ? 'About an even price' : edge > 0 ? 'The price favors you' : 'The price favors them';
+  box.innerHTML = `<div class="text-[12px] text-zinc-400">${who}${Vault.info('quickGrade')}</div>
+    <div class="num text-[34px] leading-tight ${WORD_TONE[word]}">${word}</div>
+    <div class="grid grid-cols-2 gap-3 mt-3">
+      <div><div class="num text-[22px] text-zinc-100">${priceText(edge)}</div><div class="text-[12px] text-zinc-400">you pay · trade value</div></div>
+      <div><div class="num text-[22px] text-zinc-100">${priceText(ktcEdge)}</div><div class="text-[12px] text-zinc-400">KTC's calculator</div></div>
+    </div>
+    <div id="gapLine" class="text-[12px] text-zinc-400 mt-3 empty:hidden"></div>`;
+  paintGap(send, get, ++token);
+}
+// How far apart real trades ran. It needs the market file, so it comes in after the grade.
+function paintGap(send, get, mine) {
+  const league = { roster_positions: pick.qb === 'sf' ? ['QB', 'SUPER_FLEX'] : ['QB'], total_rosters: 12, scoring_settings: { rec: 1 } };
+  marketLoad(league).then(() => {
+    if (mine !== token) return;
+    const line = marketGapLine(send, get), box = $('gapLine');
+    if (box && line) box.innerHTML = `${line}${Vault.info('realTrades')}`;
+  }).catch(() => {});
+}
+
+(async () => {
+  try {
+    [ktc, gradeData] = await Promise.all([fetch(VAULT_CONFIG.KTC_URL).then(r => r.json()), Vault.fetchGradeValues()]);
+    paintFormat();
+    fillSelects();
+    $('status').textContent = `Values from KeepTradeCut, updated ${new Date(ktc.updated).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.`;
+  } catch (e) { console.error(e); $('status').textContent = "Couldn't load player values. Try again in a moment."; }
+})();
+</script>
+</body>
+</html>

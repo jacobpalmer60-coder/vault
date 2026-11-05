@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=45c9ae57">
-<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
+<link rel="stylesheet" href="tailwind.css?v=fc6761d9">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -232,7 +232,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-core.js?v=2d232e89"></script>
 <script src="vault-nav.js?v=87bd2eaf"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -2513,6 +2513,17 @@ function futureRanksHtml(team, gives, gets) {
   }).join('');
   return `<div class="mt-3 pt-3 border-t border-white/5"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">Lineup value rank${Vault.info('futureRank')}</div><div class="grid grid-cols-3 gap-2 text-center">${cells}</div></div>`;
 }
+// How the other manager trades, from their trades in this league (negHabitFit). Painted once their
+// history is in: it loads in the background and the card shouldn't wait on it.
+function paintHabitLine(team, gets, gives) {
+  const box = document.getElementById('habitLine');
+  if (!box) return;
+  if (!Negotiation.styles) { negPreloadStyles()?.then(() => { if (document.getElementById('habitLine') === box) paintHabitLine(team, gets, gives); }); return; }
+  const { habits, fit } = negHabitFit(team.rosterId, gets, gives);
+  if (!habits.length) { box.textContent = ''; return; }
+  const said = habits.map((h, i) => `${h.say} in ${h.n} of ${h.of}${i ? '' : ' trades'}`).join(' and ');
+  box.innerHTML = `${Vault.escapeHtml(team.teamName)} ${said}.${fit > 0 ? ' This trade fits that.' : fit < 0 ? ' This trade goes the other way.' : ''}${Vault.info('managerHabit')}`;
+}
 function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analysis) {
   if (!aAssets.length && !bAssets.length) {
     document.getElementById('analysisA').classList.add('hidden');
@@ -2538,6 +2549,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           <span class="size-2 rounded-full shrink-0 mt-1.5 ${TONE_DOT[head.tone]}"></span>
           <p class="text-[13px] ${TONE[head.tone]} leading-relaxed"><span class="font-medium">${head.text}.</span> <span class="font-normal">${Vault.buildSynopsis('', res.notes)}</span></p>
         </div>
+        ${side === 'B' ? '<p id="habitLine" class="text-[12px] text-zinc-400 mb-3 empty:hidden"></p>' : ''}
         ${res.notes.length ? `<details class="group mb-3">
           <summary class="flex items-center gap-1.5 py-1 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
             <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
@@ -2556,16 +2568,17 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
         ${futureRanksHtml(side === 'A' ? teamA : teamB, side === 'A' ? aAssets : bAssets, side === 'A' ? bAssets : aAssets)}
       </div>`;
   });
+  paintHabitLine(teamB, aAssets, bAssets);
 
 }
 
 init();
 </script>
 <script src="share-image.js?v=a4003002"></script>
-<script src="negotiation.js?v=74ef6b53"></script>
-<script src="market-data.js?v=ba533660"></script>
+<script src="negotiation.js?v=e3949291"></script>
+<script src="market-data.js?v=9e9371ed"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
-<script src="market.js?v=12df7e61"></script>
-<script src="coach.js?v=44c50bac"></script>
+<script src="market.js?v=22c28c17"></script>
+<script src="coach.js?v=85756038"></script>
 </body>
 </html>
