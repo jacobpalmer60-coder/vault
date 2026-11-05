@@ -331,7 +331,7 @@ function renderCompare(o) {
 }
 
 function movesHtml(o, k) {
-  const P = o.paths[k], name = esc(o.me.teamName), nm = p => `${esc(p.name)} <span class="text-zinc-500">${p.pos}, ${p.age ? Math.floor(p.age) : '?'}</span>`;
+  const P = o.paths[k], name = esc(o.me.teamName), nm = p => `${Vault.assetLink(p)} <span class="text-zinc-500">${Vault.posMeta(p)}</span>`;
   if (k === 'stay') return `<div class="text-[14px] text-zinc-200">Keep the roster as it is. ${o.sell.length ? `${o.sell.length} player${o.sell.length === 1 ? '' : 's'} past the age-27 cliff stay: ${o.sell.slice(0, 4).map(nm).join(', ')}${o.sell.length > 4 ? '…' : ''}.` : ''}</div>`;
   if (k === 'push') {
     if (P.none) return `<div class="text-[14px] text-zinc-200">No upgrade found within ${name}'s picks and bench.</div>`;

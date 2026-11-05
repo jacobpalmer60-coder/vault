@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=bf5c8b90">
+<link rel="stylesheet" href="vault.css?v=62fb5f60">
+<link rel="stylesheet" href="tailwind.css?v=d35ff1fc">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,13 +46,17 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=7f78341f"></script>
+<script src="vault-core.js?v=1997be8b"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-11-05', items: [
+    { kind: 'improved', page: 'Everywhere', text: "NFL team and age now show wherever a player's name and position do." },
+    { kind: 'new', page: 'Everywhere', text: "Click a player's name to open the player card in a pop-up, on the calculator, Team Analyzer, Trade Coach, Trade Grades, Trade Search, Compare, Trade Lab and more. On the Player Market page, clicking a player still goes to the market page." },
+  ] },
   { date: '2026-11-04', items: [
     { kind: 'fixed', page: 'League Overview', text: "Value Over Time: a team could read far too high, like one showing about 213,000 when it was worth 154,000, because past rosters were rebuilt from the draft. They now work back from today's real rosters." },
     { kind: 'improved', page: 'Trade Calculator', text: "Player rows and search lists, including Trade Coach's, now show the NFL team and age, and you can search by team." },

@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=bf5c8b90">
+<link rel="stylesheet" href="vault.css?v=62fb5f60">
+<link rel="stylesheet" href="tailwind.css?v=d35ff1fc">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -76,8 +76,10 @@
   <div class="text-[12px] text-zinc-400 mt-6">More: <a id="marketLink" href="market.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">who sells above or below KTC (Player Market)</a> · <a id="labLink" href="trade_lab.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">what 1.3 million trades show (Trade Lab)</a></div>
 </div>
 
-<script src="vault-core.js?v=7f78341f"></script>
+<script src="vault-core.js?v=1997be8b"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
+<script src="market-data.js?v=682a679f"></script>
+<script src="player-card.js?v=6c385b0b"></script>
 <script>
 /* Tabs, in the address (#market, #history) so a link opens on one; the page always opens on
    the trades otherwise. Over time shows up once its file loads, and the market needs 200
@@ -123,7 +125,7 @@ function assetChips(ids, playerMap, pickMap) {
   if (!ids.length) return '<span class="text-zinc-400">Nothing</span>';
   return ids.map(id => {
     const a = assetLabel(id, playerMap, pickMap);
-    return `<span class="inline-flex items-center gap-1.5 mr-3 mb-1">${a.pos ? `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span>` : ''}<span class="text-zinc-200">${Vault.escapeHtml(a.name)}</span>${a.value > 0 ? `<span class="text-zinc-400 text-[12px] mono">${Math.round(a.value).toLocaleString()}</span>` : ''}</span>`;
+    return `<span class="inline-flex items-center gap-1.5 mr-3 mb-1">${a.pos ? `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span>` : ''}<span class="text-zinc-200">${Vault.assetLink(a)}</span>${a.pos ? Vault.metaSpan(a) : ''}${a.value > 0 ? `<span class="text-zinc-400 text-[12px] mono">${Math.round(a.value).toLocaleString()}</span>` : ''}</span>`;
   }).join('');
 }
 

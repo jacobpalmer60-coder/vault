@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=bf5c8b90">
+<link rel="stylesheet" href="vault.css?v=62fb5f60">
+<link rel="stylesheet" href="tailwind.css?v=d35ff1fc">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -103,8 +103,10 @@
 
 <div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
 
-<script src="vault-core.js?v=7f78341f"></script>
+<script src="vault-core.js?v=1997be8b"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
+<script src="market-data.js?v=682a679f"></script>
+<script src="player-card.js?v=6c385b0b"></script>
 <script>
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
 const esc = s => Vault.escapeHtml(String(s));
@@ -276,8 +278,8 @@ function renderDeep(f) {
   const L = f.liquidity, TIERS = L.byTier[0].tiers.map(t => t.tier);
   const liq = panel('How often players change hands', 'Share of leagues where a player was traded at least once in a season (the typical player), 2024-2025, by position and KTC value.',
     table(['Position', ...TIERS], L.byTier.map(r => [r.pos, ...r.tiers.map(t => (t.median == null ? '—' : pc(t.median, 1)))])) +
-    `<div class="grid sm:grid-cols-2 gap-4 mt-4 text-[12px]"><div><div class="text-zinc-400 mb-1">Most traded in 2025 (worth 2,500+)</div>${L.most.slice(0, 8).map(r => `<div class="flex justify-between gap-3 py-0.5"><span class="text-zinc-200 truncate">${esc(r.name)} <span class="text-zinc-500">${r.pos}</span></span><span class="mono text-zinc-300">${pc(r.share, 1)}</span></div>`).join('')}</div>
-      <div><div class="text-zinc-400 mb-1">Least traded in 2025 (worth 6,000+)</div>${L.least.slice(0, 8).map(r => `<div class="flex justify-between gap-3 py-0.5"><span class="text-zinc-200 truncate">${esc(r.name)} <span class="text-zinc-500">${r.pos}</span></span><span class="mono text-zinc-300">${pc(r.share, 1)}</span></div>`).join('')}</div></div>`,
+    `<div class="grid sm:grid-cols-2 gap-4 mt-4 text-[12px]"><div><div class="text-zinc-400 mb-1">Most traded in 2025 (worth 2,500+)</div>${L.most.slice(0, 8).map(r => `<div class="flex justify-between gap-3 py-0.5"><span class="text-zinc-200 truncate">${Vault.assetLink(r)} <span class="text-zinc-500">${Vault.posMeta(r)}</span></span><span class="mono text-zinc-300">${pc(r.share, 1)}</span></div>`).join('')}</div>
+      <div><div class="text-zinc-400 mb-1">Least traded in 2025 (worth 6,000+)</div>${L.least.slice(0, 8).map(r => `<div class="flex justify-between gap-3 py-0.5"><span class="text-zinc-200 truncate">${Vault.assetLink(r)} <span class="text-zinc-500">${Vault.posMeta(r)}</span></span><span class="mono text-zinc-300">${pc(r.share, 1)}</span></div>`).join('')}</div></div>`,
     'Starters worth 2,500-6,000 move most, in about 1 league in 5 a season. The biggest stars (Bijan Robinson, Ja\'Marr Chase, Josh Allen) changed hands in only about 1 league in 8 or 9. Fewer chances, not a higher price: at the same value, the least-traded players cost no more to get than the most traded (2024-2025 trades).');
   const M = f.timing.byMonth, MON = M[0].months.map(m => m.month);
   const timing = panel('When to buy and sell', 'KTC value over the next 3 months, starting each month (median, players worth 1,000+, 2020-2026). KTC\'s scale is relative, so most players drift down as new ones arrive; compare months and positions with each other.',
@@ -500,7 +502,7 @@ function renderRookies() {
     const norm = Vault.normalizeName(name), today = PR.byNorm.get(norm);
     return `<tr class="border-t border-white/5${today ? ' hover:bg-white/[0.02] cursor-pointer' : ''}" ${today ? `onclick="location.href='${lookupLink(norm)}'"` : ''}>
         <td class="py-1.5 pr-3 text-right mono text-zinc-500">${i + 1}</td>
-        <td class="py-1.5 pr-3"><span class="inline-flex items-center gap-2"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(pos)}">${esc(pos || '—')}</span><span class="text-zinc-100">${esc(name)}</span></span></td>
+        <td class="py-1.5 pr-3"><span class="inline-flex items-center gap-2"><span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(pos)}">${esc(pos || '—')}</span><span class="text-zinc-100">${esc(name)}${Vault.metaSpan({ name, pos })}</span></span></td>
         <td class="py-1.5 pr-3 text-right mono text-zinc-100">${pickLabel(mid)}</td>
         <td class="py-1.5 pr-3 text-right mono text-zinc-400 whitespace-nowrap">${pickLabel(lo)}–${pickLabel(hi)}</td>
         <td class="py-1.5 pr-3 text-right mono text-zinc-400">${fmtInt(n)}</td>

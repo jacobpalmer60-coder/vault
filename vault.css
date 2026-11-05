@@ -219,3 +219,5 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
 }
 /* Show/Hide on the Trade Calculator's sections stays on one line next to the title. */
 #builder details > summary > span:last-child { white-space: nowrap; flex-shrink: 0; }
+.player-link { cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 2px; transition: text-decoration-color .15s; }
+.player-link:hover { text-decoration-color: currentColor; }

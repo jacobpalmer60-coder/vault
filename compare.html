@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=bf5c8b90">
+<link rel="stylesheet" href="vault.css?v=62fb5f60">
+<link rel="stylesheet" href="tailwind.css?v=d35ff1fc">
 <style>
   /* Up to four series, in the dataviz reference order for dark surfaces
      (blue, orange, aqua, yellow), validated on this card surface for adjacent
@@ -120,9 +120,10 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=7f78341f"></script>
+<script src="vault-core.js?v=1997be8b"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script src="market-data.js?v=682a679f"></script>
+<script src="player-card.js?v=6c385b0b"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -285,7 +286,7 @@ function wirePicker(box, i) {
     const taken = new Set(picked.filter((_, k) => k !== i));
     const matches = universe.filter(p => !taken.has(p.norm) && (!q || p.norm.includes(q))).sort((a, b) => b.value - a.value).slice(0, 12);
     list.innerHTML = matches.map(p => `<button type="button" data-norm="${p.norm}" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[13px] hover:bg-white/5">
-        <span class="flex items-center gap-2 min-w-0"><span class="inline-flex px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span><span class="truncate">${Vault.escapeHtml(p.name)}</span><span class="text-zinc-500 text-[12px]">${p.team}</span></span>
+        <span class="flex items-center gap-2 min-w-0"><span class="inline-flex px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span><span class="truncate">${Vault.escapeHtml(p.name)}</span><span class="text-zinc-500 text-[12px]">${p.team}${p.age ? ` · ${Math.floor(p.age)}` : ''}</span></span>
         <span class="mono text-[12px] text-zinc-400">${fmt(p.value)}</span></button>`).join('') || '<div class="px-3 py-2 text-[12px] text-zinc-400">No match</div>';
     list.classList.remove('hidden');
     list.querySelectorAll('button').forEach(b => b.onmousedown = e => { e.preventDefault(); choose(b.dataset.norm); });
@@ -361,7 +362,7 @@ function renderCards(ps) {
             <span class="inline-flex px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(p.pos)}">${p.pos}</span>
             <span class="text-[12px] text-zinc-400">${p.team}${p.rookie ? ' · Rookie' : ''}</span>
           </div>
-          <div class="text-[20px] font-semibold text-zinc-100 leading-tight break-words">${Vault.escapeHtml(p.name)}</div>
+          <div class="text-[20px] font-semibold text-zinc-100 leading-tight break-words">${Vault.assetLink(p)}</div>
           <div class="text-[12px] text-zinc-400 mt-0.5">${ownerLine(p)}</div>
         </div>
         <div class="basis-full sm:basis-auto pl-[68px] sm:pl-0 sm:text-right shrink-0">

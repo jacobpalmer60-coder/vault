@@ -1835,8 +1835,22 @@ const Vault = {
     return { total: total / weeks.length, vorpTotal: vorpTotal / weeks.length, starters: typical.starters.map(s => ({ ...s, starts: starts.get(s.id) || 0 })), starts, weeks: weeks.length, byWeek };
   },
 
+  // A player's name that opens his card when clicked (player-card.js). label is what shows.
+  playerLink(name, label = name) { return `<span class="player-link" data-player="${Vault.escapeHtml(name)}">${Vault.escapeHtml(label)}</span>`; },
+  // A trade piece: a player's name opens his card, a pick is plain text. Pass anything with name and pos.
+  assetLink(a) { return a.type === 'pick' || !a.pos || a.pos === 'PICK' ? Vault.escapeHtml(a.name) : Vault.playerLink(a.name); },
   // "GB · 27": a player's NFL team and age, for rows and search lists (user, 2026-11-04).
   playerInfo(a) { return [a.nfl || 'FA', a.age ? Math.floor(a.age) : ''].filter(Boolean).join(' · '); },
+  // Team and age beside a name and position, anywhere (user, 2026-11-05). Many pages only have
+  // the name and position, so those get a span the player list fills in once it's loaded.
+  playerMeta(a) {
+    if (a.type === 'pick' || !a.name || /^pick$/i.test(a.pos || '')) return '';
+    return a.nfl != null ? Vault.escapeHtml(Vault.playerInfo(a)) : `<span data-facts="${Vault.escapeHtml(a.name)}"></span>`;
+  },
+  // "WR · GB · 27", where the position already reads as gray text.
+  posMeta(a) { const m = Vault.playerMeta(a); return `${Vault.escapeHtml(a.pos || '')}${m ? ` · ${m}` : ''}`; },
+  // " GB · 27" after a name, where a badge shows the position.
+  metaSpan(a) { const m = Vault.playerMeta(a); return m ? ` <span class="text-[12px] font-normal text-zinc-500 whitespace-nowrap">${m}</span>` : ''; },
   // "WR, GB, 27" in a search list. The list matches on it, so a team or age finds players.
   playerSearchInfo(a) { return [a.pos, a.nfl || 'FA', a.age ? Math.floor(a.age) : ''].filter(Boolean).join(', '); },
   // A Sleeper player's injury tag, carried on each roster entry (and so on every
@@ -5099,7 +5113,7 @@ const Vault = {
       const t = p && Vault.injuryTag(p);
       return t ? `<span class="block text-[11px] ${t.ink} truncate cursor-help" data-tip="${esc(Vault.injuryCard(p))}">${t.short}</span>` : '';
     };
-    const named = (name, sub) => `<span class="min-w-0 flex-1"><span class="block text-zinc-300 truncate" title="${esc(name)}">${esc(name) || '—'}</span>${sub}</span>`;
+    const named = (name, sub) => `<span class="min-w-0 flex-1"><span class="block text-zinc-300 truncate" title="${esc(name)}">${name ? Vault.playerLink(name) + Vault.metaSpan({ name, pos: 'player' }) : '—'}</span>${sub}</span>`;
     const lineup = [...(t.lineup || [])].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)).map(s => {
       const p = byId.get(s.id);
       const part = W && s.name && s.starts != null && s.starts < W - 1 && !(p && Vault.injuryShort(p))
@@ -5318,8 +5332,36 @@ const Vault = {
   addEventListener('scroll', hide, true);
 })();
 
+// Fills the spans Vault.playerMeta leaves, on whichever page, whenever they land.
+(function () {
+  let facts = null, loading = false;
+  const fill = () => document.querySelectorAll('[data-facts]').forEach(el => {
+    const f = facts.get(Vault.normalizeName(el.dataset.facts));
+    el.removeAttribute('data-facts');
+    el.textContent = f ? Vault.playerInfo(f) : '';
+  });
+  new MutationObserver(() => {
+    if (!document.querySelector('[data-facts]')) return;
+    if (facts) return fill();
+    if (loading) return;
+    loading = true;
+    Vault.fetchSleeperPlayers().then(players => {
+      facts = new Map();
+      Object.values(players || {}).forEach(p => {
+        const key = Vault.normalizeName(`${p.first_name || ''} ${p.last_name || ''}`.trim());
+        if (key && (p.team || !facts.has(key))) facts.set(key, { nfl: p.team || '', age: p.age }); // same name: the one on a team
+      });
+      fill();
+    }).catch(() => { loading = false; });
+  }).observe(document.documentElement, { childList: true, subtree: true });
+})();
+
 // Tab buttons in the site's style: tabs is [[key, label]], onclick is the page's function.
 Vault.tabButtons = (tabs, key, onclick = 'showTab') => tabs.map(([k, label]) => `<button role="tab" aria-selected="${k === key}" onclick="${onclick}('${k}')" class="whitespace-nowrap text-[13px] px-3 sm:px-3.5 py-2 rounded-lg border transition-colors ${k === key ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`).join('');
+
+// First in line for Back, so a player card opened over Trade Coach or a pop-up closes alone
+// (player-card.js). Listeners run in the order they were added, and this file loads first.
+addEventListener('popstate', e => { if (Vault._cardPop?.()) e.stopImmediatePropagation(); });
 
 /* Shared pop-up (user, 2026-11-04: less scrolling). Vault.popup({ title, html, foot }) opens it,
    or swaps what's in it if it's already open; a full-screen sheet on phones. Esc, the ×

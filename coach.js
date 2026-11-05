@@ -611,7 +611,7 @@ function coachWorkShare(btn) { coachWorkToBuilder(); shareTrade(btn); }
 function coachSlipHtml(me, w) {
   const n = v => Math.round(v).toLocaleString(), off = coachOffLimits(me), inGive = new Set(negKeys(w.give)), inGet = new Set(negKeys(w.get));
   const piece = (a, side) => `<div class="flex items-center justify-between gap-2 py-1.5 border-t border-white/[0.05] first:border-t-0">
-      <span class="min-w-0 truncate text-[13px] text-zinc-100">${coachEsc(a.name)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : a.pos}</span></span>
+      <span class="min-w-0 truncate text-[13px] text-zinc-100">${Vault.assetLink(a)} <span class="text-[11px] text-zinc-500">${a.type === 'pick' ? (a.tier || 'pick') : Vault.posMeta(a)}</span></span>
       <span class="flex items-center gap-2 shrink-0"><span class="text-[11px] mono text-zinc-500">${n(a.value)}</span><button onclick="coachWorkEdit('${side}', '${a.key}', false)" aria-label="Take ${coachEsc(a.name)} off" class="px-1 text-zinc-500 hover:text-white">×</button></span>
     </div>`;
   const addSel = (side, list, label) => `<select data-search="+ Type a player or pick…" onchange="coachWorkEdit('${side}', this.value, true)" aria-label="${label}" class="mt-2 w-full text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40"><option value="">${label}</option>${list.sort((x, y) => y.value - x.value).map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${coachEsc(Vault.playerSearchInfo(a))})` : ''} · ${n(a.value)}</option>`).join('')}</select>`;
@@ -701,9 +701,9 @@ function coachSeasonRead(me, w) {
   const out = (me.lineup || []).filter(s => s.id && !now.has(s.id)), swaps = [];
   (aft.lineup || []).filter(s => s.id && !was.has(s.id)).forEach(s => {
     const i = Math.max(out.findIndex(x => x.pos === s.pos), 0), gone = out.splice(i, 1)[0];
-    swaps.push(gone ? `${coachEsc(s.name)} replaces ${coachEsc(gone.name)}` : `${coachEsc(s.name)} starts`);
+    swaps.push(gone ? `${Vault.assetLink(s)} replaces ${Vault.assetLink(gone)}` : `${Vault.assetLink(s)} starts`);
   });
-  out.forEach(s => swaps.push(`${coachEsc(s.name)} leaves your lineup`));
+  out.forEach(s => swaps.push(`${Vault.assetLink(s)} leaves your lineup`));
   return { odds: coachSeasonOdds({ partner: w.partner, give: w.give, get: w.get }), gain: aft.opt - me.opt, swaps };
 }
 function coachSeasonHtml(s) {
@@ -852,7 +852,7 @@ function coachPickUpgrade(key) {
 // there as buttons (user, 2026-10-28: cleaner, shorter).
 function coachUpPickerHtml(me, list) {
   const up = new Set(coachFlow().upKeys || []), n = v => Math.round(v).toLocaleString();
-  const chips = coachUpAssets().map(a => `<span class="inline-flex items-center gap-1 text-[12px] pl-2.5 pr-1 py-1 rounded-lg border bg-amber-400/10 border-amber-400/40 text-amber-100">${coachEsc(a.name)} <span class="opacity-60">${a.type === 'pick' ? 'pick' : a.pos} · ${n(a.value)}</span><button onclick="coachUpToggle('${a.key}')" aria-label="Take ${coachEsc(a.name)} off" class="px-1 text-amber-200/70 hover:text-white">×</button></span>`).join('');
+  const chips = coachUpAssets().map(a => `<span class="inline-flex items-center gap-1 text-[12px] pl-2.5 pr-1 py-1 rounded-lg border bg-amber-400/10 border-amber-400/40 text-amber-100">${coachEsc(a.name)} <span class="opacity-60">${a.type === 'pick' ? 'pick' : Vault.posMeta(a)} · ${n(a.value)}</span><button onclick="coachUpToggle('${a.key}')" aria-label="Take ${coachEsc(a.name)} off" class="px-1 text-amber-200/70 hover:text-white">×</button></span>`).join('');
   const rest = [...list, ...me.assets.filter(a => !list.includes(a)).sort((x, y) => y.value - x.value)].filter(a => a.value >= 300 && !up.has(a.key));
   return `<div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[12px] text-zinc-500 mr-1">Sending</span>${chips || '<span class="text-[12px] text-zinc-500">nobody yet</span>'}<select data-search="+ Add another of yours…" onchange="if (this.value) coachUpToggle(this.value)" aria-label="Add another of your players" class="text-[12px] px-2 py-1 rounded-lg border border-white/10 text-zinc-400 bg-black/40 max-w-[220px]"><option value="">+ Add another of yours…</option>${rest.map(a => `<option value="${a.key}">${coachEsc(a.name)}${a.type === 'player' ? ` (${coachEsc(Vault.playerSearchInfo(a))})` : ''} · ${n(a.value)}</option>`).join('')}</select></div>`;
 }
@@ -992,7 +992,7 @@ function coachRecsHtml(me, spec) {
       : extras ? `<span class="text-emerald-300">They'd take it</span> · ask for about ${pc(-r.you)} more in extras`
       : fix ? `Add your <span class="text-zinc-100">${coachEsc(fix.p.name)}</span> <span class="text-zinc-500">(${n(fix.p.value)})</span> → <span class="text-emerald-300">likely yes</span>`
       : `<span class="text-orange-300">They'd want about ${pc(Math.max(-r.room, r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more</span>`;
-    return coachChoice(`coachRecBuild(${i})`, `${coachEsc(a.name)} <span class="text-[12px] text-zinc-500">${a.type === 'pick' ? 'pick' : a.pos} · ${coachEsc(t.teamName)} · ${n(a.value)}</span>`,
+    return coachChoice(`coachRecBuild(${i})`, `${coachEsc(a.name)} <span class="text-[12px] text-zinc-500">${a.type === 'pick' ? 'pick' : Vault.posMeta(a)} · ${coachEsc(t.teamName)} · ${n(a.value)}</span>`,
       `${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}<br>${coachForThem(t, fix && !r.yes ? [...spec.give, fix.p] : spec.give, use)}${coachAsksCornerstone(t, [a]) ? ' · <span class="text-amber-200/90">their cornerstone, rarely traded</span>' : ''}${use.consensus ? ` · ${coachConsensusText(use)}` : ''}`);
   }).join('');
   const word = spec.goal === 'upgrade' ? 'would likely say yes' : 'would take it';
@@ -1400,7 +1400,7 @@ function coachHintsHtml(me, w, r = null) {
     const needs = near(list.filter(need)).slice(0, 3);
     return [...needs, ...near(list.filter(a => !needs.includes(a)))].slice(0, 6);
   };
-  const row = (title, list, side, needOf) => !list.length ? '' : `<div class="mt-3"><div class="text-[12px] text-zinc-400 mb-1.5">${title}</div><div class="flex flex-wrap gap-1.5">${list.map(a => `<button onclick="coachWorkEdit('${side}', '${a.key}', true)" class="text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-200 hover:text-white hover:border-white/25">+ ${coachEsc(a.name)} <span class="text-zinc-500">${a.type === 'pick' ? 'pick' : a.pos} · ${n(a.value)}</span>${needOf(a) ? ` <span class="text-emerald-300">${needOf(a)}</span>` : ''}</button>`).join('')}</div></div>`;
+  const row = (title, list, side, needOf) => !list.length ? '' : `<div class="mt-3"><div class="text-[12px] text-zinc-400 mb-1.5">${title}</div><div class="flex flex-wrap gap-1.5">${list.map(a => `<button onclick="coachWorkEdit('${side}', '${a.key}', true)" class="text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-200 hover:text-white hover:border-white/25">+ ${coachEsc(a.name)} <span class="text-zinc-500">${a.type === 'pick' ? 'pick' : Vault.posMeta(a)} · ${n(a.value)}</span>${needOf(a) ? ` <span class="text-emerald-300">${needOf(a)}</span>` : ''}</button>`).join('')}</div></div>`;
   const theyNeed = a => (a.type === 'player' && coachPosNeed(w.partner, a.pos) ? `they need ${a.pos}` : '');
   const youNeed = a => (a.type === 'player' && coachPosNeed(me, a.pos) ? `you need ${a.pos}` : '');
   let html = '';

@@ -497,7 +497,7 @@
       ${body ? `<div class="mt-3">${body}</div>` : ''}
     </div>`;
   const statRow = (label, value) => `<div class="flex items-baseline justify-between gap-3 py-1.5 border-t border-white/5 text-[13px]"><span class="text-zinc-400">${label}</span><span class="text-zinc-100 mono text-right">${value}</span></div>`;
-  const playerRow = (p, value, tone) => `<div class="flex items-baseline justify-between gap-3 py-1.5 border-t border-white/5 text-[13px]"><span class="min-w-0 truncate"><span class="text-zinc-100">${esc(p.name)}</span> <span class="text-[12px] text-zinc-500">${esc(p.pos)}</span></span><span class="mono shrink-0 ${tone}">${value}</span></div>`;
+  const playerRow = (p, value, tone) => `<div class="flex items-baseline justify-between gap-3 py-1.5 border-t border-white/5 text-[13px]"><span class="min-w-0 truncate"><span class="text-zinc-100">${Vault.assetLink(p)}</span> <span class="text-[12px] text-zinc-500">${Vault.posMeta(p)}</span></span><span class="mono shrink-0 ${tone}">${value}</span></div>`;
   const listTitle = t => `<div class="text-[12px] text-zinc-500 mt-3 mb-0.5">${t}</div>`;
   const HOW = `<details class="mt-4 text-[12px] text-zinc-400 leading-relaxed">
       <summary class="cursor-pointer text-zinc-300 hover:text-white">How it's measured</summary>
@@ -559,7 +559,7 @@
     } else {
       const L = t.lineupReport;
       const leaks = t.tags.includes('Lineup leaks');
-      const callList = L.calls.map(c => `<div class="flex items-baseline justify-between gap-3 py-1.5 border-t border-white/5 text-[13px]"><span class="min-w-0 truncate"><span class="text-zinc-500 mono">Wk ${c.week}</span> <span class="text-zinc-100">${c.name ? esc(c.name) : 'Empty spot'}</span> ${c.pos ? `<span class="text-[12px] text-zinc-500">${esc(c.pos)}</span>` : ''}</span><span class="shrink-0 text-orange-200">${c.why === 'bye' ? 'on bye' : c.why === 'out' ? 'out' : 'nobody started'}</span></div>`).join('');
+      const callList = L.calls.map(c => `<div class="flex items-baseline justify-between gap-3 py-1.5 border-t border-white/5 text-[13px]"><span class="min-w-0 truncate"><span class="text-zinc-500 mono">Wk ${c.week}</span> <span class="text-zinc-100">${c.name ? Vault.assetLink(c) : 'Empty spot'}</span> ${c.pos ? `<span class="text-[12px] text-zinc-500">${Vault.posMeta(c)}</span>` : ''}</span><span class="shrink-0 text-orange-200">${c.why === 'bye' ? 'on bye' : c.why === 'out' ? 'out' : 'nobody started'}</span></div>`).join('');
       const notCounted = [
         L.scratches.length ? `${L.scratches.length} late scratch${L.scratches.length === 1 ? '' : 'es'} (projected to play, ruled out on game day)` : '',
         L.gameTime.length ? `${L.gameTime.length} game-time call${L.gameTime.length === 1 ? '' : 's'} (listed out before kickoff, played)` : ''
