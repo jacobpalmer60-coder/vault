@@ -1145,19 +1145,15 @@ async function coachAimRun(k) {
   const show = () => { if (coachOpen() && coachFlow().step === 'pick') renderCoach(); };
   await coachTick();
   if (stale()) return;
-  // Not their cornerstone (Vault.cornerstone: a team's best player, or a contender's top 3):
-  // managers rarely trade them at any fair price. Naming the player yourself is fine, but a
-  // goal didn't name anyone, and these lists leaned on stars without it (user, 2026-11-04).
-  // Sell high starts from your player, as the old list did.
-  const openToAsk = (t, get) => k === 'sellhigh' || !coachAsksCornerstone(t, get);
-  const players = filt => others.flatMap(t => t.assets.filter(a => a.type === 'player' && !coachTheirOff(a) && filt(a) && openToAsk(t, [a])).map(a => ({ a, t })));
+  // Cornerstones stay in and the row tags them, as in Best fits (user, 2026-11-04).
+  const players = filt => others.flatMap(t => t.assets.filter(a => a.type === 'player' && !coachTheirOff(a) && filt(a)).map(a => ({ a, t })));
   const gainOf = (t, give, get) => coachAfter(me.rosterId, t.rosterId, give, get).opt - me.opt;
   const beatsKtc = (give, get) => coachKtcPct(give, get) >= COACH_AIM_KTC;
   const out = [];
   // A trade that passes: a likely yes that isn't bad for you.
   const read = (t, give, get, extra = {}, also = () => true) => {
     const r = coachWorkRead(me, { partner: t, give, get, option: 'build' });
-    if (r.yes && coachLevelRank(r) < 2 && openToAsk(t, get) && !(coachLeavesShort(t, give, get) && Vault.teamMode(t) === 'contend') && also(r)) { const x = { t, give, get, r, ...extra }; out.push(x); return x; }
+    if (r.yes && coachLevelRank(r) < 2 && !(coachLeavesShort(t, give, get) && Vault.teamMode(t) === 'contend') && also(r)) { const x = { t, give, get, r, ...extra }; out.push(x); return x; }
     return null;
   };
   // One target at a time, so the screen can count them off.
@@ -1283,7 +1279,7 @@ function coachAimHtml(me) {
   return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} their manager would likely take.</div><div class="grid gap-2">${run.list.map((x, i) => {
     const tier = Vault.verdictTier(x.r.score), note = x.note || (x.gain ? `+${x.gain.toFixed(1)} pts a week` : '');
     return coachChoice(`coachAimBuild(${i})`, `Get ${names(x.get)} <span class="text-zinc-400">for ${names(x.give)}</span>`,
-      `${coachEsc(x.t.teamName)} · <span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${note ? ` · ${note}` : ''}<br>${coachForThem(x.t, x.give, x.r)}${x.r.consensus ? ` · ${coachConsensusText(x.r)}` : ''}`);
+      `${coachEsc(x.t.teamName)} · <span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${note ? ` · ${note}` : ''}<br>${coachForThem(x.t, x.give, x.r)}${coachAsksCornerstone(x.t, x.get) ? ' · <span class="text-amber-200/90">their cornerstone, rarely traded</span>' : ''}${x.r.consensus ? ` · ${coachConsensusText(x.r)}` : ''}`);
   }).join('')}</div>`;
 }
 
