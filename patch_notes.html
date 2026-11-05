@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=62fb5f60">
-<link rel="stylesheet" href="tailwind.css?v=39d1844a">
+<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=31d696f3"></script>
+<script src="vault-core.js?v=b53f3fc0"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,11 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'fixed', page: 'Site', text: "Wording brought up to date: how often projections refresh, how injuries and return weeks work, and the Trade Lab trade count. Notes that say to hover no longer show on phones." },
+    { kind: 'fixed', page: 'Everywhere', text: "Search boxes on the calculator, Player Market and Compare now respond across the whole box, and the gold outline goes round the box you see." },
+    { kind: 'fixed', page: 'Everywhere', text: "Phones no longer zoom the page in when you tap a text box, small text links are easier to tap, and any name cut off with … shows in full on hover." },
+    { kind: 'fixed', page: 'Team Analyzer', text: "Push now: the example trade is now priced on trade value instead of added-up KTC value, with picks and younger players only, so it no longer suggests offers the other manager would turn down. Players out of reach are left off." },
+    { kind: 'improved', page: 'Trade Lab', text: "How often players change hands: 6,000+ is now one column, so RB and TE fill in, and a note explains the last blank." },
     { kind: 'fixed', page: 'Team Analyzer', text: "Where every team stands: every dot now has its team's name, even in a crowded corner." },
     { kind: 'fixed', page: 'Everywhere', text: "Players whose names KTC and Sleeper spell differently, like Kenny Gainwell and Chig Okonkwo, now get their value and show up in team totals. They read 0 before." },
     { kind: 'new', page: 'Player Card', text: "The player card now shows injury details: the tag, the injury, the status and the return weeks." },

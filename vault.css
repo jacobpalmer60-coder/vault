@@ -221,3 +221,13 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
 #builder details > summary > span:last-child { white-space: nowrap; flex-shrink: 0; }
 .player-link { cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 2px; transition: text-decoration-color .15s; }
 .player-link:hover { text-decoration-color: currentColor; }
+/* The ring goes round the box you see, not the field inside it. */
+[data-field-box] { cursor: text; }
+[data-field-box]:focus-within { outline: 2px solid rgba(227, 176, 75, 0.7); outline-offset: 2px; }
+[data-field-box] .vs-wrap:focus-within { outline: none; }
+/* iPhones zoom the whole page into any text box under 16px. */
+/* (the header's small team box stays small: at 16px it cuts team names off) */
+@media (max-width: 639px) { input:not([type=checkbox]):not([type=radio]), textarea { font-size: 16px !important; } header input:not([type=checkbox]):not([type=radio]) { font-size: 12px !important; } }
+/* Small text links: the tap area runs past the words without moving anything. */
+a.underline, a[href="#legend"], #status a, footer a, #sortLast3 { position: relative; }
+a.underline::after, a[href="#legend"]::after, #status a::after, footer a::after, #sortLast3::after { content: ""; position: absolute; inset: -8px -4px; }

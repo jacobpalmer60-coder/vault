@@ -5361,6 +5361,22 @@ const Vault = {
   addEventListener('scroll', hide, true);
 })();
 
+// A text box drawn bigger than its field, with an icon or padding around it: all of it is the
+// field (user, 2026-11-05, the Trade Coach box first). Mark the box data-field-box.
+document.addEventListener('mousedown', e => {
+  const box = e.target.closest?.('[data-field-box]');
+  if (!box || e.target.closest('input, button, a, .vs-wrap')) return;
+  const input = box.querySelector('input:not([type=hidden])');
+  if (!input || input.disabled) return;
+  e.preventDefault();
+  if (document.activeElement === input) input.click(); else input.focus();
+});
+// Text cut off by .truncate shows in full on hover, wherever it is.
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest?.('.truncate');
+  if (el && !el.title && el.scrollWidth > el.clientWidth) el.title = el.textContent.trim();
+});
+
 // Fills the spans Vault.playerMeta leaves, on whichever page, whenever they land.
 (function () {
   let players = null, loading = false;

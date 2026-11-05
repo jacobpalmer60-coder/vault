@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=62fb5f60">
-<link rel="stylesheet" href="tailwind.css?v=39d1844a">
+<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -56,7 +56,7 @@
       </div>
       <div id="lookupRange" class="flex gap-1.5"></div>
     </div>
-    <div class="rounded-xl border border-white/10 bg-black/30 px-3 py-2 mb-3">
+    <div data-field-box class="rounded-xl border border-white/10 bg-black/30 px-3 py-2 mb-3">
       <select id="lookup" data-search="Type a player…" aria-label="Look up a player" class="w-full bg-transparent text-[14px] text-zinc-100 outline-none"></select>
     </div>
     <div id="lookupBody" class="text-[12px] text-zinc-500">Pick a player to see his market.</div>
@@ -110,7 +110,7 @@
 
 <div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
 
-<script src="vault-core.js?v=31d696f3"></script>
+<script src="vault-core.js?v=b53f3fc0"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script src="market-data.js?v=682a679f"></script>
 <script src="player-card.js?v=34c6b48d"></script>
@@ -589,7 +589,7 @@ function drawMovers() {
       ${list('Market highs', 'Managers pay more for these than for others at their position and KTC value. A chance to sell high.', highs)}
       ${list('Market lows', 'These go for less than others at their position and KTC value. A chance to buy low.', lows)}
     </div>
-    <div class="text-[11px] text-zinc-500 mt-3">The big number is how much more or less managers pay for him than for players at the same position and KTC value (stars' partners can only be worth less, cheap players' tend to be worth more, and whole positions can trade off KTC, so raw % over KTC alone would skew the lists). "Paid" is his own median % over or under KTC. Hover a player for his market value and usual range. From KTC's trade database and Sleeper dynasty trades; ${trades.toLocaleString()} trades in all.</div>`;
+    <div class="text-[11px] text-zinc-500 mt-3">The big number is how much more or less managers pay for him than for players at the same position and KTC value (stars' partners can only be worth less, cheap players' tend to be worth more, and whole positions can trade off KTC, so raw % over KTC alone would skew the lists). "Paid" is his own median % over or under KTC. <span class="[@media(hover:none)]:hidden">Hover a player for his market value and usual range.</span> From KTC's trade database and Sleeper dynasty trades; ${trades.toLocaleString()} trades in all.</div>`;
 }
 
 /* ---------- All players by market ----------

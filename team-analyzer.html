@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=62fb5f60">
-<link rel="stylesheet" href="tailwind.css?v=39d1844a">
+<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -52,12 +52,12 @@
   <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=31d696f3"></script>
+<script src="vault-core.js?v=b53f3fc0"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script src="season-report.js?v=650fef31"></script>
 <script src="market-data.js?v=682a679f"></script>
 <script src="player-card.js?v=34c6b48d"></script>
-<script src="timeline.js?v=2c1aa92e"></script>
+<script src="timeline.js?v=eb7d788a"></script>
 <script>
 const $ = s => document.querySelector(s);
 
@@ -303,7 +303,7 @@ function leagueMap(t, all) {
   const dots = [...pts].sort((a, b) => a.me - b.me).map(p => {
     const x = p.t, lab = labels.get(p);
     const tip = `${x.teamName}: ${x.opt.toFixed(1)} projected lineup points a week, ${Math.round(x.overall).toLocaleString()} dynasty value`;
-    return `<a href="${link(x)}"><g class="cursor-pointer"><title>${Vault.escapeHtml(tip)}</title>
+    return `<a href="${link(x)}" aria-label="${Vault.escapeHtml(x.teamName)}"><g class="cursor-pointer"><title>${Vault.escapeHtml(tip)}</title>
       ${lab.line ? `<line x1="${p.cx}" y1="${p.cy}" x2="${lab.line[0]}" y2="${lab.line[1]}" stroke="currentColor" class="text-white/20"></line>` : ''}
       <circle cx="${p.cx}" cy="${p.cy}" r="${p.me ? 8 : 6.5}" class="${p.me ? 'fill-amber-400' : 'fill-zinc-300'}" stroke="#14161b" stroke-width="2"></circle>
       <text x="${lab.x}" y="${lab.y}" text-anchor="${lab.anchor}" font-size="12" class="${p.me ? 'fill-amber-200' : 'fill-zinc-400'}">${Vault.escapeHtml(p.short)}</text></g></a>`;
@@ -337,7 +337,7 @@ function windowChart(t, all) {
       </div>
       <div class="flex items-end gap-2 h-[64px]">${win.proj.map((v, i) => `<div class="flex-1 h-full flex flex-col justify-end"><div class="w-full rounded-t ${win.inWindow[i] ? 'bg-emerald-400/70' : 'bg-zinc-600/60'}" style="height:${Math.max(8, v / win.peak * 100)}%" title="${win.startYear + i}: ${Math.round(v).toLocaleString()} projected value, ${win.projPPG[i].toFixed(1)} projected PPG"></div></div>`).join('')}</div>
       <div class="flex gap-2 text-[12px] mt-1 text-zinc-400">${win.proj.map((v, i) => `<span class="flex-1 text-center">${win.startYear + i}</span>`).join('')}</div>
-      <div class="text-[11px] text-zinc-500 mt-2">Green: in the window (${win.seasonOdds != null ? `this season, playoff odds of 50% or more; later, ` : ''}projected value within 88% of its peak and projected points above the playoff line, ${win.playoffLine.toFixed(1)} a week for the top ${win.playoffSpots}). Hover a bar for its numbers.</div>
+      <div class="text-[11px] text-zinc-500 mt-2">Green: in the window (${win.seasonOdds != null ? `this season, playoff odds of 50% or more; later, ` : ''}projected value within 88% of its peak and projected points above the playoff line, ${win.playoffLine.toFixed(1)} a week for the top ${win.playoffSpots}). <span class="[@media(hover:none)]:hidden">Hover a bar for its numbers.</span></div>
     </div>`;
 }
 

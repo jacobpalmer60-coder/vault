@@ -3,7 +3,8 @@
    should see why for all options. So a team can decide what they want to do.")
    Four paths for any team, each worked out on that team's real roster:
    - Push now: buy the player who adds the most to the best lineup from a team
-     that's out of the race, paid for with picks first, then bench players.
+     that's out of the race, at about even on trade value, with picks and bench
+     players under 27.
    - Reload: swap each RB, WR and TE aged 27+ for a player 25 or under at the
      same position and about the same KTC value on another roster.
    - Rebuild: sell those same players for picks at their KTC value.
@@ -29,13 +30,15 @@ const esc = s => Vault.escapeHtml(s);
 const n0 = v => Math.round(v).toLocaleString();
 const pct = v => (v > 0 && v < 1 ? '<1' : v > 99 && v < 100 ? '>99' : Math.round(v)) + '%';
 const SEED = 20260929, TRIALS = 4000; // the calculator's and League Overview's, so "Stay" matches their odds
+const MAX_PIECES = 4; // a Push now offer, like Trade Coach's bigger ones
+const EVEN_SHARE = 0.03; // about even: Amon-Ra for a 1st and a young WR is 1.3% off, and accepted
 const CLIFF_POS = new Set(['RB', 'WR', 'TE']), CLIFF_AGE = 27; // research batch: the age-27 cliff, both seasons
 const SELL_FLOOR = 1000;     // a 27+ player worth less than this isn't worth a trade on its own
 const YOUNG_MAX = 25;        // Reload's replacements
 const OUT_PCT = 10;          // "out of the race": the coach backtest's under-10% sellers
 const IN_PCT = 50;           // contending this season (contention window's first year)
 const PATHS = [
-  { key: 'push', label: 'Push now', short: 'Buy starters with picks and bench players.' },
+  { key: 'push', label: 'Push now', short: 'Buy starters with picks and young bench players.' },
   { key: 'reload', label: 'Reload', short: 'Swap aging starters for younger ones at the same price.' },
   { key: 'rebuild', label: 'Rebuild', short: 'Sell aging starters for picks.' },
   { key: 'stay', label: 'Stay the course', short: 'No trades.' }
@@ -143,32 +146,40 @@ function workOut(me) {
     out.paths.reload = { team, changed: [[me, team]], moves };
   }
 
-  // Push now: the player on a team out of the race who adds the most to the best
-  // lineup, paid at his KTC value with picks (most valuable first), then bench players.
+  /* Push now: the player on a team out of the race who adds the most to the best lineup, at a
+     price its manager could take. Priced on trade value, not added-up KTC value (user,
+     2026-11-05): 3 pieces adding to 10,365 "bought" Bijan at 9,309 when his trade value
+     against them was 12,575, and Trade Coach's check said no. A seller out of the race
+     wants picks and youth, so no one 27 or older goes in. */
   {
     const bench = me.plist.filter(p => p.value > 0 && !inLineup(me, p)).sort((a, b) => a.value - b.value);
     const picks = [...me.picks].filter(p => p.value > 0).sort((a, b) => b.value - a.value);
-    const budget = sum(picks, p => p.value) + sum(bench, p => p.value);
-    // As close to the price as the pieces allow: the biggest pieces that still fit
-    // under it (picks before bench players at the same value), then the smallest
-    // one that finishes it.
-    const pay = price => {
-      const pool = [...picks.map(p => ({ p, pick: true })), ...bench.map(p => ({ p, pick: false }))].sort((a, b) => b.p.value - a.p.value || b.pick - a.pick);
-      const took = []; let paid = 0;
-      pool.forEach(x => { if (paid + x.p.value <= price) { took.push(x); paid += x.p.value; } });
-      while (paid < price) {
-        const left = pool.filter(x => !took.includes(x));
-        if (!left.length) return null;
-        const fin = left.filter(x => paid + x.p.value >= price).sort((a, b) => a.p.value - b.p.value)[0] || left[0];
-        took.push(fin); paid += fin.p.value;
-      }
-      return { outPicks: took.filter(x => x.pick).map(x => x.p), out: took.filter(x => !x.pick).map(x => x.p), paid };
+    const young = bench.filter(p => p.age < CLIFF_AGE);
+    const budget = sum(picks, p => p.value) + sum(young, p => p.value);
+    const pool = [...picks.map(p => ({ p, pick: true, a: { type: 'pick', ...p } })), ...young.map(p => ({ p, pick: false, a: { type: 'player', ...p } }))]
+      .sort((a, b) => b.p.value - a.p.value || b.pick - a.pick).slice(0, 12);
+    // The biggest pieces until the sides are about even, then the smallest last piece that
+    // still gets there, so it doesn't overpay either. Null when the most it can send falls
+    // short. Trade values are only read against each other: each is a total on the trade's own
+    // scale, so the page shows plain KTC value.
+    const pay = x => {
+      const them = [{ type: 'player', ...x }];
+      const covers = list => { const v = Vault.tradeSideValues(list.map(y => y.a), them, { neverLess: false }); return v.valueA >= v.valueB * (1 - EVEN_SHARE); };
+      let took = [];
+      for (const y of pool) { if (took.length === MAX_PIECES || (took.length && covers(took))) break; took.push(y); }
+      if (!took.length || !covers(took)) return null;
+      const rest = took.slice(0, -1);
+      took = [...rest, [...pool].reverse().find(y => !rest.includes(y) && covers([...rest, y]))];
+      const final = Vault.tradeSideValues(took.map(y => y.a), them);
+      if (final.valueA < final.valueB * (1 - EVEN_SHARE)) return null;
+      return { outPicks: took.filter(y => y.pick).map(y => y.p), out: took.filter(y => !y.pick).map(y => y.p), paid: sum(took, y => y.p.value) };
     };
     const weakest = Math.min(...me.lineup.filter(s => s.id).map(s => s.ppg), Infinity); // a buy has to out-score someone in the lineup
     const gainOf = (t, x) => Vault.seasonLineupDetail([...me.plist, x], ctx.slots).total - me.opt;
     const scan = pool => pool.flatMap(t => t.plist.filter(x => x.value > 0 && x.value <= budget && x.ppg > weakest).map(x => ({ t, x })))
       .sort((a, b) => b.x.ppg - a.x.ppg).slice(0, 30)
       .map(c => ({ ...c, gain: gainOf(c.t, c.x) })).filter(c => c.gain >= 0.5)
+      .map(c => ({ ...c, paid: pay(c.x) })).filter(c => c.paid)
       .sort((a, b) => b.gain - a.gain || a.x.value - b.x.value);
     const sellers = others.filter(isOut);
     let found = scan(sellers), fromSeller = true;
@@ -176,7 +187,7 @@ function workOut(me) {
     const sellersWith = new Set(scan(sellers).map(c => c.t.rosterId)).size;
     const best = found[0];
     if (best) {
-      const paid = pay(best.x.value);
+      const { paid } = best;
       const team = modTeam(me, { out: paid.out, outPicks: paid.outPicks, add: [best.x] });
       const seller = modTeam(best.t, { out: [best.x], add: paid.out, addPicks: paid.outPicks });
       out.paths.push = { team, changed: [[me, team], [best.t, seller]], moves: [{ get: best.x, from: best.t, give: paid, fromSeller }], alts: found.slice(1, 4), budget, sellersWith, nSellers: sellers.length };
@@ -239,10 +250,10 @@ function difficulty(o, k) {
   const P = o.paths[k], name = esc(o.me.teamName);
   if (k === 'stay') return { level: 'Easiest', cls: 'text-emerald-300', text: 'Nothing to negotiate. The cost is waiting: players past 27 keep losing value while the team decides.' };
   if (k === 'push') {
-    if (P.none) return { level: 'Hard', cls: 'text-orange-300', text: `No team outside the playoff race has a player who'd start for ${name} at a price its picks and bench can cover (${n0(P.budget)} in all).` };
+    if (P.none) return { level: 'Hard', cls: 'text-orange-300', text: `No team outside the playoff race has a player who'd start for ${name} at a price its picks and bench players under 27 can cover (${n0(P.budget)} in all).` };
     const m = P.moves[0];
     const lvl = !m.fromSeller ? 'Hard' : P.sellersWith >= 3 ? 'Easier' : 'Harder';
-    return { level: lvl, cls: lvl === 'Easier' ? 'text-emerald-300' : 'text-orange-300', text: `${P.sellersWith} of ${P.nSellers} team${P.nSellers === 1 ? '' : 's'} out of the race (${ctx.inSeason ? `under ${OUT_PCT}% playoff odds` : 'rebuilding'}) ${P.sellersWith === 1 ? 'has' : 'have'} a player who'd start for ${name}${m.fromSeller ? '' : '; the best one is on a team still in the race, and contenders rarely sell starters'}. Picks and bench to spend: ${n0(P.budget)} of KTC value.` };
+    return { level: lvl, cls: lvl === 'Easier' ? 'text-emerald-300' : 'text-orange-300', text: `${P.sellersWith} of ${P.nSellers} team${P.nSellers === 1 ? '' : 's'} out of the race (${ctx.inSeason ? `under ${OUT_PCT}% playoff odds` : 'rebuilding'}) ${P.sellersWith === 1 ? 'has' : 'have'} a player who'd start for ${name}${m.fromSeller ? '' : '; the best one is on a team still in the race, and contenders rarely sell starters'}. Picks and bench players under 27 to spend: ${n0(P.budget)} of KTC value.` };
   }
   const nSell = o.sell.length;
   if (!nSell) return { level: 'Not needed', cls: 'text-zinc-400', text: `${name} has no RB, WR or TE aged 27+ worth ${n0(SELL_FLOOR)} or more to move.` };
@@ -334,10 +345,10 @@ function movesHtml(o, k) {
   const P = o.paths[k], name = esc(o.me.teamName), nm = p => `${Vault.assetLink(p)} <span class="text-zinc-500">${Vault.posMeta(p)}</span>`;
   if (k === 'stay') return `<div class="text-[14px] text-zinc-200">Keep the roster as it is. ${o.sell.length ? `${o.sell.length} player${o.sell.length === 1 ? '' : 's'} past the age-27 cliff stay: ${o.sell.slice(0, 4).map(nm).join(', ')}${o.sell.length > 4 ? '…' : ''}.` : ''}</div>`;
   if (k === 'push') {
-    if (P.none) return `<div class="text-[14px] text-zinc-200">No upgrade found within ${name}'s picks and bench.</div>`;
+    if (P.none) return `<div class="text-[14px] text-zinc-200">No upgrade found within ${name}'s picks and bench players under 27.</div>`;
     const m = P.moves[0], give = [...m.give.outPicks.map(pickName), ...m.give.out.map(p => esc(p.name))];
     const mp = marketPct(m.get);
-    return `<div class="text-[14px] text-zinc-200">For example: ${name} gets ${nm(m.get)} from ${esc(m.from.teamName)}${m.from.playoffPct != null ? ` <span class="text-zinc-500">(${pct(m.from.playoffPct)} playoff odds)</span>` : ''} for ${give.join(', ')}, about ${n0(m.give.paid)} for his ${n0(m.get.value)} KTC value.${mp != null ? ` He goes for ${Math.abs(mp) < 1 ? 'about even with' : `${Math.abs(Math.round(mp))}% ${mp > 0 ? 'over' : 'under'}`} KTC value in completed trades.` : ''}</div>
+    return `<div class="text-[14px] text-zinc-200">For example: ${name} gets ${nm(m.get)} from ${esc(m.from.teamName)}${m.from.playoffPct != null ? ` <span class="text-zinc-500">(${pct(m.from.playoffPct)} playoff odds)</span>` : ''} for ${give.join(', ')}: ${n0(m.give.paid)} of KTC value for his ${n0(m.get.value)}, about even once the premium for the best piece is counted.${mp != null ? ` He goes for ${Math.abs(mp) < 1 ? 'about even with' : `${Math.abs(Math.round(mp))}% ${mp > 0 ? 'over' : 'under'}`} KTC value in completed trades.` : ''}</div>
       ${P.alts.length ? `<div class="text-[12px] text-zinc-400 mt-1">Other starters within reach: ${P.alts.map(c => `${esc(c.x.name)} (${esc(c.t.teamName)}, +${c.gain.toFixed(1)} pts/wk)`).join(' · ')}</div>` : ''}`;
   }
   if (!o.sell.length) return `<div class="text-[14px] text-zinc-200">Nothing to move: ${name} has no RB, WR or TE aged 27+ worth ${n0(SELL_FLOOR)} or more.</div>`;
@@ -364,7 +375,7 @@ function prosCons(o, k) {
     cons.push(`Pick capital drops from #${S.picksRank} to #${P.picksRank} in the league.`);
     [1, 2].forEach(y => { const d = winBetter(y); if (d > 0) cons.push(`${winTxt(y)}.`); else if (d < 0) pros.push(`${winTxt(y)}.`); });
   }
-  if (k === 'push' && P.none) cons.push('Nothing to buy at a price the picks and bench can cover.');
+  if (k === 'push' && P.none) cons.push('Nothing to buy at a price the picks and young bench players can cover.');
   if (k === 'reload' || k === 'rebuild') {
     if (!o.sell.length) cons.push('Nothing past the cliff to move, so this path changes little.');
     else {
@@ -429,6 +440,13 @@ function coachButton(o, k) {
   const base = Vault.linkTo('trade.html');
   if (!mine) return `<a href="${base}&coach=team&with=${o.me.rosterId}" class="btn-ghost inline-block text-[13px] px-4 py-2">Start a trade with ${esc(o.me.teamName)}</a>
     <div class="text-[12px] text-zinc-500 mt-1.5">Trade Coach works from your own team. Switch to it above to act on a path.</div>`;
+  // Push now has the trade itself: open it, so its grade can be checked (user, 2026-11-05).
+  const m = k === 'push' && o.paths.push.moves[0];
+  if (m) {
+    const keys = [...m.give.outPicks.map(p => `k_${p.season}-${p.round}-${p.original}`), ...m.give.out.map(p => `p_${p.id}`)];
+    return `<a href="${base}&a=${o.me.rosterId}&b=${m.from.rosterId}&give_a=${keys.join(',')}&give_b=p_${m.get.id}" class="btn-gold-solid inline-block text-[13px] px-4 py-2">Open this trade in the calculator</a>
+      <a href="${base}&coach=open" class="btn-ghost inline-block text-[13px] px-4 py-2 ml-2">Build another in Trade Coach</a>`;
+  }
   // The Coach builds trades step by step (2026-10-27): reload can start by moving the player to sell.
   const link = (k === 'reload' || !['push', 'rebuild', 'stay'].includes(k)) && o.sell[0] ? [`${base}&coach=shop&player=p_${o.sell[0].id}`, `Move ${esc(o.sell[0].name)} in Trade Coach`] : [`${base}&coach=open`, 'Build a trade in Trade Coach'];
   return `<a href="${link[0]}" class="btn-gold-solid inline-block text-[13px] px-4 py-2">${link[1]}</a>`;

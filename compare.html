@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=62fb5f60">
-<link rel="stylesheet" href="tailwind.css?v=39d1844a">
+<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="tailwind.css?v=274f3b2f">
 <style>
   /* Up to four series, in the dataviz reference order for dark surfaces
      (blue, orange, aqua, yellow), validated on this card surface for adjacent
@@ -120,7 +120,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=31d696f3"></script>
+<script src="vault-core.js?v=b53f3fc0"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script src="market-data.js?v=682a679f"></script>
 <script src="player-card.js?v=34c6b48d"></script>
@@ -259,7 +259,7 @@ function setupControls() {
 // ---- Pickers ----
 function renderPickers() {
   $('pickers').innerHTML = picked.map((n, i) => `<div class="relative" data-slot="${i}">
-      <div class="flex items-center gap-2 bg-black/50 border border-white/10 rounded-xl px-3 py-2 focus-within:border-white/30">
+      <div data-field-box class="flex items-center gap-2 bg-black/50 border border-white/10 rounded-xl px-3 py-2 focus-within:border-white/30">
         <span class="sw sw${i + 1}"></span>
         <input type="text" autocomplete="off" placeholder="Search a player…" aria-label="Player ${i + 1}" class="flex-1 min-w-0 bg-transparent outline-none text-[14px]">
         ${picked.length > 2 ? `<button type="button" data-remove="${i}" aria-label="Remove player ${i + 1}" class="text-zinc-500 hover:text-rose-300 text-[14px] leading-none px-1">✕</button>` : ''}
@@ -794,7 +794,7 @@ async function renderStats() {
   }
   $('statsNote').textContent = [
     'Fantasy points and weekly finishes use your league\'s scoring.',
-    single ? 'The # after each number is its rank among every qualified player at that position over the same games (enough games and volume to count), shaded green to red. Hover a stat name for what it means.' : 'Career covers seasons through ' + (lastHistorySeason || 'last year') + '; pick a season for ranks, weekly finishes, and team shares.',
+    single ? 'The # after each number is its rank among every qualified player at that position over the same games (enough games and volume to count), shaded green to red. ' + (matchMedia('(hover: none)').matches ? '' : 'Hover a stat name for what it means.') : 'Career covers seasons through ' + (lastHistorySeason || 'last year') + '; pick a season for ranks, weekly finishes, and team shares.',
     'Routes run, evaded tackles, and similar tracking stats aren\'t available from Sleeper.'
   ].join(' ');
   if (single && sd) renderGameLog(ps, sd);
