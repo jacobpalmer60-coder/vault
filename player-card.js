@@ -138,15 +138,15 @@
       // The 30-day trend through the dots when there's enough to draw one, else faint joins between nearby dots.
       const runs = [[]];
       if (trend) series.forEach((p, i) => { const v = trend.get(p.date); if (Number.isFinite(v)) runs[runs.length - 1].push(`${x(i)},${y(v)}`); else if (runs[runs.length - 1].length) runs.push([]); });
-      const trendLine = runs.filter(r => r.length > 1).map(r => `<polyline points="${r.join(' ')}" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
-      marketLines = (trendLine || pts.slice(1).map(([i, m], k) => { const [j, prev] = pts[k]; return i - j <= 7 ? `<line x1="${x(j)}" y1="${y(prev.value)}" x2="${x(i)}" y2="${y(m.value)}" stroke="#fbbf24" stroke-opacity="0.35" stroke-width="1.25"/>` : ''; }).join(''))
-        + pts.map(([i, m]) => `<circle cx="${x(i)}" cy="${y(m.value)}" r="${Math.min(5, 2.5 + Math.log2(m.n))}" fill="#fbbf24" stroke="#0c0d10" stroke-width="1"/>`).join('');
+      const trendLine = runs.filter(r => r.length > 1).map(r => `<polyline points="${r.join(' ')}" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+      marketLines = (trendLine || pts.slice(1).map(([i, m], k) => { const [j, prev] = pts[k]; return i - j <= 7 ? `<line x1="${x(j)}" y1="${y(prev.value)}" x2="${x(i)}" y2="${y(m.value)}" stroke="#7dd3fc" stroke-opacity="0.35" stroke-width="1.25"/>` : ''; }).join(''))
+        + pts.map(([i, m]) => `<circle cx="${x(i)}" cy="${y(m.value)}" r="${Math.min(5, 2.5 + Math.log2(m.n))}" fill="#7dd3fc" stroke="#0c0d10" stroke-width="1"/>`).join('');
     }
     // A transparent rect over the whole plot area catches mousemove anywhere
     // in the chart, not just exactly on a 2.5px-radius circle.
     const hoverRect = `<rect x="${ML}" y="${MT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>`;
-    const legend = market ? `<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded ${up ? 'bg-emerald-400' : 'bg-rose-400'}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400"></span>What managers paid for him that day</span>${trend && trend.size ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market price (what trade value used)</span>' : ''}</div>` : '';
-    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" data-chart-id="${chartId}">${gridLines}<polyline points="${pts}" fill="none" stroke="${up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${marketLines}${hoverRect}${dateTicks}</svg>${legend}`;
+    const legend = market ? `<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-zinc-300"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-sky-300"></span>What managers paid for him that day</span>${trend && trend.size ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-sky-300"></span>Market price (what trade value used)</span>' : ''}</div>` : '';
+    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" data-chart-id="${chartId}">${gridLines}<polyline points="${pts}" fill="none" stroke="${market ? '#d4d4d8' : up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${marketLines}${hoverRect}${dateTicks}</svg>${legend}`;
   }
 
   // One delegated listener serves every chart, including ones re-rendered

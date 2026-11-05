@@ -23,23 +23,19 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10" id="main" role="main">
+<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-4 lg:py-6" id="main" role="main">
   <div class="mb-2">
-    <h1 class="display text-[28px] font-semibold gold-text">Player Market</h1>
+    <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Player Market<span class="term-i" data-term="page_market" tabindex="0" role="note">?</span></h1><a href="how_we_grade.html#market" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How it works</a></div>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
   </div>
-  <p class="text-[13px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
-    What players actually go for in completed dynasty trades in leagues like yours, next to their KTC value.
-    <a href="how_we_grade.html#market" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How it works</a>
-  </p>
 
   <!-- Your market: your pieces selling above and below KTC in completed trades (shown once your team is set). -->
   <div id="marketNudge" class="hidden mb-6"></div>
@@ -110,10 +106,10 @@
 
 <div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
-<script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=9a548ef1"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="market-data.js?v=ba533660"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -171,16 +167,17 @@ let byNorm = new Map();         // normalized name -> { name, pos, value } from 
 // moved to Trade Lab, 2026-10-21.)
 let INSIGHTS = null;
 fetch('data/market-history/insights.json').then(r => (r.ok ? r.json() : null)).then(d => { INSIGHTS = d; if (lookupNorm) lookUp(lookupNorm); }).catch(() => {});
-// "Outlook: at the same KTC price, RBs aged 27-28 lost value afterward: −5% a year on, −10% two years on."
-function outlookHtml(who) {
-  if (!INSIGHTS || !who || !['QB', 'RB', 'WR', 'TE'].includes(who.pos) || !(who.age > 0)) return '';
+// "Outlook: at the same KTC price, RBs aged 27-28 lost value afterward: down 5% a year on, down 10% two years on."
+const factTile = ({ label, head, sub, extra = '' }) => `<div class="min-w-0"><div class="text-[11px] uppercase tracking-wider text-zinc-500">${label}</div><div class="text-[14px] font-medium text-zinc-100 mt-1">${head}</div><div class="text-[12px] text-zinc-400 leading-snug mt-0.5">${sub}</div>${extra}</div>`;
+function outlookFact(who) {
+  if (!INSIGHTS || !who || !['QB', 'RB', 'WR', 'TE'].includes(who.pos) || !(who.age > 0)) return null;
   const r = INSIGHTS.ageByPosition.find(x => x.pos === who.pos && who.age >= x.lo && who.age < x.hi);
-  if (!r) return '';
-  const sg = v => (Math.abs(v) < 0.5 ? '0%' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(0)}%`);
+  if (!r) return null;
+  const sg = v => (Math.abs(v) < 0.5 ? 'flat' : `${v > 0 ? 'up' : 'down'} ${Math.abs(v).toFixed(0)}%`);
   const avg = (r.drift1 + r.drift2) / 2, same = Math.sign(r.drift1) === Math.sign(r.drift2);
-  const verb = !same ? 'had mixed results' : Math.abs(avg) < 2 ? 'held their value about even' : avg > 0 ? 'gained value' : 'lost value';
+  const verb = !same ? 'Mixed results after this' : Math.abs(avg) < 2 ? 'Holds value about even' : avg > 0 ? 'Tends to gain value' : 'Tends to lose value';
   const cls = !same || Math.abs(avg) < 2 ? 'text-zinc-300' : avg > 0 ? 'text-emerald-300' : 'text-orange-300';
-  return `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">Outlook: at the same KTC price, ${who.pos}s aged ${r.age} have <span class="${cls}">${verb}</span> afterward: ${sg(r.drift1)} a year on, ${sg(r.drift2)} two years on (median, ${(r.n1 + r.n2).toLocaleString()} real trades).</div>`;
+  return { label: 'Outlook', head: `<span class="${cls}">${verb}</span>`, sub: `${who.pos}s aged ${r.age} at the same KTC price: ${sg(r.drift1)} a year on, ${sg(r.drift2)} two years on (median, ${(r.n1 + r.n2).toLocaleString()} real trades).` };
 }
 /* Best time to buy or sell (2026-10-27, user picked it): when players like him (position
    and age band; picks by round) are cheapest and dearest in the year, from KTC's history
@@ -191,25 +188,22 @@ function outlookHtml(who) {
 let SEASONAL = null;
 fetch('data/market-history/seasonal.json').then(r => (r.ok ? r.json() : null)).then(d => { SEASONAL = d; if (lookupNorm) lookUp(lookupNorm); if (byNorm.size) renderPicks().catch(() => {}); }).catch(() => {});
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function seasonalHtml(who) {
-  const F = SEASONAL?.formats?.[isSF ? 'sf' : 'oneQB']; if (!F || !who) return '';
+function seasonalFact(who) {
+  const F = SEASONAL?.formats?.[isSF ? 'sf' : 'oneQB']; if (!F || !who) return null;
   const pick = who.pos === 'Pick';
   const band = a => (a < 24 ? ['young', 'under 24'] : a < 27 ? ['prime', '24-26'] : a < 30 ? ['vet', '27-29'] : ['old', '30+']);
   let g, label;
   if (pick) { g = F[`PICK|${Math.min(2, who.round)}`]; label = `${who.round === 1 ? '1st' : '2nd'}-round picks${who.round > 2 ? ' (2nds shown)' : ''}`; }
   else if (['QB', 'RB', 'WR', 'TE'].includes(who.pos)) { const [k, txt] = who.age > 0 ? band(who.age) : [null]; g = (k && F[`${who.pos}|${k}`]) || F[`${who.pos}|all`]; label = k && F[`${who.pos}|${k}`] ? `${who.pos}s aged ${txt}` : `${who.pos}s`; }
-  if (!g) return '';
+  if (!g) return null;
   const p = g.pct, lo = Math.min(...p), hi = Math.max(...p), now = new Date().getMonth();
   const sg = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(0)}%`;
   // The cheapest and dearest stretches: the two-month window lowest and highest on average.
   const win = dir => { let best = 0; for (let i = 1; i < 12; i++) if (dir * (p[i] + p[(i + 1) % 12]) > dir * (p[best] + p[(best + 1) % 12])) best = i; return best; };
   const buy = win(-1), sell = win(1), span = i => `${MON[i]}-${MON[(i + 1) % 12]}`, two = i => (p[i] + p[(i + 1) % 12]) / 2;
-  if (two(sell) - two(buy) < 4) return `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">Timing: ${label} barely move with the calendar (${Math.max(1, Math.round(hi - lo))}% from their low month to their high), so there's no season to wait for.</div>`;
+  if (two(sell) - two(buy) < 4) return { label: 'Timing', head: 'No season to wait for', sub: `${label} barely move with the calendar: ${Math.max(1, Math.round(hi - lo))}% from their low month to their high.` };
   const bars = p.map((v, i) => { const h = Math.max(3, 14 + v * 2.2); return `<div class="flex-1 flex flex-col items-center gap-0.5" title="${MON[i]} 1: ${sg(v)} against the yearly average"><div class="w-full flex items-end h-[30px]"><div class="w-full rounded-sm ${i === now ? 'ring-1 ring-amber-300' : ''} ${v < 0 ? 'bg-emerald-400/60' : 'bg-orange-400/60'}" style="height:${Math.min(30, h)}px"></div></div><span class="text-[9px] ${i === now ? 'text-amber-200' : 'text-zinc-500'}">${MON[i][0]}</span></div>`; }).join('');
-  return `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">
-      <div>Timing: ${label} usually cost the least in <span class="text-emerald-300">${span(buy)}</span> (${sg((p[buy] + p[(buy + 1) % 12]) / 2)} against their yearly average) and the most in <span class="text-orange-300">${span(sell)}</span> (${sg((p[sell] + p[(sell + 1) % 12]) / 2)}). This month: ${sg(p[now])}.${pick ? ' Only three years of pick prices behind this.' : ''}</div>
-      <div class="flex gap-1 mt-1 max-w-[320px]" aria-label="Price against the yearly average, by month">${bars}</div>
-    </div>`;
+  return { label: 'Timing', head: `Cheapest <span class="text-emerald-300">${span(buy)}</span>, dearest <span class="text-orange-300">${span(sell)}</span>`, sub: `${label}: ${sg(two(buy))} and ${sg(two(sell))} against their yearly average. This month: ${sg(p[now])}.${pick ? ' Only three years of pick prices behind this.' : ''}`, extra: `<div class="flex gap-1 mt-1.5 max-w-[320px]" aria-label="Price against the yearly average, by month">${bars}</div>` };
 }
 /* Trade history (2026-10-27, user picked "Player trade history"): every crawled Sleeper
    trade he was in since 2024, all leagues, by month, and how the teams that got him as
@@ -224,11 +218,11 @@ function tradeHistoryHtml(norm, who) {
   const months = h.m, total = months.reduce((t, m) => t + m[1], 0), heads = months.reduce((t, m) => t + m[2], 0);
   const peak = months.reduce((b, m) => (m[1] > b[1] ? m : b)), max = peak[1] || 1;
   const label = ym => { const [y, mo] = ym.split('-'); return `${MON[+mo - 1]} ${y}`; };
-  const W = 720, H = 110, ML = 4, MR = 4, MT = 6, MB = 18, bw = (W - ML - MR) / months.length;
+  const W = Math.max(320, document.getElementById('lookupBody')?.clientWidth || 720), H = 110, ML = 4, MR = 4, MT = 6, MB = 18, bw = (W - ML - MR) / months.length;
   const bars = months.map(([ym, n, hd, paid], i) => {
     const x = ML + i * bw, hN = (H - MT - MB) * n / max, hH = (H - MT - MB) * hd / max;
     const tip = `${label(ym)}: in ${n} trade${n === 1 ? '' : 's'}, headlined ${hd}${paid != null ? `; those paid ${signed(paid)} KTC (median)` : ''}`;
-    return `<g><title>${esc(tip)}</title><rect x="${(x + 1).toFixed(1)}" y="${(H - MB - hN).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${hN.toFixed(1)}" rx="1.5" fill="rgba(161,161,170,0.25)"></rect><rect x="${(x + 1).toFixed(1)}" y="${(H - MB - hH).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${hH.toFixed(1)}" rx="1.5" fill="rgba(251,191,36,0.6)"></rect></g>`;
+    return `<g><title>${esc(tip)}</title><rect x="${(x + 1).toFixed(1)}" y="${(H - MB - hN).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${hN.toFixed(1)}" rx="1.5" fill="rgba(161,161,170,0.25)"></rect><rect x="${(x + 1).toFixed(1)}" y="${(H - MB - hH).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${hH.toFixed(1)}" rx="1.5" fill="rgba(56,189,248,0.6)"></rect></g>`;
   }).join('');
   const years = months.map(([ym], i) => (ym.endsWith('-01') || i === 0 ? `<text x="${(ML + i * bw + 2).toFixed(1)}" y="${H - 4}" font-size="11" class="fill-zinc-500">${ym.slice(0, 4)}</text>` : '')).join('');
   const b = h.buy, sg = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}%`;
@@ -240,7 +234,7 @@ function tradeHistoryHtml(norm, who) {
       </div>
       <p class="text-[12px] text-zinc-400 mt-0.5">In <span class="text-zinc-200">${total.toLocaleString()}</span> completed trades, the headliner in ${heads.toLocaleString()}; busiest in ${label(peak[0])}. ${buyLine}</p>
       <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto mt-2" role="img" aria-label="Trades a month">${bars}${years}</svg>
-      <div class="flex gap-4 text-[11px] text-zinc-500 mt-1"><span><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle mr-1" style="background:rgba(251,191,36,0.6)"></span>Headlined</span><span><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle mr-1" style="background:rgba(161,161,170,0.25)"></span>In the trade</span><span>Hover a month for what was paid</span></div>
+      <div class="flex gap-4 text-[11px] text-zinc-500 mt-1"><span><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle mr-1" style="background:rgba(56,189,248,0.6)"></span>Headlined</span><span><span class="inline-block w-2.5 h-2.5 rounded-sm align-middle mr-1" style="background:rgba(161,161,170,0.25)"></span>In the trade</span><span>Hover a month for what was paid</span></div>
     </div>`;
 }
 let daily = null;               // { from, players: { norm: [[day, pct, n]] } }
@@ -407,32 +401,33 @@ async function lookUp(norm) {
   const trend = series.map((p, i) => (trendPct.has(p.date) ? { i, value: Math.round(p.value * (1 + trendPct.get(p.date) / 100)), pct: trendPct.get(p.date) } : null));
   // Today's market value (as on the player card and in the table).
   const mp = marketPlayer(league, who.key || who.name, who.pos), read = mp.read;
-  const liq = marketLiquidityText(marketLiquidity(who.key || who.name, who.pos, who.value, [...byNorm.values()].map(p => ({ name: p.key || p.name, pos: p.pos, value: p.value }))), who.pos);
+  const liq = marketLiquidityFact(marketLiquidity(who.key || who.name, who.pos, who.value, [...byNorm.values()].map(p => ({ name: p.key || p.name, pos: p.pos, value: p.value }))), who.pos);
+  const facts = [liq, outlookFact(who), seasonalFact(who)].filter(Boolean);
   const head = `<div class="flex items-center gap-2 flex-wrap mb-2">
       <span class="inline-flex items-center justify-center w-9 py-px rounded text-[11px] font-semibold border ${POS_BADGE(who.pos)}">${who.pos || '—'}</span>
       <span class="text-[15px] font-semibold text-zinc-100">${Vault.assetLink(who)}${Vault.metaSpan(who)}</span>
       <span class="text-[12px] text-zinc-400 basis-full flex flex-wrap items-end gap-x-8 gap-y-2 mt-1"><span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value)}</span>KTC value</span>${read ? `<span><span class="num text-[28px] text-zinc-100 block">${Vault.fmtInt(who.value * (1 + mp.adj / 100))}${(Math.abs(read.premium) > MARKET_ADJ_CAP ? '+' : '')}</span>market price, <span title="${MARKET_PEER_TIP}" class="cursor-help ${Math.abs(marketPeerPct(mp) ?? 0) < 3 ? 'text-zinc-300' : marketPeerPct(mp) > 0 ? 'text-emerald-300' : 'text-orange-300'}">${marketPeerPhrase(mp)}</span></span> <span class="text-zinc-500">from ${read.n} trades, leagues like yours (${esc(read.like)})</span>` : ' · <span class="text-zinc-500">not enough completed trades for a market value yet</span>'}</span>
-    </div>${liq ? `<div class="text-[12px] text-zinc-400 -mt-1 mb-2 leading-relaxed">${liq}</div>` : ''}${outlookHtml(who)}${seasonalHtml(who)}`;
+    </div>${facts.length ? `<div class="grid sm:grid-cols-3 gap-x-6 gap-y-3 mt-1 mb-3">${facts.map(factTile).join('')}</div>` : ''}`;
   if (series.length < 2) { box.innerHTML = head + '<div class="text-zinc-500">No KTC history in this range.</div>'; return; }
-  const W = 720, H = 220, ML = 48, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
+  const W = Math.max(320, box.clientWidth || 720), H = W < 620 ? 200 : 230, ML = 40, MR = 12, MT = 10, MB = 22, pw = W - ML - MR, ph = H - MT - MB;
   const all = [...series.map(p => p.value), ...market.map(m => m.value), ...trend.filter(Boolean).map(t => t.value)];
-  const lo = minOf(all), hi = maxOf(all), pad = (hi - lo) * 0.08 || hi * 0.1;
-  const yMin = Math.max(0, lo - pad), yMax = hi + pad;
+  const lo = minOf(all), hi = maxOf(all), pad = (hi - lo) * 0.05 || hi * 0.1;
+  const ticks = Vault.niceTicks(Math.max(0, lo - pad), hi + pad), yMin = ticks[0], yMax = ticks[ticks.length - 1];
   const x = i => ML + i / (series.length - 1) * pw, y = v => MT + ph - (v - yMin) / (yMax - yMin) * ph;
-  const up = series[series.length - 1].value >= series[0].value, lineColor = up ? '#34d399' : '#f87171';
-  const grid = [0, 0.5, 1].map(f => { const v = yMin + (yMax - yMin) * f; return `<line x1="${ML}" x2="${W - MR}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" class="text-white/[0.06]"/><text x="${ML - 6}" y="${y(v) + 3}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${Math.round(v).toLocaleString()}</text>`; }).join('');
+  const lineColor = '#d4d4d8', MARKET = '#7dd3fc';
+  const grid = ticks.map(v => { return `<line x1="${ML}" x2="${W - MR}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" class="text-white/[0.06]"/><text x="${ML - 6}" y="${y(v) + 3}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${Vault.axisNum(v)}</text>`; }).join('');
   const runs = [[]];
   trend.forEach(t => { if (t) runs[runs.length - 1].push(`${x(t.i)},${y(t.value)}`); else if (runs[runs.length - 1].length) runs.push([]); });
-  const trendLine = runs.filter(r => r.length > 1).map(r => `<polyline points="${r.join(' ')}" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
-  const joins = trendLine || market.slice(1).map((m, k) => (m.i - market[k].i <= 7 ? `<line x1="${x(market[k].i)}" y1="${y(market[k].value)}" x2="${x(m.i)}" y2="${y(m.value)}" stroke="#fbbf24" stroke-opacity="0.35" stroke-width="1.25"/>` : '')).join('');
+  const trendLine = runs.filter(r => r.length > 1).map(r => `<polyline points="${r.join(' ')}" fill="none" stroke="${MARKET}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+  const joins = trendLine || market.slice(1).map((m, k) => (m.i - market[k].i <= 7 ? `<line x1="${x(market[k].i)}" y1="${y(market[k].value)}" x2="${x(m.i)}" y2="${y(m.value)}" stroke="${MARKET}" stroke-opacity="0.35" stroke-width="1.25"/>` : '')).join('');
   // Small, see-through dots under the lines (user, 2026-10-08: a busy player's
   // year of daily dots buried the KTC line and the trend).
-  const dots = market.map(m => `<circle cx="${x(m.i)}" cy="${y(m.value)}" r="${Math.min(3.5, 1.6 + 0.6 * Math.log2(m.n))}" fill="#fbbf24" fill-opacity="0.35"/>`).join('');
+  const dots = market.map(m => `<circle cx="${x(m.i)}" cy="${y(m.value)}" r="${Math.min(3.5, 1.6 + 0.6 * Math.log2(m.n))}" fill="${MARKET}" fill-opacity="0.3"/>`).join('');
   box.innerHTML = head + `<svg id="lookupChart" viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${esc(who.name)}: KTC value and market points">${grid}${dots}
       <polyline points="${series.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/>${joins}
       <text x="${ML}" y="${H - 6}" font-size="10" fill="currentColor" class="text-zinc-400">${series[0].date}</text><text x="${W - MR}" y="${H - 6}" text-anchor="end" font-size="10" fill="currentColor" class="text-zinc-400">${series[series.length - 1].date}</text>
       <rect x="${ML}" y="${MT}" width="${pw}" height="${ph}" fill="transparent" style="cursor:crosshair"/></svg>
-    <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded" style="background:${lineColor}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-amber-400/50"></span>What managers paid that day (bigger dot, more trades)</span>${trendLine ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-amber-400"></span>Market price (what trade value used)</span>' : ''}${market.length ? '' : '<span class="text-zinc-500">No completed trades with him as the main piece in this range yet.</span>'}</div>`;
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded" style="background:${lineColor}"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-sky-300/50"></span>What managers paid that day (bigger dot, more trades)</span>${trendLine ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-sky-300"></span>Market price (what trade value used)</span>' : ''}${market.length ? '' : '<span class="text-zinc-500">No completed trades with him as the main piece in this range yet.</span>'}</div>`;
   const svg = document.getElementById('lookupChart'), byI = new Map(market.map(m => [m.i, m]));
   svg.addEventListener('mousemove', e => {
     const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) / r.width * W;
@@ -740,13 +735,13 @@ async function renderPicks() {
         <div class="text-[10px] text-zinc-500 mono">KTC ${Vault.fmtInt(p.value)}${read ? ` · ${read.n}` : ''}</div></button></td>`;
   };
   const at = (y, r) => picks.find(p => p.season === y && p.round === r);
-  const timing = [1, 2].map(r => seasonalHtml({ pos: 'Pick', round: r })).join('');
+  const timing = [1, 2].map(r => seasonalFact({ pos: 'Pick', round: r })).filter(Boolean).map(factTile).join('');
   box.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-[12px] min-w-[420px]">
       <thead><tr><th class="px-2 py-1.5 text-left text-zinc-500 font-normal">Round</th>${years.map(y => `<th class="px-2 py-1.5 text-center text-zinc-300 font-medium">${y}</th>`).join('')}</tr></thead>
       <tbody>${rounds.map(r => `<tr class="border-t border-white/5"><td class="px-2 py-2 text-zinc-300">${ORD(r)}</td>${years.map(y => cell(at(y, r))).join('')}</tr>`).join('')}</tbody>
     </table></div>
     <p class="text-[11px] text-zinc-500 mt-2">Big number: what the pick goes for (its market price, the median of completed trades it headlined in the last 45 days, capped the way trade value caps it), then how far that is from KTC and the number of trades. Mid-round picks; hover for early and late.</p>
-    <div class="mt-4 space-y-2">${timing}</div>
+    <div class="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-3">${timing}</div>
     <p class="text-[12px] text-zinc-400 mt-3">What picks turned into, picks against players later, and where each rookie went: <a href="${Vault.linkTo('trade_lab.html')}#picks" class="text-zinc-200 underline underline-offset-2 decoration-white/20 hover:text-white">Trade Lab's picks and rookie drafts</a>.</p>`;
 }
 function showTab(key) {

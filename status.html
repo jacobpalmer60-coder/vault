@@ -23,23 +23,19 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10" id="main" role="main">
-  <div class="mb-2">
-    <h1 class="display text-[28px] font-semibold gold-text">Data status</h1>
+<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-4 lg:py-6" id="main" role="main">
+  <div class="mb-4">
+    <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Data status<span class="term-i" data-term="page_status" tabindex="0" role="note">?</span></h1></div>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Checking every data source…</p>
   </div>
-  <p class="text-[12px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
-    Everything The Vault runs on: what's loaded, how fresh it is, and how the background jobs are doing.
-    Nothing here depends on your league; it's the same for everyone.
-  </p>
 
   <section class="mb-6">
     <h2 class="text-[13px] uppercase tracking-wider text-zinc-400 mb-2">Background jobs</h2>
@@ -71,8 +67,8 @@
   </section>
 </div>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
 <script>
 /* ============================================================
    DATA STATUS

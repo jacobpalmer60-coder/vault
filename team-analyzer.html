@@ -23,22 +23,21 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" data-league-required>
+<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 lg:py-6 fade-in" data-league-required>
   <!-- League is picked once, in the nav's Switch League. The full league table
        lives on League Overview; this page is one team at a time. -->
-  <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+  <div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
     <div>
-      <h1 class="display text-[28px] font-semibold gold-text">Team Analyzer</h1>
+      <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Team Analyzer<span class="term-i" data-term="page_analyzer" tabindex="0" role="note">?</span></h1></div>
       <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
-      <p class="hidden sm:block text-[13px] text-zinc-400 mt-2 max-w-[620px]">One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team on the right.</p>
     </div>
     <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
   </div>
@@ -48,15 +47,17 @@
   <div id="teamTabs" role="tablist" aria-label="Team sections" class="flex flex-wrap gap-1.5 mb-4 scroll-mt-4"></div>
   <section data-tab="overview" role="tabpanel" id="overviewCard" class="mb-10"></section>
   <section data-tab="roster" role="tabpanel" id="rosterCard" class="hidden card rounded-vault p-6 mb-10"></section>
+  <section data-tab="season" role="tabpanel" id="seasonExtras" class="hidden mb-4 [&>*:first-child]:mt-0"></section>
   <section data-tab="season" role="tabpanel" id="seasonCard" class="hidden card rounded-vault p-6 mb-10"></section>
-  <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
+  <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-4"></section>
+  <section data-tab="future" role="tabpanel" id="futureExtras" class="hidden mb-10 [&>*:first-child]:mt-0"></section>
 </main>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
-<script src="season-report.js?v=0596935e"></script>
-<script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=9a548ef1"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="season-report.js?v=18c77b80"></script>
+<script src="market-data.js?v=ba533660"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
 <script src="timeline.js?v=c362660e"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -213,7 +214,7 @@ function renderSingle(t) {
   const partnerSub = p => [p.record ? `${p.record.wins}-${p.record.losses}${p.record.ties ? '-' + p.record.ties : ''}` : '', Number.isFinite(p.playoffPct) ? `${pctText(p.playoffPct)} playoff odds` : '', p.arch].filter(Boolean).join(' · ');
   $('#overviewCard').innerHTML = `
     <div class="card rounded-vault p-5 mb-4"><div id="glance"></div></div>
-    <div class="grid lg:grid-cols-2 gap-4">
+    <div class="grid lg:grid-cols-2 gap-4 items-start">
       <div class="card rounded-vault p-5">
         <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Weak spots</div>
         <div class="space-y-1.5 text-[13px] text-zinc-200">${flaws.length ? flaws.map(f => `<div class="flex gap-2"><span class="text-orange-400">•</span><span>${f}</span></div>`).join('') : '<div class="text-zinc-400">Nothing notable</div>'}</div>
@@ -231,7 +232,9 @@ function renderSingle(t) {
           </div>`).join('')}</div>
       </div>
     </div>
-    ${whatIfCard(t)}${scheduleCard(t, all)}${picksGrid(t, all)}`;
+    `;
+  $('#seasonExtras').innerHTML = whatIfCard(t) + scheduleCard(t, all);
+  $('#futureExtras').innerHTML = picksGrid(t, all);
   wireWhatIf(t, all);
   renderGlance();
   $('#rosterCard').innerHTML = `<div class="flex justify-end gap-2 mb-2"><button type="button" id="printTeam" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Print report</button><button type="button" id="copyRoster" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Copy as CSV</button></div>${Vault.teamRosterPanel(t, all)}`;
@@ -381,7 +384,8 @@ function printReport(t, all) {
    lineup, the same numbers the odds play out, and how strong this team's lineup is in the playoff
    weeks. Green is an easier opponent than the league's average that week, orange a harder one. */
 function scheduleCard(t, all) {
-  const weeks = (window._weeksLeft || []).filter(w => w.week < window._playoffStart);
+  // A stand-in schedule (none from Sleeper until after the draft) plays out the odds, but its opponents aren't real.
+  const weeks = (window._weeksLeft || []).filter(w => w.week < window._playoffStart && !w.guessed);
   const at = (x, w) => (x.optByWeek?.has(w) ? x.optByWeek.get(w) : x.opt);
   const gamesOf = x => weeks.flatMap(w => {
     const pair = w.pairs.find(p => p.includes(x.rosterId)), opp = pair && all.find(y => y.rosterId === pair.find(id => id !== x.rosterId));
@@ -404,7 +408,7 @@ function scheduleCard(t, all) {
         ${games.length ? stat(`#${rankOf(hardness, t)} of ${hardness.length}`, 'hardest schedule left', `opponents average ${avg(games.map(g => g.pts)).toFixed(1)} a week`) : ''}
         ${tp != null ? stat(`#${rankOf(poRank, t)} of ${poRank.length}`, 'lineup in the playoff weeks', `${tp.toFixed(1)} a week from week ${window._playoffStart}`) : ''}
       </div>
-      ${games.length ? `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${games.map(chip).join('')}</div>` : ''}
+      ${games.length ? `<div class="grid gap-2 overflow-x-auto scrollbar-none" style="grid-template-columns:repeat(${games.length},minmax(96px,1fr))">${games.map(chip).join('')}</div>` : ''}
     </div>`;
 }
 
@@ -417,7 +421,7 @@ function picksGrid(t, all) {
   const worth = l => l.reduce((s, p) => s + (p.value || 0), 0);
   const top = Math.max(...all.flatMap(x => years.map(y => worth(inYear(x, y)))), 1);
   const cell = (x, y) => { const l = inYear(x, y), v = worth(l), firsts = l.filter(p => p.round === 1).length;
-    return `<td class="py-1 px-0.5"><div class="rounded-md px-1 py-1 text-center" style="background:rgba(227,176,75,${(0.05 + 0.4 * v / top).toFixed(2)})" title="${l.length} pick${l.length === 1 ? '' : 's'} in ${y}: ${Vault.escapeHtml(l.map(p => Vault.pickName(p)).join(', ') || 'none')}"><div class="mono text-[12px] text-zinc-100">${v ? (v / 1000).toFixed(1) + 'k' : '—'}</div><div class="text-[10px] text-zinc-400">${firsts ? `${firsts} 1st${firsts === 1 ? '' : 's'}` : '&nbsp;'}</div></div></td>`; };
+    return `<td class="py-1 px-0.5"><div class="rounded-md px-1 py-1 text-center" style="background:rgba(56,189,248,${(0.04 + 0.34 * v / top).toFixed(2)})" title="${l.length} pick${l.length === 1 ? '' : 's'} in ${y}: ${Vault.escapeHtml(l.map(p => Vault.pickName(p)).join(', ') || 'none')}"><div class="mono text-[12px] text-zinc-100">${v ? (v / 1000).toFixed(1) + 'k' : '—'}</div><div class="text-[10px] text-zinc-400">${firsts ? `${firsts} 1st${firsts === 1 ? '' : 's'}` : '&nbsp;'}</div></div></td>`; };
   const rows = [...all].sort((a, b) => b.picksValue - a.picksValue).map(x => `<tr class="${x === t ? 'text-amber-200' : 'text-zinc-300'}"><td class="py-1 pr-2 text-[12px] max-w-[110px] sm:max-w-[200px] truncate">${Vault.teamLink(x)}</td>${years.map(y => cell(x, y)).join('')}</tr>`).join('');
   return `<div class="card rounded-vault p-5 mt-4">
       <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-3">Picks by year${Vault.info('picksByYear')}</div>

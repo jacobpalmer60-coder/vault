@@ -23,15 +23,15 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[860px] mx-auto px-4 sm:px-6 py-8" data-league-required>
+<main class="max-w-[860px] mx-auto px-4 sm:px-6 py-4 lg:py-6" data-league-required>
   <h1 class="display text-[28px] font-semibold gold-text">League History</h1>
   <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading every season…</p>
   <div id="body" class="hidden">
@@ -54,10 +54,10 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
-<script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=9a548ef1"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="market-data.js?v=ba533660"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
 <script>
 /* ============================================================
    LEAGUE HISTORY (user's list, 2026-11-05)
@@ -153,6 +153,7 @@ function build(seasons) {
 
 function render({ people, champs }, seasons, myOwner) {
   const list = [...people.values()].filter(p => p.weeks);
+  if (!list.length) { $('status').textContent = 'No games played yet. The history fills in after week 1.'; return; }
   const first = seasons[seasons.length - 1].season;
   $('status').textContent = `${seasons.length} season${seasons.length === 1 ? '' : 's'}, since ${first}`;
   $('champs').innerHTML = champs.length ? champs.map(c => `<div class="flex items-baseline justify-between gap-3 py-2.5 border-t border-white/5 first:border-t-0"><span class="mono text-zinc-400">${esc(c.season)}</span><span class="min-w-0 flex-1 text-[14px] text-zinc-100 truncate">${esc(c.champ)}</span><span class="text-[12px] text-zinc-500 truncate max-w-[45%]">beat ${esc(c.runnerUp)}</span></div>`).join('') : '<div class="text-[13px] text-zinc-400 py-3">No finished season yet.</div>';

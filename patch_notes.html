@@ -23,15 +23,15 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[860px] mx-auto px-4 sm:px-6 py-8 lg:py-10" id="main" role="main">
+<div class="max-w-[860px] mx-auto px-4 sm:px-6 py-4 lg:py-6" id="main" role="main">
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Patch Notes</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1"></p>
@@ -46,14 +46,33 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Trade Calculator', text: "Share image: a clean picture of a trade and its verdict to post in your league chat. Weekly Recap has one too." },
+    { kind: 'new', page: 'Your Team Today', text: "A new first stop after picking a league: your record and odds, what changed since your last visit, your next game, your injuries, your biggest value moves this week, and what your team needs with partners to start a trade with." },
+    { kind: 'new', page: 'Trade Calculator', text: "Stress test: under the verdict's numbers, what your title odds would be if your best incoming player were lost for the season, against your odds without the trade." },
+    { kind: 'changed', page: 'Trade Calculator', text: "On phones the trade card has tabs, Verdict, Teams, Season and Details, instead of one long page. The calculator also loads about twice as fast on a phone." },
+    { kind: 'fixed', page: 'League Overview', text: "Sorting makes more sense. Team now starts A to Z and Age youngest first, the same on phones and desktop. An arrow shows the column and direction, Right now and Dynasty only light up when that's really the order, and ties fall to points for. Phones have a button to flip the order, which they never really could." },
+    { kind: 'new', page: 'Trade Calculator', text: "The next three seasons: each team's box shows where its best lineup ranks by KTC value in each coming season, before and after the trade. A rough projection for comparing rosters; it doesn't count in the verdict." },
+    { kind: 'new', page: 'Trade Calculator', text: "Paste a trade: copy an offer from Sleeper or your group chat and the calculator fills in both sides. Your last few trades also show up to pick back up." },
+    { kind: 'fixed', page: 'Season', text: "Before a league's schedule comes out, playoff and title odds read 100% or 0% at 0-0. They now play out a stand-in schedule, and Playoff Race shows the odds instead of talking about clinching. League History no longer breaks for a league with no games yet." },
+    { kind: 'new', page: 'Trade Calculator', text: "What they'd want: your roster now shows your side of it too, your bench players who'd start for your partner, or your best picks and young players if they're building for later." },
+    { kind: 'changed', page: 'Trade Calculator', text: "The track record for a verdict like this one now sits right under it instead of inside Why." },
+    { kind: 'removed', page: 'Trade Calculator', text: "Took out the Consensus line, here and on Trade Coach's offers. The Vault's verdict is the one grade; the other sites still show their own reads under Other sites." },
+    { kind: 'new', page: 'Trade Calculator', text: "Would start for you: pick a partner and their roster shows who'd add the most to your lineup, with points a week beside each player." },
+    { kind: 'new', page: 'Trade Calculator', text: "Real trades beside the verdict: how many recent completed trades were this far apart, and the closest real trade." },
+    { kind: 'changed', page: 'Trade Calculator', text: "When a trade reads bad for a team, the fix now shows right on it: what to add or take out and how it would read for both teams, with one tap to use it. It only suggests what their manager would take." },
+    { kind: 'changed', page: 'Trade Calculator', text: "Less to scroll past. Each side of the trade has its own Add box, so you can add from either team without going down to the rosters. This season's odds and both lineups are now one section, How it changes each team now shows right on the trade card with both teams side by side, and the values on each site open when you want them." },
+    { kind: 'changed', page: 'Site', text: "A cleaner look. On phones the pages now sit in a bar along the bottom, and the header is one row everywhere. Page tops are shorter, with each page's description behind a ? by its title. How We Grade, Patch Notes, Data status and Switch League moved into the ... menu at the top right." },
+    { kind: 'changed', page: 'Team Analyzer', text: "Overview now leads with the verdict, weak spots and trade partners. What if he's out and Schedule left moved to This season; Picks by year moved to Contend or rebuild?." },
+    { kind: 'changed', page: 'Charts', text: "Value Over Time has team names at the line ends, round numbers and no dot on every day. Market charts use one blue for prices, and gold is kept for your own team and the main button." },
+    { kind: 'changed', page: 'Player Market', text: "How often he trades, his outlook and the best time to buy now sit side by side as three short facts." },
     { kind: 'changed', page: 'Player Market', text: "Market prices from Sleeper trades now refresh about every 6 hours instead of every hour. They're 45-day medians, so the numbers barely move in between, and it keeps the site's data small." },
     { kind: 'new', page: 'Trade Lab', text: "What your picks have landed: for your next draft's picks, who went at the same spot in the latest rookie class and what they were worth." },
     { kind: 'new', page: 'Player card', text: "His trades in this league: every time he moved, between which teams, and what came back." },

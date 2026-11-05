@@ -11,6 +11,7 @@
   // removed; Season Report and the contend-or-rebuild plan live in the team view.
   const GROUPS = [
     { label: 'League', tabs: [
+      { key: 'today', short: 'Today', label: 'Your Team Today', href: 'today.html' },
       { key: 'overview', short: 'Overview', label: 'League Overview', href: 'app.html' },
       { key: 'analyzer', short: 'Teams', label: 'Team Analyzer', href: 'team-analyzer.html' },
       { key: 'playoffs', short: 'Playoff Race', label: 'Playoff Race', href: 'playoffs.html' },
@@ -36,6 +37,15 @@
   ];
   const TABS = GROUPS.flatMap(g => g.tabs);
   // About-the-site pages: small links in the top row, not tabs.
+  // Icons for the phone tab bar, one per group.
+  const ICONS = {
+    League: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>',
+    'Trade Calculator': '<path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/>',
+    Market: '<path d="M4 19h16M6 15l4-5 4 3 5-7"/>',
+    'League Trades': '<path d="M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/>',
+    'Trade Lab': '<path d="M10 3h4M11 3v6l-5.5 9.5A1.7 1.7 0 0 0 7 21h10a1.7 1.7 0 0 0 1.5-2.5L13 9V3M8 15h8"/>'
+  };
+  const TAB_NAME = { 'Trade Calculator': 'Calculator', 'League Trades': 'Trades', 'Trade Lab': 'Lab' };
   const INFO = [
     { key: 'method', label: 'How We Grade', href: 'how_we_grade.html' },
     { key: 'patch', label: 'Patch Notes', href: 'patch_notes.html' },
@@ -73,34 +83,31 @@
     const active = currentPage();
     const leagueId = Vault.getLeagueId();
 
-    // Wide screens: the five group tabs, then the active group's pages as a second row.
+    // Wide screens: the five group tabs share the logo's row; the active group's pages sit under it.
+    // Phones: the same five tabs as a bar along the bottom, and the group's pages under the logo.
     const activeGroup = GROUPS.find(g => g.tabs.some(t => t.key === active));
     const tabsHtml = GROUPS.map(g => {
       const on = g === activeGroup;
       return `<a href="${Vault.linkTo(g.tabs[0].href, leagueId)}" ${on ? 'aria-current="page"' : ''}
-         class="relative px-3.5 py-2 rounded-lg text-[14px] font-medium transition-colors whitespace-nowrap shrink-0
-                ${on
-                  ? 'text-white bg-white/[0.07] after:absolute after:left-3 after:right-3 after:-bottom-[9px] after:h-[2px] after:rounded-full after:bg-amber-400'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'}">${g.label}</a>`;
+         class="relative px-3 py-1.5 rounded-lg text-[14px] font-medium transition-colors whitespace-nowrap shrink-0
+                ${on ? 'text-white bg-white/[0.07]' : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'}">${g.label}</a>`;
     }).join('');
-    const subHtml = activeGroup && activeGroup.tabs.length > 1 ? `<div class="vn-row max-w-[1400px] mx-auto px-4 sm:px-6 pb-2 items-center gap-1 overflow-x-auto scrollbar" role="group" aria-label="${activeGroup.label}">${activeGroup.tabs.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''} class="px-3 py-1.5 rounded-full text-[12px] whitespace-nowrap transition-colors ${active === t.key ? 'bg-amber-400/15 text-amber-100' : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'}">${t.short}</a>`).join('')}</div>` : '';
-    // Phones: one button naming the current page; it opens the same groups as a list.
-    const here = [...TABS, ...INFO].find(t => t.key === active);
-    const menuHtml = `
-      <div class="vn-menu max-w-[1400px] mx-auto px-4 py-2 relative">
-        <button id="navMenuBtn" type="button" aria-expanded="false" aria-controls="navMenu"
-          class="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-white/[0.05] border border-white/10 text-[14px] font-medium text-zinc-100">
-          <span>${here ? here.label : 'Pages'}</span>
-          <span class="flex items-center gap-1.5 text-[12px] text-zinc-400">All pages <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
-        </button>
-        <div id="navMenu" class="hidden absolute left-4 right-4 top-full -mt-1 z-50 rounded-xl border border-white/10 bg-[#14161a] shadow-2xl p-3 space-y-3">
-          ${GROUPS.map(g => `<div role="group" aria-label="${g.label}">
-            <div class="px-2 pb-1 text-[11px] uppercase tracking-[0.12em] text-zinc-500" aria-hidden="true">${g.label}</div>
-            <div class="grid grid-cols-2 gap-1">${g.tabs.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''} class="px-3 py-2.5 rounded-lg text-[14px] ${active === t.key ? 'bg-amber-400/10 text-amber-100' : 'text-zinc-200 hover:bg-white/[0.05]'}">${t.label}</a>`).join('')}</div>
-          </div>`).join('')}
+    const subHtml = activeGroup && activeGroup.tabs.length > 1 ? `<div class="max-w-[1400px] mx-auto px-4 sm:px-6 pb-2 flex items-center gap-1 overflow-x-auto scrollbar-none" role="group" aria-label="${activeGroup.label}">${activeGroup.tabs.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''} class="px-3 py-1.5 rounded-full text-[13px] sm:text-[12px] whitespace-nowrap transition-colors ${active === t.key ? 'bg-amber-400/15 text-amber-100' : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'}">${t.short}</a>`).join('')}</div>` : '';
+    const barHtml = `<nav class="vn-bar" aria-label="Pages">${GROUPS.map(g => {
+      const on = g === activeGroup;
+      return `<a href="${Vault.linkTo(g.tabs[0].href, leagueId)}" ${on ? 'aria-current="page"' : ''} class="${on ? 'text-amber-300' : 'text-zinc-400'}"><svg class="size-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[g.label]}</svg><span>${TAB_NAME[g.label] || g.label}</span></a>`;
+    }).join('')}</nav>`;
+    // How We Grade, Patch Notes, Data status and Switch League sit behind one button.
+    const switchLink = `<a href="${leagueId ? 'index.html' : Vault.escapeHtml(Vault.pickLeagueLink())}" class="block px-3 py-2.5 sm:py-2 rounded-lg text-[14px] sm:text-[13px] text-zinc-200 hover:bg-white/[0.05]">${leagueId ? 'Switch League' : 'Pick your league'}</a>`;
+    const moreHtml = `
+      <div class="relative shrink-0">
+        <button id="vnMore" type="button" aria-label="More pages" aria-expanded="false" aria-controls="vnMoreMenu" class="btn-ghost size-8 grid place-items-center"><svg class="size-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+        <div id="vnMoreMenu" class="hidden absolute right-0 top-full mt-2 z-50 w-[200px] rounded-xl border border-white/10 bg-[#14161a] shadow-2xl p-1.5">
+          ${INFO.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''} class="block px-3 py-2.5 sm:py-2 rounded-lg text-[14px] sm:text-[13px] ${active === t.key ? 'bg-amber-400/10 text-amber-100' : 'text-zinc-200 hover:bg-white/[0.05]'}">${t.label}</a>`).join('')}
+          <div class="my-1 border-t border-white/[0.07]"></div>
+          ${switchLink}
         </div>
       </div>`;
-    const infoHtml = INFO.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''} class="text-[12px] whitespace-nowrap py-1.5 transition-colors ${active === t.key ? 'text-white' : 'text-zinc-400 hover:text-white'}">${t.label}</a>`).join('');
 
     // The page's content (its <main>, or the block right after the nav) is the
     // "Skip to content" target, so keyboard users don't tab through the nav on
@@ -115,49 +122,47 @@
     const status = document.getElementById('status');
     if (status && !status.hasAttribute('role')) status.setAttribute('role', 'status');
 
-    // Which nav shows (tab row on wide screens, All pages menu on phones) is
+    // Which nav shows (tabs in the top row on wide screens, a bottom bar on phones) is
     // set here, not by the stylesheet: right after a deploy a browser can pair
     // this script with a cached older stylesheet, and the nav must still show.
     if (!document.getElementById('vn-style')) {
       const st = document.createElement('style');
       st.id = 'vn-style';
-      st.textContent = '.vn-row{display:none}.vn-menu{display:block}@media (min-width:768px){.vn-row{display:flex}.vn-menu{display:none}}';
+      st.textContent = `.vn-tabs{display:none}.vn-bar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom);background:#0c0d10;border-top:1px solid rgba(255,255,255,.08)}
+.vn-bar a{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;font-size:11px;font-weight:500;line-height:1}
+body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}#verdictDock{bottom:calc(68px + env(safe-area-inset-bottom))}
+.scrollbar-none{scrollbar-width:none}.scrollbar-none::-webkit-scrollbar{display:none}
+@media (min-width:768px){.vn-tabs{display:flex}.vn-bar{display:none}body{padding-bottom:0}#verdictDock{bottom:12px}}
+@media print{.vn-bar{display:none}}`;
       document.head.appendChild(st);
     }
 
     mount.innerHTML = `
       ${main ? `<a href="#${main.id}" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-amber-400 focus:text-black focus:font-semibold">Skip to content</a>` : ''}
       <header class="z-40 border-b border-white/[0.07] bg-[#0c0d10]/95">
-        <!-- Two rows: brand + settings on top, page tabs underneath (full width,
-             scrolls sideways on phones), so adding a page never pushes the
-             settings onto a wrapped row. -->
-        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 pt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <a href="index.html" class="flex items-center gap-2.5 shrink-0 py-1">
-            <img src="brand/vault-dial-128.png" alt="" width="32" height="32" class="size-8 shrink-0">
-            <div class="leading-none">
-              <div class="text-[16px] font-semibold tracking-[-0.01em] text-zinc-100">The Vault</div>
-              <div class="text-[11px] text-zinc-500 mt-1">Dynasty tools for Sleeper</div>
-            </div>
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-2 flex items-center gap-2 sm:gap-3">
+          <a href="index.html" class="flex items-center gap-2 shrink-0 md:mr-2" aria-label="The Vault home">
+            <img src="brand/vault-dial-128.png" alt="" width="32" height="32" class="size-7 shrink-0">
+            <span class="hidden sm:block text-[15px] font-semibold tracking-[-0.01em] text-zinc-100 whitespace-nowrap">The Vault</span>
           </a>
-          <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-            ${infoHtml}
-            ${typeof PlayerCard !== 'undefined' ? '<button id="vnSearch" type="button" aria-label="Find a player or team" title="Find a player or team (Ctrl+K)" class="btn-ghost size-8 grid place-items-center"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>' : ''}
-            <select id="myTeamPick" data-search="Your team…" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden max-w-[190px] bg-[#14161a] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-zinc-200"></select>
-            <a href="${leagueId ? 'index.html' : Vault.escapeHtml(Vault.pickLeagueLink())}" class="btn-ghost text-[12px] px-3 py-1.5">${leagueId ? 'Switch League' : 'Pick your league'}</a>
+          <nav aria-label="Pages" class="vn-tabs flex-1 min-w-0 items-center gap-0.5 overflow-x-auto scrollbar-none">${tabsHtml}</nav>
+          <div class="flex flex-1 md:flex-none min-w-0 items-center justify-end gap-2">
+            ${typeof PlayerCard !== 'undefined' ? '<button id="vnSearch" type="button" aria-label="Find a player or team" title="Find a player or team (Ctrl+K)" class="btn-ghost size-8 shrink-0 grid place-items-center"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>' : ''}
+            <select id="myTeamPick" data-search="Your team…" aria-label="Your team" title="Your team — pages open on it and mark it with a You tag" class="hidden min-w-0 max-w-[190px] bg-[#14161a] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-zinc-200"></select>
+            ${moreHtml}
           </div>
         </div>
-        <nav aria-label="Pages">
-          <div class="vn-row max-w-[1400px] mx-auto px-4 sm:px-6 py-2 items-center gap-1 overflow-x-auto scrollbar">${tabsHtml}</div>
-          ${subHtml}
-          ${menuHtml}
-        </nav>
+        ${subHtml}
       </header>
-      <div id="vnNotices" class="max-w-[1400px] mx-auto px-4 sm:px-6 empty:hidden flex flex-col gap-2 pt-3"></div>`;
+      <div id="vnNotices" class="max-w-[1400px] mx-auto px-4 sm:px-6 empty:hidden flex flex-col gap-2 pt-3"></div>
+      ${barHtml}`;
     // Between phone and full desktop the row can still overflow: start it at the current tab.
-    const row = mount.querySelector('nav > div'), cur = row.querySelector('[aria-current]');
+    const row = mount.querySelector('.vn-tabs'), cur = row.querySelector('[aria-current]');
     if (cur && row.scrollWidth > row.clientWidth) row.scrollLeft = Math.max(0, cur.offsetLeft - row.offsetLeft - 24);
-    // Phone menu: opens and closes on the button, Escape, or a tap outside.
-    const btn = document.getElementById('navMenuBtn'), menu = document.getElementById('navMenu');
+    const sub = mount.querySelector('header [role="group"]'), subCur = sub?.querySelector('[aria-current]');
+    if (subCur && sub.scrollWidth > sub.clientWidth) sub.scrollLeft = Math.max(0, subCur.offsetLeft - sub.offsetLeft - 24);
+    // The more menu opens and closes on its button, Escape, or a tap outside.
+    const btn = document.getElementById('vnMore'), menu = document.getElementById('vnMoreMenu');
     const setOpen = open => { menu.classList.toggle('hidden', !open); btn.setAttribute('aria-expanded', String(open)); };
     btn.addEventListener('click', () => setOpen(menu.classList.contains('hidden')));
     document.addEventListener('click', e => { if (!menu.contains(e.target) && !btn.contains(e.target)) setOpen(false); });
@@ -290,5 +295,6 @@
   });
   new MutationObserver(enhance).observe(document.documentElement, { childList: true, subtree: true });
 
-  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); dataAgeNotice(); firstVisitTips(); });
+  // The age check waits its turn: it reads files the page is already fetching, and those win.
+  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); setTimeout(dataAgeNotice, 6000); firstVisitTips(); });
 })();

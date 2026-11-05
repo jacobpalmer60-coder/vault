@@ -357,14 +357,12 @@ function coachWorkRead(me, w, give = w.give, get = w.get) {
   const j = coachJudged(me, w.partner, give, get), o = { partner: w.partner, give, get }, you = coachValuePct(o);
   const yes = j.accepts && coachTheyTake(o, w.option);
   const room = yes ? Math.min(j.will - j.ask, VAULT_CONFIG.FAIR_PCT - you) : j.will - j.ask;
-  return { j, o, score: coachScore(o), yes, room, you, them: improvementOf(j.an, 'B'), consensus: give.length && get.length ? tradeConsensus(me, w.partner, give, get) : null };
+  return { j, o, score: coachScore(o), yes, room, you, them: improvementOf(j.an, 'B') };
 }
-// Among trades that work, the ones that read fair across the sites come first: both
-// managers can check those (user, 2026-11-03). Never changes who'd say yes.
-const coachConsensusBand = r => r.consensus?.band ?? 0;
-const coachByConsensus = (x, y) => coachConsensusBand(x) - coachConsensusBand(y) || y.score - x.score;
+// Among trades at the same level, the better one for you first.
+const coachByScore = (x, y) => y.score - x.score;
 // Good for you, then Toss-ups, then the ones that lean bad (user, 2026-11-04: selling Ja'Marr
-// Chase listed two Leans bad deals first). Consensus only orders trades within those.
+// Chase listed two Leans bad deals first). Your score orders trades within those.
 const COACH_LEVEL_ORDER = { good: 0, tossup: 1, bad: 2 };
 const coachLevelRank = r => COACH_LEVEL_ORDER[Vault.verdictTier(r.score).level] ?? 1;
 // Among those, 2-for-1s before 1-for-1s, anything bigger after (user, 2026-11-04). In the 2.15M
@@ -384,7 +382,6 @@ const coachShapeRank = (give, get, goal) => {
   const at = order.indexOf(true);
   return at < 0 ? order.length : at;
 };
-const coachConsensusText = r => (r.consensus ? `Consensus: ${r.consensus.text}` : '');
 // You've named who you want: what of yours would get him, so the next step isn't
 // picking one of your own players blind (user, 2026-11-03). Packages their manager
 // would take that aren't bad for you, ones that read fair across the sites first.
@@ -398,7 +395,7 @@ async function coachWorkPackages(w, seq, me) {
   if (Coach.work !== w || w.seq !== seq) return;
   const offers = coachOffers(me, w.partner, w.get, { limit: COACH_PACKAGES_SHOW * 3, perLead: 2, option: 'build' });
   w.packages = offers.map(o => ({ give: o.give, get: o.get, r: coachWorkRead(me, w, o.give, o.get) })).filter(p => p.r.yes && Vault.verdictTier(p.r.score).level !== 'bad')
-    .sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachShapeRank(x.give, x.get, w.goal) - coachShapeRank(y.give, y.get, w.goal) || coachByConsensus(x.r, y.r)).slice(0, COACH_PACKAGES_SHOW);
+    .sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachShapeRank(x.give, x.get, w.goal) - coachShapeRank(y.give, y.get, w.goal) || coachByScore(x.r, y.r)).slice(0, COACH_PACKAGES_SHOW);
 }
 function coachWorkUsePackage(k) {
   const w = Coach.work, p = w?.packages?.[k]; if (!p) return;
@@ -456,7 +453,7 @@ async function coachWorkTweaks() {
     if (c.kind !== 'yes' && r.score <= base.score + 0.5) continue; // only changes that help you
     out.push({ ...c, r });
   }
-  const top = kind => out.filter(c => c.kind === kind).sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachShapeRank(x.give, x.get, w.goal) - coachShapeRank(y.give, y.get, w.goal) || coachByConsensus(x.r, y.r)).slice(0, 4);
+  const top = kind => out.filter(c => c.kind === kind).sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachShapeRank(x.give, x.get, w.goal) - coachShapeRank(y.give, y.get, w.goal) || coachByScore(x.r, y.r)).slice(0, 4);
   // 7. Two of your bench pieces or picks that get to yes (user, 2026-11-04), when no one piece
   // does it and leaves you ahead. Starters never, like Even it out. Each piece aims well over
   // half the gap, since extra pieces count for less. Not bad for you, and a piece shows up
@@ -477,7 +474,7 @@ async function coachWorkTweaks() {
     }
   }
   const seen = new Map(), twoShown = [];
-  for (const c of two.sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachByConsensus(x.r, y.r))) {
+  for (const c of two.sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachByScore(x.r, y.r))) {
     if (twoShown.length >= COACH_TWO_SHOW || c.pair.some(k => (seen.get(k) || 0) >= 2)) continue;
     c.pair.forEach(k => seen.set(k, (seen.get(k) || 0) + 1));
     twoShown.push(c);
@@ -555,7 +552,7 @@ function coachWorkHtml(me) {
     const list = w.tweaks ? w.tweaks[kind] : [];
     if (!list.length) return '';
     return `<div class="mt-5"><div class="text-[12px] text-zinc-400 mb-2">${title}</div><div class="grid gap-2">${list.map((c, k) => { const t = Vault.verdictTier(c.r.score); return coachChoice(`coachWorkApply('${kind}', ${k})`, c.text,
-        `for you <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.key]}">${t.label}</span>, ${esc(coachMe().teamName)} pays ${pc(c.r.you)} ${c.r.you >= 0 ? 'under' : 'over'} trade value${c.r.consensus ? `, consensus: ${c.r.consensus.text}` : ''}${kind === 'yes' || kind === 'two' ? '' : kind === 'closer' ? `, they'd still want about ${pc(Math.max(-c.r.room, c.r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more` : `, room left ${c.r.room >= 2 ? `about ${pc(c.r.room)}` : 'about none'}`}`,
+        `for you <span class="font-medium ${Vault.VERDICT_TIER_TEXT[t.key]}">${t.label}</span>, ${esc(coachMe().teamName)} pays ${pc(c.r.you)} ${c.r.you >= 0 ? 'under' : 'over'} trade value${kind === 'yes' || kind === 'two' ? '' : kind === 'closer' ? `, they'd still want about ${pc(Math.max(-c.r.room, c.r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more` : `, room left ${c.r.room >= 2 ? `about ${pc(c.r.room)}` : 'about none'}`}`,
         '<span class="shrink-0 text-[12px] text-amber-200">Apply</span>', false); }).join('')}</div></div>`;
   };
   const oneRows = tweakRows('yes', 'One piece that gets them to yes, best for you first');
@@ -572,7 +569,6 @@ function coachWorkHtml(me) {
       <div class="min-w-0"><div class="text-[11px] text-zinc-500 truncate">For ${esc(me.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</div></div>
       <div class="min-w-0"><div class="text-[11px] text-zinc-500 truncate">For ${esc(w.partner.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</div></div>
       <div class="min-w-0 col-span-2 sm:col-span-1"><div class="text-[11px] text-zinc-500 truncate">${esc(me.teamName)} pays</div><div class="text-[18px] font-semibold text-zinc-100">${Math.abs(r.you) < 1 ? 'even' : `${pc(r.you)} ${r.you > 0 ? 'under' : 'over'}`} <span class="text-[12px] font-normal text-zinc-500">trade value</span></div></div>
-      ${r.consensus ? `<div class="col-span-2 sm:col-span-3 text-[12px] text-zinc-400">Consensus: <span class="text-zinc-200">${r.consensus.text}</span></div>` : ''}
     </div>
     ${coachSeasonHtml(w.season)}
     ${tweaks}`;
@@ -835,7 +831,7 @@ async function coachRecsRun(spec) {
   // fit is real and the gap is the extras to ask for (it read "they'd want 70% more").
   out.forEach(x => { x.extras = spec.goal !== 'upgrade' && !x.r.yes && x.r.j.accepts && x.r.you <= -VAULT_CONFIG.FAIR_PCT; });
   const fit = x => x.r.yes || x.extras;
-  const yes = out.filter(fit).sort(spec.goal === 'downtier' ? (x, y) => (y.r.yes ? 1 : 0) - (x.r.yes ? 1 : 0) || coachLevelRank(x.r) - coachLevelRank(y.r) || coachConsensusBand(x.r) - coachConsensusBand(y.r) || y.a.value - x.a.value : (x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachByConsensus(x.r, y.r));
+  const yes = out.filter(fit).sort(spec.goal === 'downtier' ? (x, y) => (y.r.yes ? 1 : 0) - (x.r.yes ? 1 : 0) || coachLevelRank(x.r) - coachLevelRank(y.r) || y.a.value - x.a.value : (x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || coachByScore(x.r, y.r));
   const no = out.filter(x => !fit(x)).sort((x, y) => y.r.room - x.r.room);
   // Close the gap (user, 2026-10-28): for the closest noes, the one piece of yours that gets
   // them to yes and leaves you best off (sized to what's missing on trade value), so a fit
@@ -846,10 +842,10 @@ async function coachRecsRun(spec) {
     await coachTick(); if (stale()) return;
     for (const p of pool) {
       const r = coachWorkRead(me, { partner: x.t, give: [...spec.give, p], get: [x.a], option: 'build' });
-      if (r.yes && coachLevelRank(r) < 2 && (!x.fix || (coachLevelRank(r) - coachLevelRank(x.fix.r) || coachByConsensus(r, x.fix.r)) < 0)) x.fix = { p, r };
+      if (r.yes && coachLevelRank(r) < 2 && (!x.fix || (coachLevelRank(r) - coachLevelRank(x.fix.r) || coachByScore(r, x.fix.r)) < 0)) x.fix = { p, r };
     }
   }
-  const fixed = no.filter(x => x.fix).sort((x, y) => coachLevelRank(x.fix.r) - coachLevelRank(y.fix.r) || coachByConsensus(x.fix.r, y.fix.r)), rest = no.filter(x => !x.fix);
+  const fixed = no.filter(x => x.fix).sort((x, y) => coachLevelRank(x.fix.r) - coachLevelRank(y.fix.r) || coachByScore(x.fix.r, y.fix.r)), rest = no.filter(x => !x.fix);
   // The trade each fit would really be: with its added piece, or with the extras to ask for.
   const read = x => (x.fix && !x.r.yes ? x.fix.r : x.r), shape = x => (x.extras ? 0 : coachShapeRank(x.fix && !x.r.yes ? [...spec.give, x.fix.p] : spec.give, [x.a], spec.goal));
   const best = [...yes, ...fixed].sort((x, y) => coachLevelRank(read(x)) - coachLevelRank(read(y)) || shape(x) - shape(y));
@@ -889,7 +885,7 @@ function coachRecsHtml(me, spec) {
       : fix ? `Add your <span class="text-zinc-100">${coachEsc(fix.p.name)}</span> <span class="text-zinc-500">(${n(fix.p.value)})</span> → <span class="text-emerald-300">likely yes</span>`
       : `<span class="text-orange-300">They'd want about ${pc(Math.max(-r.room, r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more</span>`;
     return coachChoice(`coachRecBuild(${i})`, `${coachEsc(a.name)} <span class="text-[12px] text-zinc-500">${a.type === 'pick' ? 'pick' : Vault.posMeta(a)} · ${coachEsc(t.teamName)} · ${n(a.value)}</span>`,
-      `${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}<br>${coachForThem(t, fix && !r.yes ? [...spec.give, fix.p] : spec.give, use)}${coachAsksCornerstone(t, [a]) ? ' · <span class="text-amber-200/90">their cornerstone, rarely traded</span>' : ''}${use.consensus ? ` · ${coachConsensusText(use)}` : ''}`);
+      `${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}<br>${coachForThem(t, fix && !r.yes ? [...spec.give, fix.p] : spec.give, use)}${coachAsksCornerstone(t, [a]) ? ' · <span class="text-amber-200/90">their cornerstone, rarely traded</span>' : ''}`);
   }).join('');
   const word = spec.goal === 'upgrade' ? 'would likely say yes' : 'would take it';
   const summary = f.recs.yes || f.recs.fixed ? [f.recs.yes ? `${f.recs.yes} ${word}` : '', f.recs.fixed ? `${f.recs.fixed}${f.recs.yes ? ' more' : ''} with one piece added` : ''].filter(Boolean).join(', ') : 'none would say yes yet; these are the closest';
@@ -1175,7 +1171,7 @@ function coachAimHtml(me) {
   return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} their manager would likely take.</div><div class="grid gap-2">${run.list.map((x, i) => {
     const tier = Vault.verdictTier(x.r.score), note = x.note || (x.gain ? `+${x.gain.toFixed(1)} pts a week` : '');
     return coachChoice(`coachAimBuild(${i})`, `Get ${names(x.get)} <span class="text-zinc-400">for ${names(x.give)}</span>`,
-      `${coachEsc(x.t.teamName)} · <span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${note ? ` · ${note}` : ''}<br>${coachForThem(x.t, x.give, x.r)}${coachAsksCornerstone(x.t, x.get) ? ' · <span class="text-amber-200/90">their cornerstone, rarely traded</span>' : ''}${x.r.consensus ? ` · ${coachConsensusText(x.r)}` : ''}`);
+      `${coachEsc(x.t.teamName)} · <span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${note ? ` · ${note}` : ''}<br>${coachForThem(x.t, x.give, x.r)}${coachAsksCornerstone(x.t, x.get) ? ' · <span class="text-amber-200/90">their cornerstone, rarely traded</span>' : ''}`);
   }).join('')}</div>`;
 }
 
@@ -1340,7 +1336,7 @@ function coachPackagesHtml(w) {
   const rows = w.packages.map((p, k) => {
     const tier = Vault.verdictTier(p.r.score), extra = p.get.filter(a => !w.get.includes(a));
     return coachChoice(`coachWorkUsePackage(${k})`, `Send ${names(p.give)}${extra.length ? ` <span class="text-zinc-400">and get ${names(extra)} too</span>` : ''}`,
-      `<span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you<br>${coachForThem(w.partner, p.give, p.r)}${p.r.consensus ? ` · ${coachConsensusText(p.r)}` : ''}`);
+      `<span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you<br>${coachForThem(w.partner, p.give, p.r)}`);
   }).join('');
   return box(`<div class="grid gap-2">${rows}</div>`);
 }

@@ -23,23 +23,19 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10" data-league-required id="main" role="main">
-  <div class="mb-2">
-    <h1 class="display text-[28px] font-semibold gold-text">Managers</h1>
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 lg:py-6" data-league-required id="main" role="main">
+  <div class="mb-4">
+    <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Managers<span class="term-i" data-term="page_managers" tabindex="0" role="note">?</span></h1><a href="how_we_grade.html#grades" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How grading works</a></div>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
   </div>
-  <p class="text-[13px] text-zinc-400 max-w-[720px] mb-6 leading-relaxed">
-    How every manager in your league trades, from their completed trades. Ranked by <span class="text-zinc-200">Net Then</span>, the value they came out ahead or behind at each trade's own prices: that part is skill, while how players moved afterward (<span class="text-zinc-200">Net Now</span>) is mostly luck. Click or tap a manager for more.
-    <a href="how_we_grade.html#grades" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How grading works</a>
-  </p>
 
   <div id="summary" class="hidden mb-8"></div>
   <!-- Who pays up: what each manager has paid over (or under) KTC value, by the position of what they got. -->
@@ -48,10 +44,10 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
-<script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=9a548ef1"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="market-data.js?v=ba533660"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc-400' };

@@ -23,13 +23,13 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 <style>
   /* Playoff Race: a Sleeper-style standings list with one plain status per team.
      Built on the vault.css tokens; green/red mean in/out, gold marks your team and the lines. */
   :root { --good: #34d399; --bad: #fb7185; --warn: #fbbf24; }
-  .pr-wrap { max-width: 720px; margin: 0 auto; padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .pr-wrap { max-width: 720px; margin: 0 auto; padding-block: 16px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .pr-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
   .pr-sub a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--line-strong); }
   .pr-rules { font-size: 14px; color: #d4d4da; margin: 14px 0 20px; line-height: 1.5; max-width: 62ch; }
@@ -51,7 +51,8 @@
   .pr-name { min-width: 0; }
   .pr-odds { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--text-dim, #a1a1aa); white-space: nowrap; }
   .pr-odds .bar { flex: 1; max-width: 180px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
-  .pr-odds .bar i { display: block; height: 100%; border-radius: 3px; background: #e3b04b; }
+  .pr-odds .bar i { display: block; height: 100%; border-radius: 3px; background: #38bdf8; }
+  .pr-row.me .pr-odds .bar i { background: var(--gold); }
   .pr-name .t { display: flex; align-items: center; min-width: 0; font-weight: 600; font-size: 15px; color: var(--text); }
   .pr-name .t span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .pr-name .s { font-size: 13px; color: var(--text-2); margin-top: 2px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -103,7 +104,7 @@
     <section id="you" class="card pr-you" hidden></section>
     <h2 class="pr-h2">Standings<span class="term-i" data-term="standings" tabindex="0" role="note">?</span></h2>
     <div id="list" class="card pr-list"></div>
-    <p class="pr-sub">Click or tap a team for what it needs.</p>
+    <p id="tapHint" class="pr-sub">Click or tap a team for what it needs.</p>
     <section id="weekSec" hidden>
       <h2 class="pr-h2" id="weekTitle" style="margin-top:24px">This week's big games</h2>
       <div id="week" class="pr-games" style="margin-top:0"></div>
@@ -112,10 +113,10 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
-<script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=9a548ef1"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="market-data.js?v=ba533660"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
 <script>
 /* ============================================================
    PLAYOFF RACE
@@ -268,7 +269,7 @@ async function load() {
 
   const schedule = weeksLeft ? await Vault.fetchRemainingSchedule(lid, league, weeksDone) : [];
   S = { league, teams, N, P, B, G, gpw, weeksDone, weeksLeft, regEnd, schedule, divisions: st.divisions || 0 };
-  S.thisWeek = schedule[0] && schedule[0].week === weeksDone + 1 ? weekPossibilities(teams, schedule[0].pairs, { N, P, B, G, gpw }) : null;
+  S.thisWeek = schedule[0] && !schedule[0].guessed && schedule[0].week === weeksDone + 1 ? weekPossibilities(teams, schedule[0].pairs, { N, P, B, G, gpw }) : null;
 
   const mine = Vault.myTeam(teams.map(t => ({ ...t, rosterId: t.rid })), lid);
   S.mine = mine ? mine.rid : null;
@@ -357,7 +358,7 @@ function pointsText(t) {
   return `<b>Points for: ${t.pf.toFixed(1)}</b>, ${ordinal(pfRank)} in the league.${bits.length ? ` Against the teams close on record (ties go to points for): ${bits.join(', ')}.` : ''}`;
 }
 function nextGame(t) {
-  const w = S.schedule[0];
+  const w = S.schedule[0]?.guessed ? null : S.schedule[0]; // a stand-in until Sleeper has one
   const p = w && w.pairs.find(pr => pr.includes(t.rid));
   if (!p) return '';
   const opp = S.teams.find(x => x.rid === (p[0] === t.rid ? p[1] : p[0]));
@@ -371,9 +372,15 @@ function render() {
     ? `Top <b>${P}</b> make the playoffs${B ? ` and the top <b>${B}</b> get a bye` : ''}. <b>${plural(weeksLeft, 'week')}</b> left${gpw === 2 ? `, two games a week counting the median, so <b>${G} games</b> each` : ''}.`
     : `The regular season is over. Top <b>${P}</b> made the playoffs${B ? `, top <b>${B}</b> got byes` : ''}.`;
 
+  // Before week 1 there's no race to read: no clinching or lines, just the odds from projected lineups.
+  const fresh = !teams.some(t => t.wins + t.losses + t.ties);
+  if (fresh) $('rules').innerHTML = `Top <b>${P}</b> make the playoffs${B ? ` and the top <b>${B}</b> get a bye` : ''}. <b>${plural(weeksLeft, 'week')}</b> in the regular season.`;
   const me = teams.find(t => t.rid === S.mine);
   $('you').hidden = !me;
-  if (me) {
+  if (me && fresh) {
+    const o = S.odds?.get(me.rid), pc = v => (v > 0 && v < 1 ? '<1' : v > 99 && v < 100 ? '>99' : Math.round(v)) + '%';
+    $('you').innerHTML = `<div class="lead">The season hasn't started.</div><p>${o ? `From projected lineups, you're at ${pc(o.playoffs)} to make the playoffs and ${pc(o.title)} to win the title.` : 'Odds are on their way.'}</p>`;
+  } else if (me) {
     const lead = me.pc === 0 ? `You're in. ${me.bc === 0 ? 'Bye locked up too.' : ''}`
       : me.pe === 0 ? `You're out of the playoffs.`
       : me.rank <= P ? (me.pc > G ? `You're ${ordinal(me.rank)}, but can't clinch on your own yet.` : `You're ${ordinal(me.rank)}, ${plural(me.pc, 'win')} from clinching.`)
@@ -390,7 +397,13 @@ function render() {
     const pct = v => (v > 0 && v < 1 ? '<1' : v > 99 && v < 100 ? '>99' : Math.round(v)) + '%';
     return `<div class="pr-odds"><span class="bar"><i style="width:${Math.min(100, o.playoffs)}%"></i></span><span>${pct(o.playoffs)} playoffs · ${pct(o.title)} title</span></div>`;
   };
-  teams.forEach(t => {
+  const order = fresh && S.odds ? [...teams].sort((a, b) => (S.odds.get(b.rid)?.title ?? 0) - (S.odds.get(a.rid)?.title ?? 0) || (S.odds.get(b.rid)?.playoffs ?? 0) - (S.odds.get(a.rid)?.playoffs ?? 0)) : teams;
+  order.forEach((t, at) => {
+    if (fresh) {
+      const initial = esc((t.name.match(/[A-Za-z0-9]/) || ['?'])[0].toUpperCase());
+      rows.push(`<div class="pr-row ${t.rid === S.mine ? 'me' : ''}"><span class="pr-rank">${at + 1}</span>${t.avatar ? `<img class="pr-av" src="${esc(t.avatar)}" alt="" loading="lazy">` : `<div class="pr-av">${initial}</div>`}<span class="pr-name"><div class="t"><span>${esc(t.name)}</span></div>${oddsBar(t)}</span><span class="pr-rec">${rec(t)}</span></div>`);
+      return;
+    }
     const wk = S.thisWeek?.get(t.rid);
     const wkTxt = wk?.pc ? '<div class="wk">Can clinch this week</div>' : wk?.pe ? '<div class="wk">Can be out this week</div>' : '';
     const initial = esc((t.name.match(/[A-Za-z0-9]/) || ['?'])[0].toUpperCase());
@@ -411,7 +424,7 @@ function render() {
   $('list').innerHTML = rows.join('');
 
   // This week: only the games that move a race.
-  const next = S.schedule[0];
+  const next = S.schedule[0]?.guessed ? null : S.schedule[0];
   const big = [];
   if (next) {
     const byId = new Map(teams.map(t => [t.rid, t]));
@@ -437,6 +450,8 @@ function render() {
     $('week').innerHTML = big.map(g => `<div class="card pr-game"><div class="why">${g.why}</div>${esc(g.hi.name)} <span class="rec">${rec(g.hi)}</span> vs ${esc(g.lo.name)} <span class="rec">${rec(g.lo)}</span></div>`).join('');
   }
 
+  $('tapHint').hidden = fresh;
+  $('foot').hidden = fresh;
   $('foot').innerHTML = `<b>How the counts work:</b> "Needs 3 more wins" assumes the teams chasing them win out. Every loss by one of those teams takes one off, so 2 wins plus a rival's loss does it too.${gpw === 2 ? ' The median game counts as a win or loss like any other.' : ''} "Out after 6 more losses" works the same way: wins by the teams above them count too. Ties on record go to points for, so every count here uses today's points for; a team that's behind on points for needs one more. Points for moves every week, so a close one can flip.`;
   $('prBody').hidden = false;
 }

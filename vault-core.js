@@ -854,7 +854,7 @@ const Vault = {
      the compact per-format file scripts/slim-ktc-trades.js writes daily, in the
      full file's shape: { updated, count (all formats), trades: [{ date, t1, t2,
      teams, qbs, ppr, tep, starters }] } with ids as strings. Falls back to the
-     full data/ktc-trades.json (every format, ~3 MB) if the slim one is missing. */
+     nothing if the slim one is missing (the full file isn't published since 2026-11-05). */
   async fetchKtcTrades(qbs) {
     try {
       const res = await fetch(`data/ktc-trades-${qbs === 2 ? 'sf' : 'oneQB'}.json`);
@@ -863,8 +863,7 @@ const Vault = {
         return { updated: s.updated, count: s.total, trades: s.trades.map(([d, teams, ppr, tep, starters, t1, t2]) => ({ date: s.dates[d], teams, qbs, ppr, tep, starters, t1: t1.map(String), t2: t2.map(String) })) };
       }
     } catch (e) { console.warn('Slim KTC trades unavailable, loading the full file', e); }
-    const full = await (await fetch('data/ktc-trades.json')).json();
-    return { ...full, trades: (full.trades || []).filter(t => t.qbs === qbs) };
+    return { trades: [] };
   },
 
   // KTC values (data/ktc-values.json). The site used to offer our own values behind a
@@ -983,8 +982,8 @@ const Vault = {
   // 6 MB) and rebuilds the same { snapshots: [{ date, players: { name: entry } }] }
   // shape the full file has, so every caller and Vault.resolveHistoricalValue
   // work unchanged. withStats also attaches the projected stats a few snapshots
-  // carry (Player Rankings only). Falls back to the full file if the slim one
-  // isn't there.
+  // carry (Player Rankings only). The full file isn't published since 2026-11-05: it lives on the
+  // data-history release, and the daily update builds these from it.
   async fetchPlayerValueHistory(isSF, bonusRecTe, { withStats = false } = {}) {
     if (isSF !== undefined) {
       try {
@@ -1019,13 +1018,9 @@ const Vault = {
           }
           return { snapshots };
         }
-      } catch (e) { console.warn('Slim value history unavailable, loading the full file', e); }
+      } catch (e) { console.warn('Value history unavailable', e); }
     }
-    try {
-      const res = await fetch('data/player-value-history.json');
-      if (!res.ok) return { snapshots: [] };
-      return res.json();
-    } catch { return { snapshots: [] }; }
+    return { snapshots: [] };
   },
   // Sleeper's player list, cut to the fields the site reads (built daily by
   // scripts/build-slim-data.js — ~0.2 MB compressed instead of 2.6 MB). Falls
@@ -1701,6 +1696,22 @@ const Vault = {
      the starters list, to show "the best lineup" on League Overview), simulateTrade
      (which only needs the total, re-run on a hypothetical post-trade roster), and
      anywhere else that only cares about the number. */
+  // A team's best lineup by KTC value `ahead` seasons from now: each player at what his position and
+  // age usually keep (data/market-history/age-curve.json), and a pick from its draft on as a young
+  // receiver at its price. Only good for comparing rosters: it never reaches the verdict.
+  futureLineupValue(assets, slots, ahead, curve, season) {
+    const keep = (pos, age, years) => { const row = curve[pos]?.[Math.max(21, Math.min(36, Math.round(age)))]; return years > 0 && row ? row[years - 1] ?? 0 : 1; };
+    const pool = [];
+    assets.forEach(a => {
+      if (!(a.value > 0)) return;
+      if (a.type !== 'pick') { if (curve[a.pos]) pool.push({ pos: a.pos, v: a.value * keep(a.pos, a.age, ahead) }); return; }
+      const since = ahead - Math.max(0, a.season - season);
+      if (since >= 0) pool.push({ pos: 'WR', v: a.value * keep('WR', 22, since) });
+    });
+    pool.sort((x, y) => y.v - x.v);
+    const open = slots.map(s => Vault.slotAllows(s)).sort((x, y) => x.length - y.length);
+    return open.reduce((sum, allowed) => { const at = pool.findIndex(p => allowed.includes(p.pos)); return at < 0 ? sum : sum + pool.splice(at, 1)[0].v; }, 0);
+  },
   slotAllows(slot) {
     return { FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'] }[slot] || [slot];
   },
@@ -1895,7 +1906,33 @@ const Vault = {
   /* One meaning for each word on every page (user, 2026-11-05). Vault.term puts a dotted line under
      a label and Vault.info adds a small ? beside a heading; both open this text on hover, or on a
      tap on a phone. Static HTML can use the data-term attribute. Keep these matching How We Grade. */
+  // Round numbers for a chart's axis, covering min to max in about `count` steps.
+  niceTicks(min, max, count = 4) {
+    const raw = (max - min || Math.abs(max) || 1) / count, mag = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw * 0.999);
+    const out = [];
+    for (let v = Math.floor(min / step) * step; v <= Math.ceil(max / step) * step + step / 2; v += step) out.push(+v.toFixed(6));
+    return out;
+  },
+  // An axis label: 160k, not 160,000.
+  axisNum(v) { return Math.abs(v) >= 10000 ? `${+(v / 1000).toFixed(1)}k` : v.toLocaleString(); },
   GLOSSARY: {
+    wouldStart: ['Would start for you', "Their players who'd add the most to your best lineup, each on its own, in points a week for the rest of the season, with your roster as it stands now. Byes, injuries and who you'd bench are counted."],
+    realTrades: ['Real trades', "How far apart this trade is on trade value, against recent completed trades in your format, and the closest real trade to it. Completed trades only: nobody can see the offers that were turned down."],
+    theyStart: ['Would start for them', "Your bench players who'd add the most to their best lineup, each on its own, in points a week for the rest of the season. Your starters are left out."],
+    theyWant: ['What they would want', "A team building for later wants picks and young players: your best picks, then your best young players outside your lineup."],
+    trackRecord: ['Track record', "Every team-side of 2024 and 2025 trades, 2.68 million of them, scored the same way as this one. A record, not a promise, and winning on value is partly built in: a side that won on price starts out ahead."],
+    futureRank: ['The next three seasons', "Where each team's best lineup ranks in the league by KTC value in each coming season, before and after this trade. Each player keeps what his position and age usually keep, and a pick joins the year it's drafted, with the other teams left as they are. A rough projection for comparing rosters: it doesn't count in the verdict."],
+    stressTest: ['Stress test', "This season played out again with your best incoming player gone for the rest of it and your bench filling in, on the same random games, so the difference is him. It isn't an injury forecast: it shows how much of the trade rests on one player."],
+    page_overview: ['League Overview', 'Every team, this season and for the long run. Click a team to open it.'],
+    page_analyzer: ['Team Analyzer', 'One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team in the menu.'],
+    page_market: ['Player Market', 'What players actually go for in completed dynasty trades in leagues like yours, next to their KTC value.'],
+    page_search: ['Trade Search', 'Real completed trades from dynasty leagues set up like yours. Search a player, or one for another, to see what they actually went for.'],
+    page_grades: ['Trade Grades', "Every completed trade in your league, graded on trade value from the day it happened (each piece at its KTC value then, combined the way real trades combine them), then read again at today's KTC values."],
+    page_managers: ['Managers', "How every manager in your league trades, from their completed trades. Ranked by Net Then, the value they came out ahead or behind at each trade's own prices: that part is skill, while how players moved afterward (Net Now) is mostly luck. Click or tap a manager for more."],
+    page_lab: ['Trade Lab', 'Every two-team trade in 2024, 2025 and 2026 Sleeper dynasty leagues where every piece had a KTC price, each judged as its league stood that day. How trades turned out (value later, playoffs, titles) uses 2024 and 2025, followed for up to two years; 2026 trades are only months old. Only totals are shown: no league, team or manager.'],
+    page_status: ['Data status', "Everything The Vault runs on: what's loaded, how fresh it is, and how the background jobs are doing. Nothing here depends on your league; it's the same for everyone."],
+    page_rankings: ['Player Rankings', "Every player's KeepTradeCut value next to his projected points, scored with your league's own settings, with draft picks ranked among them. Sort any column or open a player or pick for its card."],
     vorp: ['VORP', "Value Over Replacement Player: points per game above the best player at his position who wouldn't start for any team in your league. QBs always score more, so this is the fair way to compare positions."],
     vorpTeam: ['VORP', "Your best lineup's points a game above the best players who wouldn't start for any team in your league. It shows how hard your starters are to replace, on a scale that compares positions fairly."],
     ppg: ['PPG', 'Points per game.'],
@@ -1941,7 +1978,7 @@ const Vault = {
     starterLine: ['Over a starter', "Games where he beat his position's replacement level: what the best player who wouldn't start in your league scores a game."],
     recentTrades: ['Recent trades', 'The latest completed trades he headlined, in leagues like yours. Paid vs KTC is what the team getting him sent over or under his KTC value.'],
     scheduleLeft: ['Schedule left', "Each game left before the playoffs, with the opponent's projected lineup that week: who's available, byes and matchups included. Green is easier than the league's average that week, orange harder."],
-    picksByYear: ['Picks by year', "Each team's future picks at KTC value, year by year, with its 1sts counted. Darker means more value that year."],
+    picksByYear: ['Picks by year', "Each team's future picks at KTC value, year by year, with its 1sts counted. Brighter means more value that year."],
     whatIf: ['What if he\'s out?', "Your remaining schedule played out 4,000 times with him gone for the rest of the season and your best lineup rebuilt each week, on the same random games as your real odds so the difference is the player."],
     window5: ['Contention window', 'Each bar is one of the next seasons: how much value this roster is projected to have then. Green seasons are good enough for the playoffs.'],
   },
@@ -3408,7 +3445,7 @@ const Vault = {
       <div class="text-[13px] font-medium text-zinc-100 whitespace-nowrap">Overall</div>
       <div>${Vault.fairnessBarHtml(fair.overallSigned, bandPct, false, accept)}</div>
       <div class="text-[13px] font-medium text-zinc-100 text-right tabular-nums whitespace-nowrap">${overallText}</div>
-      ${row('Trade value', w.value, fair.value, "KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). KeepTradeCut's own calculator number is shown in the trade slip to check against.")}
+            ${row('Trade value', w.value, fair.value, "KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). KeepTradeCut's own calculator number is shown in the trade slip to check against.")}
       ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}
       ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend timeline, archetype, and contention window.')}
     </div>`;
@@ -4118,7 +4155,7 @@ const Vault = {
         : (pn.tone === 'good' ? `deals from ${pn.pos} surplus` : `leaves this team thin at ${pn.pos}`);
       const archClause = an.isIncoming
         ? (an.tone === 'good' ? `is exactly what a ${an.planWord} wants` : `doesn't fit a ${an.planWord}`)
-        : (an.tone === 'bad' ? `fit the ${an.planWord}` : `didn't fit the ${an.planWord} anyway`);
+        : (an.tone === 'bad' ? `works against the ${an.planWord}` : `costs the ${an.planWord} nothing`);
 
       const text = pn.isIncoming
         ? `${an.assetName} ${needClause} ${connector} ${archClause}.`
@@ -4218,7 +4255,7 @@ const Vault = {
     const wrOld = t.plist.filter(p => p.pos === 'WR' && p.age >= 29).reduce((s, p) => s + p.value, 0);
     const wrTotal = t.wr || 1;
     if (wrOld / wrTotal > 0.4) flaws.push(`${Math.round(wrOld / wrTotal * 100)}% of WR value is in players 29 or older`);
-    if (t.picksValue < leagueAvg.picks * 0.85) { const r = all ? 1 + all.filter(x => x.picksValue > t.picksValue).length : null; flaws.push(`Few picks: ${r ? `${r}${({ 1: 'st', 2: 'nd', 3: 'rd' })[r % 10 > 3 || (r % 100 > 10 && r % 100 < 14) ? 0 : r % 10] || 'th'} of ${all.length}, ` : ''}${Math.round(t.picksValue).toLocaleString()} of value, league average ${Math.round(leagueAvg.picks).toLocaleString()}`); }
+    if (t.picksValue < leagueAvg.picks * 0.85) { const r = all ? 1 + all.filter(x => x.picksValue > t.picksValue).length : null; flaws.push(`Few picks: ${r ? `${r}${({ 1: 'st', 2: 'nd', 3: 'rd' })[r % 10 > 3 || (r % 100 > 10 && r % 100 < 14) ? 0 : r % 10] || 'th'} of ${all.length}, ` : ''}${Math.round(t.picksValue).toLocaleString()} in KTC value, league average ${Math.round(leagueAvg.picks).toLocaleString()}`); }
     // Depth check is relative to the team's own roster, not a fixed headcount —
     // a fixed threshold like "16" never fires in deep superflex formats where
     // every team rosters 30+ valued players.
@@ -4271,11 +4308,13 @@ const Vault = {
         if (theirNeeds.includes(s)) { score += 2; const who = spare(t, s); matched.push(`You're deep at ${s.toUpperCase()}, which they're missing${who ? ` (${who})` : ''}`); }
       });
       const theirMode = Vault.teamMode(o);
+      // Who a win-now trade would be about, so two suggestions don't read the same.
+      const vets = team => { const who = (team.plist || []).filter(x => x.value > 0 && x.age >= 26 && !x.isPick).sort((a, b) => b.value - a.value).slice(0, 2).map(x => x.name).join(', '); return who ? ` (${who})` : ''; };
       if ((myMode === 'contend' && theirMode === 'rebuild') || (myMode === 'rebuild' && theirMode === 'contend')) {
         score += 3;
         reasons.push(myMode === 'contend'
-          ? 'They\'re building for later and you\'re contending: they\'d sell production for picks and young players'
-          : 'They\'re contending and you\'re building for later: they\'d pay picks and young players for production');
+          ? `They're building for later and you're contending: they'd sell production${vets(o)} for picks and young players`
+          : `They're contending and you're building for later: they'd pay picks and young players for production${vets(t)}`);
       } else if (myMode !== 'flexible' && myMode === theirMode) {
         score -= 3;
         reasons.push(`Both ${myMode === 'contend' ? 'contending' : 'rebuilding'}: same timeline, so you want the same things`);
@@ -4990,6 +5029,18 @@ const Vault = {
     const results = await Promise.all(weeks.map(w =>
       fetch(`https://api.sleeper.app/v1/league/${leagueId}/matchups/${w}`).then(r => r.json()).catch(() => [])
     ));
+    // Sleeper has no schedule until after the draft, and with no games every team would keep its
+    // place in a 0-0 tie: 100% or 0% (found 2026-11-05). Until it does, each week plays a round robin.
+    if (!results.some(l => (l || []).some(m => m.matchup_id != null))) {
+      const ids = Array.from({ length: league.total_rosters || 0 }, (_, k) => k + 1);
+      if (ids.length % 2) ids.push(null);
+      const rest = ids.slice(1), n = rest.length;
+      return weeks.map((w, r) => {
+        const round = [ids[0], ...rest.map((_, k) => rest[(k + r) % n])];
+        const pairs = round.slice(0, round.length / 2).map((a, k) => [a, round[round.length - 1 - k]]).filter(p => p.every(x => x != null));
+        return { week: w, pairs, guessed: true };
+      }).filter(x => x.pairs.length);
+    }
     return weeks.map((w, i) => {
       const entries = results[i] || [];
       const played = completedWeeks == null && entries.some(m => (m.points || 0) > 0);

@@ -23,27 +23,25 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" data-league-required>
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 lg:py-6 fade-in" data-league-required>
+  <div class="flex items-center justify-between gap-3 mb-4">
     <div>
-      <h1 class="display text-[28px] font-semibold gold-text">League Overview</h1>
-      <div id="status" class="mt-2 flex items-center gap-3 text-zinc-300 text-sm">
+      <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">League Overview<span class="term-i" data-term="page_overview" tabindex="0" role="note">?</span></h1><a href="#legend" onclick="document.getElementById('legend').open = true" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">What do these numbers mean?</a></div>
+      <div id="status" class="mt-1 flex items-center gap-2 text-zinc-400 text-[13px]">
         <div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>
       </div>
-      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">Every team, this season and for the long run. Click a team to open it. <a href="#legend" onclick="document.getElementById('legend').open = true" class="text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">What do these numbers mean?</a></p>
     </div>
-    <button id="refresh" class="self-start sm:self-auto shrink-0 btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
+    <button id="refresh" class="shrink-0 btn-gold px-3 py-1.5 text-[12px] text-zinc-300">Refresh</button>
   </div>
 
-  <div id="sinceVisit" class="mb-6 empty:hidden"></div>
   <!-- Right now (title odds) or Dynasty (total value): which ranking the table shows. -->
   <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
     <div id="viewToggle" class="inline-flex rounded-lg border border-white/10 overflow-hidden" role="group" aria-label="Ranking"></div>
@@ -53,6 +51,7 @@
   <div class="md:hidden flex items-center justify-end gap-2 mb-3 text-[12px] text-zinc-400">
     <label for="mobileSort">Sort by</label>
     <select id="mobileSort" class="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[13px] text-zinc-200 outline-none"></select>
+    <button id="mobileFlip" type="button" aria-label="Flip the order" class="btn-ghost size-8 grid place-items-center text-[14px]"></button>
   </div>
   <div id="mobileCards" class="md:hidden space-y-2"></div>
 
@@ -131,12 +130,15 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
-<script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=9a548ef1"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="market-data.js?v=ba533660"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 };
+// Names run A to Z and ages youngest first; everything else best first. The same one again flips it.
+const firstDir = k => (k === 'teamName' || k === 'age' ? 1 : -1);
+function sortBy(k) { if (sort.key === k) sort.dir *= -1; else { sort.key = k; sort.dir = firstDir(k); } render(); }
 
 
 // Static reference (doesn't depend on this league's teams), so it renders once up front.
@@ -179,7 +181,7 @@ function microBar(val, min, max) {
 }
 
 // One color per team line, cycled if there are more teams than colors.
-const CHART_COLORS = ['#f5c542', '#5ec7f5', '#f56e6e', '#7ee787', '#c792ea', '#ff9d5c', '#67e8f9', '#f0abfc', '#a3e635', '#fb7185'];
+const CHART_COLORS = ['#a5b4fc', '#5ec7f5', '#f56e6e', '#7ee787', '#c792ea', '#ff9d5c', '#67e8f9', '#f0abfc', '#a3e635', '#fb7185'];
 const VALUE_METRICS = {
   total: { label: 'Value', field: 'total', decimals: 0, desc: "Each team's total dynasty value, snapshotted daily." },
   optPpg: { label: 'Lineup PPG', field: 'optPpg', decimals: 1, desc: "Each team's best-lineup projected PPG (league scoring), snapshotted daily." },
@@ -204,8 +206,12 @@ function setTrendWindow(days) {
   if (lastValueHistory) renderValueHistory(lastValueHistory, lastValueHistoryTeams);
 }
 
+// Redrawn when the width changes, since it's drawn to fit.
+let valueHistoryWidth = 0;
+addEventListener('resize', () => { const w = document.getElementById('valueHistoryChart')?.clientWidth || 0; if (lastValueHistory && w && Math.abs(w - valueHistoryWidth) > 40) renderValueHistory(lastValueHistory, lastValueHistoryTeams); });
 function renderValueHistory(history, currentTeams) {
   lastValueHistory = history; lastValueHistoryTeams = currentTeams;
+  valueHistoryWidth = document.getElementById('valueHistoryChart')?.clientWidth || 0;
   const toggle = document.getElementById('valueHistoryToggle');
   toggle.innerHTML = Object.entries(VALUE_METRICS).map(([key, m]) =>
     `<button onclick="setValueHistoryMetric('${key}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${valueHistoryMetric === key ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${m.label}</button>`
@@ -250,20 +256,29 @@ function renderValueHistory(history, currentTeams) {
 
   const allVals = series.flatMap(s => s.points.filter(v => v != null));
   const minV = Math.min(...allVals), maxV = Math.max(...allVals);
-  const pad = (maxV - minV) * 0.08 || maxV * 0.1 || 1000;
-  const yMin = Math.max(0, minV - pad), yMax = maxV + pad;
+  const pad = (maxV - minV) * 0.05 || maxV * 0.1 || 1000;
+  const yTicks = Vault.niceTicks(Math.max(0, minV - pad), maxV + pad);
+  const yMin = yTicks[0], yMax = yTicks[yTicks.length - 1];
 
-  // Bigger canvas than before (380 vs 300 tall) — with up to 10 overlapping team
-  // lines, cramped vertical space was the main thing making this hard to read.
-  const W = 900, H = 380, ML = 60, MR = 16, MT = 16, MB = 32;
+  // Drawn at the width it's shown, so text is true size on a phone too. Team names sit at the
+  // line ends on wide screens; a phone keeps the list under the chart.
+  const W = Math.max(320, mount.clientWidth || 900), narrow = W < 620, H = narrow ? 240 : 380, ML = 42, MR = narrow ? 12 : 150, MT = 12, MB = 26;
   const plotW = W - ML - MR, plotH = H - MT - MB;
   const x = i => ML + (snaps.length > 1 ? i / (snaps.length - 1) * plotW : 0);
   const y = v => MT + plotH - (v - yMin) / (yMax - yMin) * plotH;
 
-  const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => {
-    const v = yMin + (yMax - yMin) * f, yy = y(v);
+  const gridLines = yTicks.map(v => {
+    const yy = y(v);
     return `<line x1="${ML}" y1="${yy}" x2="${W - MR}" y2="${yy}" stroke="currentColor" class="text-white/5"/>
-      <text x="${ML - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="currentColor" class="text-zinc-400">${fmt(v)}</text>`;
+      <text x="${ML - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="currentColor" class="text-zinc-400">${decimals ? v : Vault.axisNum(v)}</text>`;
+  }).join('');
+  // Team names at the line ends, nudged apart so none overlap.
+  const ends = narrow ? [] : series.map(s => { let i = s.points.length - 1; while (i >= 0 && s.points[i] == null) i--; return i < 0 ? null : { s, yy: y(s.points[i]) }; }).filter(Boolean).sort((a, b) => a.yy - b.yy);
+  ends.forEach((e, i) => { if (i && e.yy < ends[i - 1].yy + 14) e.yy = ends[i - 1].yy + 14; });
+  for (let i = ends.length - 1; i >= 0; i--) { const cap = i === ends.length - 1 ? MT + plotH + 6 : ends[i + 1].yy - 14; if (ends[i].yy > cap) ends[i].yy = cap; }
+  const endLabels = ends.map(({ s, yy }) => {
+    const name = s.name.length > 19 ? `${s.name.slice(0, 18)}…` : s.name;
+    return `<g data-series="${s.id}" data-base="${mineId == null || s.mine ? 1 : 0.7}" style="transition:opacity .15s;opacity:${mineId == null || s.mine ? 1 : 0.7}"><circle cx="${W - MR + 8}" cy="${yy}" r="3" fill="${s.color}"/><text x="${W - MR + 15}" y="${yy + 4}" font-size="11" fill="currentColor" font-weight="${s.mine ? 600 : 400}" class="${s.mine ? 'text-zinc-100' : 'text-zinc-400'}">${Vault.escapeHtml(name)}</text></g>`;
   }).join('');
 
   // Previously only ever showed the first/last date, leaving every point in
@@ -290,7 +305,7 @@ function renderValueHistory(history, currentTeams) {
     const pts = s.points.map((v, i) => v == null ? null : `${x(i)},${y(v)}`).filter(Boolean).join(' ');
     const dots = s.points.map((v, i) => v == null ? '' : snaps[i].estimated
       ? `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="none" stroke="${s.color}" stroke-width="1.5" stroke-dasharray="1.5 1.5"><title>${snaps[i].date}: estimated (data outage)</title></circle>`
-      : `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}"><title>${snaps[i].date}</title></circle>`).join('');
+      : snaps.length === 1 ? `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}"><title>${snaps[i].date}</title></circle>` : '').join('');
     // Grouped per team (data-series) so hovering a legend row can dim every
     // other line instead of leaving all 10 stacked on top of each other at
     // equal weight all the time.
@@ -323,7 +338,7 @@ function renderValueHistory(history, currentTeams) {
   }).sort((a, b) => (b.last ?? -Infinity) - (a.last ?? -Infinity));
 
   mount.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" id="valueHistorySvg">${gridLines}${lines}${hoverRect}${tradeMarks}${dateTicks}</svg>
+    <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" id="valueHistorySvg">${gridLines}${lines}${hoverRect}${tradeMarks}${dateTicks}${endLabels}</svg>
     ${tradeMarks ? '<div class="text-[11px] text-zinc-500 mt-1">Rings mark your trades. Hover one for what moved.</div>' : ''}
     <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1.5">
       ${legendRows.map(({ s, last, delta }) => `
@@ -466,7 +481,6 @@ async function load() {
       const lo = Math.min(...allYears), hi = Math.max(...allYears);
       document.getElementById('picksLegend').textContent = ` — Total KTC value of every future draft pick this team owns, ${lo}-${String(hi).slice(-2)} R1-4, live from Sleeper. Each pick is priced at the slot it should land in: next year's by projected final record, later years' by lineup strength. Every page prices picks this way.`;
     }
-    renderSinceVisit(teams);
     Vault.buildTeamValueHistory(Vault.getLeagueId(), { teams }).then(h => renderValueHistory(h, teams)).catch(e => { console.error(e); renderValueHistory({ snapshots: [] }, teams); });
 
     // Career record walks the league's season-history chain — a handful of extra
@@ -496,35 +510,16 @@ function youTag(t) {
 // Each pick sorts best-first; the same pick again flips the order.
 /* What moved since you last came (user's list, 2026-11-05), saved in this browser. A visit within
    12 hours compares with the same earlier one, so a refresh doesn't empty the card. */
-function renderSinceVisit(teams) {
-  const me = Vault.myTeam(teams), box = document.getElementById('sinceVisit');
-  if (!me || !box) return;
-  const key = `vault_lastvisit_${Vault.getLeagueId()}`;
-  const rank = [...teams].sort((a, b) => b.overall - a.overall).indexOf(me) + 1;
-  const now = { at: Date.now(), value: Math.round(me.overall), rank, odds: me.projected?.playoffPct ?? null, hurt: me.plist.filter(p => p.value >= 500 && Vault.injuryText(p)).map(p => p.name) };
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
-  const fresh = saved?.last && now.at - saved.last.at < 12 * 36e5;
-  const prev = fresh ? saved.prev : saved?.last;
-  try { localStorage.setItem(key, JSON.stringify({ prev: prev || null, last: fresh ? saved.last : now })); } catch {}
-  if (!prev) return;
-  const parts = [], d = now.value - prev.value, ord = n => `${n}${['th', 'st', 'nd', 'rd'][n % 100 >= 11 && n % 100 <= 13 ? 0 : n % 10] || 'th'}`;
-  if (Math.abs(d) >= 1) parts.push(`Team value ${d > 0 ? 'up' : 'down'} <span class="mono ${d > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Math.abs(d).toLocaleString()}</span>`);
-  if (now.rank !== prev.rank) parts.push(`${ord(prev.rank)} to ${ord(now.rank)} in value`);
-  if (now.odds != null && prev.odds != null && Math.abs(now.odds - prev.odds) >= 1) parts.push(`Playoff odds ${Math.round(prev.odds)}% to ${Math.round(now.odds)}%`);
-  const hurt = now.hurt.filter(n => !prev.hurt.includes(n));
-  if (hurt.length) parts.push(`Newly hurt: ${hurt.map(n => Vault.playerLink(n)).join(', ')}`);
-  if (!parts.length) return;
-  const when = new Date(prev.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  box.innerHTML = `<div class="card rounded-vault-sm px-4 py-3 text-[13px] text-zinc-300"><span class="text-[11px] uppercase tracking-wider text-zinc-400 mr-2">Since ${when}</span>${parts.join('<span class="text-zinc-600 mx-1.5">·</span>')}</div>`;
-}
 
 const MOBILE_SORTS = [['nowScore', 'Right now'], ['overall', 'Dynasty value'], ['actualSort', 'Points per game'], ['last3Sort', 'Last 3 games'], ['playoffPct', 'Playoff odds'], ['recordWinPct', 'Record'], ['total', 'Player value'], ['picksValue', 'Pick value'], ['next4', 'Next 4 weeks proj.'], ['vorpTotal', 'VORP'], ['longevity', 'Longevity'], ['age', 'Age'], ['teamName', 'Team name']];
 function renderMobileSort() {
   const sel = document.getElementById('mobileSort');
   if (!sel) return;
-  sel.innerHTML = MOBILE_SORTS.map(([k, label]) => `<option value="${k}" ${sort.key === k ? 'selected' : ''}>${label}${sort.key === k && sort.dir > 0 ? ' (reversed)' : ''}</option>`).join('');
-  sel.onchange = () => { const k = sel.value; if (sort.key === k) sort.dir *= -1; else { sort.key = k; sort.dir = k === 'teamName' || k === 'age' ? 1 : -1; } render(); };
+  sel.innerHTML = MOBILE_SORTS.map(([k, label]) => `<option value="${k}" ${sort.key === k ? 'selected' : ''}>${label}</option>`).join('');
+  sel.onchange = () => sortBy(sel.value);
+  const flip = document.getElementById('mobileFlip');
+  flip.textContent = sort.dir === firstDir(sort.key) ? '↓' : '↑';
+  flip.onclick = () => sortBy(sort.key);
 }
 // What the phone list is sorted by, so the number on each row is the one it's in order of.
 function mobileStat(t) {
@@ -556,7 +551,7 @@ function renderMobileCards(data, minOverall, maxOverall) {
     return `<button onclick="showTeam(${t.rosterId})" class="w-full text-left card card-hover rounded-xl px-3.5 py-2.5 flex items-center gap-3">
       <span class="w-5 text-right num text-[16px] text-zinc-500 shrink-0">${t.viewRank}</span>
       <span class="min-w-0 flex-1">
-        <span class="block text-[14px] font-medium text-white truncate">${Vault.escapeHtml(t.teamName)}${youTag(t)}</span>
+        <span class="flex items-center gap-1 text-[14px] font-medium text-white"><span class="truncate min-w-0">${Vault.escapeHtml(t.teamName)}</span><span class="shrink-0">${youTag(t)}</span></span>
         <span class="block text-[12px] text-zinc-400 truncate">${[t.record ? `<span class="mono">${recordText(t)}</span>` : '', t.arch].filter(Boolean).join(' • ')}</span>
       </span>
       <span class="shrink-0 text-right"><span class="block num text-[18px] text-zinc-100">${value}</span><span class="block text-[11px] text-zinc-400">${label}</span></span>
@@ -611,7 +606,7 @@ const VIEWS = {
 let view = null;
 function setView(v) { view = v; sort = { key: VIEWS[v].key, dir: -1 }; render(); }
 function renderViewToggle() {
-  document.getElementById('viewToggle').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button type="button" onclick="setView('${k}')" aria-pressed="${view === k}" class="px-3.5 py-1.5 text-[13px] ${view === k ? 'bg-amber-400/15 text-amber-100' : 'text-zinc-400 hover:text-white'}">${v.label}</button>`).join('');
+  document.getElementById('viewToggle').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button type="button" onclick="setView('${k}')" aria-pressed="${sort.key === v.key}" class="px-3.5 py-1.5 text-[13px] ${sort.key === v.key ? 'bg-amber-400/15 text-amber-100' : 'text-zinc-400 hover:text-white'}">${v.label}</button>`).join('');
   document.getElementById('viewHint').textContent = sort.key === VIEWS[view].key ? VIEWS[view].hint : 'Sorted by a column: click Right now or Dynasty to go back.';
 }
 // "2nd": a team's place in the league on one measure.
@@ -650,9 +645,10 @@ function render() {
     }
     let av = a[sort.key], bv = b[sort.key];
     if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
-    return sort.dir * (av > bv ? 1 : av < bv ? -1 : 0);
+    if (av !== bv) return sort.dir * (av > bv ? 1 : -1);
+    return (b.record?.fpts || 0) - (a.record?.fpts || 0) || (b.nowScore || 0) - (a.nowScore || 0);
   });
-  document.querySelectorAll('th.sortable').forEach(th => th.classList.toggle('active', th.dataset.sort === sort.key));
+  document.querySelectorAll('th.sortable').forEach(th => { const on = th.dataset.sort === sort.key; th.classList.toggle('active', on); th.classList.toggle('sort-up', on && sort.dir > 0); th.classList.toggle('sort-down', on && sort.dir < 0); if (on) th.setAttribute('aria-sort', sort.dir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort'); });
   document.getElementById('sortLast3').classList.toggle('text-amber-200', sort.key === 'last3Sort');
   data.forEach((t, i) => { t.viewRank = i + 1; });
   posRanks = POS_COLS.map(([, f]) => rankMap(f));
@@ -725,7 +721,7 @@ document.getElementById('sortLast3').onclick = e => {
   if (sort.key === 'last3Sort') sort.dir *= -1; else sort = { key: 'last3Sort', dir: -1 };
   render();
 };
-document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.sort; if (sort.key === k) { sort.dir *= -1; } else { sort.key = k; sort.dir = -1; } render(); });
+document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => sortBy(th.dataset.sort));
 document.getElementById('refresh').onclick = () => { Vault.freshData(); load(); };
 
 // The 17-column table needs horizontal scroll on anything short of a very wide

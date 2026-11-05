@@ -616,7 +616,7 @@
     const tone = (t, good, bad) => (t.tags.includes(good) ? 'text-emerald-300' : t.tags.includes(bad) ? 'text-orange-300' : '');
     const cell = (t, c) => {
       switch (c.key) {
-        case 'name': return `<span class="text-zinc-100">${esc(t.name)}</span>${t.rosterId === opts.myId ? ' <span class="text-[11px] px-1 py-0.5 rounded bg-amber-400/15 text-amber-200">You</span>' : ''}`;
+        case 'name': return `<span class="flex items-center gap-1 min-w-0"><span class="text-zinc-100 truncate">${esc(t.name)}</span>${t.rosterId === opts.myId ? '<span class="shrink-0 text-[11px] px-1 py-0.5 rounded bg-amber-400/15 text-amber-200">You</span>' : ''}</span>`;
         case 'record': return recText(t.record);
         case 'allPlay': return recText(t.allPlay);
         case 'luck': return `<span class="${tone(t, 'Lucky', 'Unlucky')}">${sgn(t.luck)}</span>`;

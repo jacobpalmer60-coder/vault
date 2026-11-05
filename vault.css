@@ -1,7 +1,8 @@
 /* ============================================================
    VAULT THEME
    A dark, quiet ledger. Graphite surfaces, one warm gold accent kept
-   for primary actions, the active page, and brand marks. Green and red
+   for primary actions, the active page, your own team, and brand marks.
+   Charts and bars of plain data use sky blue (--data). Green and red
    mean good and bad, nothing else. No glows, gradients on text, or
    glass: legibility first.
 
@@ -18,7 +19,7 @@
      16  strong  — emphasized stats, lead text
      20  title   — card / subsection titles
      24  section — section headers ("Trade Analysis")
-     38  page    — page <h1> (condensed)
+     30  page    — page <h1> (condensed)
      42  hero    — landing page only
    Nothing smaller than 11px.
 
@@ -35,6 +36,7 @@
   --text: #ececef;
   --text-2: #a8a8b1;
   --gold: #e3b04b;
+  --data: #38bdf8;
   --gold-hi: #edc168;
   --gold-ink: #1c1406;
 }
@@ -52,8 +54,8 @@ body {
 
 /* Titles: Barlow Condensed, the stat-sheet voice. Page titles run larger, since condensed type reads small. */
 .display { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; letter-spacing: 0.005em; }
-h1.display { font-size: 38px; line-height: 1.05; }
-@media (max-width: 639px) { h1.display { font-size: 34px; } }
+h1.display { font-size: 30px; line-height: 1.1; }
+@media (max-width: 639px) { h1.display { font-size: 28px; } }
 /* The number a card or tile leads with: condensed, even-width digits. */
 .num { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; line-height: 1; }
 /* Numbers: same face as the text, with even-width digits so columns align. */
@@ -152,6 +154,8 @@ select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable.active, th.sortable:hover { color: var(--gold); }
+th.sortable.sort-down::after { content: ' ↓'; }
+th.sortable.sort-up::after { content: ' ↑'; }
 
 tr.team-row { cursor: pointer; }
 tr.team-row:hover td { background: rgba(255, 255, 255, 0.025); }
@@ -203,6 +207,21 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
 .vs-wrap:focus-within { outline: 2px solid rgba(227, 176, 75, 0.7); outline-offset: 2px; }
 .vs-wrap { cursor: text; }
 
+/* Trade Calculator on phones: one part of the trade at a time (tradeTab). */
+#tradeTabs button { flex: 1; padding: 7px 0; border-radius: 8px; font-size: 13px; color: var(--text-2); }
+#tradeTabs button[aria-selected="true"] { background: rgba(255, 255, 255, 0.08); color: var(--text); font-weight: 500; }
+@media (max-width: 767px) {
+  #tradeBar:not([data-tab="verdict"]) #tradeVerdict, #tradeBar:not([data-tab="details"]) #siteStatus,
+  #tradeBar:not([data-tab="verdict"]):not([data-tab="details"]) #tradeAnswer,
+  #tradeBar:not([data-tab="teams"]) #teamImpact,
+  #tradeBar:not([data-tab="season"]) #seasonWrap,
+  #tradeBar:not([data-tab="details"]) #tradeDetails { display: none; }
+  /* The tab is the heading here, and a tab has nothing to hide. #tradeBar: "#builder summary" below would win a tie. */
+  #tradeBar #seasonWrap > summary, #tradeBar #tradeDetails > summary, #teamImpact > div:first-child { display: none; }
+  #tradeBar #seasonWrap, #tradeBar #tradeDetails { padding-top: 12px; }
+}
+/* Trade Calculator: once there's a trade, the timeline menu beside the verdict is the one to use. */
+#builder:has(#tradeBar:not(.hidden)) #needsA label, #builder:has(#tradeBar:not(.hidden)) #needsA label + .tl-sep { display: none; }
 /* Trade Calculator: the "How it changes each team" section only shows once there's a trade. */
 #teamImpact:has(#analysisA.hidden) { display: none; }
 

@@ -23,24 +23,20 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<main id="main" class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
+<main id="main" class="max-w-[1100px] mx-auto px-4 sm:px-6 py-4 lg:py-6">
   <div class="mb-2">
-    <h1 class="display text-[28px] font-semibold gold-text">Trade Lab</h1>
+    <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Trade Lab<span class="term-i" data-term="page_lab" tabindex="0" role="note">?</span></h1><a href="how_we_grade.html#facts" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How we use it</a></div>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading 2.15 million trades…</p>
   </div>
-  <p class="text-[13px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
-    Every two-team trade in 2024, 2025 and 2026 Sleeper dynasty leagues where every piece had a KTC price, each judged as its league stood that day. How trades turned out (value later, playoffs, titles) uses 2024 and 2025, followed for up to two years; 2026 trades are only months old. Only totals are shown: no league, team or manager.
-    <span id="crawled"></span>
-    <a href="how_we_grade.html#facts" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How we use it</a>
-  </p>
+  <p class="text-[12px] text-zinc-500 max-w-[720px] mb-4 leading-relaxed"><span id="crawled"></span></p>
 
   <div id="tiles" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
 
@@ -104,10 +100,10 @@
 
 <div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
-<script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=9a548ef1"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
+<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="market-data.js?v=ba533660"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
 <script>
 const POS_BADGE = Vault.posBadge;
 const esc = s => Vault.escapeHtml(String(s));
