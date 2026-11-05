@@ -2928,10 +2928,14 @@ const Vault = {
     if (!byFormat) Vault._siteScales.set(data, byFormat = {});
     return byFormat[isSF ? 'sf' : '1qb'] ||= valuesOf().filter(v => v > 0).sort((a, b) => b - a);
   },
-  // Side A's KTC-scale total minus side B's, from a site's value for each piece.
+  // Side A's lead over side B on KTC's scale, from a site's value for each piece, the way KTC's own
+  // verdict counts it (2026-11-05). Added up plainly it could point the wrong way: Boston + Mason for
+  // Cook read "favors the Cook side by 2,884 (≈ 232 KTC)", with the 232 for the other side, because
+  // KTC only favors one star over two pieces once its adjustment is in.
   siteKtcGap(aAssets, bAssets, value, sorted) {
-    const sum = list => list.reduce((s, a) => s + Vault.ktcEquivalent(value(a), sorted), 0);
-    return sum(aAssets) - sum(bAssets);
+    const scaled = list => list.map(a => ({ value: Vault.ktcEquivalent(value(a), sorted) }));
+    const { bigger, gap } = Vault.ktcVerdict(scaled(aAssets), scaled(bAssets));
+    return bigger === 'A' ? gap : -gap;
   },
 
   fetchDynastyDaddy() {

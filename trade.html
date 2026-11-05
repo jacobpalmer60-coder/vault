@@ -232,7 +232,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=2d232e89"></script>
+<script src="vault-core.js?v=4410f81b"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1269,7 +1269,12 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   // Each site's own gap, then the gap on KTC's scale, matched by rank (Vault.ktcEquivalent):
   // picks and stars sit at different values on each site, so their points don't compare directly.
   const by = (gap, rest = '') => (Math.round(gap) ? ` by ${points(gap)}${rest}` : '');
-  const amount = read => by(Math.abs(read.valueA - read.valueB), ` (≈ ${points(Math.abs(read.ktcGap))} KTC)`);
+  // Each list is what the other team gets, so a lead for A's list favors team B. Where a site's values
+  // and KTC's scale pick different teams, the line says so instead of showing a number that reads as agreement.
+  const amount = (read, favored = read.valueA > read.valueB ? teamB : teamA) => {
+    const onKtc = read.ktcGap > 0 ? teamB : teamA, size = points(Math.abs(read.ktcGap));
+    return by(Math.abs(read.valueA - read.valueB), onKtc === favored || !Math.round(read.ktcGap) ? ` (≈ ${size} KTC)` : ` (on KTC's scale, ${esc(onKtc.teamName)} by ${size})`);
+  };
   // KTC and Dynasty Daddy only ever say Fair Trade or Favors a team. A Fair still shows its gap
   // (user, 2026-11-04): Dynasty Daddy's Fair runs to about 10% apart, a real difference.
   const verdict = (fair, team, gap) => (fair ? { dot: 'good', text: gap ? `Fair, leans ${esc(team.teamName)}${gap}` : 'Fair' } : { dot: 'mid', text: `Favors ${esc(team.teamName)}${gap}` });
@@ -1279,7 +1284,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const raFavors = raGrade && { side_a: teamA, side_b: teamB }[raGrade.winner];
   // Its public values have no TE premium: say so when that could matter here .
   const ddNoTe = Vault.rosterAuditTep(league) && [...aAssets, ...bAssets].some(a => a.pos === 'TE');
-  const raBy = ra.priced ? amount(ra) : '';
+  const raBy = ra.priced ? amount(ra, raFavors || undefined) : '';
   const raRow = raGrade
     ? { dot: /^[AB]/.test(raGrade.grade) ? 'good' : /^C/.test(raGrade.grade) ? 'mid' : 'bad', text: `${esc(raGrade.grade)}${raFavors ? `, favors ${esc(raFavors.teamName)}${raBy}` : ''}`, title: `Its own grade, ${raGrade.difference_pct}% apart` }
     : ra.priced
@@ -1297,7 +1302,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
       <span class="min-w-0"><a href="${r.href}" target="_blank" rel="noopener" class="font-medium text-zinc-200 underline decoration-white/20 underline-offset-2 hover:text-white">${r.name}</a>: <span class="text-zinc-300">${r.text}</span>${r.note ? ` <span class="text-zinc-500">(${r.note})</span>` : ''}</span>
     </li>`).join('')}</ul>
     ${siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc)}
-    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Roster Audit's and Dynasty Daddy's gaps are also shown on KTC's scale, matched by rank. KTC's own verdict counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
+    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Roster Audit's and Dynasty Daddy's gaps are also shown on KTC's scale: each piece matched by rank, then counted the way KTC's calculator counts them. KTC's own verdict counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
 }
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (!aAssets.length || !bAssets.length || ktcSameCall(tradeEdge, ktcEdge)) return '';
