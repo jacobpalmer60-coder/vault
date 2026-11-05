@@ -512,15 +512,20 @@ const Vault = {
 
   /* ---------- formatting / string helpers ---------- */
   norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); },
+  // Sleeper's spelling -> KTC's, where a name differs (2026-11-05). Without it the player has
+  // no KTC value on a roster: Gainwell, on the user's own team, read 0 at 2,378. KTC's side, so
+  // every saved value history keeps its key.
+  _nameAlias: { 'chig okonkwo': 'chigoziem okonkwo', 'kenny gainwell': 'kenneth gainwell', 'zonovan knight': 'bam knight', 'matt hibner': 'matthew hibner', 'gabe davis': 'gabriel davis', 'nate carter': 'nathan carter' },
   normalizeName(s) {
     if (!s) return '';
-    return s.toString().toLowerCase()
+    const name = s.toString().toLowerCase()
       .replace(/\./g, '')
       .replace(/'/g, '')
       .replace(/ jr$| sr$| ii$| iii$| iv$| v$/, '')
       .replace(/[^a-z0-9]+/g, ' ')
       .trim()
       .replace(/\s+/g, ' ');
+    return Vault._nameAlias[name] || name;
   },
   clean(v) { return parseFloat(String(v || '').replace(/,/g, '')) || 0; },
   /* ---------- Value Based Adjustment (VBA) ----------
@@ -1415,7 +1420,7 @@ const Vault = {
     const map = new Map();
     Object.values(projData.players || {}).forEach(p => {
       const key = Vault.normalizeName(p.name);
-      if (!p.stats.gp || !key) return;
+      if (!p.stats.gp || !key || (map.has(key) && !p.team)) return; // same name: the one on a team
       map.set(key, Vault.scoreStats(p.stats, scoringSettings) / p.stats.gp);
     });
     return map;
@@ -1835,6 +1840,28 @@ const Vault = {
     return { total: total / weeks.length, vorpTotal: vorpTotal / weeks.length, starters: typical.starters.map(s => ({ ...s, starts: starts.get(s.id) || 0 })), starts, weeks: weeks.length, byWeek };
   },
 
+  // KTC's team codes where they aren't Sleeper's.
+  ktcTeam(team) { return { GBP: 'GB', JAC: 'JAX', KCC: 'KC', LVR: 'LV', NEP: 'NE', NOS: 'NO', SFO: 'SF', TBB: 'TB' }[team] || team; },
+  /* Which Sleeper player a name means (user, 2026-11-05). Names aren't unique: there's a rookie
+     cornerback DeVonta Smith, an LB Justin Jefferson, a CB Lamar Jackson, so a plain name lookup
+     gave the Eagles' receiver a rookie label and another man's photo. The same position first,
+     then the same team, then anyone on a team. With no position, a fantasy position counts. */
+  _sleeperIndex: new WeakMap(),
+  findSleeperId(players, name, pos, team) {
+    if (!players) return null;
+    let index = Vault._sleeperIndex.get(players);
+    if (!index) {
+      Vault._sleeperIndex.set(players, index = new Map());
+      Object.entries(players).forEach(([id, p]) => {
+        const key = p && Vault.normalizeName(`${p.first_name || ''} ${p.last_name || ''}`.trim());
+        if (key) (index.get(key) || index.set(key, []).get(key)).push([id, p]);
+      });
+    }
+    const score = p => (pos ? p.position === pos : ['QB', 'RB', 'WR', 'TE'].includes(p.position)) * 8 + (!!team && p.team === team) * 4 + (p.team ? 2 : 0);
+    let best = null, top = -1;
+    (index.get(Vault.normalizeName(name)) || []).forEach(([id, p]) => { if (score(p) > top) { top = score(p); best = id; } });
+    return best;
+  },
   // A player's name that opens his card when clicked (player-card.js). label is what shows.
   playerLink(name, label = name) { return `<span class="player-link" data-player="${Vault.escapeHtml(name)}">${Vault.escapeHtml(label)}</span>`; },
   // A trade piece: a player's name opens his card, a pick is plain text. Pass anything with name and pos.
@@ -1845,7 +1872,7 @@ const Vault = {
   // the name and position, so those get a span the player list fills in once it's loaded.
   playerMeta(a) {
     if (a.type === 'pick' || !a.name || /^pick$/i.test(a.pos || '')) return '';
-    return a.nfl != null ? Vault.escapeHtml(Vault.playerInfo(a)) : `<span data-facts="${Vault.escapeHtml(a.name)}"></span>`;
+    return a.nfl != null ? Vault.escapeHtml(Vault.playerInfo(a)) : `<span data-facts="${Vault.escapeHtml(a.name)}" data-pos="${Vault.escapeHtml(a.pos || '')}"></span>`;
   },
   // "WR · GB · 27", where the position already reads as gray text.
   posMeta(a) { const m = Vault.playerMeta(a); return `${Vault.escapeHtml(a.pos || '')}${m ? ` · ${m}` : ''}`; },
@@ -1913,7 +1940,7 @@ const Vault = {
   },
   /* The card behind an injury tag (user, 2026-11-04): what it is, how long the player has been
      listed, when back, the last game played. ESPN's facts when it has him, Sleeper's otherwise. */
-  injuryCard(a, weeks = Vault._lineupWeeks) {
+  injuryRows(a, weeks = Vault._lineupWeeks) {
     const esc = Vault.escapeHtml, f = a.injuryFacts || {};
     const day = d => new Date(typeof d === 'string' ? `${d}T12:00:00` : d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const status = { IR: 'Injured reserve', PUP: 'PUP list', Sus: 'Suspended', DNR: 'Not reporting', NA: 'Not with team' }[a.injury] || a.injury;
@@ -1933,9 +1960,11 @@ const Vault = {
     } else if (back) rows.push(['Back', back.season ? 'Not this season' : when(back)]);
     if (f.last) rows.push(['Last played', `Week ${f.last}, ${f.games} game${f.games === 1 ? '' : 's'} this season`]);
     if (updated) rows.push(['Updated', day(updated)]);
-    return `<div class="font-medium text-zinc-100 mb-1.5">${esc(a.name)}</div>
-      <div class="grid grid-cols-[72px_1fr] gap-x-3 gap-y-1">${rows.map(([k, v]) => `<span class="text-zinc-500">${k}</span><span class="text-zinc-200">${esc(v)}</span>`).join('')}</div>
+    return `<div class="grid grid-cols-[76px_1fr] gap-x-3 gap-y-1">${rows.map(([k, v]) => `<span class="text-zinc-500">${k}</span><span class="text-zinc-200">${esc(v)}</span>`).join('')}</div>
       <div class="text-[11px] text-zinc-500 mt-2">From ${a.injuryFacts?.type ? 'ESPN and Sleeper' : 'Sleeper'}</div>`;
+  },
+  injuryCard(a, weeks = Vault._lineupWeeks) {
+    return `<div class="font-medium text-zinc-100 mb-1.5">${Vault.escapeHtml(a.name)}</div>${Vault.injuryRows(a, weeks)}`;
   },
   // injuryText cut down for narrow lists: "Out for season", "Back wk 8", "IR".
   injuryShort(a) {
@@ -5334,25 +5363,19 @@ const Vault = {
 
 // Fills the spans Vault.playerMeta leaves, on whichever page, whenever they land.
 (function () {
-  let facts = null, loading = false;
+  let players = null, loading = false;
   const fill = () => document.querySelectorAll('[data-facts]').forEach(el => {
-    const f = facts.get(Vault.normalizeName(el.dataset.facts));
+    const pos = ['QB', 'RB', 'WR', 'TE'].includes(el.dataset.pos) ? el.dataset.pos : undefined;
+    const p = players[Vault.findSleeperId(players, el.dataset.facts, pos)];
+    el.textContent = p ? Vault.playerInfo({ nfl: p.team || '', age: p.age }) : '';
     el.removeAttribute('data-facts');
-    el.textContent = f ? Vault.playerInfo(f) : '';
   });
   new MutationObserver(() => {
     if (!document.querySelector('[data-facts]')) return;
-    if (facts) return fill();
+    if (players) return fill();
     if (loading) return;
     loading = true;
-    Vault.fetchSleeperPlayers().then(players => {
-      facts = new Map();
-      Object.values(players || {}).forEach(p => {
-        const key = Vault.normalizeName(`${p.first_name || ''} ${p.last_name || ''}`.trim());
-        if (key && (p.team || !facts.has(key))) facts.set(key, { nfl: p.team || '', age: p.age }); // same name: the one on a team
-      });
-      fill();
-    }).catch(() => { loading = false; });
+    Vault.fetchSleeperPlayers().then(list => { players = list || {}; fill(); }).catch(() => { loading = false; });
   }).observe(document.documentElement, { childList: true, subtree: true });
 })();
 

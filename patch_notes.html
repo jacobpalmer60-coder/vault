@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=62fb5f60">
-<link rel="stylesheet" href="tailwind.css?v=d35ff1fc">
+<link rel="stylesheet" href="tailwind.css?v=39d1844a">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=1997be8b"></script>
+<script src="vault-core.js?v=31d696f3"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,10 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'fixed', page: 'Team Analyzer', text: "Where every team stands: every dot now has its team's name, even in a crowded corner." },
+    { kind: 'fixed', page: 'Everywhere', text: "Players whose names KTC and Sleeper spell differently, like Kenny Gainwell and Chig Okonkwo, now get their value and show up in team totals. They read 0 before." },
+    { kind: 'new', page: 'Player Card', text: "The player card now shows injury details: the tag, the injury, the status and the return weeks." },
+    { kind: 'fixed', page: 'Everywhere', text: "Players who share a name with another NFL player, like DeVonta Smith, Justin Jefferson and Lamar Jackson, no longer show the other player's photo, rookie label or team." },
     { kind: 'improved', page: 'Everywhere', text: "NFL team and age now show wherever a player's name and position do." },
     { kind: 'new', page: 'Everywhere', text: "Click a player's name to open the player card in a pop-up, on the calculator, Team Analyzer, Trade Coach, Trade Grades, Trade Search, Compare, Trade Lab and more. On the Player Market page, clicking a player still goes to the market page." },
   ] },

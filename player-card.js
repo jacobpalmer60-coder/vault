@@ -261,6 +261,7 @@
         <div><div class="mono text-[15px] ${r.out ? 'text-rose-300' : r.bench ? 'text-zinc-500' : 'text-zinc-100'}"${r.out || r.bench ? ` title="${outTip(r)}"` : ''}>${r.out ? 'Out' : r.bench ? 'Bench' : fmtFloat(r.ppg, 2)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">PPG</div></div>
         <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}" title="Points per game above the best player at ${r.pos || 'this position'} who wouldn't start anywhere in your league">${fmtSigned(r.vorp)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">VORP</div></div>
       </div>
+      ${injuryHtml(r)}
       <div id="pcMarket" class="mb-4"></div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time</div>
       <div id="pcValueChart">${valueChart}</div>
@@ -269,6 +270,16 @@
       ${historySection}
       <a href="compare.html?league_id=${encodeURIComponent(Vault.getLeagueId())}&p=${encodeURIComponent(r.norm)}" class="mt-4 inline-flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">Compare with another player →</a>
     `;
+  }
+
+  // Injured or questionable: the same details as the tag's hover card (user, 2026-11-05).
+  function injuryHtml(r) {
+    const tag = r.inj && Vault.injuryTag(r.inj, r.inj.weeks);
+    if (!tag) return '';
+    return `<div class="rounded-xl border border-white/10 bg-black/20 p-3.5 mb-4 text-[12px]">
+        <div class="flex items-center justify-between gap-3 mb-2"><span class="text-[11px] text-zinc-400 uppercase tracking-wider">Injury</span><span class="text-[11px] px-1 py-px rounded border ${tag.cls} whitespace-nowrap">${tag.text}</span></div>
+        ${Vault.injuryRows(r.inj, r.inj.weeks)}
+      </div>`;
   }
 
   /* KTC value vs market value: what managers actually paid for him in real
@@ -411,19 +422,6 @@
       rows.forEach(r => seasonScored.set(`${r.pid}-${year}`, r));
     });
 
-    // NFL experience isn't in KTC's data — matched from Sleeper's player database
-    // by normalized name, same join key as everything else on this page.
-    const expByName = new Map();
-    const pidByName = new Map();
-    Object.entries(sleeperPlayers || {}).forEach(([pid, sp]) => {
-      if (!sp) return;
-      const nm = `${sp.first_name || ''} ${sp.last_name || ''}`.trim();
-      const key = Vault.normalizeName(nm);
-      if (!key) return;
-      if (sp.years_exp != null) expByName.set(key, sp.years_exp);
-      pidByName.set(key, pid);
-    });
-
     // VORP (Value Over Replacement Player) — see Vault.computeReplacementLevels.
     // Same leaguewide lineup-fill buildLeagueTeams uses, computed independently
     // here since this page never calls buildLeagueTeams (it works off the full
@@ -441,11 +439,9 @@
     // them, is a backup: his PPG is a rate for a game or two, which puts backup QBs at the
     // top of a sort (user, 2026-11-04). Half keeps starters in when few weeks are left.
     // No weekly projection at all means none of the weeks left.
-    const projIdByName = new Map();
-    Object.entries(projData.players || {}).forEach(([id, p]) => projIdByName.set(Vault.normalizeName(p.name), id));
-    const playerRole = norm => {
+    const playerRole = pid => {
       if (!weeksLeft.length) return {};
-      const pid = projIdByName.get(norm) ?? pidByName.get(norm), sp = sleeperPlayers?.[pid];
+      const sp = sleeperPlayers?.[pid];
       const a = { ...Vault.injuryOf(sp), ...Vault.availOf(projData.players?.[pid], sp, undefined, weeksLeft) };
       const gamesLeft = a.avail ? weeksLeft.filter(w => Vault.availableIn(a, w)).length : 0;
       if (a.injury && a.avail && !gamesLeft && !/coach/i.test(a.injuryPart)) return { out: Vault.injuryText(a, weeksLeft) };
@@ -456,15 +452,17 @@
       const norm = Vault.normalizeName(p.name);
       const value = p[valueField];
       const healthyPpg = ppgMap.get(norm) ?? null;
-      const { out, bench, gamesLeft } = healthyPpg == null ? {} : playerRole(norm);
+      const pid = Vault.findSleeperId(sleeperPlayers, p.name, p.pos, TEAM_ALIAS[p.team] || p.team); // NFL experience, photo and history are Sleeper's
+      const { out, bench, gamesLeft } = healthyPpg == null ? {} : playerRole(pid);
       const ppg = out || bench ? null : healthyPpg;
       const vorp = Vault.vorp(ppg, p.pos, replacementLevels);
       // Full history — trendValues/trendDelta/windowedSeries (what's actually
       // displayed) get derived from this by applyTrendWindow() below, since
       // they depend on the current trend-window toggle, not just the data.
       const trendSeries = trendMap.get(norm) || [];
-      const yearsExp = expByName.get(norm) ?? null;
-      const pid = pidByName.get(norm);
+      const sp = sleeperPlayers?.[pid];
+      const yearsExp = sp?.years_exp ?? null;
+      const inj = sp?.injury_status ? { name: p.name, weeks: weeksLeft, ...Vault.injuryOf(sp), ...Vault.availOf(projData.players?.[pid], sp, undefined, weeksLeft) } : null;
       const rawSeasons = pid ? playerHistory.players?.[pid]?.seasons : null;
       let seasonHistory = null;
       if (rawSeasons) {
@@ -476,7 +474,7 @@
         });
         if (!Object.keys(seasonHistory).length) seasonHistory = null;
       }
-      return { player: p.name, norm, pos: p.pos, team: TEAM_ALIAS[p.team] || p.team, age: p.age, value, ppg, vorp, trendSeries, yearsExp, seasonHistory, pid, out, bench, gamesLeft, weeksLeft: weeksLeft.length, healthyPpg };
+      return { player: p.name, norm, inj, pos: p.pos, team: sp?.team || TEAM_ALIAS[p.team] || p.team, age: p.age, value, ppg, vorp, trendSeries, yearsExp, seasonHistory, pid, out, bench, gamesLeft, weeksLeft: weeksLeft.length, healthyPpg };
     });
 
     // Draft picks, ranked among the players (2026-10-25, user: "i want picks to be

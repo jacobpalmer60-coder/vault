@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=62fb5f60">
-<link rel="stylesheet" href="tailwind.css?v=d35ff1fc">
+<link rel="stylesheet" href="tailwind.css?v=39d1844a">
 <style>
   /* Up to four series, in the dataviz reference order for dark surfaces
      (blue, orange, aqua, yellow), validated on this card surface for adjacent
@@ -120,10 +120,10 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=1997be8b"></script>
+<script src="vault-core.js?v=31d696f3"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script src="market-data.js?v=682a679f"></script>
-<script src="player-card.js?v=6c385b0b"></script>
+<script src="player-card.js?v=34c6b48d"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -179,13 +179,6 @@ async function init() {
 
     const ownerById = new Map(), ownerByName = new Map();
     teamsBuilt.forEach(t => t.plist.forEach(p => { ownerById.set(p.id, t); ownerByName.set(Vault.normalizeName(p.name), t); }));
-    const pidByName = new Map(), expByName = new Map();
-    Object.entries(sleeper || {}).forEach(([pid, sp]) => {
-      const key = Vault.normalizeName(`${sp.first_name || ''} ${sp.last_name || ''}`.trim());
-      if (!key || !['QB', 'RB', 'WR', 'TE'].includes(Vault.fantasyPos(sp.position, key))) return; // two-way players (Travis Hunter) by their fantasy position
-      if (!pidByName.has(key)) pidByName.set(key, pid);
-      if (sp.years_exp != null && !expByName.has(key)) expByName.set(key, sp.years_exp);
-    });
 
     // Season finishes across every player in the history file, scored to this league.
     const byYear = new Map();
@@ -199,13 +192,13 @@ async function init() {
 
     universe = (ktcData.players || []).filter(p => ['QB', 'RB', 'WR', 'TE'].includes(p.pos)).map(p => {
       const norm = Vault.normalizeName(p.name);
-      const pid = pidByName.get(norm) || null;
+      const pid = Vault.findSleeperId(sleeper, p.name, p.pos, Vault.ktcTeam(p.team));
       const ppg = ppgByName.get(norm) ?? null;
       return {
         norm, pid, name: p.name, pos: p.pos, team: p.team || 'FA', age: p.age, rookie: p.rookie,
         value: p[field] ?? p[isSF ? 'sf' : 'oneQB'] ?? null,
         ppg, vorp: Vault.vorp(ppg, p.pos, built.replacementLevels),
-        vol: volatility.get(norm) ?? null, exp: expByName.get(norm) ?? null,
+        vol: volatility.get(norm) ?? null, exp: sleeper?.[pid]?.years_exp ?? null,
         owner: (pid && ownerById.get(pid)) || ownerByName.get(norm) || null,
         seasons: pid ? (careers.players?.[pid]?.seasons || null) : null
       };
