@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=63957046">
+<link rel="stylesheet" href="tailwind.css?v=bf5c8b90">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -238,7 +238,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=28d96d01"></script>
+<script src="vault-core.js?v=492c1de7"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -655,11 +655,11 @@ async function shareTrade(btn) {
 // .pos-badge-*), instead of plain grey position text — one consistent color
 // system across the site instead of one page having it and the rest not.
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
-// Injury tag (Vault.injuryText), e.g. "Out for the season (knee)" or "Out until
-// week 8". This season's lineups skip the weeks he's projected to miss.
+// Injury tag (Vault.injuryTag), e.g. "Q", "Out, back week 8 (hamstring)" or "IR, out for
+// the season (knee)". This season's lineups skip the weeks he's projected to miss.
 function injuryBadge(a) {
-  const t = Vault.injuryText(a);
-  return t ? `<span class="text-[11px] px-1 py-px rounded border border-rose-500/30 text-rose-300 whitespace-nowrap cursor-help" data-tip="${Vault.escapeHtml(Vault.injuryCard(a))}">${t}</span>` : '';
+  const t = Vault.injuryTag(a);
+  return t ? `<span class="text-[11px] px-1 py-px rounded border ${t.cls} whitespace-nowrap cursor-help" data-tip="${Vault.escapeHtml(Vault.injuryCard(a))}">${t.text}</span>` : '';
 }
 function assetRow(side, a, isSelected, extra) {
   const sub = a.type === 'pick' ? `<span class="text-[12px] font-mono ${TIER_COLOR[a.tier] || ''}">${a.tier || ''}</span>` : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400">${a.team || ''}</span>`;
@@ -1358,9 +1358,11 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const points = n => Math.round(n).toLocaleString();
   // Each site's own gap, then the gap on KTC's scale, matched by rank (Vault.ktcEquivalent):
   // picks and stars sit at different values on each site, so their points don't compare directly.
-  const amount = read => ` by ${points(Math.abs(read.valueA - read.valueB))} (≈ ${points(Math.abs(read.ktcGap))} KTC)`;
-  // KTC and Dynasty Daddy only ever say Fair Trade or Favors a team.
-  const verdict = (fair, team, by) => (fair ? { dot: 'good', text: 'Fair' } : { dot: 'mid', text: `Favors ${esc(team.teamName)}${by}` });
+  const by = (gap, rest = '') => (Math.round(gap) ? ` by ${points(gap)}${rest}` : '');
+  const amount = read => by(Math.abs(read.valueA - read.valueB), ` (≈ ${points(Math.abs(read.ktcGap))} KTC)`);
+  // KTC and Dynasty Daddy only ever say Fair Trade or Favors a team. A Fair still shows its gap
+  // (user, 2026-11-04): Dynasty Daddy's Fair runs to about 10% apart, a real difference.
+  const verdict = (fair, team, gap) => (fair ? { dot: 'good', text: gap ? `Fair, leans ${esc(team.teamName)}${gap}` : 'Fair' } : { dot: 'mid', text: `Favors ${esc(team.teamName)}${gap}` });
   const dd = Vault.dynastyDaddyRead(aAssets, bAssets, isSF, ddValues);
   const ra = Vault.rosterAuditRead(aAssets, bAssets, isSF, raValues);
   const raGrade = rosterAuditGrade(aAssets, bAssets, isSF);
@@ -1375,7 +1377,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
       : { text: raValues ? 'Not listed' : 'Loading…', title: 'A piece in this trade is not in its values' };
   const rows = [
     // Each list is what the other team receives, so the bigger list favors that team.
-    { name: 'KTC (Crowd + Trades)', href: 'https://keeptradecut.com/trade-calculator', ...verdict(ktc.fair, ktc.bigger === 'A' ? teamB : teamA, ` by ${points(ktc.gap)}`), title: "KeepTradeCut's calculator with Value Source set to Crowd + Trades" },
+    { name: 'KTC (Crowd + Trades)', href: 'https://keeptradecut.com/trade-calculator', ...verdict(ktc.fair, ktc.bigger === 'A' ? teamB : teamA, by(ktc.gap)), title: "KeepTradeCut's calculator with Value Source set to Crowd + Trades" },
     { name: 'Roster Audit', href: 'https://rosteraudit.com/trade-calculator/', ...raRow },
     { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd)), note: ddNoTe ? "doesn't factor in TE premium, so it's left out of the consensus" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? `No value for ${esc((dd.missing || []).map(sitePieceName).join(', '))}` : 'Loading…', title: 'It has no value for this piece, so it sits out the consensus. Open this trade on its site.' }) }
   ];

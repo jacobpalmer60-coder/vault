@@ -1020,11 +1020,16 @@ const Vault = {
   // scripts/build-slim-data.js — ~0.2 MB compressed instead of 2.6 MB). Falls
   // back to Sleeper's own endpoint if the local copy isn't there.
   async fetchSleeperPlayers() {
-    try {
-      const res = await fetch('data/sleeper-players.json');
-      if (res.ok) return res.json();
-    } catch {}
-    return fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json());
+    const list = async () => {
+      try {
+        const res = await fetch('data/sleeper-players.json');
+        if (res.ok) return res.json();
+      } catch {}
+      return fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.json());
+    };
+    const [players, injuries] = await Promise.all([list(), fetch('data/injury-details.json').then(r => (r.ok ? r.json() : null)).catch(() => null)]);
+    Object.entries(injuries?.players || {}).forEach(([id, d]) => { if (players[id]) players[id].injury_detail = d; });
+    return players;
   },
   async fetchPickValueHistory() {
     try {
@@ -1821,24 +1826,77 @@ const Vault = {
   // trade asset built from one).
   injuryOf(p) {
     if (!p || !p.injury_status) return {};
-    return { injury: p.injury_status, injuryPart: p.injury_body_part || '', injuryNote: p.injury_notes || '', injuryNews: p.news_updated || 0, injurySince: p.injury_since || '' };
+    return { injury: p.injury_status, injuryPart: p.injury_body_part || '', injuryNote: p.injury_notes || '', injuryNews: p.news_updated || 0, injurySince: p.injury_since || '', injuryFacts: p.injury_detail || null };
   },
-  /* The card behind an injury tag (user, 2026-11-04): a little more than the tag has room
-     for. What it is, how long the player has been listed, when back, the last news. */
-  injuryCard(a, weeks = Vault._lineupWeeks) {
-    const esc = Vault.escapeHtml, day = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const status = { IR: 'Injured reserve', PUP: 'PUP list', Sus: 'Suspended', DNR: 'Not reporting', NA: 'Not with team' }[a.injury] || a.injury;
-    const rows = [];
-    if (a.injuryPart) rows.push(['Injury', a.injuryPart.replace(' - ', ': ')]);
-    if (a.injuryNote) rows.push(['Note', a.injuryNote]);
-    rows.push(['Status', a.injurySince ? `${status} since ${day(a.injurySince + 'T12:00:00')}` : status]);
-    if (a.avail && !a.availGuess && weeks?.length) {
+  /* When a player is back: ESPN's return date first, then the first week Sleeper projects him
+     (user, 2026-11-04: Love read "back week 10" from Sleeper's projections from IR, with ESPN at
+     week 13). Null when he plays this week. A week or two off in the projections can be a bye,
+     so short gaps only count for IR-type statuses. */
+  injuryBack(a, weeks = Vault._lineupWeeks) {
+    const f = a.injuryFacts, now = weeks[0];
+    const read = () => {
+      if (f?.season) return { season: true };
+      if (f?.week) return f.week > now ? { week: f.week, date: f.back } : null;
+      if (!a.avail || a.availGuess || !weeks.length) return null;
       const next = weeks.find(w => Vault.availableIn(a, w));
-      rows.push(['Back', next == null ? 'Not this season' : `Week ${next}`]);
+      if (next == null) return { season: true };
+      const longTerm = VAULT_CONFIG.SIDELINED_STATUSES.includes(a.injury);
+      return next > now + 1 || (next > now && longTerm) ? { week: next } : null;
+    };
+    const back = read(), min = Vault.injuryMin(a);
+    return !back?.season && min > now && !(back?.week >= min) ? { week: min } : back; // nobody's back before IR's minimum
+  },
+  // The earliest week back from IR under the four-game rule (scripts/fetch-injury-details.js).
+  injuryMin(a) { return (a.injury === 'IR' && a.injuryFacts?.min) || null; },
+  /* The tag (user, 2026-11-04): Q, Out and IR are very different news, so each looks different
+     and leads with its status. Q and D are a letter in amber and orange, Out a red outline,
+     IR filled red. { text, short for narrow lists, cls for a boxed tag, ink for plain text }. */
+  injuryTag(a, weeks = Vault._lineupWeeks) {
+    if (!a?.injury) return null;
+    const [word, cls, ink] = {
+      Questionable: ['Q', 'border-amber-400/30', 'text-amber-300'],
+      Doubtful: ['D', 'border-orange-400/40', 'text-orange-300'],
+      Out: ['Out', 'border-rose-500/40', 'text-rose-300'],
+      IR: ['IR', 'border-rose-500/60 bg-rose-500/25', 'text-rose-100'],
+      PUP: ['PUP', 'border-rose-500/60 bg-rose-500/25', 'text-rose-100'],
+      Sus: ['Susp.', 'border-white/15', 'text-zinc-300'],
+      DNR: ['DNR', 'border-white/15', 'text-zinc-300'],
+    }[a.injury] || [a.injury, 'border-white/15', 'text-zinc-300'];
+    const back = Vault.injuryBack(a, weeks), part = (a.injuryFacts?.type || a.injuryPart || '').split(' - ')[0].toLowerCase(), of = part ? ` (${part})` : '';
+    const style = { cls: `${cls} ${ink}`, ink };
+    if (back?.season) return { ...style, text: `${word === 'Out' ? 'Out' : `${word}, out`} for the season${of}`, short: word === 'Out' ? 'Out for season' : `${word}, season` };
+    const min = Vault.injuryMin(a);
+    if (min) {
+      const exp = back?.week && back.week !== min ? back.week : back?.date ? min : null; // a date means someone expects it
+      const floor = min > weeks[0] ? `min wk ${min}` : 'eligible';
+      return { ...style, text: `IR (${floor}${exp ? `, exp wk ${exp}` : ''})`, short: exp ? `IR, exp wk ${exp}` : min > weeks[0] ? `IR, min wk ${min}` : 'IR' };
     }
-    if (a.injuryNews) rows.push(['Last news', day(a.injuryNews)]);
+    if (back?.week) return { ...style, text: `${word}, back week ${back.week}${of}`, short: `${word}, back wk ${back.week}` };
+    return { ...style, text: word.length > 1 ? `${word}${of}` : word, short: word };
+  },
+  /* The card behind an injury tag (user, 2026-11-04): what it is, how long the player has been
+     listed, when back, the last game played. ESPN's facts when it has him, Sleeper's otherwise. */
+  injuryCard(a, weeks = Vault._lineupWeeks) {
+    const esc = Vault.escapeHtml, f = a.injuryFacts || {};
+    const day = d => new Date(typeof d === 'string' ? `${d}T12:00:00` : d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const status = { IR: 'Injured reserve', PUP: 'PUP list', Sus: 'Suspended', DNR: 'Not reporting', NA: 'Not with team' }[a.injury] || a.injury;
+    const [main, sub] = (f.type || a.injuryPart || '').split(' - ');
+    const what = `${main}${sub ? `: ${sub.toLowerCase()}` : ''}${f.detail ? ` ${f.detail.toLowerCase()}` : ''}${f.side ? `, ${f.side.toLowerCase()}` : ''}`;
+    const back = Vault.injuryBack(a, weeks), updated = f.date || a.injuryNews;
+    const rows = [];
+    if (main) rows.push(['Injury', what]);
+    if (a.injuryNote && !f.detail) rows.push(['Note', a.injuryNote]);
+    rows.push(['Status', a.injurySince ? `${status} since ${day(a.injurySince)}` : status]);
+    const min = !back?.season && Vault.injuryMin(a), when = back?.week ? `Week ${back.week}${back.date ? ` (${day(back.date)})` : ''}` : '';
+    if (min) {
+      rows.push(['Minimum', min > weeks[0] ? `Week ${min}, after 4 games on IR` : 'Eligible to return now']);
+      if (back?.week && (back.week !== min || back.date)) rows.push(['Expected', when]);
+    } else if (back) rows.push(['Back', back.season ? 'Not this season' : when]);
+    if (f.last) rows.push(['Last played', `Week ${f.last}, ${f.games} game${f.games === 1 ? '' : 's'} this season`]);
+    if (updated) rows.push(['Updated', day(updated)]);
     return `<div class="font-medium text-zinc-100 mb-1.5">${esc(a.name)}</div>
-      <div class="grid grid-cols-[72px_1fr] gap-x-3 gap-y-1">${rows.map(([k, v]) => `<span class="text-zinc-500">${k}</span><span class="text-zinc-200">${esc(v)}</span>`).join('')}</div>`;
+      <div class="grid grid-cols-[72px_1fr] gap-x-3 gap-y-1">${rows.map(([k, v]) => `<span class="text-zinc-500">${k}</span><span class="text-zinc-200">${esc(v)}</span>`).join('')}</div>
+      <div class="text-[11px] text-zinc-500 mt-2">From ${a.injuryFacts?.type ? 'ESPN and Sleeper' : 'Sleeper'}</div>`;
   },
   // injuryText cut down for narrow lists: "Out for season", "Back wk 8", "IR".
   injuryShort(a) {
@@ -1859,12 +1917,9 @@ const Vault = {
     const part = (a.injuryPart || '').split(' - ')[0].toLowerCase();
     const withPart = t => (part ? `${t} (${part})` : t);
     const longTerm = VAULT_CONFIG.SIDELINED_STATUSES.includes(a.injury);
-    if (a.avail && !a.availGuess && weeks.length) {
-      const next = weeks.find(w => Vault.availableIn(a, w));
-      if (next == null) return withPart('Out for the season');
-      if (next > weeks[0] + 1 || (next > weeks[0] && longTerm)) return withPart(`Out, back week ${next}`);
-      return '';
-    }
+    const back = Vault.injuryBack(a, weeks);
+    if (back) return withPart(back.season ? 'Out for the season' : `Out, back week ${back.week}`);
+    if (a.avail && !a.availGuess && weeks.length) return '';
     if (!longTerm) return '';
     return withPart({ IR: 'On IR', PUP: 'On PUP', Sus: 'Suspended', DNR: 'Not reporting' }[a.injury] || a.injury);
   },
@@ -5016,8 +5071,8 @@ const Vault = {
     // A name with an optional second line under it (injury, or weeks started),
     // so narrow columns never squeeze the name itself.
     const tag = p => {
-      const short = p && Vault.injuryShort(p);
-      return short ? `<span class="block text-[11px] text-rose-300 truncate cursor-help" data-tip="${esc(Vault.injuryCard(p))}">${short}</span>` : '';
+      const t = p && Vault.injuryTag(p);
+      return t ? `<span class="block text-[11px] ${t.ink} truncate cursor-help" data-tip="${esc(Vault.injuryCard(p))}">${t.short}</span>` : '';
     };
     const named = (name, sub) => `<span class="min-w-0 flex-1"><span class="block text-zinc-300 truncate" title="${esc(name)}">${esc(name) || '—'}</span>${sub}</span>`;
     const lineup = [...(t.lineup || [])].sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)).map(s => {
