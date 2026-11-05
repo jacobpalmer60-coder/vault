@@ -18,7 +18,7 @@
      16  strong  — emphasized stats, lead text
      20  title   — card / subsection titles
      24  section — section headers ("Trade Analysis")
-     38  page    — page <h1> (condensed)
+     30  page    — page <h1> (condensed)
      42  hero    — landing page only
    Nothing smaller than 11px.
 
@@ -52,8 +52,8 @@ body {
 
 /* Titles: Barlow Condensed, the stat-sheet voice. Page titles run larger, since condensed type reads small. */
 .display { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; letter-spacing: 0.005em; }
-h1.display { font-size: 38px; line-height: 1.05; }
-@media (max-width: 639px) { h1.display { font-size: 34px; } }
+h1.display { font-size: 30px; line-height: 1.1; }
+@media (max-width: 639px) { h1.display { font-size: 28px; } }
 /* The number a card or tile leads with: condensed, even-width digits. */
 .num { font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; line-height: 1; }
 /* Numbers: same face as the text, with even-width digits so columns align. */

@@ -23,22 +23,21 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=c9030311">
+<link rel="stylesheet" href="tailwind.css?v=76dddaa5">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" data-league-required>
+<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 lg:py-6 fade-in" data-league-required>
   <!-- League is picked once, in the nav's Switch League. The full league table
        lives on League Overview; this page is one team at a time. -->
-  <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+  <div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
     <div>
-      <h1 class="display text-[28px] font-semibold gold-text">Team Analyzer</h1>
+      <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Team Analyzer<span class="term-i" data-term="page_analyzer" tabindex="0" role="note">?</span></h1></div>
       <div id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</div>
-      <p class="hidden sm:block text-[13px] text-zinc-400 mt-2 max-w-[620px]">One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team on the right.</p>
     </div>
     <select id="teamSelect" data-search="Type a team…" aria-label="Team" class="bg-black/60 border border-white/10 rounded-xl px-3 py-2.5 text-[14px] min-w-[240px] hidden"></select>
   </div>
@@ -52,8 +51,8 @@
   <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="vault-core.js?v=e7dc568e"></script>
+<script src="vault-nav.js?v=5dd4083d"></script>
 <script src="season-report.js?v=0596935e"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=9a548ef1"></script>

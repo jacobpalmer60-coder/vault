@@ -25,8 +25,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=c9030311">
+<link rel="stylesheet" href="tailwind.css?v=76dddaa5">
 <style>
   /* Phones: tighter cells, so value, market price and projected points fit without scrolling sideways (2026-10-23). */
   @media (max-width: 639px) { table th, #tbody td { padding-left: 0.5rem !important; padding-right: 0.5rem !important; } }
@@ -37,11 +37,10 @@
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" id="main" role="main">
-  <header class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 lg:py-6 fade-in" id="main" role="main">
+  <header class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 mb-4">
     <div>
-      <h1 class="display text-[28px] font-semibold gold-text">Player Rankings</h1>
-      <p class="text-zinc-400 max-w-xl mt-2 text-[14px]">Every player's KeepTradeCut value next to his projected points, scored with your league's own settings, with draft picks ranked among them. Sort any column or open a player or pick for its card.</p>
+      <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Player Rankings<span class="term-i" data-term="page_rankings" tabindex="0" role="note">?</span></h1></div>
     </div>
     <!-- League is picked once, via the nav's Switch League. -->
     <div id="leagueInfo" class="text-[12px] text-zinc-400 lg:text-right">Loading league…</div>
@@ -111,8 +110,8 @@
   </footer>
 </div>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="vault-core.js?v=e7dc568e"></script>
+<script src="vault-nav.js?v=5dd4083d"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=9a548ef1"></script>
 <script>

@@ -1896,6 +1896,15 @@ const Vault = {
      a label and Vault.info adds a small ? beside a heading; both open this text on hover, or on a
      tap on a phone. Static HTML can use the data-term attribute. Keep these matching How We Grade. */
   GLOSSARY: {
+    page_overview: ['League Overview', 'Every team, this season and for the long run. Click a team to open it.'],
+    page_analyzer: ['Team Analyzer', 'One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team in the menu.'],
+    page_market: ['Player Market', 'What players actually go for in completed dynasty trades in leagues like yours, next to their KTC value.'],
+    page_search: ['Trade Search', 'Real completed trades from dynasty leagues set up like yours. Search a player, or one for another, to see what they actually went for.'],
+    page_grades: ['Trade Grades', "Every completed trade in your league, graded on trade value from the day it happened (each piece at its KTC value then, combined the way real trades combine them), then read again at today's KTC values."],
+    page_managers: ['Managers', "How every manager in your league trades, from their completed trades. Ranked by Net Then, the value they came out ahead or behind at each trade's own prices: that part is skill, while how players moved afterward (Net Now) is mostly luck. Click or tap a manager for more."],
+    page_lab: ['Trade Lab', 'Every two-team trade in 2024, 2025 and 2026 Sleeper dynasty leagues where every piece had a KTC price, each judged as its league stood that day. How trades turned out (value later, playoffs, titles) uses 2024 and 2025, followed for up to two years; 2026 trades are only months old. Only totals are shown: no league, team or manager.'],
+    page_status: ['Data status', "Everything The Vault runs on: what's loaded, how fresh it is, and how the background jobs are doing. Nothing here depends on your league; it's the same for everyone."],
+    page_rankings: ['Player Rankings', "Every player's KeepTradeCut value next to his projected points, scored with your league's own settings, with draft picks ranked among them. Sort any column or open a player or pick for its card."],
     vorp: ['VORP', "Value Over Replacement Player: points per game above the best player at his position who wouldn't start for any team in your league. QBs always score more, so this is the fair way to compare positions."],
     vorpTeam: ['VORP', "Your best lineup's points a game above the best players who wouldn't start for any team in your league. It shows how hard your starters are to replace, on a scale that compares positions fairly."],
     ppg: ['PPG', 'Points per game.'],

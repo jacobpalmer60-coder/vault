@@ -23,23 +23,19 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=c9030311">
+<link rel="stylesheet" href="tailwind.css?v=76dddaa5">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10" id="main" role="main">
+<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-4 lg:py-6" id="main" role="main">
   <div class="mb-2">
-    <h1 class="display text-[28px] font-semibold gold-text">Trade Search</h1>
+    <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Trade Search<span class="term-i" data-term="page_search" tabindex="0" role="note">?</span></h1><a href="how_we_grade.html#market" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How it works</a></div>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
   </div>
-  <p class="text-[13px] text-zinc-400 max-w-[720px] mb-5 leading-relaxed">
-    Real completed trades from dynasty leagues set up like yours. Search a player, or one for another, to see what they actually went for.
-    <a href="how_we_grade.html#market" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">How it works</a>
-  </p>
 
   <!-- One section at a time (user, 2026-11-04). Trades first (2026-10-20: the page read like
        Trade Lab, charts on top): the trades are the point. -->
@@ -77,8 +73,8 @@
   <div class="text-[12px] text-zinc-400 mt-6">More: <a id="marketLink" href="market.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">who sells above or below KTC (Player Market)</a> · <a id="labLink" href="trade_lab.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">what 2.15 million trades show (Trade Lab)</a></div>
 </div>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="vault-core.js?v=e7dc568e"></script>
+<script src="vault-nav.js?v=5dd4083d"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=9a548ef1"></script>
 <script>

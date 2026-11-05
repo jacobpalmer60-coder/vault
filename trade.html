@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=c9030311">
+<link rel="stylesheet" href="tailwind.css?v=76dddaa5">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -33,17 +33,11 @@
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10" data-league-required id="main" role="main">
-  <div class="flex items-center justify-between mb-8">
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 lg:py-6" data-league-required id="main" role="main">
+  <div class="flex items-center justify-between mb-3">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Trade Calculator</h1>
       <p id="status" class="text-[13px] text-zinc-400 mt-1.5">Connecting...</p>
-    </div>
-    <div class="flex items-center gap-2 flex-wrap justify-end">
-      <div class="h-8 px-3 rounded-lg bg-black/40 border border-white/[0.08] flex items-center gap-2 text-[12px] text-zinc-400">
-        <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-        Live Values
-      </div>
     </div>
   </div>
 
@@ -63,19 +57,19 @@
   <!-- Top (2026-10-27, user: "just put trade coach as a big button on the trade builder with a
        small description"): the calculator opens on the Trade Builder; Trade Coach, every way
        to find trades, is the big button above it and opens as a pop-up (#coach, end of page). -->
-  <div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-[12px] text-zinc-400">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-2 text-[12px] text-zinc-400">
     <span>Trading as <span id="launcherTeam" class="text-zinc-100 font-medium"></span> · <button onclick="backToSetup()" class="py-1.5 text-amber-400/80 hover:text-amber-300">Change team</button></span>
   </div>
-  <button id="coachLauncher" onclick="openCoach('best')" class="w-full mb-4 card card-hover rounded-2xl p-4 sm:p-5 text-left flex gap-4 items-center hover:bg-white/[0.02] transition-colors border border-amber-400/20">
-    <span class="size-11 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg></span>
-    <span class="min-w-0 flex-1"><span class="block text-[17px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-0.5">Pick a player, position, team or goal, and it walks you to a trade their manager would likely take.</span></span>
-    <span class="shrink-0 text-[13px] px-4 py-2 rounded-lg btn-gold-solid hidden sm:inline-block">Open</span>
+  <button id="coachLauncher" onclick="openCoach('best')" class="w-full mb-3 card card-hover rounded-xl px-3 py-2.5 sm:px-4 text-left flex gap-3 items-center hover:bg-white/[0.02] transition-colors border border-amber-400/20">
+    <span class="size-9 shrink-0 rounded-lg bg-amber-400/10 border border-amber-400/25 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg></span>
+    <span class="min-w-0 flex-1 lg:flex lg:items-baseline lg:gap-3"><span class="block shrink-0 text-[16px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400">Pick a player, position, team or goal, and it walks you to a trade their manager would likely take.</span></span>
+    <span class="shrink-0 text-[13px] px-4 py-1.5 rounded-lg btn-gold-solid hidden sm:inline-block">Open</span>
   </button>
 
   <!-- Trade Builder: the trade bar, both rosters, and the verdict. -->
   <div id="builder">
   <!-- Find anyone: type a player or pick from any team; it joins the trade and its team becomes the partner. -->
-  <div data-field-box class="mb-4 rounded-2xl card px-4 py-3 flex items-center gap-3">
+  <div data-field-box class="mb-3 rounded-xl card px-4 py-2.5 flex items-center gap-3">
     <svg class="size-4 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <select id="quickAdd" data-search="Add a player or pick…" aria-label="Add any player or pick in your league to the trade" class="flex-1 min-w-0 bg-transparent text-[14px] text-zinc-100 outline-none"></select>
   </div>
@@ -239,8 +233,8 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="vault-core.js?v=e7dc568e"></script>
+<script src="vault-nav.js?v=5dd4083d"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.

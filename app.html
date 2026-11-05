@@ -23,24 +23,23 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=48bfbf25">
-<link rel="stylesheet" href="tailwind.css?v=271dcf09">
+<link rel="stylesheet" href="vault.css?v=c9030311">
+<link rel="stylesheet" href="tailwind.css?v=76dddaa5">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" data-league-required>
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+<main class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 lg:py-6 fade-in" data-league-required>
+  <div class="flex items-center justify-between gap-3 mb-4">
     <div>
-      <h1 class="display text-[28px] font-semibold gold-text">League Overview</h1>
-      <div id="status" class="mt-2 flex items-center gap-3 text-zinc-300 text-sm">
+      <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">League Overview<span class="term-i" data-term="page_overview" tabindex="0" role="note">?</span></h1><a href="#legend" onclick="document.getElementById('legend').open = true" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">What do these numbers mean?</a></div>
+      <div id="status" class="mt-1 flex items-center gap-2 text-zinc-400 text-[13px]">
         <div class="size-2 rounded-full bg-amber-400 animate-pulse"></div><span>Syncing league...</span>
       </div>
-      <p class="text-[13px] text-zinc-400 mt-2 max-w-[640px]">Every team, this season and for the long run. Click a team to open it. <a href="#legend" onclick="document.getElementById('legend').open = true" class="text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">What do these numbers mean?</a></p>
     </div>
-    <button id="refresh" class="self-start sm:self-auto shrink-0 btn-gold px-5 py-2.5 text-sm text-zinc-300">Refresh Data</button>
+    <button id="refresh" class="shrink-0 btn-gold px-3 py-1.5 text-[12px] text-zinc-300">Refresh</button>
   </div>
 
   <div id="sinceVisit" class="mb-6 empty:hidden"></div>
@@ -131,8 +130,8 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=d2b7083f"></script>
-<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="vault-core.js?v=e7dc568e"></script>
+<script src="vault-nav.js?v=5dd4083d"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=9a548ef1"></script>
 <script>
