@@ -1908,6 +1908,9 @@ const Vault = {
   GLOSSARY: {
     wouldStart: ['Would start for you', "Their players who'd add the most to your best lineup, each on its own, in points a week for the rest of the season, with your roster as it stands now. Byes, injuries and who you'd bench are counted."],
     realTrades: ['Real trades', "How far apart this trade is on trade value, against recent completed trades in your format, and the closest real trade to it. Completed trades only: nobody can see the offers that were turned down."],
+    theyStart: ['Would start for them', "Your bench players who'd add the most to their best lineup, each on its own, in points a week for the rest of the season. Your starters are left out."],
+    theyWant: ['What they would want', "A team building for later wants picks and young players: your best picks, then your best young players outside your lineup."],
+    trackRecord: ['Track record', "Every team-side of 2024 and 2025 trades, 2.68 million of them, scored the same way as this one. A record, not a promise, and winning on value is partly built in: a side that won on price starts out ahead."],
     page_overview: ['League Overview', 'Every team, this season and for the long run. Click a team to open it.'],
     page_analyzer: ['Team Analyzer', 'One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team in the menu.'],
     page_market: ['Player Market', 'What players actually go for in completed dynasty trades in leagues like yours, next to their KTC value.'],

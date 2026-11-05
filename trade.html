@@ -222,7 +222,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=ec379773"></script>
+<script src="vault-core.js?v=b5bd930a"></script>
 <script src="vault-nav.js?v=5dd4083d"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -429,7 +429,7 @@ async function init() {
       if (typeof negReset === 'function') negReset();
       if (resolveDup(selB.value, selA, prevB)) { prevA = selA.value; selectedA.clear(); openSections.A.clear(); render('A'); }
       prevB = selB.value;
-      selectedB.clear(); openSections.B.clear(); render('B');
+      selectedB.clear(); openSections.B.clear(); render('B'); render('A');
     };
 
 
@@ -665,9 +665,9 @@ function lineupGain(to, a) {
   lineupGainMemo.set(key, gain);
   return gain;
 }
-let wouldStartOpen = true;
-function assetRow(side, a, isSelected, extra) {
-  const gain = side === 'B' ? lineupGain(teamOf('A'), a) : 0;
+const fitOpen = { A: true, B: true };
+function assetRow(side, a, isSelected, extra, gainFor) {
+  const gain = lineupGain(gainFor || (side === 'B' ? teamOf('A') : null), a);
   const gainTag = gain >= 0.5 ? `<span class="text-[12px] text-emerald-300 whitespace-nowrap">adds ${gain.toFixed(1)} a week</span>` : '';
   const sub = a.type === 'pick' ? '<span class="text-[12px] text-zinc-500">Pick</span>' : `<span class="inline-flex items-center px-1.5 py-px rounded text-[11px] font-semibold border ${POS_BADGE(a.pos)}">${a.pos}</span><span class="text-[12px] text-zinc-400 whitespace-nowrap">${Vault.escapeHtml(Vault.playerInfo(a))}</span>`;
   // Only the "volatile" tier gets a badge, not "moderate" — this needs to stay rare
@@ -771,6 +771,24 @@ function fillSideAdd(side) {
   sel.value = '';
   sel.onchange = () => { if (sel.value) toggle(side, sel.value); };
 }
+// The top of each roster once there's a partner. Theirs: who'd start for you. Yours: what they'd
+// want, your bench players who'd start for them, or picks and youth if they're building for later.
+function fitSection(side, team, selected) {
+  const me = teamOf('A'), partner = teamOf('B'), names = t => Vault.escapeHtml(t.teamName);
+  if (!me || !partner) return null;
+  const open = a => !selected.has(a.key), best = (l, n) => [...l].sort((x, y) => y.value - x.value).slice(0, n);
+  if (side === 'B') {
+    const items = team.assets.filter(a => a.type === 'player' && open(a) && lineupGain(me, a) >= 1).sort((x, y) => lineupGain(me, y) - lineupGain(me, x)).slice(0, 5);
+    return items.length ? { key: 'FIT', items, title: `Would start for ${names(me)}`, help: 'wouldStart', gainFor: me } : null;
+  }
+  const starting = new Set((team.lineup || []).map(x => x.id).filter(Boolean)), bench = team.assets.filter(a => a.type === 'player' && open(a) && !starting.has(a.id));
+  if (Vault.teamMode(partner) === 'rebuild') {
+    const items = [...best(team.assets.filter(a => a.type === 'pick' && a.value > 0 && open(a)), 3), ...best(bench.filter(a => a.age > 0 && a.age <= 24 && a.value > 0), 2)];
+    return items.length ? { key: 'FIT', items, title: `What ${names(partner)} would want`, help: 'theyWant' } : null;
+  }
+  const items = bench.filter(a => lineupGain(partner, a) >= 1).sort((x, y) => lineupGain(partner, y) - lineupGain(partner, x)).slice(0, 5);
+  return items.length ? { key: 'FIT', items, title: `Would start for ${names(partner)}`, help: 'theyStart', gainFor: partner } : null;
+}
 function render(side) {
   fillSideAdd(side);
   const team = teamOf(side);
@@ -786,23 +804,22 @@ function render(side) {
   renderNeeds(side, team);
 
   // Their players who'd start for you, best first, above the positions.
-  const me = teamOf('A');
-  const starters = side === 'B' && me ? team.assets.filter(a => a.type === 'player' && !selected.has(a.key) && lineupGain(me, a) >= 1).sort((x, y) => lineupGain(me, y) - lineupGain(me, x)).slice(0, 5) : [];
-  const sections = starters.length ? [{ key: 'FIT', items: starters }, ...ROSTER_SECTIONS] : ROSTER_SECTIONS;
+  const fit = fitSection(side, team, selected);
+  const sections = fit ? [fit, ...ROSTER_SECTIONS] : ROSTER_SECTIONS;
   container.innerHTML = sections.map(sec => {
     const items = sec.items || team.assets.filter(sec.has);
-    const open = sec.key === 'FIT' ? wouldStartOpen : openSections[side].has(sec.key) && items.length > 0;
+    const open = sec.key === 'FIT' ? fitOpen[side] : openSections[side].has(sec.key) && items.length > 0;
     const picked = items.filter(a => selected.has(a.key)).length;
     const total = items.reduce((s, a) => s + a.value, 0);
     const tag = ['QB', 'RB', 'WR', 'TE'].includes(sec.key)
       ? `<span class="text-[11px] font-semibold w-11 text-center py-0.5 rounded-md border pos-badge-${sec.key}">${sec.label}</span>`
       : `<span class="text-[13px] font-medium w-11 text-zinc-200">${sec.label}</span>`;
     if (sec.key === 'FIT') return `<div>
-      <button onclick="toggleSection('B','FIT')" aria-expanded="${open}" class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]">
-        <span class="min-w-0 truncate text-[13px] font-medium text-zinc-100">Would start for ${Vault.escapeHtml(me.teamName)}</span>${Vault.info('wouldStart')}
+      <button onclick="toggleSection('${side}','FIT')" aria-expanded="${open}" class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]">
+        <span class="min-w-0 truncate text-[13px] font-medium text-zinc-100">${sec.title}</span>${Vault.info(sec.help)}
         <svg class="size-4 shrink-0 ml-auto text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
-      ${open ? `<div class="p-1 pt-0">${items.map(a => assetRow(side, a, selected.has(a.key))).join('')}</div>` : ''}
+      ${open ? `<div class="p-1 pt-0">${items.map(a => assetRow(side, a, selected.has(a.key), '', sec.gainFor)).join('')}</div>` : ''}
     </div>`;
     return `<div>
       <button onclick="toggleSection('${side}','${sec.key}')" ${items.length ? '' : 'disabled'} aria-expanded="${open}" class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${items.length ? 'hover:bg-white/[0.03]' : 'opacity-40 cursor-default'}">
@@ -819,7 +836,7 @@ function render(side) {
 }
 
 function toggleSection(side, key) {
-  if (key === 'FIT') { wouldStartOpen = !wouldStartOpen; render(side); return; }
+  if (key === 'FIT') { fitOpen[side] = !fitOpen[side]; render(side); return; }
   const open = openSections[side];
   open.has(key) ? open.delete(key) : open.add(key);
   render(side);
@@ -1444,6 +1461,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
     </div>
     ${timelineRow}
+    ${Vault.verdictRecordText(imp) ? `<div class="text-[12px] text-zinc-400 mt-2 max-w-[640px]">${Vault.verdictRecordText(imp)}${Vault.info('trackRecord')}</div>` : ''}
     <div class="text-[14px] text-zinc-200 mt-3 max-w-[640px]">${improvementReason(imp, null)}${imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : ''}${them && them.outOfRace ? ` <span class="text-zinc-400">${Vault.escapeHtml(teamB.teamName)} is out of the playoff race, so this season's points don't count in their verdict.</span>` : ''}</div>${overpayNoteHtml(imp)}`;
   const dockSide = (who, label, cls) => `<div class="min-w-0"><div class="text-[10px] uppercase tracking-wider text-zinc-500 truncate">${who}</div><div class="num text-[17px] leading-tight ${cls}">${label}</div></div>`;
   renderVerdictDock(`<div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3">
@@ -1457,7 +1475,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   // Why: what moved the verdict, and how trades scored like this turned out.
   const why = document.getElementById('whyVerdict');
   loadTradeFacts();
-  if (why) why.innerHTML = `${blendNote(imp, teamA, bAssets, aAssets)}${pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp)}${agedHtml(aAssets, bAssets)}${teamB ? pieceLinesHtml(teamB, bAssets, aAssets, analysis, them, 'B') : ''}${tiltNote(imp)}<div class="text-[12px] text-zinc-500 mt-1">${Vault.verdictRecordText(imp)}</div>`;
+  if (why) why.innerHTML = `${blendNote(imp, teamA, bAssets, aAssets)}${pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp)}${agedHtml(aAssets, bAssets)}${teamB ? pieceLinesHtml(teamB, bAssets, aAssets, analysis, them, 'B') : ''}${tiltNote(imp)}`;
   // Even it out: when either team would see it as a bad trade.
   const wb = document.getElementById('workBoth');
   const fixFor = them && them.level === 'bad' ? 'them' : imp.level === 'bad' ? 'you' : null;
