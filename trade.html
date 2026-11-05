@@ -69,6 +69,7 @@
   <div data-field-box class="mb-3 rounded-xl card px-4 py-2.5 flex items-center gap-3">
     <svg class="size-4 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <select id="quickAdd" data-search="Add a player or pick…" aria-label="Add any player or pick in your league to the trade" class="flex-1 min-w-0 bg-transparent text-[14px] text-zinc-100 outline-none"></select>
+    <button type="button" onclick="openPaste()" title="Paste a trade from Sleeper or your group chat" class="shrink-0 text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">Paste a trade</button>
   </div>
   <!-- Trade slip: the deal, side by side; the read (grade, fairness bar, KTC vs
        adjusted); a suggestion to even it up; then every action in one row. -->
@@ -156,6 +157,7 @@
 
   <div id="emptyState" class="text-center text-[13px] text-zinc-400 py-4 mb-2">
     Search for any player above, or pick a trade partner and select players or picks from either side.
+    <div id="recentTrades" class="empty:hidden mt-3 flex flex-col items-center gap-1 text-[12px]"></div>
   </div>
 
   <!-- The two rosters, side by side: where trades get built. -->
@@ -222,7 +224,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=55ef1f33"></script>
+<script src="vault-core.js?v=35baaa60"></script>
 <script src="vault-nav.js?v=5dd4083d"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -398,6 +400,7 @@ async function init() {
     playerVolatility = Vault.buildPlayerVolatilityMap(playerHist.snapshots, built.isSF, bonusRecTe);
 
     // Other sites' values fill in the bars when they land; the page never waits on them.
+    fetch('data/market-history/age-curve.json').then(r => (r.ok ? r.json() : null)).then(d => { ageCurve = d?.[built.isSF ? 'sf' : 'oneQB'] || null; if (selectedA.size + selectedB.size) updateTrade(); }).catch(() => {});
     Vault.fetchDynastyDaddy().then(d => { ddValues = d; if (selectedA.size + selectedB.size) updateTrade(); });
     Vault.fetchRosterAudit(league).then(d => { raValues = d; if (selectedA.size + selectedB.size) updateTrade(); });
 
@@ -1873,6 +1876,100 @@ function renderLineups(teamA, teamB, analysis) {
    One search box over every roster in the league. Your own piece goes on your
    side; anyone else's makes their team the partner (switching partners clears
    what was picked from the old one) and goes on their side. */
+/* Paste a trade (2026-11-05): an offer copied from Sleeper or a group chat. Players are found by
+   name, full or a last name only one player in the league has. Whose they are says which side
+   they're on, and a pick goes with the players next to it. Your team stays your team: a trade
+   you're not in isn't opened. */
+const pasteNorm = s => Vault.normalizeName(s).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+function parsePastedTrade(text) {
+  const me = teamOf('A'), players = new Map(), lasts = new Map();
+  teams.forEach(t => t.assets.filter(a => a.type === 'player').forEach(a => {
+    const n = pasteNorm(a.name), last = n.split(' ').pop();
+    players.set(n, { a, t });
+    lasts.set(last, lasts.has(last) ? null : { a, t });
+  }));
+  const words = { first: '1st', second: '2nd', third: '3rd', fourth: '4th' };
+  const clean = text.replace(/\b(first|second|third|fourth)\b/gi, m => words[m.toLowerCase()]);
+  const parts = clean.split(/\n+|<->|<>|↔|⇄|→|->|;|\bfor\b|\breceives?\b|\bgets?\b|\bsends?\b/i).map(s => s.trim()).filter(Boolean);
+  const segments = parts.map(part => {
+    let rest = ` ${pasteNorm(part.replace(/'(\d\d)\b/g, '20$1'))} `;
+    const picks = [], found = [];
+    rest = rest.replace(/\b(20\d\d)\s+(?:(early|mid|late)\s+)?(?:round\s*)?(\d)(?:st|nd|rd|th)?(?:\s*round)?(?:\s*(\d{1,2}))?\b/g, (m, y, tier, r) => { picks.push({ season: +y, round: +r, tier, text: m.trim() }); return ' '; });
+    [...players.keys()].sort((x, y) => y.length - x.length).forEach(n => {
+      if (rest.includes(` ${n} `)) { found.push(players.get(n)); rest = rest.replace(` ${n} `, ' '); }
+    });
+    rest.split(' ').filter(w => lasts.get(w)).forEach(w => { if (!found.includes(lasts.get(w))) found.push(lasts.get(w)); rest = rest.replace(` ${w} `, ' '); });
+    return { part, picks, found, team: teams.find(t => pasteNorm(part).includes(pasteNorm(t.teamName))) };
+  });
+  const count = new Map();
+  segments.forEach(s => s.found.forEach(f => count.set(f.t, (count.get(f.t) || 0) + 1)));
+  const named = segments.map(s => s.team).filter(t => t && t !== me);
+  const partner = [...count.entries()].filter(([t]) => t !== me).sort((x, y) => y[1] - x[1])[0]?.[0] || named[0] || teamOf('B');
+  if (![...count.keys()].includes(me) && count.size >= 2) return { error: "That trade doesn't look like it has your team in it." };
+  const give = [], get = [], missed = [], used = new Set();
+  const place = (t, a) => { if (used.has(a.key)) return; used.add(a.key); (t === me ? give : get).push(a); };
+  segments.forEach(s => {
+    s.found.forEach(f => (f.t === me || f.t === partner ? place(f.t, f.a) : missed.push(`${f.a.name} (${f.t.teamName})`)));
+    const side = s.found.find(f => f.t === me || f.t === partner)?.t || (s.team === me || s.team === partner ? s.team : null);
+    s.picks.forEach(p => {
+      const fits = t => (t ? t.assets : []).filter(a => a.type === 'pick' && a.season === p.season && (a.ktcRound ?? a.round) === p.round && !used.has(a.key) && (!p.tier || (a.tier || '').toLowerCase() === p.tier)).sort((x, y) => y.value - x.value);
+      const own = side ? fits(side) : [], mine = fits(me), theirs = fits(partner);
+      const pick = own[0] ? { t: side, a: own[0] } : !side && mine[0] && !theirs[0] ? { t: me, a: mine[0] } : !side && theirs[0] && !mine[0] ? { t: partner, a: theirs[0] } : null;
+      if (pick) place(pick.t, pick.a); else missed.push(p.text);
+    });
+  });
+  return { partner, give, get, missed };
+}
+function openPaste() {
+  Vault.popup({ title: 'Paste a trade', html: `<p class="text-[13px] text-zinc-400 mb-3">Copy an offer from Sleeper or your group chat. Players, and picks written like 2027 1st, are found by name.</p>
+    <textarea id="pasteText" rows="6" aria-label="The trade" placeholder="Nico Collins and a 2027 2nd for Bijan Robinson" class="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2.5 text-[14px] text-zinc-100 outline-none focus:border-white/25"></textarea>
+    <div id="pasteNote" class="mt-2 text-[13px] text-orange-300 empty:hidden"></div>
+    <button type="button" onclick="applyPaste()" class="mt-3 text-[13px] px-4 py-2 rounded-lg btn-gold-solid">Open this trade</button>` });
+  document.getElementById('pasteText')?.focus();
+}
+function applyPaste() {
+  const note = document.getElementById('pasteNote'), r = parsePastedTrade(document.getElementById('pasteText').value);
+  if (r.error) { note.textContent = r.error; return; }
+  if (!r.partner || !(r.give.length + r.get.length)) { note.textContent = "Couldn't find any players or picks in that."; return; }
+  const selB = document.getElementById('teamB');
+  if (selB.value !== String(r.partner.rosterId)) { selB.value = String(r.partner.rosterId); selB.onchange(); }
+  negLoad(r.give.map(a => a.key), r.get.map(a => a.key));
+  if (r.missed.length) { note.textContent = `Left out, so check these: ${r.missed.join(', ')}.`; return; }
+  Vault.popupClose();
+  document.getElementById('tradeBar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Your last few trades on this device, to pick back up. Pinned trades stay until you remove them.
+const RECENT_MAX = 3, recentKey = () => 'vault_recent_trades_' + Vault.getLeagueId();
+const readRecent = () => { try { const v = JSON.parse(localStorage.getItem(recentKey()) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+let recentTimer = 0;
+function rememberTrade() {
+  clearTimeout(recentTimer);
+  const a = teamOf('A'), b = teamOf('B');
+  if (!a || !b || !selectedA.size || !selectedB.size) return;
+  const p = { a: a.rosterId, b: b.rosterId, give: [...selectedA], get: [...selectedB] };
+  recentTimer = setTimeout(() => {
+    const id = x => [x.b, [...x.give].sort(), [...x.get].sort()].join('|');
+    try { localStorage.setItem(recentKey(), JSON.stringify([p, ...readRecent().filter(x => id(x) !== id(p))].slice(0, RECENT_MAX))); } catch {}
+  }, 2500);
+}
+function renderRecent() {
+  const box = document.getElementById('recentTrades'), esc = Vault.escapeHtml;
+  if (!box) return;
+  const nameOf = (t, k) => t?.assets.find(x => x.key === k)?.name;
+  box.innerHTML = readRecent().map((p, i) => {
+    const a = teams.find(t => t.rosterId === p.a), b = teams.find(t => t.rosterId === p.b);
+    const give = p.give.map(k => nameOf(a, k)).filter(Boolean), get = p.get.map(k => nameOf(b, k)).filter(Boolean);
+    return give.length === p.give.length && get.length === p.get.length && a === teamOf('A') ? `<button type="button" onclick="openRecent(${i})" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">${esc(give.join(', '))} for ${esc(get.join(', '))}</button>` : '';
+  }).join('');
+}
+function openRecent(i) {
+  const p = readRecent()[i], selB = document.getElementById('teamB');
+  if (!p) return;
+  if (selB.value !== String(p.b)) { selB.value = String(p.b); selB.onchange(); }
+  negLoad(p.give, p.get);
+}
+
 function fillQuickAdd() {
   const me = teamOf('A'), sel = document.getElementById('quickAdd');
   const label = a => (a.type === 'pick' ? a.name : `${a.name} (${Vault.playerSearchInfo(a)})`);
@@ -1893,6 +1990,8 @@ function quickAdd(sel) {
 
 function updateTrade() {
   syncTradeUrl();
+  rememberTrade();
+  renderRecent();
   const teamA = teamOf('A'), teamB = teamOf('B');
   document.getElementById('offeredByWrap').classList.toggle('hidden', !teamB);
   if (!teamB) {
@@ -2321,6 +2420,27 @@ function renderOfferedByToggle(teamA, teamB) {
   document.getElementById('offeredByToggle').innerHTML = chip('A', teamA) + chip('B', teamB);
 }
 
+// Where a team's best lineup ranks by KTC value in each coming season, before and after the trade.
+let ageCurve = null;
+const FUTURE_YEARS = [1, 2, 3], futureMemo = new Map();
+function futureValue(rosterId, assets, ahead, memo) {
+  const key = `${rosterId}|${ahead}`;
+  if (memo && futureMemo.has(key)) return futureMemo.get(key);
+  const v = Vault.futureLineupValue(assets, slots, ahead, ageCurve, +league.season);
+  if (memo) futureMemo.set(key, v);
+  return v;
+}
+function futureRanksHtml(team, gives, gets) {
+  if (!ageCurve || !slots.length) return '';
+  const after = [...team.assets.filter(a => !gives.includes(a)), ...gets], ord = n => Vault.ordinal ? Vault.ordinal(n) : `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] || 'th'}`;
+  const cells = FUTURE_YEARS.map(ahead => {
+    const others = teams.filter(t => t !== team).map(t => futureValue(t.rosterId, t.assets, ahead, true));
+    const was = futureValue(team.rosterId, team.assets, ahead, true), now = futureValue(team.rosterId, after, ahead, false);
+    const rank = v => 1 + others.filter(x => x > v).length, a = rank(was), b = rank(now);
+    return `<div><div class="text-[14px] font-mono ${b < a ? 'text-emerald-400' : b > a ? 'text-rose-400' : ''}">${a === b ? ord(a) : `${ord(a)} → ${ord(b)}`}</div><div class="text-[12px] text-zinc-400">${+league.season + ahead}</div></div>`;
+  }).join('');
+  return `<div class="mt-3 pt-3 border-t border-white/5"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">Lineup value rank${Vault.info('futureRank')}</div><div class="grid grid-cols-3 gap-2 text-center">${cells}</div></div>`;
+}
 function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analysis) {
   if (!aAssets.length && !bAssets.length) {
     document.getElementById('analysisA').classList.add('hidden');
@@ -2361,6 +2481,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           <div><div class="text-[14px] font-mono">${Vault.num1(aft.vorpTotal)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? Vault.signed(res.dVorp, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('vorpTeam', 'VORP')}</div></div>
           <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? Vault.windowYearsText(win) : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">${Vault.term('window', 'Window')}</div></div>
         </div>
+        ${futureRanksHtml(side === 'A' ? teamA : teamB, side === 'A' ? aAssets : bAssets, side === 'A' ? bAssets : aAssets)}
       </div>`;
   });
 

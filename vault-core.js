@@ -1701,6 +1701,22 @@ const Vault = {
      the starters list, to show "the best lineup" on League Overview), simulateTrade
      (which only needs the total, re-run on a hypothetical post-trade roster), and
      anywhere else that only cares about the number. */
+  // A team's best lineup by KTC value `ahead` seasons from now: each player at what his position and
+  // age usually keep (data/market-history/age-curve.json), and a pick from its draft on as a young
+  // receiver at its price. Only good for comparing rosters: it never reaches the verdict.
+  futureLineupValue(assets, slots, ahead, curve, season) {
+    const keep = (pos, age, years) => { const row = curve[pos]?.[Math.max(21, Math.min(36, Math.round(age)))]; return years > 0 && row ? row[years - 1] ?? 0 : 1; };
+    const pool = [];
+    assets.forEach(a => {
+      if (!(a.value > 0)) return;
+      if (a.type !== 'pick') { if (curve[a.pos]) pool.push({ pos: a.pos, v: a.value * keep(a.pos, a.age, ahead) }); return; }
+      const since = ahead - Math.max(0, a.season - season);
+      if (since >= 0) pool.push({ pos: 'WR', v: a.value * keep('WR', 22, since) });
+    });
+    pool.sort((x, y) => y.v - x.v);
+    const open = slots.map(s => Vault.slotAllows(s)).sort((x, y) => x.length - y.length);
+    return open.reduce((sum, allowed) => { const at = pool.findIndex(p => allowed.includes(p.pos)); return at < 0 ? sum : sum + pool.splice(at, 1)[0].v; }, 0);
+  },
   slotAllows(slot) {
     return { FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'] }[slot] || [slot];
   },
@@ -1911,6 +1927,7 @@ const Vault = {
     theyStart: ['Would start for them', "Your bench players who'd add the most to their best lineup, each on its own, in points a week for the rest of the season. Your starters are left out."],
     theyWant: ['What they would want', "A team building for later wants picks and young players: your best picks, then your best young players outside your lineup."],
     trackRecord: ['Track record', "Every team-side of 2024 and 2025 trades, 2.68 million of them, scored the same way as this one. A record, not a promise, and winning on value is partly built in: a side that won on price starts out ahead."],
+    futureRank: ['The next three seasons', "Where each team's best lineup ranks in the league by KTC value in each coming season, before and after this trade. Each player keeps what his position and age usually keep, and a pick joins the year it's drafted, with the other teams left as they are. A rough projection for comparing rosters: it doesn't count in the verdict."],
     page_overview: ['League Overview', 'Every team, this season and for the long run. Click a team to open it.'],
     page_analyzer: ['Team Analyzer', 'One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team in the menu.'],
     page_market: ['Player Market', 'What players actually go for in completed dynasty trades in leagues like yours, next to their KTC value.'],
