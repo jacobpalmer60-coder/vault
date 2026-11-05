@@ -191,7 +191,7 @@
           if (!mine) return null;
           const points = r => (r.settings?.fpts || 0) + (r.settings?.fpts_decimal || 0) / 100, wins = r => r.settings?.wins || 0;
           const rank = [...rosters].sort((a, b) => wins(b) - wins(a) || points(b) - points(a)).indexOf(mine) + 1;
-          return { l, mine, text: `${wins(mine)}-${mine.settings?.losses || 0}${mine.settings?.ties ? `-${mine.settings.ties}` : ''} · ${ord(rank)} of ${rosters.length}` };
+          return { l, mine, text: `${l.status === 'in_season' ? '' : `${l.season}: `}${wins(mine)}-${mine.settings?.losses || 0}${mine.settings?.ties ? `-${mine.settings.ties}` : ''} · ${ord(rank)} of ${rosters.length}` };
         }))).filter(Boolean);
         box.innerHTML = rows.map(({ l, text }) => `<button type="button" data-league="${esc(l.league_id)}" class="w-full text-left rounded-xl bg-black/25 border border-white/5 hover:border-white/20 px-3 py-2.5 transition-colors"><div class="text-[14px] text-zinc-100 truncate">${esc(l.name)}</div><div class="text-[12px] text-zinc-400 mt-0.5">${text}<span data-more="${esc(l.league_id)}"></span></div></button>`).join('');
         box.onclick = e => { const b = e.target.closest('[data-league]'); if (!b) return; leagueSelect.value = b.dataset.league; activate(b.dataset.league, { user: uid }); };
@@ -200,7 +200,9 @@
             const { teams } = await Vault.buildLeagueTeams(l.league_id);
             const me = teams.find(t => t.rosterId === mine.roster_id), rank = [...teams].sort((a, b) => b.overall - a.overall).indexOf(me) + 1, odds = me?.projected?.playoffPct;
             const el = box.querySelector(`[data-more="${l.league_id}"]`);
-            if (el && me) el.textContent = ` · ${ord(rank)} in value${Number.isFinite(odds) ? ` · ${Math.round(odds)}% playoff odds` : ''}`;
+            // Odds mean something only with a season under way: games played, none of it finished.
+            const live = l.status === 'in_season' && (mine.settings?.wins || 0) + (mine.settings?.losses || 0) + (mine.settings?.ties || 0) > 0;
+            if (el && me) el.textContent = ` · ${ord(rank)} in value${live && Number.isFinite(odds) ? ` · ${Math.round(odds)}% playoff odds` : ''}`;
           } catch { /* the standing is still there */ }
         }
       }
