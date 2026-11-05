@@ -893,6 +893,9 @@ function coachForThem(t, give, r) {
 }
 function coachRecSpec(me) {
   const f = coachFlow(), others = teams.filter(t => t !== me);
+  // Cornerstones stay in, tagged (user, 2026-11-04: "dont hide the big boys"): you picked the
+  // player, so the stars are the point of an upgrade. Goal lists skip them, because there you
+  // named no one. A contender's last starting QBs sit under Left out, one click away.
   const players = filt => others.flatMap(t => t.assets.filter(a => !coachTheirOff(a) && filt(a)).map(a => ({ a, t })));
   let give, goal, cands;
   if (f.what === 'player') {
@@ -913,7 +916,10 @@ function coachRecSpec(me) {
       : goal === 'downtier' ? players(x => x.type === 'player' && x.pos === f.pos && x.value >= best * 0.4 && x.value <= best * 0.92).sort((x, y) => y.a.value - x.a.value)
       : players(x => (x.type === 'pick' || (x.age > 0 && x.age <= 24)) && x.value >= sum * 0.5 && x.value <= sum * 1.3).sort((x, y) => Math.abs(x.a.value - sum) - Math.abs(y.a.value - sum));
   } else return null;
-  return { key: JSON.stringify([f.what, goal, f.pos, negKeys(give)]), give, goal, cands: cands.slice(0, COACH_REC_CANDS) };
+  const lastQb = c => coachLeavesShort(c.t, give, [c.a]) && Vault.teamMode(c.t) === 'contend';
+  const held = cands.filter(lastQb).sort((x, y) => y.a.value - x.a.value).slice(0, COACH_REC_SHOW);
+  cands = cands.filter(c => !lastQb(c));
+  return { key: JSON.stringify([f.what, goal, f.pos, negKeys(give)]), give, goal, cands: cands.slice(0, COACH_REC_CANDS), held };
 }
 async function coachRecsRun(spec) {
   const f = coachFlow(), me = coachMe(), out = [];
@@ -954,6 +960,11 @@ async function coachRecsRun(spec) {
   coachFlow().recs = { key: spec.key, list: [...best, ...rest].slice(0, COACH_REC_SHOW), yes: yes.length, fixed: fixed.length, total: out.length, give: negKeys(spec.give), goal: spec.goal };
   if (coachOpen() && coachFlow().step === 'pick') renderCoach();
 }
+// One from Left out: what you selected for him, to work out from there.
+function coachHeldBuild(key) {
+  const spec = coachRecSpec(coachMe()), x = spec?.held.find(h => h.a.key === key);
+  if (x) coachBuildFrom(x.t, spec.give, [x.a], spec.goal);
+}
 // Build a fit: what you selected, plus its gap-closing piece if it has one, for him.
 function coachRecBuild(i) {
   const rec = coachFlow().recs, x = rec && rec.list && rec.list[i], me = coachMe();
@@ -963,7 +974,11 @@ function coachRecBuild(i) {
 }
 function coachRecsHtml(me, spec) {
   const f = coachFlow(), n = v => Math.round(v).toLocaleString(), pc = v => `${Math.round(Math.abs(v))}%`;
+  // Who you'd expect here but isn't, one click from trying anyway. Open when it's all there is.
+  const n0 = v => Math.round(v).toLocaleString();
+  const heldHtml = open => !spec.held.length ? '' : `<details class="mt-4"${open ? ' open' : ''}><summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">Left out: contenders' last starting QBs (${spec.held.length})</summary><div class="grid gap-2 mt-2">${spec.held.map(({ a, t }) => coachChoice(`coachHeldBuild('${a.key}')`, `${coachEsc(a.name)} <span class="text-[12px] text-zinc-500">${a.pos} · ${coachEsc(t.teamName)} · ${n0(a.value)}</span>`)).join('')}</div></details>`;
   if (!spec.cands.length) {
+    if (spec.held.length) return heldHtml(true);
     // Upgrading someone nobody out-scores: say that, not just "nobody fits".
     const top = spec.goal === 'upgrade' ? [...spec.give].sort((x, y) => (y.ppg || 0) - (x.ppg || 0))[0] : null;
     return `<div class="text-[12px] text-zinc-500 py-2">${top && top.ppg ? `No ${coachEsc(top.pos)} on another team scores more than ${coachEsc(top.name)} (${top.ppg.toFixed(1)} pts/game) within reach of what you'd send. ${coachEsc(top.name)} is already the upgrade.` : 'Nobody on another team fits that. Try different players.'}</div>`;
@@ -978,12 +993,12 @@ function coachRecsHtml(me, spec) {
       : fix ? `Add your <span class="text-zinc-100">${coachEsc(fix.p.name)}</span> <span class="text-zinc-500">(${n(fix.p.value)})</span> → <span class="text-emerald-300">likely yes</span>`
       : `<span class="text-orange-300">They'd want about ${pc(Math.max(-r.room, r.you - VAULT_CONFIG.FAIR_PCT + 0.5))} more</span>`;
     return coachChoice(`coachRecBuild(${i})`, `${coachEsc(a.name)} <span class="text-[12px] text-zinc-500">${a.type === 'pick' ? 'pick' : a.pos} · ${coachEsc(t.teamName)} · ${n(a.value)}</span>`,
-      `${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}<br>${coachForThem(t, fix && !r.yes ? [...spec.give, fix.p] : spec.give, use)}${use.consensus ? ` · ${coachConsensusText(use)}` : ''}`);
+      `${status} · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${gain != null ? ` · ${gain >= 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts/game` : ''}<br>${coachForThem(t, fix && !r.yes ? [...spec.give, fix.p] : spec.give, use)}${coachAsksCornerstone(t, [a]) ? ' · <span class="text-amber-200/90">their cornerstone, rarely traded</span>' : ''}${use.consensus ? ` · ${coachConsensusText(use)}` : ''}`);
   }).join('');
   const word = spec.goal === 'upgrade' ? 'would likely say yes' : 'would take it';
   const summary = f.recs.yes || f.recs.fixed ? [f.recs.yes ? `${f.recs.yes} ${word}` : '', f.recs.fixed ? `${f.recs.fixed}${f.recs.yes ? ' more' : ''} with one piece added` : ''].filter(Boolean).join(', ') : 'none would say yes yet; these are the closest';
   return `<div class="text-[12px] text-zinc-400 mb-2">${summary[0].toUpperCase()}${summary.slice(1)}.</div>
-    <div class="grid gap-2">${rows}</div>`;
+    <div class="grid gap-2">${rows}</div>${heldHtml(false)}`;
 }
 
 /* ---------- One line about your team (2026-10-28, user: "cleaner and flow more easily"):
