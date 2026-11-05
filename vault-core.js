@@ -5470,7 +5470,7 @@ const Vault = {
     }
     hide();
   }, true);
-  document.addEventListener('focusin', e => { if (e.target.matches?.('.term-i')) show(e.target); });
+  document.addEventListener('focusin', e => { if (e.target.matches?.('.term-i:focus-visible')) show(e.target); }); // the Tab key; a tap opens it above
   document.addEventListener('focusout', e => { if (e.target.matches?.('.term-i')) hide(); });
   globalThis.addEventListener?.('scroll', hide, true); // the data scripts load this file outside a browser
 })();
