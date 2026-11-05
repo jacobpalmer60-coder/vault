@@ -1745,11 +1745,27 @@ const Vault = {
   // them. A player on IR, PUP, suspended or not reporting whom Sleeper projects
   // for no week at all (no return date known) is out for the weeks left;
   // `availGuess` keeps his label at "On IR" rather than claiming a return week.
-  availOf(proj, sleeper, pid) {
-    const out = proj?.wk ? { avail: proj.wk, ...(proj.wp ? { wp: proj.wp } : {}) }
-      : sleeper && VAULT_CONFIG.SIDELINED_STATUSES.includes(sleeper.injury_status) ? { avail: '0'.repeat(18), availGuess: true } : {};
+  availOf(proj, sleeper, pid, weeks = Vault._lineupWeeks) {
+    const out = Vault.availFromInjury(proj?.wk ? { avail: proj.wk, ...(proj.wp ? { wp: proj.wp } : {}) }
+      : sleeper && VAULT_CONFIG.SIDELINED_STATUSES.includes(sleeper.injury_status) ? { avail: '0'.repeat(18), availGuess: true } : {}, sleeper, weeks);
     if (pid && out.avail) Vault._availById.set(pid, out);
     return out;
+  },
+  /* Lineups and odds play the same back week the tag shows (user, 2026-11-04). Sleeper had Love
+     back in week 10 from IR and counted Hurts and McLaurin in week 18 with their seasons over,
+     which flattered teams holding hurt players. ESPN's return and IR's four-game minimum
+     replace Sleeper's weeks from now on; the weeks already played stay as they are. A return
+     week comes back to '1' even if Sleeper had none, except the bye. A minimum alone isn't a
+     return date, so a player Sleeper has no weeks for stays out. */
+  availFromInjury(out, sleeper, weeks) {
+    const f = sleeper?.injury_detail;
+    if (!f || !weeks?.length || (out.availGuess && !f.week && !f.season)) return out;
+    const back = Vault.injuryBack({ injury: sleeper.injury_status, injuryFacts: f, ...out }, weeks);
+    if (!back) return out;
+    const old = out.avail || '1'.repeat(18), on = w => !back.season && w >= back.week && w !== f.bye;
+    const avail = [...old].map((c, i) => (i + 1 < weeks[0] ? c : on(i + 1) ? '1' : '0')).join('');
+    const { availGuess, ...rest } = out;
+    return { ...rest, avail };
   },
   // Share of the weeks left he's projected to play (1 with no weekly data).
   availShare(p, weeks = Vault._lineupWeeks) {

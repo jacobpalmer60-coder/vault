@@ -5,7 +5,7 @@
    Runs once a day and overwrites data/injury-details.json. No history is kept. Facts only: ESPN's
    written news is left out. ESPN's league-wide feed stops at 25 players a team and weighs 8.7 MB,
    so this reads each roster for who's hurt and then fetches only those players:
-     { updated, players: { "<sleeper id>": { type, detail, side, back, week, season, date, last, games, min } } }
+     { updated, players: { "<sleeper id>": { type, detail, side, back, week, season, date, last, games, min, bye } } }
    week is the NFL week of back; season: true means not back this season. last and games come
    from data/weekly (the last week played and games played so far).
    min is the earliest week back from IR, which is rule rather than news: four missed games from
@@ -117,14 +117,14 @@ const known = v => (v && v !== 'Not Specified' ? v : undefined);
         type: known(d.type), detail: known(d.detail), side: known(d.side), back: back && week <= LAST_WEEK ? back : undefined,
         week: week != null && week <= LAST_WEEK ? week : undefined, season: week > LAST_WEEK ? true : undefined,
         date: date?.slice(0, 10), last: games.length ? Math.max(...games) : undefined, games: games.length,
-        min: sleeper[sleeperId].injury_status === 'IR' ? minWeek(sleeperId, games, bye, week) : undefined,
+        min: sleeper[sleeperId].injury_status === 'IR' ? minWeek(sleeperId, games, bye, week) : undefined, bye,
       };
     } catch { failed++; }
   });
   for (const id of hurt.values()) {
     const p = sleeper[id], games = played(id);
     if (players[id] || p.injury_status !== 'IR' || byes[p.team] == null) continue;
-    players[id] = { min: minWeek(id, games, byes[p.team]), last: games.length ? Math.max(...games) : undefined, games: games.length };
+    players[id] = { min: minWeek(id, games, byes[p.team]), last: games.length ? Math.max(...games) : undefined, games: games.length, bye: byes[p.team] };
   }
 
   const count = Object.keys(players).length;

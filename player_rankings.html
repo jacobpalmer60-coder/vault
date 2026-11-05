@@ -117,7 +117,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=492c1de7"></script>
+<script src="vault-core.js?v=82db680b"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script src="market-data.js?v=682a679f"></script>
 <script>
@@ -709,7 +709,7 @@
       const playerRole = norm => {
         if (!weeksLeft.length) return {};
         const pid = projIdByName.get(norm) ?? pidByName.get(norm), sp = sleeperPlayers?.[pid];
-        const a = { ...Vault.injuryOf(sp), ...Vault.availOf(projData.players?.[pid], sp) };
+        const a = { ...Vault.injuryOf(sp), ...Vault.availOf(projData.players?.[pid], sp, undefined, weeksLeft) };
         const gamesLeft = a.avail ? weeksLeft.filter(w => Vault.availableIn(a, w)).length : 0;
         if (a.injury && a.avail && !gamesLeft && !/coach/i.test(a.injuryPart)) return { out: Vault.injuryText(a, weeksLeft) };
         if (gamesLeft > 2 || gamesLeft >= weeksLeft.length / 2 || VAULT_CONFIG.SIDELINED_STATUSES.includes(a.injury)) return {};
