@@ -4155,7 +4155,7 @@ const Vault = {
         : (pn.tone === 'good' ? `deals from ${pn.pos} surplus` : `leaves this team thin at ${pn.pos}`);
       const archClause = an.isIncoming
         ? (an.tone === 'good' ? `is exactly what a ${an.planWord} wants` : `doesn't fit a ${an.planWord}`)
-        : (an.tone === 'bad' ? `fit the ${an.planWord}` : `didn't fit the ${an.planWord} anyway`);
+        : (an.tone === 'bad' ? `works against the ${an.planWord}` : `costs the ${an.planWord} nothing`);
 
       const text = pn.isIncoming
         ? `${an.assetName} ${needClause} ${connector} ${archClause}.`
@@ -4255,7 +4255,7 @@ const Vault = {
     const wrOld = t.plist.filter(p => p.pos === 'WR' && p.age >= 29).reduce((s, p) => s + p.value, 0);
     const wrTotal = t.wr || 1;
     if (wrOld / wrTotal > 0.4) flaws.push(`${Math.round(wrOld / wrTotal * 100)}% of WR value is in players 29 or older`);
-    if (t.picksValue < leagueAvg.picks * 0.85) { const r = all ? 1 + all.filter(x => x.picksValue > t.picksValue).length : null; flaws.push(`Few picks: ${r ? `${r}${({ 1: 'st', 2: 'nd', 3: 'rd' })[r % 10 > 3 || (r % 100 > 10 && r % 100 < 14) ? 0 : r % 10] || 'th'} of ${all.length}, ` : ''}${Math.round(t.picksValue).toLocaleString()} of value, league average ${Math.round(leagueAvg.picks).toLocaleString()}`); }
+    if (t.picksValue < leagueAvg.picks * 0.85) { const r = all ? 1 + all.filter(x => x.picksValue > t.picksValue).length : null; flaws.push(`Few picks: ${r ? `${r}${({ 1: 'st', 2: 'nd', 3: 'rd' })[r % 10 > 3 || (r % 100 > 10 && r % 100 < 14) ? 0 : r % 10] || 'th'} of ${all.length}, ` : ''}${Math.round(t.picksValue).toLocaleString()} in KTC value, league average ${Math.round(leagueAvg.picks).toLocaleString()}`); }
     // Depth check is relative to the team's own roster, not a fixed headcount —
     // a fixed threshold like "16" never fires in deep superflex formats where
     // every team rosters 30+ valued players.

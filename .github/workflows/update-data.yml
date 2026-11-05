@@ -57,7 +57,13 @@ jobs:
           after=$(node -e "console.log(require('./data/player-value-history.json').snapshots.length)")
           if [ "$after" -lt "$before" ]; then echo "Value history fell from $before to $after; not saving"; exit 1; fi
           gzip -9 -c data/player-value-history.json > "$RUNNER_TEMP/player-value-history.json.gz"
-          gh release upload data-history "$RUNNER_TEMP/player-value-history.json.gz" --clobber
+          gzip -9 -c data/ktc-trades.json > "$RUNNER_TEMP/ktc-trades.json.gz"
+          # This is the only copy: a replaced file is deleted before its new one goes up, so a dropped
+          # upload could lose it. A copy per weekday goes up first (seven days to fall back on).
+          # ktc-trades.json is read by VaultValues' daily site snapshot.
+          cp "$RUNNER_TEMP/player-value-history.json.gz" "$RUNNER_TEMP/player-value-history-$(date +%a).json.gz"
+          gh release upload data-history "$RUNNER_TEMP/player-value-history-$(date +%a).json.gz" --clobber
+          gh release upload data-history "$RUNNER_TEMP/player-value-history.json.gz" "$RUNNER_TEMP/ktc-trades.json.gz" --clobber
       # Small per-format history files + trimmed Sleeper player list the pages
       # actually load (see the script header) — must run after the snapshot.
       - run: node scripts/build-slim-data.js
@@ -84,7 +90,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/injury-details.json data/player-history.json data/ktc-values.json data/dynasty-daddy-values.json data/market-history/peer-baseline.json data/projections.json data/ktc-trades-sf.json data/ktc-trades-oneQB.json data/market/ data/pick-value-history.json data/history/ data/sleeper-players.json data/weekly/ data/grade-values.json data/grade-values-history/
-          # Rebuilt each run and read only by this job, or kept on the release: neither belongs in git.
+          # Both are kept on the release now.
           git rm --cached --ignore-unmatch --quiet data/ktc-trades.json data/player-value-history.json
           git diff --cached --quiet || git commit -m "Update KTC values, projections, trade database, and value history"
           # The hourly Sleeper crawl also pushes (data/market-history/ only), so catch up first.

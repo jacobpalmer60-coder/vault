@@ -550,7 +550,7 @@ function marketLiquidityFact(l, pos) {
   if (!l) return null;
   const head = { often: 'Changes hands often', average: 'Changes hands about as often as most', rarely: 'Changes hands less often' }[l.label] || 'Trades';
   const count = `In ${l.n} completed trade${l.n === 1 ? '' : 's'} from the last ${l.days} days`;
-  return { label: 'How often', head, sub: l.label ? `${count}; the ${LIQ_PEERS} ${pos}s closest to his value were typically in ${l.typical}.` : `${count}.` };
+  return { label: 'How often', head, sub: l.label ? `${count}. The ${LIQ_PEERS} ${pos}s closest to his value were typically in ${l.typical}.` : `${count}.` };
 }
 
 /* ---------- Market trend line (player card, Player Market, Compare) ----------

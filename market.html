@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=8443268e">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
 <link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -106,9 +106,9 @@
 
 <div id="chartTip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl"></div>
 
-<script src="vault-core.js?v=c980be9a"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
 <script src="vault-nav.js?v=87bd2eaf"></script>
-<script src="market-data.js?v=ce438c45"></script>
+<script src="market-data.js?v=ba533660"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script>
 /* ============================================================
@@ -167,13 +167,13 @@ let byNorm = new Map();         // normalized name -> { name, pos, value } from 
 // moved to Trade Lab, 2026-10-21.)
 let INSIGHTS = null;
 fetch('data/market-history/insights.json').then(r => (r.ok ? r.json() : null)).then(d => { INSIGHTS = d; if (lookupNorm) lookUp(lookupNorm); }).catch(() => {});
-// "Outlook: at the same KTC price, RBs aged 27-28 lost value afterward: −5% a year on, −10% two years on."
+// "Outlook: at the same KTC price, RBs aged 27-28 lost value afterward: down 5% a year on, down 10% two years on."
 const factTile = ({ label, head, sub, extra = '' }) => `<div class="min-w-0"><div class="text-[11px] uppercase tracking-wider text-zinc-500">${label}</div><div class="text-[14px] font-medium text-zinc-100 mt-1">${head}</div><div class="text-[12px] text-zinc-400 leading-snug mt-0.5">${sub}</div>${extra}</div>`;
 function outlookFact(who) {
   if (!INSIGHTS || !who || !['QB', 'RB', 'WR', 'TE'].includes(who.pos) || !(who.age > 0)) return null;
   const r = INSIGHTS.ageByPosition.find(x => x.pos === who.pos && who.age >= x.lo && who.age < x.hi);
   if (!r) return null;
-  const sg = v => (Math.abs(v) < 0.5 ? '0%' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(0)}%`);
+  const sg = v => (Math.abs(v) < 0.5 ? 'flat' : `${v > 0 ? 'up' : 'down'} ${Math.abs(v).toFixed(0)}%`);
   const avg = (r.drift1 + r.drift2) / 2, same = Math.sign(r.drift1) === Math.sign(r.drift2);
   const verb = !same ? 'Mixed results after this' : Math.abs(avg) < 2 ? 'Holds value about even' : avg > 0 ? 'Tends to gain value' : 'Tends to lose value';
   const cls = !same || Math.abs(avg) < 2 ? 'text-zinc-300' : avg > 0 ? 'text-emerald-300' : 'text-orange-300';

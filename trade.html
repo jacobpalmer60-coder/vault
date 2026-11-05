@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=8443268e">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
 <link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
@@ -68,7 +68,7 @@
   <!-- Find anyone: type a player or pick from any team; it joins the trade and its team becomes the partner. -->
   <div data-field-box class="mb-3 rounded-xl card px-4 py-2.5 flex items-center gap-3">
     <svg class="size-4 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-    <select id="quickAdd" data-search="Add a player or pick…" aria-label="Add any player or pick in your league to the trade" class="flex-1 min-w-0 bg-transparent text-[14px] text-zinc-100 outline-none"></select>
+    <select id="quickAdd" data-search="Add a player or pick" aria-label="Add any player or pick in your league to the trade" class="flex-1 min-w-0 bg-transparent text-[14px] text-zinc-100 outline-none"></select>
     <button type="button" onclick="openPaste()" title="Paste a trade from Sleeper or your group chat" class="shrink-0 text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">Paste a trade</button>
   </div>
   <!-- Trade slip: the deal, side by side; the read (grade, fairness bar, KTC vs
@@ -232,7 +232,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=c980be9a"></script>
+<script src="vault-core.js?v=b74a6d11"></script>
 <script src="vault-nav.js?v=87bd2eaf"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1483,7 +1483,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   // question is whether to take it.
   const offered = offeredBy === 'B';
   const yourLabel = offered ? { good: 'Worth accepting', tossup: 'Worth a counter', bad: 'Decline' }[imp.level] : imp.label;
-  // The team name on one line (2026-10-24 phone pass: long names took three).
+  // The team name on one line (2026-10-24 phone pass: long names took three). Phones stack the two, so it fits (2026-11-05).
   const tile = (who, label, cls, sub, close = '', help = '') => `<div class="rounded-xl bg-black/25 border border-white/5 px-3 sm:px-4 py-3 min-w-0">
       <div class="flex items-center justify-between gap-1"><div class="text-[11px] uppercase tracking-wider text-zinc-500 truncate min-w-0" title="${who}">${who}</div>${help}</div>
       <div class="num text-[26px] leading-tight mt-0.5 ${cls}">${label}</div>${close}${sub ? `<div class="text-[12px] text-zinc-400 mt-1">${sub}</div>` : ''}</div>`;
@@ -1493,7 +1493,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   // Their out-of-race note reads under the tiles, with yours, instead of stretching their tile.
   const theirSub = '';
   el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Works for both'}</span></div>` : ''}
-    <div class="grid grid-cols-2 gap-3 max-w-[640px]">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-w-[640px]">
       ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp), Vault.info('verdict'))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
     </div>
@@ -2561,9 +2561,9 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
 init();
 </script>
-<script src="share-image.js?v=5461dbe7"></script>
+<script src="share-image.js?v=a4003002"></script>
 <script src="negotiation.js?v=74ef6b53"></script>
-<script src="market-data.js?v=ce438c45"></script>
+<script src="market-data.js?v=ba533660"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script src="market.js?v=12df7e61"></script>
 <script src="coach.js?v=44c50bac"></script>

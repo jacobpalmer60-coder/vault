@@ -36,7 +36,7 @@ const VaultShare = {
     columns.forEach((col, i) => {
       const x = 56 + i * (colW + gap);
       ctx.fillStyle = c.panel; ctx.strokeStyle = c.line; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.roundRect(x, y, colW, panelH, 16); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, colW, panelH, 16) : ctx.rect(x, y, colW, panelH); ctx.fill(); ctx.stroke();
       ctx.fillStyle = c.soft; ctx.font = `500 22px ${body}`; ctx.fillText(VaultShare.fit(ctx, col.head, colW - 48), x + 24, y + 42);
       ctx.fillStyle = c.text; ctx.font = `600 ${col.items.length > 4 ? 26 : 30}px ${body}`;
       const shown = col.items.slice(0, 5), step = 44;
