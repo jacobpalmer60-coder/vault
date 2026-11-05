@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="vault.css?v=36a6b470">
 <link rel="stylesheet" href="tailwind.css?v=c54f6235">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=67424a13"></script>
+<script src="vault-core.js?v=7750624d"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,7 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Everywhere', text: "Explanations on hover, or a tap on a phone. A dotted line under a word like VORP or PPG says what it means, and a small ? beside a section says what it's showing." },
     { kind: 'new', page: 'Managers', text: "Your record: what the verdict said about your trades at the time, and how many are ahead on value today." },
     { kind: 'improved', page: 'Everywhere', text: "Pages open faster when you move between them, and injury details refresh through game days instead of once a night." },
     { kind: 'improved', page: 'How We Grade', text: "Each section now leads with a short plain answer, with the full detail one click away. Nothing was taken out." },

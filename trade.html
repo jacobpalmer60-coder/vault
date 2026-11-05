@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="vault.css?v=36a6b470">
 <link rel="stylesheet" href="tailwind.css?v=c54f6235">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
@@ -238,7 +238,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=67424a13"></script>
+<script src="vault-core.js?v=7750624d"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -750,7 +750,7 @@ function renderNeeds(side, team) {
   const el = document.getElementById(`needs${side}`);
   const chosen = Vault.planOverride[team.rosterId] || '';
   const opt = (v, label) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${label}</option>`;
-  const parts = [`<label class="inline-flex items-center gap-1 text-zinc-400" title="Whether this team is graded as contending or rebuilding. Auto reads it from the roster; pick one if the team has decided otherwise.">Timeline
+  const parts = [`<label class="inline-flex items-center gap-1 text-zinc-400" title="Whether this team is graded as contending or rebuilding. Auto reads it from the roster; pick one if the team has decided otherwise."><span class="term">Timeline</span>
       <select onchange="setTeamTimeline(${team.rosterId}, this.value)" aria-label="Timeline" class="bg-black/40 border rounded px-1 py-1 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-300'}">
         ${opt('', `Auto · ${Vault.MODE_LABEL[autoTimeline(team)]}`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}
       </select></label>`];
@@ -1321,11 +1321,11 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
       <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.teamLink(me)} sends</span>
       <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.escapeHtml(me.teamName)} gets</span>
       <span class="text-[11px] uppercase tracking-wider text-zinc-400">Net</span>
-      <span class="text-[12px] text-zinc-400 text-left cursor-help" title="${PRICE_TIP.trade}">Trade value</span>
+      <span class="term text-[12px] text-zinc-400 text-left" title="${PRICE_TIP.trade}">Trade value</span>
       <span class="text-[14px] text-zinc-100">${n(giveVal)}</span>
       <span class="text-[14px] text-zinc-100">${n(getVal)}</span>
       <span class="text-[14px] font-medium">${d(getVal - giveVal)}</span>
-      ${ktc ? `<span class="text-[12px] text-zinc-400 text-left cursor-help" title="${PRICE_TIP.ktc}">KTC's calculator</span>
+      ${ktc ? `<span class="term text-[12px] text-zinc-400 text-left" title="${PRICE_TIP.ktc}">KTC's calculator</span>
       <span class="text-[14px] text-zinc-400">${n(ktc.valueA)}</span>
       <span class="text-[14px] text-zinc-400">${n(ktc.valueB)}</span>
       <span class="text-[14px] font-medium">${d(ktc.valueB - ktc.valueA)}</span>` : ''}
@@ -1441,8 +1441,8 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const offered = offeredBy === 'B';
   const yourLabel = offered ? { good: 'Worth accepting', tossup: 'Worth a counter', bad: 'Decline' }[imp.level] : imp.label;
   // The team name on one line (2026-10-24 phone pass: long names took three).
-  const tile = (who, label, cls, sub, close = '') => `<div class="rounded-xl bg-black/25 border border-white/5 px-3 sm:px-4 py-3 min-w-0">
-      <div class="text-[11px] uppercase tracking-wider text-zinc-500 truncate" title="${who}">${who}</div>
+  const tile = (who, label, cls, sub, close = '', help = '') => `<div class="rounded-xl bg-black/25 border border-white/5 px-3 sm:px-4 py-3 min-w-0">
+      <div class="flex items-center justify-between gap-1"><div class="text-[11px] uppercase tracking-wider text-zinc-500 truncate min-w-0" title="${who}">${who}</div>${help}</div>
       <div class="num text-[26px] leading-tight mt-0.5 ${cls}">${label}</div>${close}${sub ? `<div class="text-[12px] text-zinc-400 mt-1">${sub}</div>` : ''}</div>`;
   const yourSub = offered ? `<span class="${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span>` : '';
   // Your timeline under the tiles, on its own line (2026-10-24: in the tile it was cut off on phones).
@@ -1451,7 +1451,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const theirSub = '';
   el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Works for both'}</span></div>` : ''}
     <div class="grid grid-cols-2 gap-3 max-w-[640px]">
-      ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp))}
+      ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp), Vault.info('verdict'))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
     </div>
     ${timelineRow}
@@ -1699,7 +1699,7 @@ function pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp, side = 'A') {
       <div class="text-[11px] uppercase tracking-wider text-zinc-500">What each piece does to ${team}'s lineup this season</div>
       ${bAssets.map(a => row(a, true)).join('')}${aAssets.map(a => row(a, false)).join('')}
       <div class="text-[11px] text-zinc-500">Each on its own, so they don't add up exactly. Together:</div>
-      ${total('Starting lineup', lineup)}${total('Depth (bye and injury weeks)', depth)}${total('This season, in all', lineup + depth, true)}
+      ${total('Starting lineup', lineup)}${total(Vault.term('depth', 'Depth (bye and injury weeks)'), depth)}${total('This season, in all', lineup + depth, true)}
       ${imp.outOfRace ? `<div class="text-[11px] text-zinc-500">${team} is out of the playoff race, so the verdict doesn't count these points.</div>` : ''}
     </div>`;
 }
@@ -2326,10 +2326,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           </div>
         </details>` : ''}
         <div class="grid grid-cols-4 gap-2 text-center pt-3 border-t border-white/5">
-          <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">Age</div></div>
-          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dOpt) > 0.05 ? Vault.signed(res.dOpt, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">Lineup PPG</div></div>
-          <div title="Optimal lineup's total VORP — real, scarcity-adjusted edge over readily-available replacements, not just raw points"><div class="text-[14px] font-mono">${Vault.num1(aft.vorpTotal)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? Vault.signed(res.dVorp, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">VORP</div></div>
-          <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? Vault.windowYearsText(win) : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">Window</div></div>
+          <div><div class="text-[14px] font-mono">${aft.age.toFixed(1)}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">${Vault.term('age', 'Age')}</div></div>
+          <div><div class="text-[14px] font-mono">${aft.opt.toFixed(1)}</div><div class="text-[12px] leading-tight h-4 ${res.dOpt > 0.05 ? 'text-emerald-400' : res.dOpt < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dOpt) > 0.05 ? Vault.signed(res.dOpt, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('lineupPpg', 'Lineup PPG')}</div></div>
+          <div><div class="text-[14px] font-mono">${Vault.num1(aft.vorpTotal)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? Vault.signed(res.dVorp, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('vorpTeam', 'VORP')}</div></div>
+          <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? Vault.windowYearsText(win) : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">${Vault.term('window', 'Window')}</div></div>
         </div>
       </div>`;
   });
@@ -2340,7 +2340,7 @@ init();
 </script>
 <script src="negotiation.js?v=74ef6b53"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=a07a2167"></script>
+<script src="player-card.js?v=164b1408"></script>
 <script src="market.js?v=bfa5ee54"></script>
 <script src="coach.js?v=3657ed83"></script>
 </body>

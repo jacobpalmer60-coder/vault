@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="vault.css?v=36a6b470">
 <link rel="stylesheet" href="tailwind.css?v=c54f6235">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -52,12 +52,12 @@
   <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=67424a13"></script>
+<script src="vault-core.js?v=7750624d"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="season-report.js?v=0596935e"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=a07a2167"></script>
-<script src="timeline.js?v=43f35865"></script>
+<script src="player-card.js?v=164b1408"></script>
+<script src="timeline.js?v=c362660e"></script>
 <script>
 const $ = s => document.querySelector(s);
 
@@ -188,12 +188,12 @@ function renderSingle(t) {
   const isMine = Vault.myTeam(all) === t; // your own team: each partner links to Trade Coach's trades with them
 
   const statTiles = [
-    statTile('Overall', t.overall, Math.round(t.overall).toLocaleString(), all, 'overall', t.rosterId, true),
-    statTile('Players', t.total, Math.round(t.total).toLocaleString(), all, 'total', t.rosterId, true),
-    statTile('Lineup PPG', t.opt, t.opt.toFixed(1), all, 'opt', t.rosterId, true),
-    statTile('VORP', t.vorpTotal, Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—', all, 'vorpTotal', t.rosterId, true, "Optimal lineup's total Value Over Replacement Player — real, scarcity-adjusted edge over readily-available replacements, not just raw scoring rate. Comparable across positions, unlike Opt PPG."),
-    statTile('Age', t.age, t.age.toFixed(1), all, 'age', t.rosterId, null),
-    statTile('Picks<span class="max-sm:hidden"> Value</span>', t.picksValue, Math.round(t.picksValue).toLocaleString(), all, 'picksValue', t.rosterId, true),
+    statTile(Vault.term('overall', 'Overall'), t.overall, Math.round(t.overall).toLocaleString(), all, 'overall', t.rosterId, true),
+    statTile(Vault.term('players', 'Players'), t.total, Math.round(t.total).toLocaleString(), all, 'total', t.rosterId, true),
+    statTile(Vault.term('lineupPpg', 'Lineup PPG'), t.opt, t.opt.toFixed(1), all, 'opt', t.rosterId, true),
+    statTile(Vault.term('vorpTeam', 'VORP'), t.vorpTotal, Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—', all, 'vorpTotal', t.rosterId, true),
+    statTile(Vault.term('age', 'Age'), t.age, t.age.toFixed(1), all, 'age', t.rosterId, null),
+    statTile(Vault.term('picks', 'Picks<span class="max-sm:hidden"> Value</span>'), t.picksValue, Math.round(t.picksValue).toLocaleString(), all, 'picksValue', t.rosterId, true),
   ].join('');
   $('#singleCard').innerHTML = `
   <div class="card rounded-vault p-4 sm:p-6 fade-in">
@@ -332,7 +332,7 @@ function windowChart(t, all) {
   const win = Vault.contentionWindow(t, all);
   return `<div class="mt-3 rounded-2xl bg-black/30 border border-white/5 p-4">
       <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
-        <div class="text-[11px] uppercase tracking-widest text-zinc-400">Contention window, next ${win.years} seasons</div>
+        <div class="text-[11px] uppercase tracking-widest text-zinc-400">Contention window, next ${win.years} seasons${Vault.info('window5')}</div>
         <div class="text-[12px] text-zinc-400">${win.hasWindow ? `${t.windowYears} of ${win.years} seasons in the window` : 'No season in the window'} · peak value in ${win.peakYear}</div>
       </div>
       <div class="flex items-end gap-2 h-[64px]">${win.proj.map((v, i) => `<div class="flex-1 h-full flex flex-col justify-end"><div class="w-full rounded-t ${win.inWindow[i] ? 'bg-emerald-400/70' : 'bg-zinc-600/60'}" style="height:${Math.max(8, v / win.peak * 100)}%" title="${win.startYear + i}: ${Math.round(v).toLocaleString()} projected value, ${win.projPPG[i].toFixed(1)} projected PPG"></div></div>`).join('')}</div>

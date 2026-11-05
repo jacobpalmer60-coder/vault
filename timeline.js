@@ -321,7 +321,7 @@ function renderCompare(o) {
       <th class="py-2 pr-3 font-medium">Path</th>
       <th class="py-2 px-3 font-medium">${ctx.inSeason ? 'Title odds' : 'This season'}</th>
       <th class="py-2 px-3 font-medium">${y1}</th><th class="py-2 px-3 font-medium">${y2}</th>
-      <th class="py-2 px-3 font-medium">27+ share</th><th class="py-2 px-3 font-medium">Picks</th><th class="py-2 pl-3 font-medium">How hard</th></tr>`;
+      <th class="py-2 px-3 font-medium">${Vault.term('share27', '27+ share')}</th><th class="py-2 px-3 font-medium">Picks</th><th class="py-2 pl-3 font-medium">${Vault.term('hardness', 'How hard')}</th></tr>`;
   const row = p => {
     const P = o.paths[p.key], d = difficulty(o, p.key), active = p.key === pathKey;
     const now = P.odds ? `${pct(P.odds.championshipPct)} ${p.key === 'stay' ? '' : chg(base.odds.championshipPct, P.odds.championshipPct)}` : `${P.pts ? (P.pts > 0 ? '+' : '−') + Math.abs(P.pts).toFixed(1) + ' pts/wk' : 'as is'}`;

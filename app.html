@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="vault.css?v=36a6b470">
 <link rel="stylesheet" href="tailwind.css?v=c54f6235">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -64,19 +64,19 @@
                lower-priority columns appear as the screen gets wider (1100px, 1340px). -->
           <tr class="text-[12px] uppercase tracking-wider text-zinc-400">
             <th class="text-left px-4 py-3.5 font-semibold sortable" data-sort="teamName">Team</th>
-            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="recordWinPct" title="Current record, and the projected final record below it">Record</th>
-            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="playoffPct" title="Playoff odds, and title odds below">Playoffs</th>
-            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="overall">Overall</th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="recordWinPct"><span data-term="record">Record</span></th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="playoffPct"><span data-term="playoffs">Playoffs</span></th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="overall"><span data-term="overall">Overall</span></th>
             <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="qb" title="QB player value: rank in the league (1 = best)">QB</th>
             <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="rb" title="RB player value: rank in the league (1 = best)">RB</th>
             <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="wr" title="WR player value: rank in the league (1 = best)">WR</th>
             <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="te" title="TE player value: rank in the league (1 = best)">TE</th>
             <th class="text-center px-1 py-3.5 font-semibold sortable w-[60px]" data-sort="picksValue" title="Pick value: rank in the league (1 = best)">Picks</th>
-            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="age">Age</th>
-            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="actualSort" title="Points per game: actually scored so far, over the last three games, and projected for the best lineup over the next 4 weeks">PPG<button id="sortLast3" type="button" title="Sort by points a game over the last three games" class="block ml-auto text-[11px] normal-case font-normal text-zinc-400 hover:text-white">Last 3</button></th>
-            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="vorpTotal" title="Value Over Replacement Player — real, scarcity-adjusted lineup strength, comparable across positions (unlike raw Lineup PPG)">VORP</th>
-            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="longevity">Window</th>
-            <th class="hidden min-[1100px]:table-cell text-left px-2.5 py-3.5 font-semibold sortable" data-sort="archSort">Archetype</th>
+            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="age"><span data-term="age">Age</span></th>
+            <th class="text-right px-2.5 py-3.5 font-semibold sortable" data-sort="actualSort"><span data-term="ppgTeam">PPG</span><button id="sortLast3" type="button" title="Sort by points a game over the last three games" class="block ml-auto text-[11px] normal-case font-normal text-zinc-400 hover:text-white">Last 3</button></th>
+            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="vorpTotal"><span data-term="vorpTeam">VORP</span></th>
+            <th class="hidden min-[1340px]:table-cell text-right px-2.5 py-3.5 font-semibold sortable" data-sort="longevity"><span data-term="window">Window</span></th>
+            <th class="hidden min-[1100px]:table-cell text-left px-2.5 py-3.5 font-semibold sortable" data-sort="archSort"><span data-term="archetype">Archetype</span></th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.04]"></tbody>
@@ -130,10 +130,10 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=67424a13"></script>
+<script src="vault-core.js?v=7750624d"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=a07a2167"></script>
+<script src="player-card.js?v=164b1408"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 };
 
@@ -558,14 +558,14 @@ function showTeam(id) {
       <div class="grid grid-cols-4 gap-2 text-center py-3 mt-4 border-y border-white/5">
         ${stat(t.age.toFixed(1), 'Age')}
         ${stat(t.actualPpg != null ? t.actualPpg.toFixed(1) : '—', `PPG <span class="text-zinc-500">(${t.next4.toFixed(0)} proj.)</span>`)}
-        ${stat(Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—', 'VORP', 'text-zinc-100')}
-        ${stat(`${t.windowYears}yr`, 'Longevity')}
+        ${stat(Number.isFinite(t.vorpTotal) ? Vault.num1(t.vorpTotal) : '—', Vault.term('vorpTeam', 'VORP'), 'text-zinc-100')}
+        ${stat(`${t.windowYears}yr`, Vault.term('window', 'Longevity'))}
       </div>
       <div class="grid grid-cols-4 gap-2 text-center py-3 border-b border-white/5">
-        ${stat(t.last3 != null ? t.last3.toFixed(1) : '—', 'Last 3', lastThreeLow(t) ? 'text-orange-300' : 'text-zinc-200')}
-        ${stat(proj?.rec ?? '—', 'Proj. Record')}
-        ${stat(proj ? proj.playoffPct.toFixed(0) + '%' : '—', 'Playoff %', (proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-200')}
-        ${stat(proj ? proj.championshipPct.toFixed(1) + '%' : '—', 'Title %', (proj?.championshipPct ?? 0) >= 15 ? 'text-zinc-100 font-medium' : 'text-zinc-200')}
+        ${stat(t.last3 != null ? t.last3.toFixed(1) : '—', Vault.term('last3', 'Last 3'), lastThreeLow(t) ? 'text-orange-300' : 'text-zinc-200')}
+        ${stat(proj?.rec ?? '—', Vault.term('projRecord', 'Proj. Record'))}
+        ${stat(proj ? proj.playoffPct.toFixed(0) + '%' : '—', Vault.term('playoffs', 'Playoff %'), (proj?.playoffPct ?? 0) >= 50 ? 'text-emerald-400' : 'text-zinc-200')}
+        ${stat(proj ? proj.championshipPct.toFixed(1) + '%' : '—', Vault.term('title', 'Title %'), (proj?.championshipPct ?? 0) >= 15 ? 'text-zinc-100 font-medium' : 'text-zinc-200')}
       </div>`,
     // location.replace: Back from the team page comes here, not to the spare entry the pop-up added.
     foot: `<div class="px-4 sm:px-6 py-3 border-t border-white/[0.06]"><a href="${teamLink(t)}" onclick="event.preventDefault(); location.replace(this.href)" class="block text-center text-[13px] px-4 py-2.5 rounded-lg btn-gold-solid">Open team page</a></div>`,

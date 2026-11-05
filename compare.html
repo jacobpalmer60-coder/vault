@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="vault.css?v=36a6b470">
 <link rel="stylesheet" href="tailwind.css?v=c54f6235">
 <style>
   /* Up to four series, in the dataviz reference order for dark surfaces
@@ -120,10 +120,10 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=67424a13"></script>
+<script src="vault-core.js?v=7750624d"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=a07a2167"></script>
+<script src="player-card.js?v=164b1408"></script>
 <script src="stat-catalog.js?v=8f95f745"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -367,7 +367,7 @@ function renderCards(ps) {
       <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/5 text-center">
         <div><div class="mono text-[14px]">${Number.isFinite(p.age) ? p.age.toFixed(1) : '—'}</div><div class="text-[12px] text-zinc-400">Age</div></div>
         <div><div class="mono text-[14px]">${p.exp != null ? (p.exp === 0 ? 'Rookie' : p.exp + ' yr') : '—'}</div><div class="text-[12px] text-zinc-400">NFL exp</div></div>
-        <div><div class="mono text-[14px]">${Number.isFinite(p.ppg) ? p.ppg.toFixed(1) : '—'}</div><div class="text-[12px] text-zinc-400">Proj. PPG</div></div>
+        <div><div class="mono text-[14px]">${Number.isFinite(p.ppg) ? p.ppg.toFixed(1) : '—'}</div><div class="text-[12px] text-zinc-400">${Vault.term('projPpg', 'Proj. PPG')}</div></div>
       </div>
     </div>`).join('');
 }

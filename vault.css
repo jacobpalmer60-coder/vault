@@ -219,6 +219,13 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
 }
 /* Show/Hide on the Trade Calculator's sections stays on one line next to the title. */
 #builder details > summary > span:last-child { white-space: nowrap; flex-shrink: 0; }
+/* A word with an explanation behind it (Vault.term, a table header with a title), and the small ? (Vault.info). */
+[data-term], th[title], th[data-tip], .term { cursor: help; text-decoration: underline dotted rgba(161, 161, 170, 0.6); text-underline-offset: 3px; }
+th[data-term], th.sortable, th.sortable [data-term], button [data-term] { cursor: pointer; }
+[title]:not(button, a, input, select, th) { cursor: help; }
+.term-i { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 5px; vertical-align: 1px; border-radius: 999px; border: 1px solid rgba(161, 161, 170, 0.4); color: #a1a1aa; font-size: 10px; font-weight: 600; letter-spacing: 0; line-height: 1; text-transform: none; text-decoration: none; cursor: help; }
+.term-i:hover, .term-i:focus { border-color: #e3b04b; color: #e3b04b; outline: none; }
+@media (pointer: coarse) { .term-i { width: 18px; height: 18px; font-size: 11px; } }
 .player-link { cursor: pointer; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 2px; transition: text-decoration-color .15s; }
 .player-link:hover { text-decoration-color: currentColor; }
 /* The ring goes round the box you see, not the field inside it. */

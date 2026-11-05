@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="vault.css?v=36a6b470">
 <link rel="stylesheet" href="tailwind.css?v=c54f6235">
 <style>
   /* Playoff Race: a Sleeper-style standings list with one plain status per team.
@@ -101,7 +101,7 @@
   <div id="prBody" hidden>
     <p id="rules" class="pr-rules"></p>
     <section id="you" class="card pr-you" hidden></section>
-    <h2 class="pr-h2">Standings</h2>
+    <h2 class="pr-h2">Standings<span class="term-i" data-term="standings" tabindex="0" role="note">?</span></h2>
     <div id="list" class="card pr-list"></div>
     <p class="pr-sub">Click or tap a team for what it needs.</p>
     <section id="weekSec" hidden>
@@ -112,10 +112,10 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=67424a13"></script>
+<script src="vault-core.js?v=7750624d"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=a07a2167"></script>
+<script src="player-card.js?v=164b1408"></script>
 <script>
 /* ============================================================
    PLAYOFF RACE
@@ -433,7 +433,7 @@ function render() {
   }
   $('weekSec').hidden = !big.length;
   if (big.length) {
-    $('weekTitle').textContent = `Week ${next.week}: games that matter`;
+    $('weekTitle').innerHTML = `Week ${next.week}: games that matter${Vault.info('bigGames')}`;
     $('week').innerHTML = big.map(g => `<div class="card pr-game"><div class="why">${g.why}</div>${esc(g.hi.name)} <span class="rec">${rec(g.hi)}</span> vs ${esc(g.lo.name)} <span class="rec">${rec(g.lo)}</span></div>`).join('');
   }
 

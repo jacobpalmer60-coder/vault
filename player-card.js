@@ -257,18 +257,18 @@
       </div>
       <div class="flex flex-wrap gap-2 mb-4">${cardActions(r)}</div>
       <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">
-        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Value</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="value">Value</span></div></div>
         <div><div class="mono text-[15px] text-zinc-100">${r.posRank ? '#' + r.posRank + ' of ' + r.posCount : '—'}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">${r.pos || 'Pos'} Rank</div></div>
-        <div><div class="mono text-[15px] ${r.out ? 'text-rose-300' : r.bench ? 'text-zinc-500' : 'text-zinc-100'}"${r.out || r.bench ? ` title="${outTip(r)}"` : ''}>${r.out ? 'Out' : r.bench ? 'Bench' : fmtFloat(r.ppg, 2)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">PPG</div></div>
-        <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}" title="Points per game above the best player at ${r.pos || 'this position'} who wouldn't start anywhere in your league">${fmtSigned(r.vorp)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">VORP</div></div>
+        <div><div class="mono text-[15px] ${r.out ? 'text-rose-300' : r.bench ? 'text-zinc-500' : 'text-zinc-100'}"${r.out || r.bench ? ` title="${outTip(r)}"` : ''}>${r.out ? 'Out' : r.bench ? 'Bench' : fmtFloat(r.ppg, 2)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="projPpg">PPG</span></div></div>
+        <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}">${fmtSigned(r.vorp)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="vorp">VORP</span></div></div>
       </div>
       ${injuryHtml(r)}
       ${playoffHtml(r)}
       <div id="pcWeekly" class="mb-4"></div>
       <div id="pcMarket" class="mb-4"></div>
-      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time</div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time${Vault.info('valueOverTime')}</div>
       <div id="pcValueChart">${valueChart}</div>
-      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time</div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time${Vault.info('ppgOverTime')}</div>
       ${ppgChart}
       ${historySection}
     `;
@@ -287,7 +287,7 @@
     if (!r.playoff?.length) return '';
     const cell = w => `<div><div class="mono text-[15px] ${w.pts == null ? 'text-zinc-500' : 'text-zinc-100'}">${w.pts == null ? 'Out' : w.pts.toFixed(1)}</div><div class="text-[11px] text-zinc-400 mt-0.5">Week ${w.week}</div></div>`;
     return `<div class="rounded-xl border border-white/10 bg-black/20 p-3.5 mb-4">
-        <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Playoff weeks <span class="normal-case tracking-normal text-zinc-500">· projected points</span></div>
+        <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Playoff weeks${Vault.info('playoffWeeks')} <span class="normal-case tracking-normal text-zinc-500">· projected points</span></div>
         <div class="grid gap-2 text-center" style="grid-template-columns:repeat(${r.playoff.length},minmax(0,1fr))">${r.playoff.map(cell).join('')}</div>
       </div>`;
   }
@@ -317,7 +317,7 @@
         const on = recent.includes(w), top = y(Math.max(w.pts, 0));
         return `<g><title>Week ${w.week}${w.opp ? ` vs ${Vault.escapeHtml(w.opp)}` : ''}: ${w.pts.toFixed(1)} points</title><rect x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent"/><rect x="${x - 7}" y="${top}" width="14" height="${Math.max(1, H - B - top)}" rx="2" fill="#fbbf24" opacity="${on ? 1 : 0.45}"/>${w.pts === Math.max(...played.map(p => p.pts)) || w === played[played.length - 1] ? `<text x="${x}" y="${top - 3}" text-anchor="middle" font-size="9" fill="currentColor" class="text-zinc-300">${w.pts.toFixed(1)}</text>` : ''}${label}</g>`;
       }).join('');
-      box.innerHTML = `<div class="flex items-baseline justify-between gap-3 mb-2"><div class="text-[11px] text-zinc-400 uppercase tracking-wider">Points by week</div><div class="text-[12px] text-zinc-400">${recent.length > 1 ? `Last ${recent.length}: <span class="mono text-zinc-200">${avg(recent).toFixed(1)}</span> · ` : ''}Season: <span class="mono text-zinc-200">${avg(played).toFixed(1)}</span> a game</div></div>
+      box.innerHTML = `<div class="flex items-baseline justify-between gap-3 mb-2"><div class="text-[11px] text-zinc-400 uppercase tracking-wider">Points by week${Vault.info('pointsByWeek')}</div><div class="text-[12px] text-zinc-400">${recent.length > 1 ? `Last ${recent.length}: <span class="mono text-zinc-200">${avg(recent).toFixed(1)}</span> · ` : ''}Season: <span class="mono text-zinc-200">${avg(played).toFixed(1)}</span> a game</div></div>
         <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${Vault.escapeHtml(r.player)}'s points each week this season">${bars}</svg>`;
     });
   }
@@ -349,7 +349,7 @@
     const box = document.getElementById('pcMarket');
     if (!box || !leagueObj || !r.value) return;
     const shell = inner => `<div class="rounded-xl border border-white/10 bg-black/20 p-3.5">
-        <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Market value <span class="normal-case tracking-normal text-zinc-500">· what managers actually pay</span></div>${inner}</div>`;
+        <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Market value${Vault.info('market')} <span class="normal-case tracking-normal text-zinc-500">· what managers actually pay</span></div>${inner}</div>`;
     box.innerHTML = shell('<div class="text-[12px] text-zinc-500 mt-1.5">Checking completed trades…</div>');
     loadDailyMarket().then(daily => {
       const line = daily && daily.players[r.norm], chart = document.getElementById('pcValueChart');
@@ -402,7 +402,7 @@
         <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border shrink-0 ${posColor(r.pos)}">PICK</span>
       </div>
       <div class="grid grid-cols-3 gap-2 text-center py-3 border-y border-white/10 mb-4">
-        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Value</div></div>
+        <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="value">Value</span></div></div>
         <div><div class="mono text-[15px] text-zinc-100">#${r.posRank} of ${r.posCount}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Among picks</div></div>
         <div><div class="mono text-[15px] text-zinc-100">#${r.overallRank}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">Overall</div></div>
       </div>
@@ -665,7 +665,7 @@
     return `<div class="pr-8 mb-4"><div class="text-[20px] font-bold text-zinc-100 truncate">${Vault.escapeHtml(t.teamName)}</div>
         <div class="text-[12px] text-zinc-400 mt-1">${[rec, Vault.MODE_LABEL[Vault.teamMode(t)], needs.length ? `Thin at ${needs.join(', ')}` : ''].filter(Boolean).join(' • ')}</div></div>
       <div class="flex flex-wrap gap-2 mb-4">${link(`${Vault.linkTo('team-analyzer.html')}&team=${t.rosterId}`, 'Open team')}${link(`${Vault.linkTo('trade.html')}&coach=team&with=${t.rosterId}`, 'Start a trade')}</div>
-      <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">${stat(`#${rank}`, 'Value')}${stat(t.opt ? t.opt.toFixed(1) : '—', `Lineup #${ppg}`)}${stat(pct(p?.playoffPct ?? t.playoffPct), 'Playoffs')}${stat(pct(p?.championshipPct), 'Title')}</div>
+      <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">${stat(`#${rank}`, Vault.term('overall', 'Value'))}${stat(t.opt ? t.opt.toFixed(1) : '—', Vault.term('lineupPpg', `Lineup #${ppg}`))}${stat(pct(p?.playoffPct ?? t.playoffPct), Vault.term('playoffs', 'Playoffs'))}${stat(pct(p?.championshipPct), Vault.term('title', 'Title'))}</div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Most valuable players</div>
       <div class="space-y-1.5 text-[13px]">${best.map(a => `<div class="flex items-baseline justify-between gap-3"><span class="min-w-0 text-zinc-200">${Vault.playerLink(a.name)} <span class="text-[12px] text-zinc-500">${Vault.posMeta(a)}</span></span><span class="mono text-zinc-400">${fmtInt(a.value)}</span></div>`).join('')}</div>`;
   }

@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=464321da">
+<link rel="stylesheet" href="vault.css?v=36a6b470">
 <link rel="stylesheet" href="tailwind.css?v=c54f6235">
 <style>
   /* Phones: tighter cells, so value, market price and projected points fit without scrolling sideways (2026-10-23). */
@@ -91,11 +91,11 @@
             <th class="hidden sm:table-cell px-4 py-3 font-medium w-14">#</th>
             <th class="px-4 py-3 font-medium sortable" data-key="player">Player <span class="sort-ind"></span></th>
             <th class="hidden sm:table-cell px-4 py-3 font-medium sortable text-right" data-key="age">Age <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="value">Value <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="marketPrice" title="What managers pay for him in completed trades: the price trade value (the grade) uses, the same on every page (Player Market), and how far that is from his KTC value. Hover a cell for how that compares with similar players.">Market price <span class="sort-ind"></span></th>
-            <th class="hidden sm:table-cell px-4 py-3 font-medium sortable text-right" data-key="trendDelta" title="Value change over the selected trend window (see the 3mo/6mo/1yr/All toggle above the table) — tracked for players rostered in your league only">Trend <span class="sort-ind"></span></th>
-            <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg" title="Projected points per game in your league's scoring. Green: top fifth at his position; red: bottom fifth.">Proj. PPG <span class="sort-ind"></span></th>
-            <th class="hidden sm:table-cell px-4 py-3 font-medium sortable text-right" data-key="vorp" title="Value Over Replacement Player — PPG above the best player at this position who wouldn't start anywhere in your league. Comparable ACROSS positions, unlike raw PPG — this is why a Superflex QB is worth so much more than a similar-PPG RB: replacement-level QB is far worse relative to a starter.">VORP <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="value"><span data-term="value">Value</span> <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="marketPrice"><span data-term="market">Market price</span> <span class="sort-ind"></span></th>
+            <th class="hidden sm:table-cell px-4 py-3 font-medium sortable text-right" data-key="trendDelta"><span data-term="trend">Trend</span> <span class="sort-ind"></span></th>
+            <th class="px-4 py-3 font-medium sortable text-right" data-key="ppg"><span data-term="projPpg">Proj. PPG</span> <span class="sort-ind"></span></th>
+            <th class="hidden sm:table-cell px-4 py-3 font-medium sortable text-right" data-key="vorp"><span data-term="vorp">VORP</span> <span class="sort-ind"></span></th>
           </tr>
         </thead>
         <tbody id="tbody" class="divide-y divide-white/[0.06]">
@@ -110,10 +110,10 @@
   </footer>
 </div>
 
-<script src="vault-core.js?v=67424a13"></script>
+<script src="vault-core.js?v=7750624d"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=a07a2167"></script>
+<script src="player-card.js?v=164b1408"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
