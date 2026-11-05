@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=b53f3fc0"></script>
+<script src="vault-core.js?v=1c75a5fe"></script>
 <script src="vault-nav.js?v=dae2b099"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'fixed', page: 'Everywhere', text: "A player's age now reads the same on every page: some were a year behind on the calculator and in search lists." },
+    { kind: 'changed', page: 'How We Grade', text: "Brought up to date with how Trade Coach works now, including that cornerstones are tagged rather than hidden, and added how Push now prices its example." },
     { kind: 'fixed', page: 'Site', text: "Wording brought up to date: how often projections refresh, how injuries and return weeks work, and the Trade Lab trade count. Notes that say to hover no longer show on phones." },
     { kind: 'fixed', page: 'Everywhere', text: "Search boxes on the calculator, Player Market and Compare now respond across the whole box, and the gold outline goes round the box you see." },
     { kind: 'fixed', page: 'Everywhere', text: "Phones no longer zoom the page in when you tap a text box, small text links are easier to tap, and any name cut off with … shows in full on hover." },

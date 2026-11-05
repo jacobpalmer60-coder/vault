@@ -938,13 +938,19 @@ const Vault = {
      roster sections. KTC prices them at their fantasy position; use that whenever
      Sleeper's isn't QB/RB/WR/TE (filled by buildKtcValueMap). */
   _ktcPos: new Map(),
+  // Ages from KTC, updated daily. Sleeper's can be a year behind (2026-11-05: DeVonta Smith read
+  // 27 on the calculator, 28.0 on his card), so KTC's wins wherever it has the player.
+  _ktcAge: new Map(),
   fantasyPos(sleeperPos, name) {
     if (['QB', 'RB', 'WR', 'TE'].includes(sleeperPos)) return sleeperPos;
     return Vault._ktcPos.get(Vault.normalizeName(name || '')) || sleeperPos || '';
   },
 
   buildKtcValueMap(ktcData, isSF, bonusRecTe) {
-    (ktcData?.players || []).forEach(p => { if (p.pos && p.name) Vault._ktcPos.set(Vault.normalizeName(p.name), p.pos); });
+    (ktcData?.players || []).forEach(p => {
+      if (p.pos && p.name) Vault._ktcPos.set(Vault.normalizeName(p.name), p.pos);
+      if (p.age && p.name) Vault._ktcAge.set(Vault.normalizeName(p.name), p.age);
+    });
     const field = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
     const map = new Map();
     let maxVal = 0;
@@ -2048,7 +2054,7 @@ const Vault = {
         const nm = `${p.first_name || ''} ${p.last_name || ''}`.trim();
         const ppg = ppgMap.get(String(pid)) || 0;
         const pos = Vault.fantasyPos(p.position, nm);
-        return { id: String(pid), name: nm, pos, age: p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, pos, replacementLevels), ...Vault.availOf(projData.players?.[String(pid)], p, String(pid)), ...Vault.injuryOf(p) };
+        return { id: String(pid), name: nm, pos, age: Vault._ktcAge.get(Vault.normalizeName(nm)) || p.age || 0, nfl: p.team || '', value: valMap.get(Vault.normalizeName(nm)) || 0, ppg, vorp: Vault.vorp(ppg, pos, replacementLevels), ...Vault.availOf(projData.players?.[String(pid)], p, String(pid)), ...Vault.injuryOf(p) };
       });
       const total = plist.reduce((s, p) => s + p.value, 0);
       const qb = plist.filter(p => p.pos === 'QB').reduce((s, p) => s + p.value, 0);
@@ -5358,7 +5364,7 @@ const Vault = {
     if (el && noHover()) { e.preventDefault(); e.stopPropagation(); if (on === el) hide(); else show(el); return; }
     hide();
   }, true);
-  addEventListener('scroll', hide, true);
+  globalThis.addEventListener?.('scroll', hide, true); // the data scripts load this file outside a browser
 })();
 
 // A text box drawn bigger than its field, with an icon or padding around it: all of it is the
@@ -5383,7 +5389,7 @@ document.addEventListener('mouseover', e => {
   const fill = () => document.querySelectorAll('[data-facts]').forEach(el => {
     const pos = ['QB', 'RB', 'WR', 'TE'].includes(el.dataset.pos) ? el.dataset.pos : undefined;
     const p = players[Vault.findSleeperId(players, el.dataset.facts, pos)];
-    el.textContent = p ? Vault.playerInfo({ nfl: p.team || '', age: p.age }) : '';
+    el.textContent = p ? Vault.playerInfo({ nfl: p.team || '', age: Vault._ktcAge.get(Vault.normalizeName(el.dataset.facts)) || p.age }) : '';
     el.removeAttribute('data-facts');
   });
   new MutationObserver(() => {
@@ -5391,7 +5397,11 @@ document.addEventListener('mouseover', e => {
     if (players) return fill();
     if (loading) return;
     loading = true;
-    Vault.fetchSleeperPlayers().then(list => { players = list || {}; fill(); }).catch(() => { loading = false; });
+    Promise.all([Vault.fetchSleeperPlayers(), Vault.fetchKtcValues().catch(() => null)]).then(([list, ktc]) => {
+      players = list || {};
+      (ktc?.players || []).forEach(p => { if (p.age) Vault._ktcAge.set(Vault.normalizeName(p.name), p.age); });
+      fill();
+    }).catch(() => { loading = false; });
   }).observe(document.documentElement, { childList: true, subtree: true });
 })();
 
@@ -5400,7 +5410,7 @@ Vault.tabButtons = (tabs, key, onclick = 'showTab') => tabs.map(([k, label]) => 
 
 // First in line for Back, so a player card opened over Trade Coach or a pop-up closes alone
 // (player-card.js). Listeners run in the order they were added, and this file loads first.
-addEventListener('popstate', e => { if (Vault._cardPop?.()) e.stopImmediatePropagation(); });
+globalThis.addEventListener?.('popstate', e => { if (Vault._cardPop?.()) e.stopImmediatePropagation(); });
 
 /* Shared pop-up (user, 2026-11-04: less scrolling). Vault.popup({ title, html, foot }) opens it,
    or swaps what's in it if it's already open; a full-screen sheet on phones. Esc, the ×
