@@ -985,7 +985,7 @@ function coachTeamLineHtml(me) {
       <label class="inline-flex items-center gap-1">Timeline <select onchange="coachSetPlan(this.value)" aria-label="Your timeline" class="bg-black/40 border border-white/10 rounded-md px-1.5 py-0.5 text-[12px] text-zinc-200">${opt('auto', `Auto (${auto})`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}</select></label></div>`;
 }
 // The rail: where you are, and each decision so far. A stop you've passed goes back to it.
-const COACH_RAIL_AT = { what: 0, goal: 1, send: 1, pick: 2, build: 3 };
+const COACH_RAIL_AT = { what: 0, aims: 0, goal: 1, send: 1, pick: 2, build: 3 };
 function coachRailHtml(me, neg) {
   const f = coachFlow(), w = Coach.work, at = neg ? 3 : COACH_RAIL_AT[f.step] ?? 0, trail = f.trail || [];
   const goal = f.what === 'player' ? (COACH_GOALS[f.goal] || '') : f.what === 'position' && f.posGoal ? (f.posGoal === 'depth' ? 'Add depth' : COACH_GOALS[f.posGoal]) : '';
@@ -1031,8 +1031,7 @@ function coachWhatHtml(me) {
     </select>
     <div class="text-[12px] text-zinc-500 mt-5 mb-2">Or start from a position</div>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${['QB', 'RB', 'WR', 'TE'].map(p => coachChoice(`coachStartFrom('pos:${p}')`, p, coachPosNeed(me, p) ? '<span class="text-rose-300">You\'re thin here</span>' : '')).join('')}</div>
-    <div class="text-[12px] text-zinc-500 mt-5 mb-2">Not sure? Start from a goal</div>
-    <div class="grid sm:grid-cols-2 gap-2">${Object.entries(COACH_AIMS).map(([k, a]) => coachChoice(`coachStartAim('${k}')`, a.label, a.sub)).join('')}</div>
+    <div class="mt-5">${coachChoice("coachGo('aims')", 'Not sure? Start from a goal', 'More points, your title odds, rebuilding, selling high and more.')}</div>
     <div class="mt-6 pt-4 border-t border-white/[0.06]">${coachTeamLineHtml(me)}</div>`;
 }
 function coachStartFrom(v) {
@@ -1052,19 +1051,62 @@ function coachStartFrom(v) {
    spread of ideas, and a row opens that trade on the Trade step to change as you like. */
 const COACH_AIMS = {
   points: { label: 'Score more points', sub: 'Trades that add the most to your lineup.', ask: 'Trades that add the most points', blurb: 'Their players who would start for you, with what it could take.', none: 'No trade their manager would likely take adds a point a week or more to your lineup.' },
-  future: { label: 'Build for the future', sub: 'Turn older players into picks and young players.', ask: 'Trades that build for the future', blurb: 'Your older players for picks and players 24 or younger.', none: 'No team would take a trade like this right now.' },
-  consolidate: { label: 'Turn depth into a star', sub: 'Two or more of yours for one better player.', ask: 'Trades that turn depth into a star', blurb: 'Several of yours for one player better than any of them.', none: 'No team would likely take several of yours for a better player right now.' },
+  title: { label: 'Win the title', sub: 'Trades that raise your title odds the most.', ask: 'Trades that raise your title odds', blurb: 'The trades that add the most points, run through the rest of the season.', none: 'No trade their manager would likely take raises your title odds.' },
+  playoffs: { label: 'Make the playoffs', sub: 'Trades that raise your playoff odds the most.', ask: 'Trades that raise your playoff odds', blurb: 'The trades that add the most points, run through the rest of the season.', none: 'No trade their manager would likely take raises your playoff odds.' },
+  strength: { label: 'Trade from your strength', sub: 'Your deep spots for help where you\'re thin.', ask: 'Trades from your strength', blurb: '', none: 'No team would likely take a trade like this right now.' },
+  consolidate: { label: 'Turn depth into a star', sub: 'Two or more of yours for one better player.', ask: 'Trades that turn depth into a star', blurb: 'Your bench and picks for one player better than any of them.', none: 'No team would likely take several of yours for a better player right now.' },
   depth: { label: 'Add depth', sub: 'Cheap backups at your thinnest spot.' },
+  future: { label: 'Build for the future', sub: 'Turn older players into picks and young players.', ask: 'Trades that build for the future', blurb: 'Your older players for picks and players 24 or younger.', none: 'No team would take a trade like this right now.' },
+  younger: { label: 'Get younger, keep your points', sub: 'A younger player at the same spot.', ask: 'Trades that get younger without losing points', blurb: 'Your older players for younger ones at their position, your lineup about the same.', none: 'No trade their manager would likely take gets younger without costing you points.' },
+  sellhigh: { label: 'Sell high', sub: 'Your players going for more than similar players.', ask: 'Sell high', blurb: 'Yours that go for more than similar players, sold above their KTC value.', none: 'None of your players is going for 8% or more over similar players with a deal that beats KTC value.' },
+  buylow: { label: 'Buy low', sub: 'Their players going for less than similar players.', ask: 'Buy low', blurb: 'Theirs that go for less than similar players, bought below their KTC value.', none: 'No player going for 8% or more under similar players has a deal that beats KTC value.' },
+  timing: { label: 'Buy before prices rise', sub: '', ask: 'Buy before prices rise', blurb: '', none: 'No trade their manager would likely take fits this right now.' },
 };
+const COACH_AIM_GROUPS = { now: ['Win now', ['points', 'title', 'playoffs']], shape: ['Reshape your roster', ['strength', 'consolidate', 'depth']], later: ['Build for later', ['future', 'younger']], market: ['Play the market', ['sellhigh', 'buylow', 'timing']] };
 // Past where value starts sliding, by position (the age-27 cliff; QBs hold longer).
 const COACH_AIM_AGE = { QB: 31, RB: 26, WR: 27, TE: 28 };
-const COACH_AIM_SHOW = 8, COACH_AIM_TARGETS = 24, COACH_AIM_SELLERS = 6;
+const COACH_AIM_SHOW = 8, COACH_AIM_TARGETS = 24, COACH_AIM_SELLERS = 6, COACH_AIM_ODDS = 12, COACH_AIM_MARKET = 8, COACH_AIM_KTC = 3;
+// Season goals: whichever you're playing for, none once you're out of it or it's over.
+function coachOddsAim(me) {
+  if (!remainingWeeks.length || !Number.isFinite(me.playoffPct) || me.playoffPct < VAULT_CONFIG.OUT_OF_RACE_PCT) return null;
+  return me.playoffPct >= COACH_CONTENDER_PCT ? 'title' : 'playoffs';
+}
+/* Positions that usually beat the rest of the market over the next three months from now
+   (findings.json timing: KTC value, median, 2020-2026, against the median position; KTC's
+   scale is relative, so most players drift down). 2+ points or it isn't shown. */
+const COACH_TIMING_MIN = 2;
+let coachTimingRead = null;
+function coachTimingLoad() {
+  if (coachTimingRead) return;
+  coachTimingRead = { pos: [] };
+  fetch('data/market-history/findings.json').then(r => (r.ok ? r.json() : null)).catch(() => null).then(f => {
+    const rows = f?.timing?.byMonth, month = new Date().toLocaleDateString('en-US', { month: 'short' });
+    if (!rows) return;
+    const now = rows.map(r => ({ pos: r.pos, median: r.months.find(m => m.month === month)?.median })).filter(r => Number.isFinite(r.median));
+    const mid = [...now].sort((a, b) => a.median - b.median)[(now.length - 1) >> 1]?.median ?? 0;
+    coachTimingRead = { pos: now.filter(r => r.median - mid >= COACH_TIMING_MIN).map(r => ({ pos: r.pos, gain: Math.round(r.median - mid) })) };
+    if (coachOpen() && coachFlow().step === 'aims') renderCoach();
+  });
+}
+const coachTimingText = () => coachTimingRead.pos.map(p => `${p.pos}s`).join(' and ');
 function coachStartAim(k) {
   if (k === 'depth') {
     const pos = coachDefaultPos();
     return coachGo('pick', f => Object.assign(f, { what: 'position', pos, startName: pos, posGoal: 'depth', upKeys: [], recs: null }));
   }
   coachGo('pick', f => Object.assign(f, { what: 'aim', aim: k, startName: COACH_AIMS[k].label, aimRun: null, recs: null }));
+}
+// The goals, one group after another, the ones that fit your timeline first.
+function coachAimsHtml(me) {
+  coachTimingLoad();
+  const odds = coachOddsAim(me), mode = Vault.teamMode(me);
+  const order = mode === 'rebuild' ? ['later', 'shape', 'market', 'now'] : mode === 'contend' ? ['now', 'shape', 'market', 'later'] : ['shape', 'now', 'later', 'market'];
+  const shown = k => (k === 'title' || k === 'playoffs' ? k === odds : k === 'timing' ? coachTimingRead.pos.length > 0 : true);
+  const sub = k => (k === 'timing' ? `${coachTimingText()} usually gain on other positions from here.` : COACH_AIMS[k].sub);
+  return coachAsk('What are you after?') + order.map(g => {
+    const [label, keys] = COACH_AIM_GROUPS[g], list = keys.filter(shown);
+    return `<div class="text-[12px] text-zinc-500 mt-4 first:mt-0 mb-2">${label}</div><div class="grid sm:grid-cols-2 gap-2">${list.map(k => coachChoice(`coachStartAim('${k}')`, COACH_AIMS[k].label, sub(k))).join('')}</div>`;
+  }).join('');
 }
 async function coachAimRun(k) {
   const me = coachMe(), others = teams.filter(t => t !== me), run = { key: k, list: null, done: 0, of: 0 };
@@ -1074,51 +1116,111 @@ async function coachAimRun(k) {
   await coachTick();
   if (stale()) return;
   const players = filt => others.flatMap(t => t.assets.filter(a => a.type === 'player' && !coachTheirOff(a) && filt(a)).map(a => ({ a, t })));
+  const gainOf = (t, give, get) => coachAfter(me.rosterId, t.rosterId, give, get).opt - me.opt;
+  const beatsKtc = (give, get) => coachKtcPct(give, get) >= COACH_AIM_KTC;
   const out = [];
   // A trade that passes: a likely yes that isn't bad for you.
-  const read = (t, give, get, extra = {}) => {
+  const read = (t, give, get, extra = {}, also = () => true) => {
     const r = coachWorkRead(me, { partner: t, give, get, option: 'build' });
-    if (r.yes && coachLevelRank(r) < 2) out.push({ t, give, get, r, ...extra });
+    if (r.yes && coachLevelRank(r) < 2 && also(r)) { const x = { t, give, get, r, ...extra }; out.push(x); return x; }
+    return null;
   };
-  if (k === 'future') {
+  // One target at a time, so the screen can count them off.
+  const each = async (list, fn) => {
+    run.of = list.length;
+    for (const item of list) {
+      fn(item);
+      run.done++; show(); await coachTick();
+      if (stale()) return false;
+    }
+    return true;
+  };
+  const offers = (a, t, protect = new Set()) => coachOffers(me, t, [a], { limit: 4, perLead: 2, option: 'build', protect });
+  // Who would start for you, best upgrade first.
+  const starters = (me.lineup || []).filter(s => s.id), floor = {};
+  starters.forEach(s => { floor[s.pos] = Math.min(floor[s.pos] ?? Infinity, s.ppg); });
+  const upgrades = () => players(a => a.ppg > 0 && floor[a.pos] != null && a.ppg >= floor[a.pos] + 1).sort((x, y) => (y.a.ppg - floor[y.a.pos]) - (x.a.ppg - floor[x.a.pos])).slice(0, COACH_AIM_TARGETS);
+  const addPoints = ({ a, t }) => offers(a, t).forEach(o => { const gain = gainOf(t, o.give, o.get); if (gain >= 1) read(t, o.give, o.get, { lead: a.key, gain }); });
+  let keep = true;
+  if (k === 'points') keep = await each(upgrades(), addPoints);
+  else if (k === 'title' || k === 'playoffs') {
+    keep = await each(upgrades(), addPoints);
+    if (keep) {
+      // The season simulation is the slow part, so only the trades that add the most run it.
+      const best = out.splice(0).sort((x, y) => coachLevelRank(x.r) - coachLevelRank(y.r) || y.gain - x.gain).filter((x, i, l) => l.findIndex(z => z.lead === x.lead) === i).slice(0, COACH_AIM_ODDS);
+      run.done = 0; run.phase = 'Running the season';
+      keep = await each(best, x => {
+        const s = coachSeasonOdds({ partner: x.t, give: x.give, get: x.get });
+        if (!s) return;
+        const [was, now] = k === 'title' ? [s.before, s.after] : [s.playoffsBefore, s.playoffsAfter];
+        if (now - was < 0.5) return;
+        const pc = v => `${v > 0 && v < 1 ? '<1' : Math.round(v)}%`;
+        out.push({ ...x, lift: now - was, note: `${k === 'title' ? 'Title' : 'Playoffs'} ${pc(was)} → ${pc(now)}` });
+      });
+    }
+  } else if (k === 'consolidate') {
+    const best = Math.max(...me.assets.filter(a => a.type === 'player').map(a => a.value)), bench = coachStarterKeys(me);
+    keep = await each(players(a => a.value >= 3000 && a.value <= best * 1.3).sort((x, y) => y.a.value - x.a.value).slice(0, COACH_AIM_TARGETS), ({ a, t }) => offers(a, t, bench).forEach(o => {
+      if (o.give.length >= 2 && o.get.length === 1 && Math.max(...o.give.map(x => x.value)) < a.value) read(t, o.give, o.get, { lead: a.key });
+    }));
+  } else if (k === 'strength') {
+    const { needs, surpluses } = Vault.positionalProfile(me, teams), up = l => l.map(p => p.toUpperCase());
+    const want = up(needs.length ? needs : [coachDefaultPos()]), deep = up(surpluses).filter(p => !want.includes(p));
+    run.deep = deep; run.want = want;
+    if (deep.length) {
+      const keepOut = new Set(me.assets.filter(a => !(a.type === 'player' && deep.includes(a.pos))).map(a => a.key));
+      const fits = t => deep.some(p => coachPosNeed(t, p));
+      keep = await each(players(a => want.includes(a.pos) && a.ppg > 0 && a.value >= 1500).sort((x, y) => fits(y.t) - fits(x.t) || y.a.ppg - x.a.ppg).slice(0, COACH_AIM_TARGETS), ({ a, t }) => offers(a, t, keepOut).forEach(o => {
+        read(t, o.give, o.get, { lead: a.key, both: o.give.some(x => coachPosNeed(t, x.pos)), gain: Math.max(0, gainOf(t, o.give, o.get)) || undefined });
+      }));
+    }
+  } else if (k === 'future') {
     const sellers = me.assets.filter(a => a.type === 'player' && a.value >= 1000 && a.age >= COACH_AIM_AGE[a.pos]).sort((x, y) => y.value - x.value).slice(0, COACH_AIM_SELLERS);
-    run.of = sellers.length;
-    for (const a of sellers) {
-      const young = others.flatMap(t => t.assets.filter(x => !coachTheirOff(x) && (x.type === 'pick' || (x.age > 0 && x.age <= 24)) && x.value >= a.value * 0.5 && x.value <= a.value * 1.3).map(x => ({ a: x, t }))).sort((x, y) => Math.abs(x.a.value - a.value) - Math.abs(y.a.value - a.value)).slice(0, 16);
-      for (const c of young) read(c.t, [a], [c.a], { lead: a.key });
-      run.done++; show(); await coachTick();
-      if (stale()) return;
-    }
-  } else {
-    const starters = (me.lineup || []).filter(s => s.id), floor = {};
-    starters.forEach(s => { floor[s.pos] = Math.min(floor[s.pos] ?? Infinity, s.ppg); });
-    const best = Math.max(...me.assets.filter(a => a.type === 'player').map(a => a.value));
-    const targets = k === 'points'
-      ? players(a => a.ppg > 0 && floor[a.pos] != null && a.ppg >= floor[a.pos] + 1).sort((x, y) => (y.a.ppg - floor[y.a.pos]) - (x.a.ppg - floor[x.a.pos])).slice(0, COACH_AIM_TARGETS)
-      : players(a => a.value >= 3000 && a.value <= best * 1.3).sort((x, y) => y.a.value - x.a.value).slice(0, COACH_AIM_TARGETS);
-    run.of = targets.length;
-    for (const { a, t } of targets) {
-      // Depth means your bench and picks: your starters stay out of these.
-      for (const o of coachOffers(me, t, [a], { limit: 4, perLead: 2, option: 'build', protect: k === 'consolidate' ? coachStarterKeys(me) : new Set() })) {
-        if (k === 'consolidate' && !(o.give.length >= 2 && o.get.length === 1 && Math.max(...o.give.map(x => x.value)) < a.value)) continue;
-        const before = out.length;
-        read(t, o.give, o.get, { lead: a.key });
-        if (k === 'points' && out.length > before) {
-          const x = out[out.length - 1], gain = coachAfter(me.rosterId, t.rosterId, o.give, o.get).opt - me.opt;
-          if (gain >= 1) x.gain = gain; else out.pop();
-        }
+    keep = await each(sellers, a => {
+      others.flatMap(t => t.assets.filter(x => !coachTheirOff(x) && (x.type === 'pick' || (x.age > 0 && x.age <= 24)) && x.value >= a.value * 0.5 && x.value <= a.value * 1.3).map(x => ({ a: x, t })))
+        .sort((x, y) => Math.abs(x.a.value - a.value) - Math.abs(y.a.value - a.value)).slice(0, 16).forEach(c => read(c.t, [a], [c.a], { lead: a.key }));
+    });
+  } else if (k === 'younger') {
+    const olds = me.assets.filter(a => a.type === 'player' && a.value >= 1500 && a.age >= 26).sort((x, y) => y.age - x.age || y.value - x.value).slice(0, COACH_AIM_MARKET);
+    keep = await each(olds, a => {
+      players(x => x.pos === a.pos && x.age > 0 && x.age <= a.age - 2.5 && x.value >= a.value * 0.7 && x.value <= a.value * 1.25).sort((x, y) => (y.a.ppg || 0) - (x.a.ppg || 0)).slice(0, 12).forEach(({ a: b, t }) => {
+        const gain = gainOf(t, [a], [b]);
+        if (gain >= -1) read(t, [a], [b], { lead: a.key, drop: a.age - b.age, note: `${(a.age - b.age).toFixed(1)} years younger · ${Math.abs(gain) < 0.05 ? 'same points' : `${gain > 0 ? '+' : '−'}${Math.abs(gain).toFixed(1)} pts a week`}` });
+      });
+    });
+  } else if (k === 'sellhigh' || k === 'buylow') {
+    await marketLoad(league).catch(() => {});
+    if (stale()) return;
+    if (Market.data && !Market.data.failed) {
+      const adj = a => marketPeerAdj(league, a), pc = v => `${Math.abs(Math.round(v))}%`;
+      if (k === 'sellhigh') {
+        const highs = me.assets.filter(a => a.value >= 1500 && adj(a) >= COACH_AIM_MARKET).sort((x, y) => adj(y) - adj(x)).slice(0, COACH_AIM_SELLERS);
+        keep = await each(highs, a => {
+          others.flatMap(t => t.assets.filter(x => !coachTheirOff(x) && x.value >= a.value * 0.9 && x.value <= a.value * 1.4).map(x => ({ a: x, t })))
+            .sort((x, y) => Math.abs(x.a.value - a.value) - Math.abs(y.a.value - a.value)).slice(0, 16)
+            .forEach(c => read(c.t, [a], [c.a], { lead: a.key, note: `${coachEsc(a.name)} goes ${pc(adj(a))} over similar players` }, () => beatsKtc([a], [c.a])));
+        });
+      } else {
+        keep = await each(players(a => a.value >= 1500 && adj(a) <= -COACH_AIM_MARKET).sort((x, y) => adj(x.a) - adj(y.a)).slice(0, COACH_AIM_TARGETS), ({ a, t }) => offers(a, t).forEach(o => {
+          read(t, o.give, o.get, { lead: a.key, note: `${coachEsc(a.name)} goes ${pc(adj(a))} under similar players` }, () => beatsKtc(o.give, o.get));
+        }));
       }
-      run.done++; show(); await coachTick();
-      if (stale()) return;
     }
+  } else if (k === 'timing') {
+    const by = new Map((coachTimingRead?.pos || []).map(p => [p.pos, p.gain]));
+    keep = await each(players(a => by.has(a.pos) && a.value >= 2000).sort((x, y) => y.a.value - x.a.value).slice(0, COACH_AIM_TARGETS), ({ a, t }) => offers(a, t).forEach(o => {
+      read(t, o.give, o.get, { lead: a.key, note: `${a.pos}s usually gain about ${by.get(a.pos)}% on other positions over 3 months` });
+    }));
   }
+  if (!keep) return;
   const rank = (x, y) => coachLevelRank(x.r) - coachLevelRank(y.r)
-    || (k === 'points' ? y.gain - x.gain : k === 'consolidate' ? y.get[0].value - x.get[0].value : y.r.score - x.r.score);
+    || (k === 'title' || k === 'playoffs' ? y.lift - x.lift : k === 'points' ? y.gain - x.gain : k === 'strength' ? (y.r.score + (y.both ? 3 : 0)) - (x.r.score + (x.both ? 3 : 0))
+      : k === 'younger' ? y.drop * y.get[0].value - x.drop * x.get[0].value : k === 'consolidate' ? y.get[0].value - x.get[0].value : y.r.score - x.r.score);
   // Two teams' 2029 2nds read the same, so a sale shows once.
-  const seen = new Map(), same = new Set(), list = [];
+  const twice = new Set(['future', 'younger', 'sellhigh']), seen = new Map(), same = new Set(), list = [];
   for (const x of out.sort(rank)) {
     const n = seen.get(x.lead) || 0, id = negKeys(x.give).join() + '>' + x.get.map(a => a.name).join();
-    if (list.length >= COACH_AIM_SHOW || n >= (k === 'future' ? 2 : 1) || same.has(id)) continue;
+    if (list.length >= COACH_AIM_SHOW || n >= (twice.has(k) ? 2 : 1) || same.has(id)) continue;
     seen.set(x.lead, n + 1);
     same.add(id);
     list.push(x);
@@ -1128,22 +1230,25 @@ async function coachAimRun(k) {
 }
 function coachAimBuild(i) {
   const f = coachFlow(), x = f.aimRun?.list?.[i];
-  if (x) coachBuildFrom(x.t, x.give, x.get, f.aim === 'future' ? 'sell' : null);
+  if (x) coachBuildFrom(x.t, x.give, x.get, f.aim === 'future' || f.aim === 'sellhigh' ? 'sell' : null);
 }
 function coachAimHtml(me) {
   const f = coachFlow(), aim = COACH_AIMS[f.aim], run = f.aimRun;
-  const head = coachAsk(aim.ask, aim.blurb);
+  const blurb = f.aim === 'timing' ? `${coachTimingText()} usually gain on other positions over the next three months, so these are worth buying now.`
+    : f.aim === 'strength' && run?.deep ? `Your ${run.deep.join(' and ')} for their ${run.want.join(' and ')}.` : aim.blurb;
+  const head = coachAsk(aim.ask, blurb);
   if (!run || run.key !== f.aim) { coachAimRun(f.aim); return head + '<div class="text-[12px] text-zinc-400 py-2">Finding trades…</div>'; }
-  if (!run.list) return `${head}<div class="text-[12px] text-zinc-400 py-2">Finding trades${run.of ? `: ${run.done} of ${run.of} checked` : '…'}</div>`;
+  if (!run.list) return `${head}<div class="text-[12px] text-zinc-400 py-2">${run.phase || 'Finding trades'}${run.of ? `: ${run.done} of ${run.of}` : '…'}</div>`;
   if (!run.list.length) {
-    const none = f.aim === 'future' && !me.assets.some(a => a.type === 'player' && a.value >= 1000 && a.age >= COACH_AIM_AGE[a.pos]) ? 'Your roster has no older players worth selling.' : aim.none;
-    return `${head}<div class="text-[13px] text-zinc-400 py-2">${none} Start from a player or a position instead.</div>`;
+    const none = f.aim === 'future' && !me.assets.some(a => a.type === 'player' && a.value >= 1000 && a.age >= COACH_AIM_AGE[a.pos]) ? 'Your roster has no older players worth selling.'
+      : f.aim === 'strength' && !run.deep?.length ? 'Your roster doesn\'t have a deep spot to trade from right now.' : aim.none;
+    return `${head}<div class="text-[13px] text-zinc-400 py-2">${none} Try another goal, or start from a player or position.</div>`;
   }
   const names = l => l.map(a => coachEsc(a.name)).join(' + ');
   return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} their manager would likely take.</div><div class="grid gap-2">${run.list.map((x, i) => {
-    const tier = Vault.verdictTier(x.r.score);
+    const tier = Vault.verdictTier(x.r.score), note = x.note || (x.gain ? `+${x.gain.toFixed(1)} pts a week` : '');
     return coachChoice(`coachAimBuild(${i})`, `Get ${names(x.get)} <span class="text-zinc-400">for ${names(x.give)}</span>`,
-      `${coachEsc(x.t.teamName)} · <span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${x.gain ? ` · +${x.gain.toFixed(1)} pts a week` : ''}<br>${coachForThem(x.t, x.give, x.r)}${x.r.consensus ? ` · ${coachConsensusText(x.r)}` : ''}`);
+      `${coachEsc(x.t.teamName)} · <span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${note ? ` · ${note}` : ''}<br>${coachForThem(x.t, x.give, x.r)}${x.r.consensus ? ` · ${coachConsensusText(x.r)}` : ''}`);
   }).join('')}</div>`;
 }
 
@@ -1313,14 +1418,14 @@ function coachPackagesHtml(w) {
   return box(`<div class="grid gap-2">${rows}</div>`);
 }
 
-const COACH_STEP_ORDER = { what: 0, goal: 1, send: 2, pick: 3, build: 4, neg: 5 };
+const COACH_STEP_ORDER = { what: 0, aims: 1, goal: 1, send: 2, pick: 3, build: 4, neg: 5 };
 function renderCoach() {
   const head = document.getElementById('coachHead'), box = document.getElementById('coachBody');
   if (!head || !coachOpen()) return;
   const me = coachMe(), neg = Coach.option === 'negotiate', f = coachFlow(), step = neg ? 'neg' : f.step;
   // The body first: it works out the read the rail shows.
   const html = neg ? `<div class="text-[13px] text-zinc-400 mb-3">Offer the trade loaded in the builder. Their manager answers in their own words, and you can steer what you ask for next.</div>${coachNegotiateHtml()}`
-    : step === 'build' && Coach.work ? coachWorkHtml(me) : step === 'pick' ? coachPickHtml(me) : step === 'send' ? coachSendHtml(me) : step === 'goal' ? coachGoalHtml(me) : coachWhatHtml(me);
+    : step === 'build' && Coach.work ? coachWorkHtml(me) : step === 'pick' ? coachPickHtml(me) : step === 'send' ? coachSendHtml(me) : step === 'goal' ? coachGoalHtml(me) : step === 'aims' ? coachAimsHtml(me) : coachWhatHtml(me);
   head.innerHTML = `
     <div class="flex items-center justify-between gap-3">
       <div class="min-w-0 flex items-baseline gap-2.5"><h2 id="coachTitle" class="display text-[22px] leading-none gold-text">Trade Coach</h2><span class="text-[12px] text-zinc-500 truncate">${coachEsc(me.teamName)}</span></div>
