@@ -7,11 +7,26 @@
   <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Player Rankings — The Vault</title>
+<meta name="description" content="Dynasty player rankings with value, market price, projections and VORP in your league's scoring.">
+<meta property="og:title" content="Player Rankings — The Vault">
+<meta property="og:description" content="Dynasty player rankings with value, market price, projections and VORP in your league's scoring.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/player_rankings.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
+<link rel="stylesheet" href="tailwind.css?v=1c2541cb">
 <style>
   /* Phones: tighter cells, so value, market price and projected points fit without scrolling sideways (2026-10-23). */
   @media (max-width: 639px) { table th, #tbody td { padding-left: 0.5rem !important; padding-right: 0.5rem !important; } }
@@ -22,7 +37,7 @@
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in">
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10 fade-in" id="main" role="main">
   <header class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Player Rankings</h1>
@@ -43,7 +58,7 @@
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           <input id="search" type="search" aria-label="Search players or NFL teams" placeholder="Search player, team…" class="w-[260px] bg-black/40 border border-white/[0.08] rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none focus:border-amber-500/60" />
         </div>
-        <div class="flex items-center bg-black/40 border border-white/[0.08] rounded-xl p-1">
+        <div class="flex flex-wrap items-center bg-black/40 border border-white/[0.08] rounded-xl p-1">
           <button data-pos="ALL" class="pos-btn px-3 py-1.5 text-sm rounded-lg bg-white/[0.08] text-white font-medium">All</button>
           <button data-pos="QB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">QB</button>
           <button data-pos="RB" class="pos-btn px-3 py-1.5 text-sm rounded-lg hover:bg-white/5">RB</button>
@@ -102,9 +117,9 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=39353ae4"></script>
-<script src="vault-nav.js?v=755e1926"></script>
-<script src="market-data.js?v=0902cb1e"></script>
+<script src="vault-core.js?v=de34ff89"></script>
+<script src="vault-nav.js?v=dae2b099"></script>
+<script src="market-data.js?v=682a679f"></script>
 <script>
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -554,11 +569,38 @@
     `;
   }
 
+  // The PPG chart in a player's card is the only thing that reads the projected-stats history,
+  // and it's 9MB, over half of what this page loaded (user, 2026-11-04). It loads with the
+  // first card opened, then fills in every player's history and redraws that card.
+  let statsLoad = null, cardOpen = null;
+  function loadCardStats() {
+    return (statsLoad ||= fetch('data/history/player-stats.json').then(res => (res.ok ? res.json() : null)).catch(() => null).then(stats => {
+      if (!stats) { statsLoad = null; return; }
+      allRows.forEach(r => {
+        const byIdx = stats.players?.[r.norm];
+        if (!byIdx) return;
+        const at = new Map(r.trendSeries.map(pt => [pt.date, pt]));
+        for (const [i, st] of Object.entries(byIdx)) {
+          const date = stats.dates[+i], ppg = Vault.playerSeasonPpg(st, scoringSettings), pt = at.get(date);
+          if (pt) pt.ppg = ppg;
+          else r.trendSeries.push({ date, value: null, ppg, estimated: false });
+        }
+        r.trendSeries.sort((a, b) => a.date.localeCompare(b.date));
+      });
+      applyTrendWindow();
+      if (cardOpen) drawCard(cardOpen);
+    }));
+  }
+  function drawCard(r) {
+    document.getElementById('playerModalBody').innerHTML = r.isPick ? renderPickCard(r) : renderPlayerCard(r);
+    if (!r.isPick) renderPlayerMarket(r);
+  }
   function openPlayerModal(norm) {
     const r = allRows.find(x => x.norm === norm);
     if (!r) return;
-    document.getElementById('playerModalBody').innerHTML = r.isPick ? renderPickCard(r) : renderPlayerCard(r);
-    if (!r.isPick) renderPlayerMarket(r);
+    cardOpen = r;
+    drawCard(r);
+    if (!r.isPick) loadCardStats();
     document.getElementById('playerModal').classList.remove('hidden');
     // Focus moves into the card, and back to the row it came from on close.
     modalReturn = document.activeElement;
@@ -566,6 +608,7 @@
   }
   let modalReturn = null;
   function closePlayerModal() {
+    cardOpen = null;
     const m = document.getElementById('playerModal');
     if (m.classList.contains('hidden')) return;
     m.classList.add('hidden');
@@ -595,7 +638,7 @@
       const [ktcData, projData, valueHistory, sleeperPlayers, playerHistory, pickHistory] = await Promise.all([
         Vault.fetchKtcValues(),
         Vault.fetchProjections(),
-        Vault.fetchPlayerValueHistory(isSF, scoringSettings?.bonus_rec_te, { withStats: true }),
+        Vault.fetchPlayerValueHistory(isSF, scoringSettings?.bonus_rec_te),
         Vault.fetchSleeperPlayers(),
         Vault.fetchPlayerHistory(),
         Vault.fetchPickValueHistory()

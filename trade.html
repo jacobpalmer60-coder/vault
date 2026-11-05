@@ -7,9 +7,24 @@
   <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Trade Calculator — The Vault</title>
+<meta name="description" content="Grade any dynasty trade for your Sleeper league, or let Trade Coach walk you to one the other manager would likely take.">
+<meta property="og:title" content="Trade Calculator — The Vault">
+<meta property="og:description" content="Grade any dynasty trade for your Sleeper league, or let Trade Coach walk you to one the other manager would likely take.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/trade.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
+<link rel="stylesheet" href="tailwind.css?v=1c2541cb">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -18,7 +33,7 @@
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10" data-league-required>
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 lg:py-10" data-league-required id="main" role="main">
   <div class="flex items-center justify-between mb-8">
     <div>
       <h1 class="display text-[28px] font-semibold gold-text">Trade Calculator</h1>
@@ -37,7 +52,7 @@
   <div id="setup" class="hidden min-h-[60vh] flex items-center justify-center">
     <div class="card rounded-vault-sm p-8 sm:p-9 w-full max-w-md fade-in">
       <h2 class="text-[20px] display gold-text mb-2 text-center">Which team is yours?</h2>
-      <p class="text-[13px] text-zinc-400 text-center mb-6">Then pick a tool: Trade Coach, Shop a player, Get a player, or Trade Builder.</p>
+      <p class="text-[13px] text-zinc-400 text-center mb-6">Then build a trade yourself, or let Trade Coach walk you through one.</p>
       <select id="teamASetup" data-search="Type your team…" aria-label="Your team" class="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-[15px] outline-none focus:border-amber-400/50"></select>
       <button id="loadRostersBtn" class="w-full btn-gold-solid h-12 text-[15px] mt-4">Open trade tools</button>
     </div>
@@ -53,7 +68,7 @@
   </div>
   <button id="coachLauncher" onclick="openCoach('best')" class="w-full mb-4 card card-hover rounded-2xl p-4 sm:p-5 text-left flex gap-4 items-center hover:bg-white/[0.02] transition-colors border border-amber-400/20">
     <span class="size-11 shrink-0 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg></span>
-    <span class="min-w-0 flex-1"><span class="block text-[17px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-0.5">Find trades for your team: the best ones, a position or player you want, an upgrade, a player to sell, and more.</span></span>
+    <span class="min-w-0 flex-1"><span class="block text-[17px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400 mt-0.5">Pick a player, position, team or goal, and it walks you to a trade their manager would likely take.</span></span>
     <span class="shrink-0 text-[13px] px-4 py-2 rounded-lg btn-gold-solid hidden sm:inline-block">Open</span>
   </button>
 
@@ -223,8 +238,8 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=39353ae4"></script>
-<script src="vault-nav.js?v=755e1926"></script>
+<script src="vault-core.js?v=de34ff89"></script>
+<script src="vault-nav.js?v=dae2b099"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -529,7 +544,8 @@ function applyTradeFromUrl() {
   // as offered to them, fully adjustable (user, 2026-10-20). Your own team is
   // always Team A.
   let aId = p.get('a'), bId = p.get('b'), giveA = p.get('give_a'), giveB = p.get('give_b'), by = p.get('by');
-  const mineId = Vault.getMyTeamId(Vault.getLeagueId());
+  // No saved team on an offer link: the one reading it is who it was sent to.
+  const mineId = Vault.getMyTeamId(Vault.getLeagueId()) || (by === 'A' ? bId : null);
   if (mineId && bId && String(mineId) === String(bId) && String(mineId) !== String(aId)) {
     [aId, bId] = [bId, aId]; [giveA, giveB] = [giveB, giveA];
     by = by === 'B' ? 'A' : 'B';
@@ -1553,6 +1569,9 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const oneSided = !!them && imp.level === 'good' && them.level === 'bad';
   const both = !!them && imp.level === 'good' && them.level !== 'bad';
   lastImprovement.oneSided = oneSided;
+  // The price can be one managers accept while the deal still reads bad for their team: say
+  // which it is, so this tag doesn't argue with the acceptable range on the bar below.
+  const oneSidedText = oneSided && marketAcceptable(league, aAssets, bAssets)?.level === 'acceptable' ? 'Price works, but it reads bad for them: expect a counter' : 'One-sided: expect a no or a counter';
   // Offered to you (an offer link opened on your side, or Who's offering): the
   // question is whether to take it.
   const offered = offeredBy === 'B';
@@ -1566,7 +1585,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const timelineRow = `<div class="mt-2 text-[12px] text-zinc-400"><label class="flex flex-wrap items-center gap-x-2 gap-y-1" title="Judged on your timeline: contending weighs this season's lineup heavily, rebuilding weighs long-term value.">${Vault.possessive(Vault.escapeHtml(teamA.teamName))} timeline <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="shrink-0 bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}</select></label></div>`;
   // Their out-of-race note reads under the tiles, with yours, instead of stretching their tile.
   const theirSub = '';
-  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? 'One-sided: expect a no or a counter' : 'Works for both'}</span></div>` : ''}
+  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Works for both'}</span></div>` : ''}
     <div class="grid grid-cols-2 gap-3 max-w-[640px]">
       ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
@@ -2454,8 +2473,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="negotiation.js?v=35059c45"></script>
-<script src="market-data.js?v=0902cb1e"></script>
+<script src="market-data.js?v=682a679f"></script>
 <script src="market.js?v=7b8420cd"></script>
-<script src="coach.js?v=002240de"></script>
+<script src="coach.js?v=93059691"></script>
 </body>
 </html>

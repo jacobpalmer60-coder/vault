@@ -7,16 +7,31 @@
   <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Trade Grades — The Vault</title>
+<meta name="description" content="Every completed trade in your Sleeper league, graded on value then and now.">
+<meta property="og:title" content="Trade Grades — The Vault">
+<meta property="og:description" content="Every completed trade in your Sleeper league, graded on value then and now.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/trade_grades.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
+<link rel="stylesheet" href="tailwind.css?v=1c2541cb">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10" data-league-required>
+<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10" data-league-required id="main" role="main">
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Trade Grades</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
@@ -39,8 +54,8 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=39353ae4"></script>
-<script src="vault-nav.js?v=755e1926"></script>
+<script src="vault-core.js?v=de34ff89"></script>
+<script src="vault-nav.js?v=dae2b099"></script>
 <script src="season-report.js?v=837c7cb0"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
@@ -259,6 +274,12 @@ function renderRow(g, i) {
 }
 // The list as shown, for Previous and Next in the pop-up.
 let shown = [], gradeAt = 0;
+const gradeHash = g => `#trade-${g.tx.transaction_id}`;
+async function copyGradeLink(btn) {
+  const url = `${new URL(Vault.linkTo('trade_grades.html'), location.href)}${gradeHash(shown[gradeAt])}`;
+  try { await navigator.clipboard.writeText(url); btn.textContent = 'Link copied'; setTimeout(() => { btn.textContent = 'Copy link'; }, 1500); }
+  catch { window.prompt('Copy this link:', url); }
+}
 function showGrade(i) {
   const g = shown[i];
   if (!g) return;
@@ -267,8 +288,10 @@ function showGrade(i) {
   Vault.popup({
     title: `${Vault.escapeHtml(g.teamA.teamName)} and ${Vault.escapeHtml(g.teamB.teamName)}`,
     html: renderGrade(g),
-    foot: `<div class="flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-t border-white/[0.06]">${nav(i - 1, '← Previous', i > 0)}<span class="text-[12px] text-zinc-400">${i + 1} of ${shown.length}</span>${nav(i + 1, 'Next →', i < shown.length - 1)}</div>`,
+    foot: `<div class="flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-t border-white/[0.06]">${nav(i - 1, '← Previous', i > 0)}<span class="flex items-center gap-3 text-[12px] text-zinc-400"><span>${i + 1} of ${shown.length}</span><button onclick="copyGradeLink(this)" class="py-2 text-zinc-300 hover:text-white">Copy link</button></span>${nav(i + 1, 'Next →', i < shown.length - 1)}</div>`,
   });
+  // On the pop-up's own history entry, so closing it takes the address back too.
+  history.replaceState(history.state, '', gradeHash(g));
 }
 
 function renderGrade(g) {
@@ -407,7 +430,12 @@ async function init() {
     status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
     renderFilters();
+    // A link to one trade: the whole list, with that trade open.
+    const linked = location.hash.match(/^#trade-(.+)$/);
+    const target = linked && allGraded.find(g => String(g.tx.transaction_id) === linked[1]);
+    if (target) { teamFilter = ''; history.replaceState(null, '', location.pathname + location.search); }
     renderList();
+    if (target) showGrade(shown.indexOf(target));
     // Out of the playoff race when they traded (this season's trades): needs Sleeper's
     // weekly scores, so it fills in after the list is up.
     Vault.seasonReport(leagueId).then(report => { if (Vault.markOutOfRace(allGraded, report, ctx)) renderList(); }).catch(e => console.warn('Out-of-race check unavailable', e));

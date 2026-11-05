@@ -5159,6 +5159,26 @@ const Vault = {
   Vault.enhanceSearchSelects = run;
 })();
 
+/* One download per file per page: several tools on a page ask for the same sheets, and the
+   player list was being fetched and parsed twice on most pages. Same request, same promise; a
+   failure isn't kept. Callers only read these. Vault.freshData() is League Overview's Refresh. */
+(function () {
+  const seen = new Map();
+  ['fetchKtcValues', 'fetchProjections', 'fetchGradeValues', 'fetchSleeperPlayers', 'fetchPickValueHistory', 'fetchPlayerValueHistory', 'fetchPlayerHistory'].forEach(name => {
+    const run = Vault[name];
+    Vault[name] = (...args) => {
+      const key = name + JSON.stringify(args);
+      if (!seen.has(key)) {
+        const p = run.apply(Vault, args);
+        seen.set(key, p);
+        p.catch(() => seen.delete(key));
+      }
+      return seen.get(key);
+    };
+  });
+  Vault.freshData = () => seen.clear();
+})();
+
 // Tab buttons in the site's style: tabs is [[key, label]], onclick is the page's function.
 Vault.tabButtons = (tabs, key, onclick = 'showTab') => tabs.map(([k, label]) => `<button role="tab" aria-selected="${k === key}" onclick="${onclick}('${k}')" class="whitespace-nowrap text-[13px] px-3 sm:px-3.5 py-2 rounded-lg border transition-colors ${k === key ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${label}</button>`).join('');
 

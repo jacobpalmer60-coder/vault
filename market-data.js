@@ -28,7 +28,7 @@ function marketLoad(league) {
   // league's values (Player Rankings, Compare, Player Market), so a player's
   // price against KTC reads the same everywhere (marketPlayer).
   const grade = Vault._gradeMarket ? Promise.resolve(null) : Vault.fetchGradeValues();
-  Market.loading = Promise.all([Vault.fetchKtcTrades(qbs), Vault.fetchKtcValues({ raw: true }), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null), grade, fetch('data/market-history/peer-baseline.json').then(r => (r.ok ? r.json() : null)).catch(() => null)]).then(([db, ktc, recent, gradeData, peers]) => {
+  Market.loading = Promise.all([Vault.fetchKtcTrades(qbs), Vault.fetchKtcValues(), fetch(recentFile).then(r => (r.ok ? r.json() : null)).catch(() => null), grade, fetch('data/market-history/peer-baseline.json').then(r => (r.ok ? r.json() : null)).catch(() => null)]).then(([db, ktc, recent, gradeData, peers]) => {
     if (gradeData && !Vault._gradeMarket) Vault.setGradeMarket(gradeData, qbs === 2, league?.scoring_settings?.bonus_rec_te);
     // Each KTC trade is priced in its own league's format: its QB setting and TE
     // premium (KTC's tep code 0-3 -> no premium, TE+, TE++), like the Sleeper

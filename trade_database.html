@@ -7,16 +7,31 @@
   <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Trade Search — The Vault</title>
+<meta name="description" content="Real completed dynasty trades from leagues set up like yours. Search a player to see what they went for.">
+<meta property="og:title" content="Trade Search — The Vault">
+<meta property="og:description" content="Real completed dynasty trades from leagues set up like yours. Search a player to see what they went for.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/trade_database.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
+<link rel="stylesheet" href="tailwind.css?v=1c2541cb">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
+<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 lg:py-10" id="main" role="main">
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Trade Search</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
@@ -44,7 +59,7 @@
   </div>
 
   <div id="resultCount" class="text-[12px] text-zinc-400 mb-3"></div>
-  <div id="list" class="space-y-4"></div>
+  <div id="list" class="space-y-2"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
   </div>
 
@@ -61,20 +76,21 @@
   <div class="text-[12px] text-zinc-400 mt-6">More: <a id="marketLink" href="market.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">who sells above or below KTC (Player Market)</a> · <a id="labLink" href="trade_lab.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">what 1.3 million trades show (Trade Lab)</a></div>
 </div>
 
-<script src="vault-core.js?v=39353ae4"></script>
-<script src="vault-nav.js?v=755e1926"></script>
+<script src="vault-core.js?v=de34ff89"></script>
+<script src="vault-nav.js?v=dae2b099"></script>
 <script>
 /* Tabs, in the address (#market, #history) so a link opens on one; the page always opens on
    the trades otherwise. Over time shows up once its file loads, and the market needs 200
    trades, so a tab asked for early opens as soon as it's there (dbWant). */
 const DB_TABS = [['trades', 'Trades'], ['market', 'The market at a glance'], ['history', 'Over time']];
 const dbOff = new Set(['history']);
-let dbWant = location.hash.slice(1) || 'trades';
+let dbWant = location.hash.slice(1) || 'trades', dbMarketOpen = null;
 function showTab(key) {
   dbWant = key;
   const tabs = DB_TABS.filter(([k]) => !dbOff.has(k)), tab = tabs.some(([k]) => k === key) ? key : 'trades';
   document.querySelectorAll('[data-tab]').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== tab));
   document.getElementById('dbTabs').innerHTML = Vault.tabButtons(tabs, tab);
+  if (tab === 'market' && dbMarketOpen) { const open = dbMarketOpen; dbMarketOpen = null; open(); }
   const hash = tab === 'trades' ? '' : tab;
   if (tab === key && location.hash.slice(1) !== hash) history.replaceState(null, '', location.pathname + location.search + (hash ? '#' + hash : ''));
 }
@@ -126,11 +142,36 @@ function marketRead(t, playerMap, pickMap) {
 }
 const BUCKET_PILL = { Fair: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25', Lopsided: 'bg-orange-500/10 text-orange-300 border-orange-500/25', Unfair: 'bg-rose-500/10 text-rose-300 border-rose-500/25' };
 
+// A trade as one short row (user, 2026-11-04: 40 cards ran 7,800px); the row opens the full trade.
+function renderRow(t, i, playerMap, pickMap) {
+  const date = new Date(t.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }), m = t.market;
+  const names = ids => ids.map(id => Vault.escapeHtml(assetLabel(id, playerMap, pickMap).name)).join(', ') || 'Nothing';
+  return `<button onclick="showDbTrade(${i})" class="block w-full text-left card card-hover rounded-xl px-4 py-2.5 space-y-1">
+      <span class="flex items-center justify-between gap-3 text-[12px]">
+        <span class="text-zinc-400 mono">${date}</span>
+        <span class="inline-flex items-center gap-2">${m ? `<span class="${(Vault.BUCKET_STYLE[m.bucket] || Vault.BUCKET_STYLE.Fair).text}">${m.bucket}</span><span class="text-zinc-400">${Math.floor(Math.min(100, m.pct))}% off</span>` : ''}<span class="text-zinc-500" aria-hidden="true">›</span></span>
+      </span>
+      <span class="grid sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[13px]"><span class="truncate text-zinc-100">${names(t.t1)}</span><span class="truncate text-zinc-300"><span class="text-zinc-500">for</span> ${names(t.t2)}</span></span>
+    </button>`;
+}
+// The list as shown, for Previous and Next in the pop-up.
+let dbShown = [], dbCard = null;
+function showDbTrade(i) {
+  const t = dbShown[i];
+  if (!t) return;
+  const nav = (to, label, on) => `<button onclick="showDbTrade(${to})" ${on ? '' : 'disabled'} class="text-[13px] px-3.5 py-2 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 disabled:opacity-40 disabled:pointer-events-none transition-colors">${label}</button>`;
+  Vault.popup({
+    title: `Trade from ${new Date(t.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`,
+    html: dbCard(t),
+    foot: `<div class="flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-t border-white/[0.06]">${nav(i - 1, '← Previous', i > 0)}<span class="text-[12px] text-zinc-400">${i + 1} of ${dbShown.length}</span>${nav(i + 1, 'Next →', i < dbShown.length - 1)}</div>`,
+  });
+}
+
 function renderCard(t, playerMap, pickMap) {
   const date = new Date(t.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const m = t.market;
   return `
-    <div class="card rounded-vault-sm p-5">
+    <div>
       <div class="flex items-center justify-between gap-3 mb-3">
         <div class="text-[12px] text-zinc-400 mono">${date}</div>
         ${m ? `<div class="flex items-center gap-2" title="Trade value at today's KTC prices (pieces combined the way real trades combine them), the same math as the Trade Calculator"><span class="text-[12px] text-zinc-400">${Math.floor(Math.min(100, m.pct))}% off${Math.abs(m.signed) >= 1 ? ` · favors Team ${m.signed > 0 ? 2 : 1}` : ''}</span><span class="text-[12px] px-2 py-0.5 rounded-md border ${BUCKET_PILL[m.bucket]}">${m.bucket}</span></div>` : ''}
@@ -582,10 +623,13 @@ async function init() {
     renderHistory(valueField);
     document.getElementById('labLink').href = Vault.linkTo('trade_lab.html');
     document.getElementById('marketLink').href = Vault.linkTo('market.html');
-    Vault.fetchAndGradeAllTrades(leagueId).then(({ allGraded }) => {
+    // Your league's own trades are a line on The market at a glance, and take every roster and
+    // price sheet to grade (about 7MB), so they load when that tab opens.
+    dbMarketOpen = () => Vault.fetchAndGradeAllTrades(leagueId).then(({ allGraded }) => {
       leagueRows = (allGraded || []).filter(g => Number.isFinite(g.pctDiff)).map(g => ({ pct: g.pctDiff, bucket: Vault.priceWord(g.bucket || Vault.fairnessBucket(g.pctDiff, 0, 0)), label: `${g.teamA.teamName} and ${g.teamB.teamName}` }));
       redraw();
     }).catch(e => { console.warn('League trades unavailable', e); leagueRows = []; redraw(); });
+    showTab(dbWant);
     status.textContent = `Updated ${new Date(tradesData.updated).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
 
@@ -628,7 +672,9 @@ async function init() {
         return;
       }
       empty.classList.add('hidden');
-      list.innerHTML = sorted.map(t => renderCard(t, playerMap, pickMap)).join('');
+      dbShown = sorted;
+      dbCard = t => renderCard(t, playerMap, pickMap);
+      list.innerHTML = sorted.map((t, i) => renderRow(t, i, playerMap, pickMap)).join('');
     }
 
     const handleInput = () => {

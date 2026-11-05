@@ -7,9 +7,24 @@
   <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Trade Lab — The Vault</title>
+<meta name="description" content="What 2.15 million real dynasty trades show about how managers trade and how it turned out.">
+<meta property="og:title" content="Trade Lab — The Vault">
+<meta property="og:description" content="What 2.15 million real dynasty trades show about how managers trade and how it turned out.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/trade_lab.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
+<link rel="stylesheet" href="tailwind.css?v=1c2541cb">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -88,8 +103,8 @@
 
 <div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
 
-<script src="vault-core.js?v=39353ae4"></script>
-<script src="vault-nav.js?v=755e1926"></script>
+<script src="vault-core.js?v=de34ff89"></script>
+<script src="vault-nav.js?v=dae2b099"></script>
 <script>
 const POS_BADGE = pos => `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`;
 const esc = s => Vault.escapeHtml(String(s));
@@ -293,7 +308,7 @@ function rookiePpgPanel(f) {
 }
 function renderSummary(d, ins, f) {
   const items = [];
-  const add = (html, href) => items.push(`<li class="flex gap-2"><span class="text-amber-300/70 shrink-0">•</span><span>${html} <a href="#${href}" class="text-zinc-500 hover:text-zinc-200 whitespace-nowrap">See it</a></span></li>`);
+  const add = (html, href) => items.push(`<li class="flex gap-2"><span class="text-amber-300/70 shrink-0">•</span><span>${html} <a href="#${href}" class="inline-block py-1 text-zinc-500 hover:text-zinc-200 whitespace-nowrap">See it</a></span></li>`);
   const b = v => `<span class="text-zinc-100 font-medium mono">${v}</span>`;
   const gg = ins?.verdictPairs?.rows.find(r => r.pair === 'good+good');
   add(`Trades are close, rarely even: the typical gap between the sides is ${b(pc(d.gaps.median))}${gg ? `, and only ${b(pc(gg.share))} leave both teams with a good verdict` : ''}.`, 'how');
@@ -525,12 +540,16 @@ let LAB_DATA = null;
    links, which open that tab and go to the chart. */
 const LAB_TABS = [['summary', 'Summary'], ['how', 'How managers trade'], ['after', 'What happened after'], ['picks', 'Picks and rookie drafts'], ['deep', 'Deep dives'], ['league', 'Your league'], ['explore', 'Explore it yourself']];
 let labTabs = LAB_TABS;
+// Your league needs every roster, price sheet and trade graded (about 7MB); the rest of
+// the page needs under 1MB. So it loads when its tab opens.
+let labLeague = null;
 function showTab(key) {
   const isTab = labTabs.some(([k]) => k === key), chart = key && !isTab ? document.getElementById(key) : null;
   let tab = isTab ? key : chart?.closest('[data-tab]')?.dataset.tab;
   if (!labTabs.some(([k]) => k === tab)) tab = 'summary';
   document.querySelectorAll('[data-tab]').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== tab));
   document.getElementById('labTabs').innerHTML = Vault.tabButtons(labTabs, tab);
+  if (tab === 'league' && labLeague) { const open = labLeague; labLeague = null; open(); }
   try { localStorage.setItem('vault_lab_tab', tab); } catch {}
   const hash = chart ? key : tab === 'summary' ? '' : tab;
   if (location.hash.slice(1) !== hash) history.replaceState(null, '', location.pathname + location.search + (hash ? '#' + hash : ''));
@@ -555,7 +574,7 @@ async function init() {
       const total = f.crawled.reduce((t, s) => t + s.trades, 0), first = f.crawled[0].season, last = f.crawled[f.crawled.length - 1].season;
       document.getElementById('crawled').textContent = `Our crawl holds ${fmtInt(total)} trades from ${first} to ${last}; the ${yrs(d.seasons)} ones here are those we could judge (${last} is still being played, so how trades turned out uses ${yrs(d.outcomeSeasons || d.seasons)}).`;
     }
-    status.textContent = `${fmtInt(d.trades)} trades · ${fmtInt(d.leagues)} leagues · ${yrs(d.seasons)} · updated ${d.updated}`;
+    status.textContent = `${fmtInt(d.trades)} trades · ${fmtInt(d.leagues)} leagues · ${yrs(d.seasons)} · updated ${d.updated}, refreshed after each full pull of leagues`;
     document.getElementById('tiles').innerHTML = [
       tile(`${(d.trades / 1e6).toFixed(2)}M`, 'Trades', `${fmtInt(d.sides)} team-sides`),
       tile(fmtInt(d.leagues), 'Leagues', `${yrs(d.seasons)} seasons`),
@@ -568,7 +587,7 @@ async function init() {
     renderDeep(f);
     renderExplore(d);
     renderPicksRookies(ins).catch(e => { console.error(e); document.getElementById('picksBody').innerHTML = '<div class="text-[12px] text-zinc-500">Couldn\'t load picks.</div>'; });
-    renderLeague(d, ins);
+    labLeague = () => renderLeague(d, ins);
     // Deep dives need findings.json; and a link to a chart can only land once the charts exist.
     if (!f) labTabs = LAB_TABS.filter(([k]) => k !== 'deep');
     showTab(location.hash.slice(1) || labStart);

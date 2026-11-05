@@ -56,7 +56,10 @@
   const isTool = TABS.some(t => t.key === currentPage());
   if (isTool) {
     const lid = Vault.getLeagueId();
-    if (!lid || !Vault.getMyTeamId(lid)) { location.replace(Vault.pickLeagueLink()); return; }
+    // An offer link (Copy offer link) opens on the trade for whoever gets it, saved team or not.
+    const q = new URLSearchParams(location.search);
+    const offerLink = /\/trade(\.html)?$/.test(location.pathname) && q.get('a') && q.get('b') && q.get('by');
+    if (!lid || (!Vault.getMyTeamId(lid) && !offerLink)) { location.replace(Vault.pickLeagueLink()); return; }
   }
 
   // A line under the nav: an old season, or an IDP league.

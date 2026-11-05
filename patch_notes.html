@@ -7,16 +7,31 @@
   <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Patch Notes — The Vault</title>
+<meta name="description" content="What's new on The Vault.">
+<meta property="og:title" content="Patch Notes — The Vault">
+<meta property="og:description" content="What's new on The Vault.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/patch_notes.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=e8bc9912">
-<link rel="stylesheet" href="tailwind.css?v=75fbdb15">
+<link rel="stylesheet" href="tailwind.css?v=1c2541cb">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
 
-<div class="max-w-[860px] mx-auto px-4 sm:px-6 py-8 lg:py-10">
+<div class="max-w-[860px] mx-auto px-4 sm:px-6 py-8 lg:py-10" id="main" role="main">
   <div class="mb-2">
     <h1 class="display text-[28px] font-semibold gold-text">Patch Notes</h1>
     <p id="status" class="text-[13px] text-zinc-400 mt-1"></p>
@@ -31,14 +46,22 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=39353ae4"></script>
-<script src="vault-nav.js?v=755e1926"></script>
+<script src="vault-core.js?v=de34ff89"></script>
+<script src="vault-nav.js?v=dae2b099"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-04', items: [
+    { kind: 'new', page: 'Trade Coach', text: "Not sure what you want? Start from a goal: Score more points, Build for the future, Turn depth into a star or Add depth. The Coach finds trades that fit, and only lists ones their manager would likely take that aren't bad for you." },
+    { kind: 'improved', page: 'Site', text: "You can now add The Vault to your phone's home screen, and links to it show a proper preview when you share them." },
+    { kind: 'improved', page: 'Trade Grades', text: "Each trade grade now has its own link. Open a trade and use Copy link to share it." },
+    { kind: 'improved', page: 'Trade Search', text: "Trades are now short rows, so you can scan them quickly. Click one for the full trade, then use Previous and Next." },
+    { kind: 'improved', page: 'Site', text: "Pages load faster: Trade Lab, Trade Search and Player Rankings wait to download their heaviest data until you need it, and no page downloads the same file twice." },
+    { kind: 'fixed', page: 'Trade Calculator', text: "An offer link now opens straight on the trade for the person you sent it to, even if they've never used The Vault. It used to send them to the home page." },
+    { kind: 'fixed', page: 'Trade Calculator', text: "When a trade's price is one managers accept but it reads bad for the other team, the tag now says that, instead of One-sided." },
+    { kind: 'improved', page: 'Trade Coach', text: "2-for-1s now follow your timeline: contenders see sending two first, rebuilders see getting two first. When you're selling or down-tiering, deals where you add a piece of your own come last." },
     { kind: 'improved', page: 'Trade Coach', text: "Among deals that are equally good for you, 2-for-1s now come before 1-for-1s. They're the most common trade and usually land much closer to even." },
     { kind: 'fixed', page: 'Trade Coach', text: "A phone's Back button now steps back through the Coach instead of leaving the calculator." },
     { kind: 'fixed', page: 'Trade Coach', text: "Suggestions no longer swap out the player you're upgrading or selling, or drop the player you came for. Best fits now list deals that are good for you first." },
