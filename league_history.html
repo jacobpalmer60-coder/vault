@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>League History — The Vault</title>
+<meta name="description" content="Your Sleeper league's champions, all-time records and head-to-head between any two managers.">
+<meta property="og:title" content="League History — The Vault">
+<meta property="og:description" content="Your Sleeper league's champions, all-time records and head-to-head between any two managers.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/league_history.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=60c6413b">
+<link rel="stylesheet" href="tailwind.css?v=792ab305">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<main class="max-w-[860px] mx-auto px-4 sm:px-6 py-8" data-league-required>
+  <h1 class="display text-[28px] font-semibold gold-text">League History</h1>
+  <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading every season…</p>
+  <div id="body" class="hidden">
+    <section class="mt-6">
+      <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Champions</div>
+      <div id="champs" class="card rounded-vault-sm px-4 py-1"></div>
+    </section>
+    <section class="mt-6">
+      <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">All-time records</div>
+      <div class="card rounded-vault-sm px-4 py-2 overflow-x-auto"><table id="records" class="w-full text-[13px]"></table></div>
+      <p class="text-[12px] text-zinc-500 mt-2">Regular-season records from every season this league has on Sleeper. Playoffs count finished seasons, and PPG is points a week.</p>
+    </section>
+    <section class="mt-6">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <div class="text-[11px] uppercase tracking-wider text-zinc-400">Head to head</div>
+        <select id="who" aria-label="Manager" class="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[13px] text-zinc-200 max-w-[220px]"></select>
+      </div>
+      <div class="card rounded-vault-sm px-4 py-2 overflow-x-auto"><table id="h2h" class="w-full text-[13px]"></table></div>
+    </section>
+  </div>
+</main>
+
+<script src="vault-core.js?v=5186c6a0"></script>
+<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="market-data.js?v=a619b6b9"></script>
+<script src="player-card.js?v=0ec7f23e"></script>
+<script>
+/* ============================================================
+   LEAGUE HISTORY (user's list, 2026-11-05)
+   Every season of this league joined by manager, since roster numbers change between seasons.
+   Sleeper links seasons with previous_league_id. A league restarted without that link is found
+   by name among your own leagues the season before.
+   ============================================================ */
+const API = 'https://api.sleeper.app/v1';
+const $ = id => document.getElementById(id);
+const esc = s => Vault.escapeHtml(String(s ?? ''));
+const get = (path, minutes) => Vault.sleeperJson(`${API}/${path}`, minutes);
+const rec = r => `${r.w}-${r.l}${r.t ? '-' + r.t : ''}`;
+const pct = r => { const g = r.w + r.l + r.t; return g ? (r.w + r.t / 2) / g : 0; };
+
+async function allSeasons(id) {
+  const league = await get(`league/${id}`, 5);
+  if (!league || league.error) throw new Error('League not found.');
+  const chain = await Vault.fetchSeasonChain(id, league);
+  const rosters = await get(`league/${id}/rosters`, 5);
+  const me = rosters.find(r => String(r.roster_id) === String(Vault.getMyTeamId(id)))?.owner_id;
+  for (let last = chain[chain.length - 1], i = 0; me && i < 25; i++) {
+    const older = await get(`user/${me}/leagues/nfl/${+last.season - 1}`, 1440).catch(() => []);
+    const same = (older || []).find(l => Vault.norm(l.name) === Vault.norm(league.name));
+    if (!same) break;
+    chain.push(...(await Vault.fetchSeasonChain(same.league_id, same)));
+    last = chain[chain.length - 1];
+  }
+  return chain;
+}
+
+async function loadSeason({ leagueId, season }, thisOne) {
+  const keep = thisOne ? 30 : 1440;
+  const [league, users, rosters, bracket] = await Promise.all(['', '/users', '/rosters', '/winners_bracket'].map(p => get(`league/${leagueId}${p}`, keep).catch(() => null)));
+  const start = league?.settings?.playoff_week_start || 15, weeks = await Promise.all(Array.from({ length: start - 1 }, (_, i) => get(`league/${leagueId}/matchups/${i + 1}`, keep).catch(() => [])));
+  return { season, league, users: users || [], rosters: rosters || [], bracket: bracket || [], weeks };
+}
+
+function build(seasons) {
+  const people = new Map();
+  const person = (owner, name) => {
+    if (!people.has(owner)) people.set(owner, { owner, name, rec: { w: 0, l: 0, t: 0 }, points: 0, weeks: 0, seasons: 0, finished: 0, titles: 0, finals: 0, playoffs: 0, vs: new Map() });
+    return people.get(owner);
+  };
+  const champs = [];
+  // Oldest first, so each manager ends on their latest team name.
+  [...seasons].reverse().forEach(s => {
+    const byRoster = new Map(s.rosters.map(r => [r.roster_id, r])), nameOf = id => { const r = byRoster.get(id), u = s.users.find(x => x.user_id === r?.owner_id); return Vault.teamLabel(u, id); };
+    s.rosters.forEach(r => {
+      if (!r.owner_id) return;
+      const p = person(r.owner_id, nameOf(r.roster_id)), st = r.settings || {};
+      p.name = nameOf(r.roster_id);
+      if ((st.wins || 0) + (st.losses || 0) + (st.ties || 0) === 0) return;
+      p.seasons++; p.rec.w += st.wins || 0; p.rec.l += st.losses || 0; p.rec.t += st.ties || 0;
+      if (s.league?.status === 'complete') p.finished++;
+    });
+    // Only a finished season's bracket is real: Sleeper shows the current seeds before that.
+    const inBracket = new Set(s.league?.status === 'complete' ? s.bracket.flatMap(m => [m.t1, m.t2]).filter(x => Number.isInteger(x)) : []);
+    inBracket.forEach(id => { const o = byRoster.get(id)?.owner_id; if (o) person(o, nameOf(id)).playoffs++; });
+    const final = s.bracket.find(m => m.p === 1);
+    if (final?.w && s.league?.status === 'complete') {
+      const w = byRoster.get(final.w)?.owner_id, l = byRoster.get(final.l)?.owner_id;
+      if (w) person(w, nameOf(final.w)).titles++;
+      if (l) person(l, nameOf(final.l)).finals++;
+      champs.push({ season: s.season, champ: nameOf(final.w), runnerUp: final.l ? nameOf(final.l) : '' });
+    }
+    const meet = (a, b, ptsA, ptsB, season, week, playoff) => {
+      const pa = people.get(a); if (!pa) return;
+      if (!pa.vs.has(b)) pa.vs.set(b, { rec: { w: 0, l: 0, t: 0 }, po: { w: 0, l: 0 }, pf: 0, pa: 0, n: 0, last: null });
+      const v = pa.vs.get(b);
+      if (playoff) { if (ptsA > ptsB) v.po.w++; else v.po.l++; return; }
+      v.rec[ptsA > ptsB ? 'w' : ptsA < ptsB ? 'l' : 't']++; v.pf += ptsA; v.pa += ptsB; v.n++;
+      v.last = { season, week, pts: ptsA, opp: ptsB };
+    };
+    s.weeks.forEach((list, i) => {
+      const games = new Map();
+      // Points a week from the games themselves: a record counts two games a week in a median league.
+      (list || []).forEach(m => { const o = byRoster.get(m.roster_id)?.owner_id; if (o && (m.points || 0) > 0) { const p = person(o, nameOf(m.roster_id)); p.points += m.points; p.weeks++; } });
+      (list || []).forEach(m => { if (m.matchup_id != null && (m.points || 0) > 0) { if (!games.has(m.matchup_id)) games.set(m.matchup_id, []); games.get(m.matchup_id).push(m); } });
+      games.forEach(pair => {
+        if (pair.length !== 2) return;
+        const [a, b] = pair, oa = byRoster.get(a.roster_id)?.owner_id, ob = byRoster.get(b.roster_id)?.owner_id;
+        if (!oa || !ob) return;
+        meet(oa, ob, a.points, b.points, s.season, i + 1); meet(ob, oa, b.points, a.points, s.season, i + 1);
+      });
+    });
+    (s.league?.status === 'complete' ? s.bracket : []).filter(m => m.w && m.l && Number.isInteger(m.t1) && Number.isInteger(m.t2)).forEach(m => {
+      const w = byRoster.get(m.w)?.owner_id, l = byRoster.get(m.l)?.owner_id;
+      if (w && l) { meet(w, l, 1, 0, s.season, 0, true); meet(l, w, 0, 1, s.season, 0, true); }
+    });
+  });
+  return { people, champs: champs.reverse() };
+}
+
+function render({ people, champs }, seasons, myOwner) {
+  const list = [...people.values()].filter(p => p.weeks);
+  const first = seasons[seasons.length - 1].season;
+  $('status').textContent = `${seasons.length} season${seasons.length === 1 ? '' : 's'}, since ${first}`;
+  $('champs').innerHTML = champs.length ? champs.map(c => `<div class="flex items-baseline justify-between gap-3 py-2.5 border-t border-white/5 first:border-t-0"><span class="mono text-zinc-400">${esc(c.season)}</span><span class="min-w-0 flex-1 text-[14px] text-zinc-100 truncate">${esc(c.champ)}</span><span class="text-[12px] text-zinc-500 truncate max-w-[45%]">beat ${esc(c.runnerUp)}</span></div>`).join('') : '<div class="text-[13px] text-zinc-400 py-3">No finished season yet.</div>';
+  const sorted = [...list].sort((a, b) => b.titles - a.titles || pct(b.rec) - pct(a.rec));
+  const th = (t, cls = 'text-right') => `<th class="font-normal pb-1.5 ${cls}">${t}</th>`;
+  $('records').innerHTML = `<thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500">${th('Manager', 'text-left')}${th('Titles')}${th('Record')}${th('Win %')}${th('Playoffs', 'text-right hidden sm:table-cell')}${th('PPG', 'text-right hidden sm:table-cell')}</tr></thead><tbody>${sorted.map(p => `<tr class="border-t border-white/5 ${p.owner === myOwner ? 'text-amber-200' : 'text-zinc-200'}"><td class="py-2 pr-2 max-w-[160px] truncate">${esc(p.name)}</td><td class="text-right mono">${p.titles || '—'}</td><td class="text-right mono whitespace-nowrap pl-2">${rec(p.rec)}</td><td class="text-right mono pl-2">${(pct(p.rec) * 100).toFixed(0)}%</td><td class="text-right mono pl-2 hidden sm:table-cell">${p.finished ? `${p.playoffs} of ${p.finished}` : '—'}</td><td class="text-right mono pl-2 hidden sm:table-cell">${(p.points / p.weeks).toFixed(1)}</td></tr>`).join('')}</tbody>`;
+  const sel = $('who');
+  sel.innerHTML = sorted.map(p => `<option value="${esc(p.owner)}" ${p.owner === myOwner ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+  const drawH2H = () => {
+    const p = people.get(sel.value), rows = [...p.vs.entries()].map(([o, v]) => ({ opp: people.get(o), ...v })).filter(r => r.opp && r.n).sort((a, b) => b.n - a.n || pct(b.rec) - pct(a.rec));
+    $('h2h').innerHTML = rows.length ? `<thead><tr class="text-[11px] uppercase tracking-wider text-zinc-500">${th('Against', 'text-left')}${th('Record')}${th('PPG', 'text-right hidden sm:table-cell')}${th('Playoffs')}${th('Last met', 'text-right hidden sm:table-cell')}</tr></thead><tbody>${rows.map(r => `<tr class="border-t border-white/5 text-zinc-200"><td class="py-2 pr-2 max-w-[150px] truncate">${esc(r.opp.name)}</td><td class="text-right mono whitespace-nowrap ${pct(r.rec) > 0.5 ? 'text-emerald-300' : pct(r.rec) < 0.5 ? 'text-orange-300' : ''}">${rec(r.rec)}</td><td class="text-right mono pl-2 whitespace-nowrap hidden sm:table-cell">${(r.pf / r.n).toFixed(1)} to ${(r.pa / r.n).toFixed(1)}</td><td class="text-right mono pl-2">${r.po.w + r.po.l ? `${r.po.w}-${r.po.l}` : '—'}</td><td class="text-right pl-2 text-zinc-400 whitespace-nowrap hidden sm:table-cell">${esc(r.last.season)} wk ${r.last.week}</td></tr>`).join('')}</tbody>` : '<tbody><tr><td class="py-3 text-zinc-400">No games yet.</td></tr></tbody>';
+  };
+  sel.onchange = drawH2H;
+  drawH2H();
+  $('body').classList.remove('hidden');
+}
+
+(async () => {
+  const id = Vault.getLeagueId();
+  if (!id) return;
+  try {
+    const chain = await allSeasons(id);
+    const seasons = await Promise.all(chain.map((s, i) => loadSeason(s, i === 0)));
+    const now = seasons[0].rosters.find(r => String(r.roster_id) === String(Vault.getMyTeamId(id)));
+    render(build(seasons), seasons, now?.owner_id);
+  } catch (e) { console.error(e); $('status').textContent = Vault.loadError(e); }
+})();
+</script>
+</body>
+</html>

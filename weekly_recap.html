@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>Weekly Recap — The Vault</title>
+<meta name="description" content="Your Sleeper league's week in one page: results, swings in the odds, lineup calls and trades.">
+<meta property="og:title" content="Weekly Recap — The Vault">
+<meta property="og:description" content="Your Sleeper league's week in one page: results, swings in the odds, lineup calls and trades.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/weekly_recap.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=60c6413b">
+<link rel="stylesheet" href="tailwind.css?v=792ab305">
+</head>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div>
+
+<div id="vault-nav"></div>
+
+<main class="max-w-[860px] mx-auto px-4 sm:px-6 py-8" data-league-required>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="display text-[28px] font-semibold gold-text">Weekly Recap</h1>
+    <select id="week" aria-label="Week" class="hidden bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[13px] text-zinc-200"></select>
+  </div>
+  <p id="status" class="text-[13px] text-zinc-400 mt-1">Reading the season…</p>
+  <div id="body" class="hidden">
+    <div id="lead" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5"></div>
+    <section class="mt-6"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Results</div><div id="games" class="grid sm:grid-cols-2 gap-2"></div></section>
+    <section class="mt-6"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Biggest swings in playoff odds</div><div id="swings" class="card rounded-vault-sm px-4 py-1"></div></section>
+    <section id="callsSec" class="mt-6"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Lineup calls</div><div id="calls" class="card rounded-vault-sm px-4 py-1"></div></section>
+    <section class="mt-6"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Trades</div><div id="trades" class="card rounded-vault-sm px-4 py-1"></div></section>
+  </div>
+</main>
+
+<script src="vault-core.js?v=5186c6a0"></script>
+<script src="vault-nav.js?v=c411b0a5"></script>
+<script src="market-data.js?v=a619b6b9"></script>
+<script src="player-card.js?v=0ec7f23e"></script>
+<script src="season-report.js?v=0596935e"></script>
+<script>
+/* ============================================================
+   WEEKLY RECAP (user's list, 2026-11-05)
+   One finished week, built from Sleeper: results, who the week moved in the playoff odds
+   (Vault.oddsAsOfWeek before and after it), lineup calls against the best lineup in hindsight
+   (season-report.js), and that week's trades.
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const esc = s => Vault.escapeHtml(String(s ?? ''));
+let R = null, ctx = null, players = null;
+const oddsMemo = new Map();
+const oddsAt = w => { if (!oddsMemo.has(w)) oddsMemo.set(w, Vault.oddsAsOfWeek(R, ctx.teams, ctx.league, ctx.remainingWeeks, w)); return oddsMemo.get(w); };
+const tile = (label, name, value) => `<div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0"><div class="text-[11px] text-zinc-400">${label}</div><div class="num text-[20px] text-zinc-100">${value}</div><div class="text-[12px] text-zinc-400 truncate">${name}</div></div>`;
+
+function renderWeek(week) {
+  const teamOf = id => R.teams.find(t => t.rosterId === id), nameOf = id => esc(teamOf(id)?.teamName ?? teamOf(id)?.name ?? `Team ${id}`);
+  const rows = R.teams.map(t => ({ t, w: t.weeks.find(x => x.week === week) })).filter(r => r.w);
+  const games = [], seen = new Set();
+  rows.forEach(({ t, w }) => { if (w.opp == null || seen.has(t.rosterId)) return; seen.add(t.rosterId); seen.add(w.opp); const hi = w.pts >= w.oppPts; games.push({ win: hi ? t.rosterId : w.opp, lose: hi ? w.opp : t.rosterId, a: Math.max(w.pts, w.oppPts), b: Math.min(w.pts, w.oppPts) }); });
+  const byPts = [...rows].sort((a, b) => b.w.pts - a.w.pts), hi = byPts[0], lo = byPts[byPts.length - 1];
+  const close = [...games].sort((a, b) => (a.a - a.b) - (b.a - b.b))[0], blow = [...games].sort((a, b) => (b.a - b.b) - (a.a - a.b))[0];
+  $('lead').innerHTML = [tile('Top score', nameOf(hi.t.rosterId), hi.w.pts.toFixed(1)), tile('Low score', nameOf(lo.t.rosterId), lo.w.pts.toFixed(1)),
+    close ? tile('Closest game', `${nameOf(close.win)} over ${nameOf(close.lose)}`, (close.a - close.b).toFixed(1)) : '', blow ? tile('Biggest win', `${nameOf(blow.win)} over ${nameOf(blow.lose)}`, (blow.a - blow.b).toFixed(1)) : ''].join('');
+  $('games').innerHTML = games.map(g => `<div class="rounded-xl bg-black/25 border border-white/5 px-3 py-2.5 text-[13px]"><div class="flex justify-between gap-3"><span class="text-zinc-100 font-medium truncate">${nameOf(g.win)}</span><span class="mono text-zinc-100">${g.a.toFixed(1)}</span></div><div class="flex justify-between gap-3 mt-0.5"><span class="text-zinc-400 truncate">${nameOf(g.lose)}</span><span class="mono text-zinc-400">${g.b.toFixed(1)}</span></div></div>`).join('');
+
+  const before = oddsAt(week), after = oddsAt(week + 1);
+  const moved = before && after ? R.teams.map(t => ({ t, was: before.get(t.rosterId)?.playoffPct, now: after.get(t.rosterId)?.playoffPct })).filter(x => Number.isFinite(x.was) && Number.isFinite(x.now)).map(x => ({ ...x, d: x.now - x.was })).filter(x => Math.abs(x.d) >= 1).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 4) : [];
+  $('swings').innerHTML = moved.length ? moved.map(x => `<div class="flex items-baseline justify-between gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]"><span class="text-zinc-200 truncate">${nameOf(x.t.rosterId)}</span><span class="mono whitespace-nowrap ${x.d > 0 ? 'text-emerald-300' : 'text-orange-300'}">${Math.round(x.was)}% to ${Math.round(x.now)}%</span></div>`).join('') : `<div class="text-[13px] text-zinc-400 py-3">${before && after ? "No team's odds moved by more than a point." : 'Odds are only worked out for this season.'}</div>`;
+
+  const calls = rows.filter(r => Number.isFinite(r.w.hindsight) && Number.isFinite(r.w.startedAct)).map(r => ({ id: r.t.rosterId, left: r.w.hindsight - r.w.startedAct, pts: r.w.startedAct, best: r.w.hindsight })).sort((a, b) => a.left - b.left);
+  $('callsSec').classList.toggle('hidden', !calls.length);
+  if (calls.length) {
+    const line = (label, c, tone) => `<div class="flex items-baseline justify-between gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]"><span class="min-w-0 truncate"><span class="text-zinc-400">${label}:</span> <span class="text-zinc-200">${nameOf(c.id)}</span></span><span class="mono whitespace-nowrap ${tone}">${c.left < 0.05 ? 'perfect lineup' : `${c.left.toFixed(1)} left on the bench`}</span></div>`;
+    $('calls').innerHTML = line('Best', calls[0], 'text-emerald-300') + line('Worst', calls[calls.length - 1], 'text-orange-300');
+  }
+
+  $('trades').innerHTML = '<div class="text-[13px] text-zinc-400 py-3">Checking trades…</div>';
+  Vault.sleeperJson(`https://api.sleeper.app/v1/league/${R.league.league_id}/transactions/${week}`, 30).then(list => {
+    const trades = (list || []).filter(t => t.type === 'trade' && t.status === 'complete');
+    const label = id => { const p = players[id]; return p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'a player'; };
+    $('trades').innerHTML = trades.length ? trades.map(t => {
+      const got = id => [...Object.entries(t.adds || {}).filter(([, to]) => +to === id).map(([pid]) => Vault.playerLink(label(pid))), ...(t.draft_picks || []).filter(pk => +pk.owner_id === id).map(pk => esc(Vault.pickName({ season: pk.season, round: pk.round })))].join(', ') || 'nothing';
+      return `<div class="py-2.5 border-t border-white/5 first:border-t-0 text-[13px] space-y-0.5">${(t.roster_ids || []).map(id => `<div><span class="text-zinc-400">${nameOf(id)} got</span> <span class="text-zinc-200">${got(id)}</span></div>`).join('')}</div>`;
+    }).join('') : '<div class="text-[13px] text-zinc-400 py-3">No trades this week.</div>';
+  }).catch(() => { $('trades').innerHTML = '<div class="text-[13px] text-zinc-400 py-3">Couldn\'t load this week\'s trades.</div>'; });
+}
+
+(async () => {
+  const id = Vault.getLeagueId();
+  if (!id) return;
+  try {
+    const [report, built, db] = await Promise.all([Vault.seasonReport(id), Vault.buildLeagueTeams(id), Vault.fetchSleeperPlayers()]);
+    R = report; ctx = built; players = db;
+    if (!R || R.error || R.empty || !R.weeks?.length) { $('status').textContent = 'No finished weeks yet. The recap fills in after week 1.'; return; }
+    const sel = $('week'), weeks = [...R.weeks].reverse();
+    sel.innerHTML = weeks.map(w => `<option value="${w}">Week ${w}</option>`).join('');
+    sel.classList.remove('hidden');
+    sel.onchange = () => renderWeek(+sel.value);
+    $('status').textContent = `${esc(R.league.name)}, ${esc(R.season)} season`;
+    $('body').classList.remove('hidden');
+    renderWeek(weeks[0]);
+  } catch (e) { console.error(e); $('status').textContent = Vault.loadError(e); }
+})();
+</script>
+</body>
+</html>

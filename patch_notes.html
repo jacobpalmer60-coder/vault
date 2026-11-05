@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=60c6413b">
-<link rel="stylesheet" href="tailwind.css?v=d5dffed2">
+<link rel="stylesheet" href="tailwind.css?v=792ab305">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -47,13 +47,15 @@
 </div>
 
 <script src="vault-core.js?v=5186c6a0"></script>
-<script src="vault-nav.js?v=a77539de"></script>
+<script src="vault-nav.js?v=c411b0a5"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'League History', text: "A new page with every season of your league: champions, all-time records, and head to head between any two managers." },
+    { kind: 'new', page: 'Weekly Recap', text: "A new page for each finished week: results, top and low scores, the biggest swings in playoff odds, best and worst lineup calls, and that week's trades." },
     { kind: 'new', page: 'Everywhere', text: "Copy a trade as text from the Trade Calculator, or a roster as CSV from Team Analyzer. First-time visitors get three short tips, gone for good once closed." },
     { kind: 'new', page: 'League Trades', text: "Trade Search filters: a position in the trade, the size of its best piece, and how recent." },
     { kind: 'new', page: 'Player Rankings', text: "Tier breaks: when sorted by value, a line marks where value really drops off." },
