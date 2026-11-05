@@ -1,7 +1,6 @@
-// One-time (not daily-snapshotted) pull of real END-OF-SEASON stat totals for
-// every real NFL skill-position player currently relevant to dynasty (anyone in
-// today's KTC rankings), going back to 2000. Re-run manually whenever you want to
-// refresh it — this is NOT part of update-data.yml.
+// Real season stat totals for every skill-position player relevant to dynasty (anyone in
+// today's KTC rankings), going back to 2000, the season in progress included. Runs on
+// Tuesdays in update-data.yml, after Monday night's game, so the player card stays current.
 //
 // Sleeper's /v1/stats/nfl/regular/{season} endpoint returns real season totals for
 // every player in one call. Stored RAW (gp + the raw stat categories, not points/
@@ -18,23 +17,25 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const KTC_PATH = path.join(DATA_DIR, 'ktc-values.json');
 const OUT_PATH = path.join(DATA_DIR, 'player-history.json');
+const ALIASES = JSON.parse(await fs.readFile(path.join(__dirname, 'name-aliases.json'), 'utf8'));
 const SKILL_POSITIONS = ['QB', 'RB', 'WR', 'TE'];
 const EARLIEST_SEASON_FLOOR = 2000;
 
 function normalizeName(s) {
   if (!s) return '';
-  return s.toString().toLowerCase()
+  const name = s.toString().toLowerCase()
     .replace(/\./g, '').replace(/'/g, '')
     .replace(/ jr$| sr$| ii$| iii$| iv$| v$/, '')
     .replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+  return ALIASES[name] || name;
 }
 
 // Jan/Feb still belongs to the prior season (playoffs); a season isn't "complete"
 // stats-wise until it's actually finished, so the current season is never included.
-function lastCompletedSeason() {
+// The latest season with games: this year's from March on (it's empty until September).
+function latestSeason() {
   const now = new Date();
-  const year = now.getMonth() <= 1 ? now.getFullYear() - 1 : now.getFullYear();
-  return year - 1;
+  return now.getMonth() <= 1 ? now.getFullYear() - 1 : now.getFullYear();
 }
 
 async function readJson(p) { return JSON.parse(await fs.readFile(p, 'utf8')); }
@@ -58,7 +59,7 @@ async function main() {
     if (p?.years_exp != null) return new Date().getFullYear() - p.years_exp;
     return fallbackFloor;
   };
-  const lastSeason = lastCompletedSeason();
+  const lastSeason = latestSeason();
   const rookieYears = [...trackedIds].map(pid => rookieSeason(players[pid], lastSeason - 15));
   const earliestSeason = Math.max(EARLIEST_SEASON_FLOOR, Math.min(...rookieYears));
   const seasons = [];

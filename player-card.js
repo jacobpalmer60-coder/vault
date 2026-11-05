@@ -214,7 +214,7 @@
       seasonRows = seasons.map(yr => {
         const s = r.seasonHistory[yr];
         return `<tr>
-          <td class="py-1.5 text-zinc-400">${yr}</td>
+          <td class="py-1.5 text-zinc-400">${yr}${+yr === +leagueObj?.season ? ' so far' : ''}</td>
           <td class="py-1.5 text-right mono text-zinc-200">${fmtFloat(s.points, 1)}</td>
           <td class="py-1.5 text-right mono text-zinc-400">${fmtFloat(s.ppg, 1)}</td>
           <td class="py-1.5 text-right mono text-zinc-400">${s.gp}</td>
