@@ -1,0 +1,85 @@
+name: League pull
+
+# Whole-league data (rosters, records, matchups, picks) for contending status and team
+# archetypes, so the research computer doesn't have to stay on (scripts/pull-league-deltas.js).
+# Team data is never published: everything leaves this job sealed to a public key, and only the
+# research computer holds the private one. Logs carry counts only.
+#
+# Each NFL week starts a new pass. A run takes ~42 minutes and starts the next until the pass is
+# done, then this stays quiet until the next week. The schedule is only a backup, and a failed
+# run doesn't chain, so the schedule picks it back up.
+on:
+  schedule:
+    - cron: '35 */6 * * *'
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - scripts/pull-league-deltas.js
+      - .github/workflows/league-pull.yml
+
+permissions:
+  contents: write
+  actions: write   # to start the next run
+
+concurrency:
+  group: league-pull
+  cancel-in-progress: false
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_MINUTES: '42'
+      CALLS_PER_MIN: '450'   # under Sleeper's 1000 a minute; stops on any 429
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # The crawl's list of this season's leagues: read only, it's never saved back from here.
+      - uses: actions/cache/restore@v4
+        with:
+          path: .crawl
+          key: league-pull-reads-crawl-list
+          restore-keys: sleeper-crawl-
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: .league-pull
+          key: league-pull-${{ github.run_id }}
+          restore-keys: league-pull-
+
+      - name: Get this season's trades, to find the leagues that have any
+        run: |
+          mkdir -p data/sleeper-trades
+          gh release download sleeper-trades --pattern '2*.json.gz' --dir data/sleeper-trades --clobber
+
+      - id: pull
+        run: node scripts/pull-league-deltas.js
+
+      # Sealed before it's uploaded (scripts/pull-league-deltas.js): only ciphertext leaves.
+      - name: Save the sealed pull
+        if: steps.pull.outputs.file != ''
+        run: |
+          gh release view league-pull >/dev/null 2>&1 || gh release create league-pull --title "League pull (sealed)" --notes "Encrypted to a private key held only on the research computer. Nothing here is readable without it." --latest=false
+          name="pull-${{ steps.pull.outputs.cycle }}-${{ github.run_id }}.bin"
+          mv "${{ steps.pull.outputs.file }}" "$RUNNER_TEMP/$name"
+          gh release upload league-pull "$RUNNER_TEMP/$name" --clobber
+          # Drop files old enough that the research computer has picked them up.
+          cutoff=$(date -u -d '35 days ago' +%FT%TZ)
+          gh release view league-pull --json assets --jq ".assets[] | select(.updatedAt < \"$cutoff\") | .name" | while read -r old; do gh release delete-asset league-pull "$old" --yes; done
+
+      # After the upload, so a run that fails there pulls those leagues again.
+      - uses: actions/cache/save@v4
+        with:
+          path: .league-pull
+          key: league-pull-${{ github.run_id }}
+
+      - name: Start the next run
+        if: success() && steps.pull.outputs.more == 'yes'
+        run: gh workflow run league-pull.yml --ref main
