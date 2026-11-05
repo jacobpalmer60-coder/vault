@@ -1118,7 +1118,7 @@ const Vault = {
 
     const [weeks, draftPickSets, playerHist, pickHist, projData] = await Promise.all([
       Promise.all([...Array(18)].map((_, i) =>
-        fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))),
+        Vault.sleeperJson(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${i + 1}`, 5).catch(() => []))),
       Promise.all((drafts || []).map(d =>
         fetch(`https://api.sleeper.app/v1/draft/${d.draft_id}/picks`).then(r => r.json()).catch(() => []).then(picks => ({ draft: d, picks })))),
       Vault.fetchPlayerValueHistory(isSF, bonusRecTe),
@@ -1880,6 +1880,18 @@ const Vault = {
      sees it (2026-11-05: a script in a team name ran on Trade Grades). Apostrophes stay. */
   teamLabel(u, rosterId) { return String(u?.metadata?.team_name || u?.display_name || `Team ${rosterId}`).replace(/[<>"]/g, ''); },
   posBadge(pos) { return `pos-badge-${['QB', 'RB', 'WR', 'TE'].includes(pos) ? pos : 'default'}`; },
+  /* Sleeper data that won't change for a while, kept in the browser for keepMinutes, so moving
+     between pages doesn't ask for the same weeks again (League Overview made 91 calls). Each
+     league's weeks are their own address. Refresh clears it. Falls back to a plain fetch. */
+  async sleeperJson(url, keepMinutes) {
+    const get = async () => { const r = await fetch(url); if (!r.ok) throw new Error(`Sleeper ${r.status}`); return r.text(); };
+    if (!keepMinutes || !globalThis.caches) return JSON.parse(await get());
+    const box = await caches.open('vault-sleeper-v1'), hit = await box.match(url);
+    if (hit && Date.now() - +hit.headers.get('x-saved') < keepMinutes * 60000) return hit.json();
+    const body = await get();
+    box.put(url, new Response(body, { headers: { 'x-saved': String(Date.now()) } })).catch(() => {});
+    return JSON.parse(body);
+  },
   // One name for a pick everywhere: "2027 Mid 1st", or "2027 1st" with no tier known.
   pickName(a) {
     const round = [, '1st', '2nd', '3rd', '4th', '5th'][a.round] || `Round ${a.round}`, tier = a.tier ? `${a.tier[0].toUpperCase()}${a.tier.slice(1)} ` : '';
@@ -4489,7 +4501,7 @@ const Vault = {
     const seasonTrades = await Promise.all(seasonChain.map(async s => {
       const [seasonRosters, ...weeks] = await Promise.all([
         s.leagueId === leagueId ? Promise.resolve(rosters) : fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/rosters`).then(r => r.json()).catch(() => []),
-        ...[...Array(18)].map((_, i) => fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i + 1}`).then(r => r.json()).catch(() => []))
+        ...[...Array(18)].map((_, i) => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i + 1}`, 5).catch(() => []))
       ]);
       const ownerByOldRoster = new Map((seasonRosters || []).map(ro => [ro.roster_id, ro.owner_id]));
       const translateRoster = oldRid => currentRosterIdForOwner.get(ownerByOldRoster.get(oldRid));
@@ -5354,7 +5366,7 @@ const Vault = {
       return seen.get(key);
     };
   });
-  Vault.freshData = () => seen.clear();
+  Vault.freshData = () => { seen.clear(); globalThis.caches?.delete('vault-sleeper-v1'); };
 })();
 
 /* Hover card: give any element data-tip="<escaped HTML>" (Vault.injuryCard for injury tags).

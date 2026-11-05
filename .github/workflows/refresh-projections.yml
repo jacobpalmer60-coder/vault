@@ -44,3 +44,19 @@ jobs:
           # The hourly Sleeper crawl and the nightly update also push, so catch up first.
           git pull --rebase
           git push
+
+      # ESPN's injury details through game days (Thursday, Saturday to Monday), so Q and Out
+      # changes reach the cards before kickoff, not the next night. Published only if they moved.
+      - name: Injury details on game days
+        run: |
+          case "$(date -u +%u)" in 4|5|6|7|1) ;; *) echo "Not a game day"; exit 0;; esac
+          git pull --rebase --quiet
+          cp data/injury-details.json "$RUNNER_TEMP/before.json"
+          node scripts/fetch-injury-details.js || exit 0
+          if node -e "const f = p => { const j = JSON.parse(require('fs').readFileSync(p, 'utf8')); delete j.updated; return JSON.stringify(j); }; process.exit(f(process.argv[1]) === f('data/injury-details.json') ? 0 : 1)" "$RUNNER_TEMP/before.json"; then
+            echo "Injury details unchanged"; git checkout -- data/injury-details.json; exit 0
+          fi
+          git add data/injury-details.json
+          git commit -m "Refresh injury details"
+          git pull --rebase
+          git push

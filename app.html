@@ -130,7 +130,7 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=d5266e08"></script>
+<script src="vault-core.js?v=67424a13"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=a07a2167"></script>
@@ -430,7 +430,7 @@ async function loadLastThree(league, list) {
   const weeks = Array.from({ length: LAST_N }, (_, i) => last - i).filter(w => w >= (league.settings?.start_week || 1));
   list.forEach(t => { t.last3Sort = -1; });
   if (weeks.length < LAST_N) return;
-  const games = await Promise.all(weeks.map(w => fetch(`https://api.sleeper.app/v1/league/${league.league_id}/matchups/${w}`).then(r => (r.ok ? r.json() : [])).catch(() => [])));
+  const games = await Promise.all(weeks.map(w => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${league.league_id}/matchups/${w}`, 360).catch(() => []))); // finished weeks
   if (list !== teams) return; // Refresh started over
   list.forEach(t => {
     const pts = games.map(g => g.find(x => x.roster_id === t.rosterId)?.points).filter(p => p > 0);

@@ -43,11 +43,12 @@
 
   <div id="summary" class="hidden mb-8"></div>
   <!-- Who pays up: what each manager has paid over (or under) KTC value, by the position of what they got. -->
+  <div id="yourRecord" class="hidden mb-8"></div>
   <div id="paysUp" class="hidden mb-8"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=d5266e08"></script>
+<script src="vault-core.js?v=67424a13"></script>
 <script src="vault-nav.js?v=1cea3aa6"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=a07a2167"></script>
@@ -225,6 +226,29 @@ function renderPaysUp(stats, allGraded, league) {
   box.classList.remove('hidden');
 }
 
+/* Your own record (user, 2026-11-05): what the verdict said about each of your trades at the
+   time, and whether it held up on value since. Trades with a piece we can't price are left out. */
+function renderYourRecord(allGraded, teams) {
+  const box = document.getElementById('yourRecord'), me = Vault.myTeam(teams);
+  if (!me) return;
+  const groups = [['Good or better', ['great', 'good', 'slight'], 'text-emerald-300'], ['Toss-up', ['tossup'], 'text-amber-300'], ['Leans bad or worse', ['leansbad', 'bad', 'terrible'], 'text-orange-300']]
+    .map(([label, tiers, tone]) => ({ label, tiers, tone, n: 0, ahead: 0 }));
+  allGraded.forEach(g => {
+    const side = g.teamA.rosterId === me.rosterId ? 'A' : g.teamB.rosterId === me.rosterId ? 'B' : null;
+    if (!side || g.anyMissingValue) return;
+    const group = groups.find(x => x.tiers.includes(Vault.gradedImprovement(g, side).tier));
+    if (!group) return;
+    group.n++;
+    if ((side === 'A' ? g.dValueAdjAToday : -g.dValueAdjAToday) > 0) group.ahead++;
+  });
+  const total = groups.reduce((s, x) => s + x.n, 0);
+  if (!total) return;
+  const row = x => `<div class="flex items-baseline justify-between gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]"><span class="${x.tone}">${x.label}</span><span class="text-zinc-300">${x.n ? `<span class="mono text-zinc-100">${x.ahead} of ${x.n}</span> ahead on value today` : '<span class="text-zinc-500">none yet</span>'}</span></div>`;
+  box.innerHTML = `<div class="card rounded-vault-sm px-5 py-4"><div class="text-[15px] font-semibold text-zinc-100">Your record</div>
+    <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">What the verdict said about ${Vault.escapeHtml(me.teamName)}'s trades when you made them, and how they've held up.</div>${groups.map(row).join('')}</div>`;
+  box.classList.remove('hidden');
+}
+
 async function init() {
   const status = document.getElementById('status');
   try {
@@ -236,6 +260,7 @@ async function init() {
     status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
     render(stats, teams);
+    renderYourRecord(allGraded, teams);
     renderPaysUp(stats, allGraded, league);
   } catch (e) {
     console.error(e);
