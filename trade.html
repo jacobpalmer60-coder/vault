@@ -1537,8 +1537,13 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
    Up to EVEN_OPTIONS of them, best first, with Try another moving through the list
    from the trade you started with (user, 2026-11-04: it always suggested the same
    thing). A piece shows up in at most two, so the list isn't one player with different
-   partners. Changing the trade by hand ends the list. */
-const EVEN_OPTIONS = 6, EVEN_PIECE_REPEATS = 2;
+   partners. Changing the trade by hand ends the list.
+   A fix also has to land within EVEN_MAX_GAP on trade value (user, 2026-11-05). Reaching a Toss-up
+   wasn't enough: Boston for Cook "fixed" by adding Mason sat 11% off, where about 1 in 10 of 3,572
+   real 2-for-1s for a star that size went. About two-thirds of real trades of every shape but 1-for-1 land
+   within 8%. KTC's calculator
+   isn't part of it: it runs far from what managers accept on trades like these, at a fair price too. */
+const EVEN_OPTIONS = 6, EVEN_PIECE_REPEATS = 2, EVEN_MAX_GAP = 8;
 let evenFix = null;
 const evenSame = (set, keys) => set.size === keys.length && keys.every(k => set.has(k));
 const evenFixLive = () => !!evenFix && evenSame(selectedA, evenFix.nowA) && evenSame(selectedB, evenFix.nowB);
@@ -1579,6 +1584,8 @@ function evenPlan() {
   for (const c of cands) {
     const A = helpB ? [...A0, ...c.add] : A0.filter(a => !c.drop.includes(a));
     const B = helpB ? B0.filter(b => !c.drop.includes(b)) : [...B0, ...c.add];
+    const v = Vault.tradeSideValues(A, B);
+    if (200 * Math.abs(v.valueA - v.valueB) / ((v.valueA + v.valueB) || 1) > EVEN_MAX_GAP) continue;
     const j = judge(A, B);
     if (j.A.score < -6 || j.B.score < -6) continue;
     found.push({ ...c, A, B, after: j, key: (helpB ? j.A.score : j.B.score) - (c.add.length + c.drop.length - 1) * 4 });
@@ -1607,12 +1614,14 @@ function paintEvenLine() {
   const box = document.getElementById('evenLine');
   if (!box) return;
   const f = evenLine.plan, esc = Vault.escapeHtml;
-  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-500">No small change evens this one out.</div>'; return; }
+  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-500">No small change gets this to a price both teams could take.</div>'; return; }
   const o = f.options[0], giver = f.helpB ? f.teamA : f.teamB, names = l => l.map(a => esc(a.name)).join(' and ');
   const change = [o.add.length ? `${esc(giver.teamName)} adds <span class="text-zinc-100">${names(o.add)}</span>` : '', o.drop.length ? `<span class="text-zinc-100">${names(o.drop)}</span> comes out` : ''].filter(Boolean).join(' and ');
-  const read = `<span class="${Vault.VERDICT_TIER_TEXT[o.after.A.tier]}">${o.after.A.label}</span> for ${esc(f.teamA.teamName)}, <span class="${Vault.VERDICT_TIER_TEXT[o.after.B.tier]}">${o.after.B.label}</span> for ${esc(f.teamB.teamName)}`;
+  // Says what the fix reaches, not that it's even: the team it's for, then the other team's read.
+  const [helped, other] = f.helpB ? [[o.after.B, f.teamB], [o.after.A, f.teamA]] : [[o.after.A, f.teamA], [o.after.B, f.teamB]];
+  const read = v => `<span class="${Vault.VERDICT_TIER_TEXT[v.tier]}">${v.label}</span>`;
   box.innerHTML = `<div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2.5">
-      <div class="min-w-0 flex-1 basis-[260px] text-[13px] text-zinc-300">${change}: ${read}.</div>
+      <div class="min-w-0 flex-1 basis-[260px] text-[13px] text-zinc-300">Gets it to a ${read(helped[0])} for ${esc(helped[1].teamName)}: ${change}. ${read(other[0])} for ${esc(other[1].teamName)}.</div>
       <button onclick="evenItOut()" class="shrink-0 text-[13px] px-3.5 py-1.5 rounded-lg btn-gold-solid">Use this</button>
     </div>`;
 }
