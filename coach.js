@@ -869,12 +869,27 @@ function coachUpPickerHtml(me, list) {
      sell      picks and players 24 or younger worth 50-130% of him
    Likely yeses first, best for you first; then the closest noes. Each one's Build starts it. */
 const COACH_REC_CANDS = 40, COACH_REC_SHOW = 8;
+/* Superflex: does this trade leave them under two QBs worth starting (KTC 3,000+)? (User,
+   2026-11-04: "they wouldnt do that if they dont have many back ups right?") Measured on 630,481
+   judged 2025 Superflex trades (VaultValues qb-hole.js): a contender with exactly two sold one
+   in 1.0% of its trades, against 5.5% with three and 18% with four or more, and 8% of
+   contenders' QB sales left them short. Rebuilders did it in 31% of theirs, and teams out of
+   the race in 48%. So goal lists skip these for a contender only; for anyone else the row
+   says so. A trade you name yourself isn't touched. */
+const COACH_QB_START = 3000;
+function coachLeavesShort(t, give, get) {
+  if (!slots.includes('SUPER_FLEX')) return false;
+  const start = a => a.type === 'player' && a.pos === 'QB' && a.value >= COACH_QB_START;
+  const sold = get.filter(start).length, back = give.filter(start).length;
+  return sold > back && t.assets.filter(start).length - sold + back < 2;
+}
 // Their side of a fit, for selling it: their verdict and what they'd be getting that they need.
 function coachForThem(t, give, r) {
   const thin = [...new Set(give.filter(a => a.type === 'player' && coachPosNeed(t, a.pos)).map(a => a.pos))];
   const later = !thin.length && Vault.teamMode(t) === 'rebuild' && give.some(a => a.type === 'pick' || (a.age > 0 && a.age <= 24));
   const why = thin.length ? `, they're thin at ${thin.join(' and ')}` : later ? `, they're building for later` : '';
-  return `<span class="${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</span> for them${why}`;
+  const short = coachLeavesShort(t, give, r.o.get) ? ', <span class="text-orange-300">leaves them short at QB</span>' : '';
+  return `<span class="${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</span> for them${why}${short}`;
 }
 function coachRecSpec(me) {
   const f = coachFlow(), others = teams.filter(t => t !== me);
@@ -1088,7 +1103,7 @@ function coachTimingLoad() {
     if (coachOpen() && coachFlow().step === 'aims') renderCoach();
   });
 }
-const coachTimingText = () => coachTimingRead.pos.map(p => `${p.pos}s`).join(' and ');
+const coachTimingText = () => (coachTimingRead?.pos || []).map(p => `${p.pos}s`).join(' and ');
 function coachStartAim(k) {
   if (k === 'depth') {
     const pos = coachDefaultPos();
@@ -1101,7 +1116,7 @@ function coachAimsHtml(me) {
   coachTimingLoad();
   const odds = coachOddsAim(me), mode = Vault.teamMode(me);
   const order = mode === 'rebuild' ? ['later', 'shape', 'market', 'now'] : mode === 'contend' ? ['now', 'shape', 'market', 'later'] : ['shape', 'now', 'later', 'market'];
-  const shown = k => (k === 'title' || k === 'playoffs' ? k === odds : k === 'timing' ? coachTimingRead.pos.length > 0 : true);
+  const shown = k => (k === 'title' || k === 'playoffs' ? k === odds : k === 'timing' ? coachTimingRead?.pos.length > 0 : true);
   const sub = k => (k === 'timing' ? `${coachTimingText()} usually gain on other positions from here.` : COACH_AIMS[k].sub);
   return coachAsk('What are you after?') + order.map(g => {
     const [label, keys] = COACH_AIM_GROUPS[g], list = keys.filter(shown);
@@ -1115,14 +1130,19 @@ async function coachAimRun(k) {
   const show = () => { if (coachOpen() && coachFlow().step === 'pick') renderCoach(); };
   await coachTick();
   if (stale()) return;
-  const players = filt => others.flatMap(t => t.assets.filter(a => a.type === 'player' && !coachTheirOff(a) && filt(a)).map(a => ({ a, t })));
+  // Not their cornerstone (Vault.cornerstone: a team's best player, or a contender's top 3):
+  // managers rarely trade them at any fair price. Naming the player yourself is fine, but a
+  // goal didn't name anyone, and these lists leaned on stars without it (user, 2026-11-04).
+  // Sell high starts from your player, as the old list did.
+  const openToAsk = (t, get) => k === 'sellhigh' || !coachAsksCornerstone(t, get);
+  const players = filt => others.flatMap(t => t.assets.filter(a => a.type === 'player' && !coachTheirOff(a) && filt(a) && openToAsk(t, [a])).map(a => ({ a, t })));
   const gainOf = (t, give, get) => coachAfter(me.rosterId, t.rosterId, give, get).opt - me.opt;
   const beatsKtc = (give, get) => coachKtcPct(give, get) >= COACH_AIM_KTC;
   const out = [];
   // A trade that passes: a likely yes that isn't bad for you.
   const read = (t, give, get, extra = {}, also = () => true) => {
     const r = coachWorkRead(me, { partner: t, give, get, option: 'build' });
-    if (r.yes && coachLevelRank(r) < 2 && also(r)) { const x = { t, give, get, r, ...extra }; out.push(x); return x; }
+    if (r.yes && coachLevelRank(r) < 2 && openToAsk(t, get) && !(coachLeavesShort(t, give, get) && Vault.teamMode(t) === 'contend') && also(r)) { const x = { t, give, get, r, ...extra }; out.push(x); return x; }
     return null;
   };
   // One target at a time, so the screen can count them off.
