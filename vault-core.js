@@ -1923,6 +1923,7 @@ const Vault = {
     theyWant: ['What they would want', "A team building for later wants picks and young players: your best picks, then your best young players outside your lineup."],
     trackRecord: ['Track record', "Every team-side of 2024 and 2025 trades, 2.68 million of them, scored the same way as this one. A record, not a promise, and winning on value is partly built in: a side that won on price starts out ahead."],
     futureRank: ['The next three seasons', "Where each team's best lineup ranks in the league by KTC value in each coming season, before and after this trade. Each player keeps what his position and age usually keep, and a pick joins the year it's drafted, with the other teams left as they are. A rough projection for comparing rosters: it doesn't count in the verdict."],
+    stressTest: ['Stress test', "This season played out again with your best incoming player gone for the rest of it and your bench filling in, on the same random games, so the difference is him. It isn't an injury forecast: it shows how much of the trade rests on one player."],
     page_overview: ['League Overview', 'Every team, this season and for the long run. Click a team to open it.'],
     page_analyzer: ['Team Analyzer', 'One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team in the menu.'],
     page_market: ['Player Market', 'What players actually go for in completed dynasty trades in leagues like yours, next to their KTC value.'],

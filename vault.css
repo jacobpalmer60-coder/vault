@@ -207,6 +207,18 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
 .vs-wrap:focus-within { outline: 2px solid rgba(227, 176, 75, 0.7); outline-offset: 2px; }
 .vs-wrap { cursor: text; }
 
+/* Trade Calculator on phones: one part of the trade at a time (tradeTab). */
+#tradeTabs button { flex: 1; padding: 7px 0; border-radius: 8px; font-size: 13px; color: var(--text-2); }
+#tradeTabs button[aria-selected="true"] { background: rgba(255, 255, 255, 0.08); color: var(--text); font-weight: 500; }
+@media (max-width: 767px) {
+  #tradeBar:not([data-tab="verdict"]) #tradeVerdict, #tradeBar:not([data-tab="details"]) #siteStatus,
+  #tradeBar:not([data-tab="verdict"]):not([data-tab="details"]) #tradeAnswer,
+  #tradeBar:not([data-tab="teams"]) #teamImpact,
+  #tradeBar:not([data-tab="season"]) #seasonWrap,
+  #tradeBar:not([data-tab="details"]) #tradeDetails { display: none; }
+  #seasonWrap > summary, #tradeDetails > summary, #teamImpact > div:first-child { display: none; }
+  #tradeBar #seasonWrap, #tradeBar #tradeDetails { padding-top: 12px; }
+}
 /* Trade Calculator: once there's a trade, the timeline menu beside the verdict is the one to use. */
 #builder:has(#tradeBar:not(.hidden)) #needsA label, #builder:has(#tradeBar:not(.hidden)) #needsA label + .tl-sep { display: none; }
 /* Trade Calculator: the "How it changes each team" section only shows once there's a trade. */

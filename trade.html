@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=d046a219">
+<link rel="stylesheet" href="vault.css?v=8443268e">
 <link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
@@ -73,7 +73,7 @@
   </div>
   <!-- Trade slip: the deal, side by side; the read (grade, fairness bar, KTC vs
        adjusted); a suggestion to even it up; then every action in one row. -->
-  <div id="tradeBar" class="hidden mb-4 rounded-2xl card overflow-hidden">
+  <div id="tradeBar" data-tab="verdict" class="hidden mb-4 rounded-2xl card overflow-hidden">
     <div class="grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-3 p-4 sm:p-5">
       <section aria-label="Your team sends" class="min-w-0 rounded-xl bg-black/25 border border-white/5 p-3">
         <div id="giveALabel" class="text-[12px] text-zinc-400 mb-2 truncate">Your team sends</div>
@@ -87,10 +87,17 @@
         <div data-side-add class="hidden mt-2" data-field-box><select id="addB" data-search="Add a player or pick…" aria-label="Add from this team" class="w-full bg-transparent text-[12px] text-zinc-300 outline-none"></select></div>
       </section>
     </div>
+    <!-- Phones: one part of the trade at a time (vault.css). Wider screens show them all. -->
+    <div id="tradeTabs" role="tablist" aria-label="Parts of the trade" class="md:hidden flex gap-1 px-3 py-2 border-t border-white/5">
+      <button type="button" role="tab" data-tt="verdict" aria-selected="true" onclick="tradeTab('verdict')">Verdict</button>
+      <button type="button" role="tab" data-tt="teams" aria-selected="false" onclick="tradeTab('teams')">Teams</button>
+      <button type="button" role="tab" data-tt="season" aria-selected="false" onclick="tradeTab('season')">Season</button>
+      <button type="button" role="tab" data-tt="details" aria-selected="false" onclick="tradeTab('details')">Details</button>
+    </div>
     <!-- The answer: the verdict for your team, then one price row (trade value,
          KTC's calculator, the market) and whether managers take trades like it. -->
-    <div class="border-t border-white/5 px-4 sm:px-5 py-4 grid lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_430px] gap-x-6 gap-y-4 items-start">
-      <div class="min-w-0">
+    <div id="tradeAnswer" class="border-t border-white/5 px-4 sm:px-5 py-4 grid lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_430px] gap-x-6 gap-y-4 items-start">
+      <div id="tradeVerdict" class="min-w-0">
         <div id="diffLabel" aria-live="polite"></div>
       </div>
       <!-- How KTC, Roster Audit and Dynasty Daddy read the same trade (siteStatusHtml). -->
@@ -224,7 +231,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=b83fc55f"></script>
+<script src="vault-core.js?v=c980be9a"></script>
 <script src="vault-nav.js?v=7c21d9f0"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
@@ -1774,7 +1781,34 @@ function tradeSeasonOdds(teamA, teamB, aAssets, bAssets) {
   return { before, after, lineA, lineB, depA, depB, next };
 }
 
+/* The stress test (2026-11-05): your best piece in the trade is lost for the season. His weeks are
+   replayed with your bench filling in, on the same seed, so the difference is him. Not a few weeks:
+   a team already safe for the playoffs read the same with him out four, since titles are won later.
+   Worked out just after the card paints: it's a whole season's simulation and the verdict shouldn't
+   wait on it. */
+let stressTimer = 0;
+function scheduleStress(teamA, teamB, aAssets, bAssets) {
+  clearTimeout(stressTimer);
+  stressTimer = setTimeout(() => {
+    const box = document.getElementById('stressLine');
+    if (!box) return;
+    box.innerHTML = '';
+    const who = bAssets.filter(a => a.type === 'player' && a.value > 0).sort((x, y) => y.value - x.value)[0];
+    if (!who || !remainingWeeks.length || !aAssets.length) return;
+    const { before, after, depA, depB, lineB, next } = tradeSeasonOdds(teamA, teamB, aAssets, bAssets);
+    if (!after.A.optByWeek) return;
+    const without = Vault.seasonLineupDetail(after.A.plist.filter(p => p.id !== who.id), slots), weeks = new Set(after.A.optByWeek.keys());
+    const byWeek = new Map([...after.A.optByWeek].map(([w, v]) => [w, (weeks.has(w) ? without.byWeek?.get(w) ?? v : v) - (before.A.optByWeek.get(w) ?? v)]));
+    const lost = [...weeks].reduce((s, w) => s + (after.A.optByWeek.get(w) ?? 0) - (without.byWeek?.get(w) ?? 0), 0);
+    if (lost < 1) return; // he wouldn't have started
+    const odds = seasonOdds(new Map([[teamA.rosterId, { flat: depA, avg: after.A.opt - before.A.opt, byWeek }], [teamB.rosterId, { flat: depB, avg: lineB, byWeek: after.B.optByWeek ? new Map([...after.B.optByWeek].map(([w, v]) => [w, v - (before.B.optByWeek.get(w) ?? v)])) : null }]])).get(teamA.rosterId);
+    const was = next.get(teamA.rosterId), now = seasonBase?.get(teamA.rosterId), pc = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
+    if (!(was.championshipPct >= 1) || !odds) return;
+    box.innerHTML = `<span class="text-zinc-400">If ${Vault.escapeHtml(who.name)} is lost for the season:</span> your title odds go ${pc(was.championshipPct)} → ${pc(odds.championshipPct)}${now ? `<span class="text-zinc-400">, against ${pc(now.championshipPct)} without this trade</span>` : ''}${Vault.info('stressTest')}`;
+  }, 250);
+}
 function renderSeasonImpact(teamA, teamB, aAssets, bAssets) {
+  scheduleStress(teamA, teamB, aAssets, bAssets);
   const box = document.getElementById('seasonImpact');
   // Nothing to project once the regular season is over (or before a schedule exists).
   seasonFor = new Map();
@@ -1983,6 +2017,14 @@ function openRecent(i) {
   negLoad(p.give, p.get);
 }
 
+// Phones: which part of the trade shows. The sections it opens have nothing else to do there.
+function tradeTab(tab) {
+  document.getElementById('tradeBar').dataset.tab = tab;
+  document.querySelectorAll('#tradeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tt === tab)));
+  if (tab === 'season') document.getElementById('seasonWrap').open = true;
+  if (tab === 'details') document.getElementById('tradeDetails').open = true;
+}
+
 function fillQuickAdd() {
   const me = teamOf('A'), sel = document.getElementById('quickAdd');
   const label = a => (a.type === 'pick' ? a.name : `${a.name} (${Vault.playerSearchInfo(a)})`);
@@ -2089,7 +2131,7 @@ function updateTrade() {
   // Two by two on phones (2026-10-24: four rows took a whole screen), one row from sm up.
   const cardNumbers = aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 grid grid-cols-2 gap-x-4 sm:flex sm:flex-wrap sm:gap-x-10 gap-y-3">
       <div id="titleStat" class="empty:hidden"></div>
-      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · trade value`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}<div id="marketStat" class="empty:hidden"></div></div><div id="realTrades" class="mt-3 text-[12px] leading-relaxed text-zinc-400 empty:hidden"></div>` : '';
+      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · trade value`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}<div id="marketStat" class="empty:hidden"></div></div><div id="stressLine" class="mt-3 text-[13px] text-zinc-300 empty:hidden"></div><div id="realTrades" class="mt-3 text-[12px] leading-relaxed text-zinc-400 empty:hidden"></div>` : '';
   diffLabelEl.innerHTML = `<div id="forYou"></div>${cardNumbers}${aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 max-w-[640px]">${Vault.fairnessPanelHtml(fairness, diffBandPct, teamA.teamName, teamB.teamName, `${offPct.toFixed(0)}% off`, accept)}</div>` : ''}<div id="workBoth"></div>
     ${aAssets.length && bAssets.length ? `<details class="group mt-3 max-w-[640px]" id="whyBox"><summary class="inline-flex items-center gap-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200"><span>Why</span><span class="group-open:hidden">▾</span><span class="hidden group-open:inline">▴</span></summary><div class="mt-2 space-y-1.5"><div id="whyVerdict"></div>
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}

@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=d046a219">
+<link rel="stylesheet" href="vault.css?v=8443268e">
 <link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=b83fc55f"></script>
+<script src="vault-core.js?v=c980be9a"></script>
 <script src="vault-nav.js?v=7c21d9f0"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,8 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Trade Calculator', text: "Stress test: under the verdict's numbers, what your title odds would be if your best incoming player were lost for the season, against your odds without the trade." },
+    { kind: 'changed', page: 'Trade Calculator', text: "On phones the trade card has tabs, Verdict, Teams, Season and Details, instead of one long page. The calculator also loads about twice as fast on a phone." },
     { kind: 'fixed', page: 'League Overview', text: "Sorting makes more sense. Team now starts A to Z and Age youngest first, the same on phones and desktop. An arrow shows the column and direction, Right now and Dynasty only light up when that's really the order, and ties fall to points for. Phones have a button to flip the order, which they never really could." },
     { kind: 'new', page: 'Trade Calculator', text: "The next three seasons: each team's box shows where its best lineup ranks by KTC value in each coming season, before and after the trade. A rough projection for comparing rosters; it doesn't count in the verdict." },
     { kind: 'new', page: 'Trade Calculator', text: "Paste a trade: copy an offer from Sleeper or your group chat and the calculator fills in both sides. Your last few trades also show up to pick back up." },
