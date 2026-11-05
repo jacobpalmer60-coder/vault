@@ -6,6 +6,9 @@ const { loadVault } = require('./lib-market');
 try {
   const Vault = loadVault();
   if (typeof Vault?.tradeSideValues !== 'function') throw new Error('Vault loaded without its math');
+  // The crawler's name list and the site's have to stay the same list.
+  const list = require('./name-aliases.json');
+  if (JSON.stringify(list) !== JSON.stringify(Vault._nameAlias)) throw new Error('scripts/name-aliases.json and Vault._nameAlias differ');
   console.log('vault-core.js loads outside a browser');
 } catch (e) {
   console.error(`vault-core.js doesn't load outside a browser: ${e.message}`);
