@@ -3418,7 +3418,7 @@ const Vault = {
       <div class="text-[12px] text-zinc-400 whitespace-nowrap" title="${title}">${label} <span class="text-zinc-500">${weight}%</span></div>
       <div title="${title}">${Vault.fairnessBarHtml(x, 0, true)}</div>
       <div class="text-[12px] text-zinc-300 text-right tabular-nums whitespace-nowrap">${lean(x)}</div>`;
-    return `<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
+    return `<div class="grid grid-cols-[92px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
       <div class="hidden sm:block"></div>
       <div class="col-span-3 sm:col-span-1 flex justify-between items-end gap-4 text-[12px] leading-snug text-zinc-400">
         <span class="min-w-0">← ${esc(teamAName)}</span><span class="min-w-0 text-right">${esc(teamBName)} →</span>
@@ -3427,9 +3427,14 @@ const Vault = {
       <div class="text-[13px] font-medium text-zinc-100 whitespace-nowrap">Overall</div>
       <div>${Vault.fairnessBarHtml(fair.overallSigned, bandPct, false, accept)}</div>
       <div class="text-[13px] font-medium text-zinc-100 text-right tabular-nums whitespace-nowrap">${overallText}</div>
+      <details class="group/bars col-span-3">
+        <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200"><span class="group-open/bars:hidden">What makes up the bar ▾</span><span class="hidden group-open/bars:inline">Hide ▴</span></summary>
+        <div class="grid grid-cols-[92px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 mt-2">
       ${row('Trade value', w.value, fair.value, "KTC values, with pieces combined the way 1.5 million real trades combine them (the best piece in full, each extra piece for less). KeepTradeCut's own calculator number is shown in the trade slip to check against.")}
       ${row('Roster fit', w.roster, fair.roster, 'Positional need filled or opened up, plus the shift in each starting lineup’s projected points and VORP.')}
       ${row('Timeline', w.timeline, fair.timeline, 'Age and draft capital against each team’s rebuild/contend timeline, archetype, and contention window.')}
+        </div>
+      </details>
     </div>`;
   },
 

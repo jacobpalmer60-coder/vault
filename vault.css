@@ -205,6 +205,8 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
 .vs-wrap:focus-within { outline: 2px solid rgba(227, 176, 75, 0.7); outline-offset: 2px; }
 .vs-wrap { cursor: text; }
 
+/* Trade Calculator: once there's a trade, the timeline menu beside the verdict is the one to use. */
+#builder:has(#tradeBar:not(.hidden)) #needsA label, #builder:has(#tradeBar:not(.hidden)) #needsA label + .tl-sep { display: none; }
 /* Trade Calculator: the "How it changes each team" section only shows once there's a trade. */
 #teamImpact:has(#analysisA.hidden) { display: none; }
 
