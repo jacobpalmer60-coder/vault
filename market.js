@@ -79,18 +79,46 @@ function marketRange(lo, hi) {
 let marketToken = 0;
 // Under the verdict's numbers: how unusual this trade is, and the closest real one.
 function realTradesHtml(aAssets, bAssets, m) {
-  const g = marketGapShare(aAssets, bAssets), n = g ? `about ${(Math.round(g.n / 1000) * 1000).toLocaleString()}` : '';
-  const pc = v => (v < 0.01 ? 'under 1%' : `${Math.round(v * 100)}%`);
-  const line = !g ? '' : g.share <= 0.25 ? `${g.share < 0.1 ? "Only " : ""}${pc(g.share)} of ${n} recent completed trades were this far apart on trade value`
-    : g.share >= 0.5 ? `Closer to even than ${pc(g.share)} of ${n} recent completed trades` : `About ${pc(g.share)} of ${n} recent completed trades were at least this far apart`;
+  const line = marketGapLine(aAssets, bAssets);
   const c = m?.examples?.[0];
   const close = c ? `Closest real trade: <span class="text-zinc-300">${c.ps.map(a => Vault.assetLink(a)).join(', ')}</span> for <span class="text-zinc-300">${c.os.map(a => Vault.assetLink(a)).join(', ')}</span>, paid ${marketSigned(c.paid)}` : '';
   if (!line && !close) return '';
   return `<div class="max-w-[640px] space-y-0.5">${line ? `<div>${line}${Vault.info('realTrades')}</div>` : ''}${close ? `<div>${close}</div>` : ''}</div>`;
 }
+/* The news check (2026-11-05): a piece that went down after most of the trades behind his price.
+   A plain fact, not a warning about the price: on 61 trades of players just hurt, managers paid about
+   8% under the premium, too few to move a grade (VaultValues news-check-test.js). The day comes from
+   the daily injury log (data/history/injuries-<year>.jsonl), loaded only when a trade needs it. */
+const HURT_SAY = { IR: 'went on IR', Out: 'was ruled out', Doubtful: 'turned doubtful' };
+const HURT_DAYS = 14;
+let hurtLog = null;
+const loadHurtLog = () => (hurtLog ||= fetch(`data/history/injuries-${new Date().getFullYear()}.jsonl`).then(r => (r.ok ? r.text() : '')).then(t => t.trim().split('\n').filter(Boolean).map(l => JSON.parse(l))).catch(() => []));
+// The first logged day of his current spell, or null if it began before the log did.
+function hurtSince(log, id) {
+  let day = null;
+  for (let i = log.length - 1; i >= 0 && HURT_SAY[log[i].s[id]]; i--) day = log[i].date;
+  return day && day > log[0].date ? day : null;
+}
+function newsLine(log, a) {
+  const day = hurtSince(log, a.id);
+  if (!day || Date.now() - Date.parse(day) > HURT_DAYS * 864e5) return '';
+  const comps = marketComps(a.name).filter(c => c.main), before = comps.filter(c => String(c.t.date).slice(0, 10) < day).length;
+  if (comps.length < MARKET_MIN_COMPS || before * 2 <= comps.length) return '';
+  const on = new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `<div>${Vault.assetLink(a)} ${HURT_SAY[a.injury]} ${on}, after most of the trades behind his market price</div>`;
+}
 function paintRealTrades(aAssets, bAssets, m) {
   const box = document.getElementById('realTrades');
-  if (box) box.innerHTML = aAssets.length && bAssets.length ? realTradesHtml(aAssets, bAssets, m) : '';
+  if (!box) return;
+  box.innerHTML = aAssets.length && bAssets.length ? realTradesHtml(aAssets, bAssets, m) : '';
+  const hurt = [...aAssets, ...bAssets].filter(a => a.type !== 'pick' && HURT_SAY[a.injury]);
+  if (!hurt.length) return;
+  const token = marketToken;
+  loadHurtLog().then(log => {
+    if (token !== marketToken || !log.length) return;
+    const lines = hurt.map(a => newsLine(log, a)).join('');
+    if (lines) box.insertAdjacentHTML('beforeend', `<div class="max-w-[640px] space-y-0.5 mt-0.5">${lines}</div>`);
+  });
 }
 function renderMarketRead(aAssets, bAssets) {
   const box = document.getElementById('marketRead');

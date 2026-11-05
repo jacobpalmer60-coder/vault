@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=45c9ae57">
-<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
+<link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,14 +46,20 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=b74a6d11"></script>
-<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="vault-core.js?v=4410f81b"></script>
+<script src="vault-nav.js?v=02da1afa"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'changed', page: 'Trade Calculator', text: "The suggested fix on a trade now has to land within 8% on trade value, where most real trades go, not just reach a Toss-up. It often asks for a bigger piece than before, and it says what it gets the trade to instead of calling it even." },
+    { kind: 'fixed', page: 'Trade Calculator', text: "Other Sites: the \"≈ KTC\" number could point the opposite way from the team named beside it on trades with uneven pieces. It now counts pieces the way KTC's calculator does, and says so if a site and KTC's scale really do pick different teams." },
+    { kind: 'new', page: 'Does It Work?', text: "A new page on how the verdict did on 2026 trades it never saw, side by side with KTC's calculator, including the tests KTC won and where the verdict falls short. It's in the ... menu." },
+    { kind: 'new', page: 'Grade a Trade', text: "Grade any trade with no league connected: pick Superflex or 1QB and TE premium, add both sides, and get the same price the Trade Calculator gives. Connect a league for the full verdict." },
+    { kind: 'new', page: 'Trade Calculator', text: "How the other manager trades, on their team card: for example \"gets older in 5 of 6 trades\", and whether this trade fits that. Trade Coach says when an offer fits how they trade. It only shows habits that repeat in real trades; which position someone buys and whether they overpay don't, so those aren't shown." },
+    { kind: 'changed', page: 'Trade Calculator', text: "A player whose KTC value jumped 20% or more since his recent trades now grades at KTC value, because managers paid about 6% under the old market read on 18,405 trades like that. The card also says when a player in the trade went on IR or was ruled out after most of the trades behind his price." },
     { kind: 'new', page: 'Trade Calculator', text: "Share image: a clean picture of a trade and its verdict to post in your league chat. Weekly Recap has one too." },
     { kind: 'new', page: 'Your Team Today', text: "A new first stop after picking a league: your record and odds, what changed since your last visit, your next game, your injuries, your biggest value moves this week, and what your team needs with partners to start a trade with." },
     { kind: 'new', page: 'Trade Calculator', text: "Stress test: under the verdict's numbers, what your title odds would be if your best incoming player were lost for the season, against your odds without the trade." },

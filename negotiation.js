@@ -59,10 +59,42 @@ function negPreloadStyles() {
       const s = g.signedPctDiff, loser = s > 0 ? g.teamA.rosterId : g.teamB.rosterId;
       if (Math.abs(s) >= 1) (behind.get(loser) || behind.set(loser, []).get(loser)).push(Math.abs(s));
     });
-    Negotiation.styles = new Map(stats.map(s => [s.rosterId, { ...Vault.managerProfile(s, avg), trades: s.trades, behind: behind.get(s.rosterId) || [] }]));
+    Negotiation.styles = new Map(stats.map(s => [s.rosterId, { ...Vault.managerProfile(s, avg), trades: s.trades, behind: behind.get(s.rosterId) || [], habits: negHabitsOf(s) }]));
     return Negotiation.styles;
   }).catch(() => { Negotiation.styles = new Map(); return Negotiation.styles; });
   return Negotiation.stylesLoading;
+}
+
+/* How a manager trades (2026-11-05): what they did in 60%+ of their trades here, shown on the trade
+   card and in Coach. Only what repeats: on 202,624 owner-seasons (VaultValues manager-repeat-test.js)
+   those habits came back about 1.2 to 1.5 times as often on the next trade. Which position they buy
+   (1.06x for RBs), whether they overpay (correlation 0.08) and how far behind they've gone (past
+   their worst exactly as often as chance) did not, so none of those are said here. */
+const HABIT_MIN = 4, HABIT_SHARE = 0.6;
+function negHabitsOf(s) {
+  const out = [], add = (key, n, of, say) => { if (of >= HABIT_MIN && n >= 3 && n / of >= HABIT_SHARE) out.push({ key, n, of, say }); };
+  const pickDeals = s.picksInCount + s.picksOutCount;
+  add('picksIn', s.picksInCount, pickDeals, 'nets picks');
+  add('picksOut', s.picksOutCount, pickDeals, 'spends picks');
+  add('younger', s.youngerCount, s.trades, 'gets younger');
+  add('older', s.olderCount, s.trades, 'gets older');
+  add('consolidate', s.consolidateCount, s.trades, 'sends more pieces than they get');
+  add('split', s.splitCount, s.trades, 'gets more pieces than they send');
+  return out.sort((a, b) => b.n / b.of - a.n / a.of).slice(0, 2);
+}
+// Which habits a trade follows, from the side of the team that gets `gets` and sends `gives`.
+function negTradeLeans(gets, gives) {
+  const pickValue = l => l.reduce((t, a) => t + (a.type === 'pick' ? a.value || 0 : 0), 0), net = pickValue(gets) - pickValue(gives);
+  const age = l => { const p = l.filter(a => a.type !== 'pick' && a.age > 0), w = p.reduce((t, a) => t + (a.value || 0), 0); return w ? p.reduce((t, a) => t + a.age * (a.value || 0), 0) / w : null; };
+  const a = age(gets), b = age(gives), older = a != null && b != null ? a - b : 0;
+  return { picksIn: net > 500, picksOut: net < -500, younger: older < -0.25, older: older > 0.25, consolidate: gets.length < gives.length, split: gets.length > gives.length };
+}
+// Their habits and whether this trade follows them: fit > 0 yes, < 0 no, 0 mixed or neither.
+function negHabitFit(rosterId, gets, gives) {
+  const habits = Negotiation.styles?.get(rosterId)?.habits || [];
+  if (!habits.length) return { habits, fit: 0 };
+  const on = negTradeLeans(gets, gives), other = { picksIn: 'picksOut', picksOut: 'picksIn', younger: 'older', older: 'younger', consolidate: 'split', split: 'consolidate' };
+  return { habits, fit: habits.reduce((t, h) => t + (on[h.key] ? 1 : on[other[h.key]] ? -1 : 0), 0) };
 }
 
 function negReset() {

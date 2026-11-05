@@ -545,6 +545,15 @@ function marketGapShare(send, get) {
   return { share: (gaps.length - lo) / gaps.length, n: Market.data.gapTrades };
 }
 
+// That share in a sentence ('' without enough trades), for the Trade Calculator and Grade a Trade.
+function marketGapLine(send, get) {
+  const g = marketGapShare(send, get);
+  if (!g) return '';
+  const n = `about ${(Math.round(g.n / 1000) * 1000).toLocaleString()}`, pc = v => (v < 0.01 ? 'under 1%' : `${Math.round(v * 100)}%`);
+  return g.share <= 0.25 ? `${g.share < 0.1 ? 'Only ' : ''}${pc(g.share)} of ${n} recent completed trades were this far apart on trade value`
+    : g.share >= 0.5 ? `Closer to even than ${pc(g.share)} of ${n} recent completed trades` : `About ${pc(g.share)} of ${n} recent completed trades were at least this far apart`;
+}
+
 // The same read as a tile on Player Market.
 function marketLiquidityFact(l, pos) {
   if (!l) return null;

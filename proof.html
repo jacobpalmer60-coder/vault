@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="brand/vault-dial-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
+<title>Does It Work? — The Vault</title>
+<meta name="description" content="How The Vault's trade verdict did on 2026 trades it never saw, including where KTC's calculator did better.">
+<meta property="og:title" content="Does It Work? — The Vault">
+<meta property="og:description" content="How The Vault's trade verdict did on 2026 trades it never saw, including where KTC's calculator did better.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/status.html">
+<meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0c0d10">
+<link rel="manifest" href="site.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Vault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vault.css?v=45c9ae57">
+<link rel="stylesheet" href="tailwind.css?v=e1a31561">
+</head>
+<body class="text-zinc-100 antialiased">
+<main class="max-w-[820px] mx-auto px-4 sm:px-6 py-4 lg:py-6">
+  <a id="brand" href="index.html" class="hidden items-center gap-2 mb-3 text-[13px] text-zinc-300 hover:text-white"><img src="brand/vault-dial-128.png" alt="" class="size-6"> The Vault</a>
+  <h1 class="display font-semibold gold-text">Does It Work?</h1>
+  <p id="sub" class="text-[13px] text-zinc-400 mt-1">Loading the results…</p>
+  <div id="body" class="hidden"></div>
+</main>
+
+<script src="vault-core.js?v=4410f81b"></script>
+<script src="vault-nav.js?v=02da1afa"></script>
+<script>
+/* ============================================================
+   DOES IT WORK? (user, 2026-11-05)
+   How the verdict did on trades it never saw, including where KTC's calculator did better. Every
+   number comes from data/market-history/proof.json (VaultValues build-proof.js), so a rerun of the
+   test refreshes the page; only the words around them live here.
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString();
+const millions = n => `${(n / 1e6).toFixed(1)} million`;
+const head = t => `<h2 class="text-[15px] font-medium text-zinc-100 mt-8">${t}</h2>`;
+const note = t => `<p class="text-[13px] text-zinc-400 mt-1 max-w-[640px]">${t}</p>`;
+const nice = d => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+function tierRows(p) {
+  return p.tiers.map(t => `<div class="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_3rem] items-center gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]">
+      <div class="min-w-0 text-zinc-100">${Vault.escapeHtml(t.tier)}<div class="text-[12px] text-zinc-500">${fmt(t.sides)} sides</div></div>
+      <div class="h-2 rounded-full bg-white/5 overflow-hidden" role="img" aria-label="${t.ahead}% ahead"><div class="h-full rounded-full" style="width:${t.ahead}%;background:var(--data)"></div></div>
+      <div class="mono text-right text-zinc-200">${t.ahead}%</div>
+    </div>`).join('');
+}
+function compareRows(p) {
+  return p.compare.map(c => {
+    const lead = Math.abs(c.ours - c.ktc) < 0.5 ? 'Even' : c.ours > c.ktc ? 'We lead' : 'KTC leads';
+    return `<tr class="border-t border-white/5"><td class="py-2 pr-3 text-zinc-200">${c.label}<div class="text-[11px] text-zinc-500">${fmt(c.sides)} sides</div></td><td class="py-2 px-2 text-right mono text-zinc-100">${c.ours.toFixed(1)}</td><td class="py-2 px-2 text-right mono text-zinc-300">${c.ktc.toFixed(1)}</td><td class="py-2 pl-2 text-right whitespace-nowrap ${lead === 'We lead' ? 'text-zinc-100' : 'text-zinc-400'}">${lead}</td></tr>`;
+  }).join('');
+}
+function render(p) {
+  const A = p.accuracy, top = p.tiers[0], low = p.tiers[p.tiers.length - 1];
+  const leads = p.compare.filter(c => c.ours > c.ktc + 0.5).length, loses = p.compare.filter(c => c.ktc > c.ours + 0.5).length;
+  $('sub').textContent = `Tested on ${fmt(p.sides)} team-sides of 2026 trades. None were used to set the verdict's weights or tiers.`;
+  $('body').innerHTML = `
+    <div class="grid sm:grid-cols-2 gap-3 mt-4">
+      <div class="rounded-xl bg-black/25 border border-white/5 p-4"><div class="num text-[32px] text-zinc-100">${top.ahead}% vs ${low.ahead}%</div><div class="text-[13px] text-zinc-400 mt-1">Sides we called ${Vault.escapeHtml(top.tier)} against ${Vault.escapeHtml(low.tier)} that were ahead on value later</div></div>
+      <div class="rounded-xl bg-black/25 border border-white/5 p-4"><div class="num text-[32px] text-zinc-100">${leads} of ${p.compare.length}</div><div class="text-[13px] text-zinc-400 mt-1">Tests below where we led KTC's calculator. It led ${loses}, and they're all shown.</div></div>
+    </div>
+
+    ${head('The verdict on trades it never saw')}
+    ${note('Share of sides ahead on value after the trade, by the verdict they would have got. The weights and tiers behind the verdict were set on 2024-2025 trades. Results run to ' + nice(p.updated) + ', so these are months, not years, and no 2026 playoffs yet.')}
+    <div class="card rounded-vault-sm px-4 py-1 mt-3">${tierRows(p)}</div>
+
+    ${head('Against KTC\'s calculator')}
+    ${note('How well each one\'s ranking of trades matched what happened: 0 is no link, 100 is perfect, higher is better. We lead on points this season, which is what a verdict for your team is for. KTC leads on value later, even on our own trade value. It grades the price and nothing else, and later value is a price test.')}
+    <div class="card rounded-vault-sm px-4 py-2 mt-3 overflow-x-auto"><table class="w-full text-[13px]">
+      <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left py-2 pr-3 font-normal">Test</th><th class="text-right py-2 px-2 font-normal">Vault</th><th class="text-right py-2 px-2 font-normal">KTC</th><th class="py-2 pl-2"></th></tr></thead>
+      <tbody>${compareRows(p)}</tbody>
+    </table></div>
+
+    ${head('What else we checked')}
+    ${note('On 2024-2025 trades and seasons.')}
+    <div class="card rounded-vault-sm px-4 py-1 mt-3 text-[13px]">
+      ${[
+        ['Do managers accept the price?', `We call ${A.fairAll.ours}% of accepted trades Fair, KTC's calculator ${A.fairAll.ktc}%. With the two best pieces close in value, ${A.fairClose.ours}% against ${A.fairClose.ktc}%.`],
+        ['Do the points show up?', `${A.pointsRealized}% of the predicted change in points a week showed up in what teams scored (Superflex).`],
+        ['Are the odds honest?', `When we said ${A.oddsSaid}%, it happened ${A.oddsHappened}% of the time.`],
+        ['Do market prices hold?', `A player's next real trade landed inside his usual range ${A.marketMiddle}% of the time and his wider range ${A.marketOuter}%.`]
+      ].map(([q, a]) => `<div class="py-2.5 border-t border-white/5 first:border-t-0"><div class="text-zinc-100">${q}</div><div class="text-zinc-400 mt-0.5">${a}</div></div>`).join('')}
+    </div>
+
+    ${head('Where it falls short')}
+    <ul class="mt-2 space-y-2 text-[13px] text-zinc-300 max-w-[640px] list-disc pl-5">
+      <li>Rebuilders: on points KTC's calculator reads them better, ${p.compare.find(c => c.label.startsWith('Rebuilders: points')).ktc.toFixed(1)} to ${p.compare.find(c => c.label.startsWith('Rebuilders: points')).ours.toFixed(1)}. Points aren't what a rebuild is after, but it's a miss, and our rebuild adjustments are the weakest part of the verdict.</li>
+      <li>Winning on value is partly built in: a side that won the price starts out ahead, so "ahead later" flatters any grade.</li>
+      <li>Only completed trades can be tested. Offers that got turned down leave no record, so we can't say how often a manager would say no.</li>
+      <li>A verdict can't see news that comes after the trade. It's a record, not a promise.</li>
+    </ul>
+    <p class="text-[13px] text-zinc-400 mt-6">How the verdict is built: <a href="how_we_grade.html" class="underline underline-offset-2 hover:text-white">How We Grade</a>. Results as of ${nice(p.updated)}.</p>`;
+  $('body').classList.remove('hidden');
+}
+(async () => {
+  if (!Vault.getLeagueId()) { const b = $('brand'); b.classList.remove('hidden'); b.classList.add('inline-flex'); }
+  try {
+    const r = await fetch('data/market-history/proof.json');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    render(await r.json());
+  } catch (e) { console.error(e); $('sub').textContent = "Couldn't load the results. Try again in a moment."; }
+})();
+</script>
+</body>
+</html>

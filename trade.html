@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=45c9ae57">
-<link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
+<link rel="stylesheet" href="tailwind.css?v=e1a31561">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -232,8 +232,8 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=b74a6d11"></script>
-<script src="vault-nav.js?v=87bd2eaf"></script>
+<script src="vault-core.js?v=4410f81b"></script>
+<script src="vault-nav.js?v=02da1afa"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -1269,7 +1269,12 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   // Each site's own gap, then the gap on KTC's scale, matched by rank (Vault.ktcEquivalent):
   // picks and stars sit at different values on each site, so their points don't compare directly.
   const by = (gap, rest = '') => (Math.round(gap) ? ` by ${points(gap)}${rest}` : '');
-  const amount = read => by(Math.abs(read.valueA - read.valueB), ` (≈ ${points(Math.abs(read.ktcGap))} KTC)`);
+  // Each list is what the other team gets, so a lead for A's list favors team B. Where a site's values
+  // and KTC's scale pick different teams, the line says so instead of showing a number that reads as agreement.
+  const amount = (read, favored = read.valueA > read.valueB ? teamB : teamA) => {
+    const onKtc = read.ktcGap > 0 ? teamB : teamA, size = points(Math.abs(read.ktcGap));
+    return by(Math.abs(read.valueA - read.valueB), onKtc === favored || !Math.round(read.ktcGap) ? ` (≈ ${size} KTC)` : ` (on KTC's scale, ${esc(onKtc.teamName)} by ${size})`);
+  };
   // KTC and Dynasty Daddy only ever say Fair Trade or Favors a team. A Fair still shows its gap
   // (user, 2026-11-04): Dynasty Daddy's Fair runs to about 10% apart, a real difference.
   const verdict = (fair, team, gap) => (fair ? { dot: 'good', text: gap ? `Fair, leans ${esc(team.teamName)}${gap}` : 'Fair' } : { dot: 'mid', text: `Favors ${esc(team.teamName)}${gap}` });
@@ -1279,7 +1284,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const raFavors = raGrade && { side_a: teamA, side_b: teamB }[raGrade.winner];
   // Its public values have no TE premium: say so when that could matter here .
   const ddNoTe = Vault.rosterAuditTep(league) && [...aAssets, ...bAssets].some(a => a.pos === 'TE');
-  const raBy = ra.priced ? amount(ra) : '';
+  const raBy = ra.priced ? amount(ra, raFavors || undefined) : '';
   const raRow = raGrade
     ? { dot: /^[AB]/.test(raGrade.grade) ? 'good' : /^C/.test(raGrade.grade) ? 'mid' : 'bad', text: `${esc(raGrade.grade)}${raFavors ? `, favors ${esc(raFavors.teamName)}${raBy}` : ''}`, title: `Its own grade, ${raGrade.difference_pct}% apart` }
     : ra.priced
@@ -1297,7 +1302,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
       <span class="min-w-0"><a href="${r.href}" target="_blank" rel="noopener" class="font-medium text-zinc-200 underline decoration-white/20 underline-offset-2 hover:text-white">${r.name}</a>: <span class="text-zinc-300">${r.text}</span>${r.note ? ` <span class="text-zinc-500">(${r.note})</span>` : ''}</span>
     </li>`).join('')}</ul>
     ${siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc)}
-    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Roster Audit's and Dynasty Daddy's gaps are also shown on KTC's scale, matched by rank. KTC's own verdict counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
+    <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Roster Audit's and Dynasty Daddy's gaps are also shown on KTC's scale: each piece matched by rank, then counted the way KTC's calculator counts them. KTC's own verdict counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
 }
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (!aAssets.length || !bAssets.length || ktcSameCall(tradeEdge, ktcEdge)) return '';
@@ -1532,8 +1537,13 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
    Up to EVEN_OPTIONS of them, best first, with Try another moving through the list
    from the trade you started with (user, 2026-11-04: it always suggested the same
    thing). A piece shows up in at most two, so the list isn't one player with different
-   partners. Changing the trade by hand ends the list. */
-const EVEN_OPTIONS = 6, EVEN_PIECE_REPEATS = 2;
+   partners. Changing the trade by hand ends the list.
+   A fix also has to land within EVEN_MAX_GAP on trade value (user, 2026-11-05). Reaching a Toss-up
+   wasn't enough: Boston for Cook "fixed" by adding Mason sat 11% off, where about 1 in 10 of 3,572
+   real 2-for-1s for a star that size went. About two-thirds of real trades of every shape but 1-for-1 land
+   within 8%. KTC's calculator
+   isn't part of it: it runs far from what managers accept on trades like these, at a fair price too. */
+const EVEN_OPTIONS = 6, EVEN_PIECE_REPEATS = 2, EVEN_MAX_GAP = 8;
 let evenFix = null;
 const evenSame = (set, keys) => set.size === keys.length && keys.every(k => set.has(k));
 const evenFixLive = () => !!evenFix && evenSame(selectedA, evenFix.nowA) && evenSame(selectedB, evenFix.nowB);
@@ -1574,6 +1584,8 @@ function evenPlan() {
   for (const c of cands) {
     const A = helpB ? [...A0, ...c.add] : A0.filter(a => !c.drop.includes(a));
     const B = helpB ? B0.filter(b => !c.drop.includes(b)) : [...B0, ...c.add];
+    const v = Vault.tradeSideValues(A, B);
+    if (200 * Math.abs(v.valueA - v.valueB) / ((v.valueA + v.valueB) || 1) > EVEN_MAX_GAP) continue;
     const j = judge(A, B);
     if (j.A.score < -6 || j.B.score < -6) continue;
     found.push({ ...c, A, B, after: j, key: (helpB ? j.A.score : j.B.score) - (c.add.length + c.drop.length - 1) * 4 });
@@ -1602,12 +1614,14 @@ function paintEvenLine() {
   const box = document.getElementById('evenLine');
   if (!box) return;
   const f = evenLine.plan, esc = Vault.escapeHtml;
-  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-500">No small change evens this one out.</div>'; return; }
+  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-500">No small change gets this to a price both teams could take.</div>'; return; }
   const o = f.options[0], giver = f.helpB ? f.teamA : f.teamB, names = l => l.map(a => esc(a.name)).join(' and ');
   const change = [o.add.length ? `${esc(giver.teamName)} adds <span class="text-zinc-100">${names(o.add)}</span>` : '', o.drop.length ? `<span class="text-zinc-100">${names(o.drop)}</span> comes out` : ''].filter(Boolean).join(' and ');
-  const read = `<span class="${Vault.VERDICT_TIER_TEXT[o.after.A.tier]}">${o.after.A.label}</span> for ${esc(f.teamA.teamName)}, <span class="${Vault.VERDICT_TIER_TEXT[o.after.B.tier]}">${o.after.B.label}</span> for ${esc(f.teamB.teamName)}`;
+  // Says what the fix reaches, not that it's even: the team it's for, then the other team's read.
+  const [helped, other] = f.helpB ? [[o.after.B, f.teamB], [o.after.A, f.teamA]] : [[o.after.A, f.teamA], [o.after.B, f.teamB]];
+  const read = v => `<span class="${Vault.VERDICT_TIER_TEXT[v.tier]}">${v.label}</span>`;
   box.innerHTML = `<div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2.5">
-      <div class="min-w-0 flex-1 basis-[260px] text-[13px] text-zinc-300">${change}: ${read}.</div>
+      <div class="min-w-0 flex-1 basis-[260px] text-[13px] text-zinc-300">Gets it to a ${read(helped[0])} for ${esc(helped[1].teamName)}: ${change}. ${read(other[0])} for ${esc(other[1].teamName)}.</div>
       <button onclick="evenItOut()" class="shrink-0 text-[13px] px-3.5 py-1.5 rounded-lg btn-gold-solid">Use this</button>
     </div>`;
 }
@@ -2513,6 +2527,17 @@ function futureRanksHtml(team, gives, gets) {
   }).join('');
   return `<div class="mt-3 pt-3 border-t border-white/5"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">Lineup value rank${Vault.info('futureRank')}</div><div class="grid grid-cols-3 gap-2 text-center">${cells}</div></div>`;
 }
+// How the other manager trades, from their trades in this league (negHabitFit). Painted once their
+// history is in: it loads in the background and the card shouldn't wait on it.
+function paintHabitLine(team, gets, gives) {
+  const box = document.getElementById('habitLine');
+  if (!box) return;
+  if (!Negotiation.styles) { negPreloadStyles()?.then(() => { if (document.getElementById('habitLine') === box) paintHabitLine(team, gets, gives); }); return; }
+  const { habits, fit } = negHabitFit(team.rosterId, gets, gives);
+  if (!habits.length) { box.textContent = ''; return; }
+  const said = habits.map((h, i) => `${h.say} in ${h.n} of ${h.of}${i ? '' : ' trades'}`).join(' and ');
+  box.innerHTML = `${Vault.escapeHtml(team.teamName)} ${said}.${fit > 0 ? ' This trade fits that.' : fit < 0 ? ' This trade goes the other way.' : ''}${Vault.info('managerHabit')}`;
+}
 function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analysis) {
   if (!aAssets.length && !bAssets.length) {
     document.getElementById('analysisA').classList.add('hidden');
@@ -2538,6 +2563,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           <span class="size-2 rounded-full shrink-0 mt-1.5 ${TONE_DOT[head.tone]}"></span>
           <p class="text-[13px] ${TONE[head.tone]} leading-relaxed"><span class="font-medium">${head.text}.</span> <span class="font-normal">${Vault.buildSynopsis('', res.notes)}</span></p>
         </div>
+        ${side === 'B' ? '<p id="habitLine" class="text-[12px] text-zinc-400 mb-3 empty:hidden"></p>' : ''}
         ${res.notes.length ? `<details class="group mb-3">
           <summary class="flex items-center gap-1.5 py-1 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
             <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
@@ -2556,16 +2582,17 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
         ${futureRanksHtml(side === 'A' ? teamA : teamB, side === 'A' ? aAssets : bAssets, side === 'A' ? bAssets : aAssets)}
       </div>`;
   });
+  paintHabitLine(teamB, aAssets, bAssets);
 
 }
 
 init();
 </script>
 <script src="share-image.js?v=a4003002"></script>
-<script src="negotiation.js?v=74ef6b53"></script>
-<script src="market-data.js?v=ba533660"></script>
+<script src="negotiation.js?v=e3949291"></script>
+<script src="market-data.js?v=9e9371ed"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
-<script src="market.js?v=12df7e61"></script>
-<script src="coach.js?v=44c50bac"></script>
+<script src="market.js?v=22c28c17"></script>
+<script src="coach.js?v=85756038"></script>
 </body>
 </html>
