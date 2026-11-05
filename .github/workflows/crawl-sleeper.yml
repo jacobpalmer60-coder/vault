@@ -124,6 +124,12 @@ jobs:
           git pull --rebase --autostash
           git push
 
+      # GitHub runs scheduled jobs hours late (projections every 4-11 hours on a 3-hour schedule),
+      # so each crawl starts them too: injury news reaches lineups and odds within the hour.
+      - name: Refresh projections
+        if: success()
+        run: gh workflow run refresh-projections.yml --ref main
+
       # Keep it going: start the next run (queued behind this one until it ends).
       - name: Start the next run
         if: success()

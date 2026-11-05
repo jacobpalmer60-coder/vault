@@ -1,8 +1,9 @@
 name: Refresh projections
 
 # Sleeper updates its projections through the week (injury news, depth charts,
-# matchups), so this season's lineups and projected records refresh every 3
-# hours instead of only with the nightly data update. Only data/projections.json
+# matchups), so this season's lineups and projected records refresh after every
+# crawl run, about every 50 minutes; the 3-hour schedule is the backup, because GitHub
+# delays scheduled jobs by hours. It publishes only when something changed. Only data/projections.json
 # (about 100 KB compressed); injury labels still come from the nightly Sleeper
 # player list, which Sleeper asks apps to fetch once a day.
 on:
