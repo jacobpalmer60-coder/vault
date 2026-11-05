@@ -516,6 +516,14 @@ function marketLiquidityText(l, pos) {
   return `<span class="text-zinc-200">${head}:</span> he was ${count}; ${plural} were typically in ${l.typical}.`;
 }
 
+// The same read as a tile on Player Market.
+function marketLiquidityFact(l, pos) {
+  if (!l) return null;
+  const head = { often: 'Changes hands often', average: 'Changes hands about as often as most', rarely: 'Changes hands less often' }[l.label] || 'Trades';
+  const count = `In ${l.n} completed trade${l.n === 1 ? '' : 's'} from the last ${l.days} days`;
+  return { label: 'How often', head, sub: l.label ? `${count}; the ${LIQ_PEERS} ${pos}s closest to his value were typically in ${l.typical}.` : `${count}.` };
+}
+
 /* ---------- Market trend line (player card, Player Market, Compare) ----------
    The market price the grade used on each date: the half-month snapshot then in
    force (data/grade-values-history/, Vault.gradeMarketAt, as past trade grades

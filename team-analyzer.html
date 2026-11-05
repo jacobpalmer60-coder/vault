@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=c9030311">
-<link rel="stylesheet" href="tailwind.css?v=76dddaa5">
+<link rel="stylesheet" href="vault.css?v=0ffe6d23">
+<link rel="stylesheet" href="tailwind.css?v=68f93bc7">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -47,15 +47,17 @@
   <div id="teamTabs" role="tablist" aria-label="Team sections" class="flex flex-wrap gap-1.5 mb-4 scroll-mt-4"></div>
   <section data-tab="overview" role="tabpanel" id="overviewCard" class="mb-10"></section>
   <section data-tab="roster" role="tabpanel" id="rosterCard" class="hidden card rounded-vault p-6 mb-10"></section>
+  <section data-tab="season" role="tabpanel" id="seasonExtras" class="hidden mb-4 [&>*:first-child]:mt-0"></section>
   <section data-tab="season" role="tabpanel" id="seasonCard" class="hidden card rounded-vault p-6 mb-10"></section>
-  <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
+  <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-4"></section>
+  <section data-tab="future" role="tabpanel" id="futureExtras" class="hidden mb-10 [&>*:first-child]:mt-0"></section>
 </main>
 
-<script src="vault-core.js?v=e7dc568e"></script>
+<script src="vault-core.js?v=fcc22c9a"></script>
 <script src="vault-nav.js?v=5dd4083d"></script>
 <script src="season-report.js?v=0596935e"></script>
-<script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=9a548ef1"></script>
+<script src="market-data.js?v=cd4873e7"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
 <script src="timeline.js?v=c362660e"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -212,7 +214,7 @@ function renderSingle(t) {
   const partnerSub = p => [p.record ? `${p.record.wins}-${p.record.losses}${p.record.ties ? '-' + p.record.ties : ''}` : '', Number.isFinite(p.playoffPct) ? `${pctText(p.playoffPct)} playoff odds` : '', p.arch].filter(Boolean).join(' · ');
   $('#overviewCard').innerHTML = `
     <div class="card rounded-vault p-5 mb-4"><div id="glance"></div></div>
-    <div class="grid lg:grid-cols-2 gap-4">
+    <div class="grid lg:grid-cols-2 gap-4 items-start">
       <div class="card rounded-vault p-5">
         <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Weak spots</div>
         <div class="space-y-1.5 text-[13px] text-zinc-200">${flaws.length ? flaws.map(f => `<div class="flex gap-2"><span class="text-orange-400">•</span><span>${f}</span></div>`).join('') : '<div class="text-zinc-400">Nothing notable</div>'}</div>
@@ -230,7 +232,9 @@ function renderSingle(t) {
           </div>`).join('')}</div>
       </div>
     </div>
-    ${whatIfCard(t)}${scheduleCard(t, all)}${picksGrid(t, all)}`;
+    `;
+  $('#seasonExtras').innerHTML = whatIfCard(t) + scheduleCard(t, all);
+  $('#futureExtras').innerHTML = picksGrid(t, all);
   wireWhatIf(t, all);
   renderGlance();
   $('#rosterCard').innerHTML = `<div class="flex justify-end gap-2 mb-2"><button type="button" id="printTeam" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Print report</button><button type="button" id="copyRoster" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Copy as CSV</button></div>${Vault.teamRosterPanel(t, all)}`;
@@ -403,7 +407,7 @@ function scheduleCard(t, all) {
         ${games.length ? stat(`#${rankOf(hardness, t)} of ${hardness.length}`, 'hardest schedule left', `opponents average ${avg(games.map(g => g.pts)).toFixed(1)} a week`) : ''}
         ${tp != null ? stat(`#${rankOf(poRank, t)} of ${poRank.length}`, 'lineup in the playoff weeks', `${tp.toFixed(1)} a week from week ${window._playoffStart}`) : ''}
       </div>
-      ${games.length ? `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${games.map(chip).join('')}</div>` : ''}
+      ${games.length ? `<div class="grid gap-2 overflow-x-auto scrollbar-none" style="grid-template-columns:repeat(${games.length},minmax(96px,1fr))">${games.map(chip).join('')}</div>` : ''}
     </div>`;
 }
 
@@ -416,7 +420,7 @@ function picksGrid(t, all) {
   const worth = l => l.reduce((s, p) => s + (p.value || 0), 0);
   const top = Math.max(...all.flatMap(x => years.map(y => worth(inYear(x, y)))), 1);
   const cell = (x, y) => { const l = inYear(x, y), v = worth(l), firsts = l.filter(p => p.round === 1).length;
-    return `<td class="py-1 px-0.5"><div class="rounded-md px-1 py-1 text-center" style="background:rgba(227,176,75,${(0.05 + 0.4 * v / top).toFixed(2)})" title="${l.length} pick${l.length === 1 ? '' : 's'} in ${y}: ${Vault.escapeHtml(l.map(p => Vault.pickName(p)).join(', ') || 'none')}"><div class="mono text-[12px] text-zinc-100">${v ? (v / 1000).toFixed(1) + 'k' : '—'}</div><div class="text-[10px] text-zinc-400">${firsts ? `${firsts} 1st${firsts === 1 ? '' : 's'}` : '&nbsp;'}</div></div></td>`; };
+    return `<td class="py-1 px-0.5"><div class="rounded-md px-1 py-1 text-center" style="background:rgba(56,189,248,${(0.04 + 0.34 * v / top).toFixed(2)})" title="${l.length} pick${l.length === 1 ? '' : 's'} in ${y}: ${Vault.escapeHtml(l.map(p => Vault.pickName(p)).join(', ') || 'none')}"><div class="mono text-[12px] text-zinc-100">${v ? (v / 1000).toFixed(1) + 'k' : '—'}</div><div class="text-[10px] text-zinc-400">${firsts ? `${firsts} 1st${firsts === 1 ? '' : 's'}` : '&nbsp;'}</div></div></td>`; };
   const rows = [...all].sort((a, b) => b.picksValue - a.picksValue).map(x => `<tr class="${x === t ? 'text-amber-200' : 'text-zinc-300'}"><td class="py-1 pr-2 text-[12px] max-w-[110px] sm:max-w-[200px] truncate">${Vault.teamLink(x)}</td>${years.map(y => cell(x, y)).join('')}</tr>`).join('');
   return `<div class="card rounded-vault p-5 mt-4">
       <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-3">Picks by year${Vault.info('picksByYear')}</div>

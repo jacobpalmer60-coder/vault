@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=c9030311">
-<link rel="stylesheet" href="tailwind.css?v=76dddaa5">
+<link rel="stylesheet" href="vault.css?v=0ffe6d23">
+<link rel="stylesheet" href="tailwind.css?v=68f93bc7">
 <style>
   /* Playoff Race: a Sleeper-style standings list with one plain status per team.
      Built on the vault.css tokens; green/red mean in/out, gold marks your team and the lines. */
@@ -51,7 +51,8 @@
   .pr-name { min-width: 0; }
   .pr-odds { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--text-dim, #a1a1aa); white-space: nowrap; }
   .pr-odds .bar { flex: 1; max-width: 180px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
-  .pr-odds .bar i { display: block; height: 100%; border-radius: 3px; background: #e3b04b; }
+  .pr-odds .bar i { display: block; height: 100%; border-radius: 3px; background: #38bdf8; }
+  .pr-row.me .pr-odds .bar i { background: var(--gold); }
   .pr-name .t { display: flex; align-items: center; min-width: 0; font-weight: 600; font-size: 15px; color: var(--text); }
   .pr-name .t span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .pr-name .s { font-size: 13px; color: var(--text-2); margin-top: 2px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -112,10 +113,10 @@
   </div>
 </main>
 
-<script src="vault-core.js?v=e7dc568e"></script>
+<script src="vault-core.js?v=fcc22c9a"></script>
 <script src="vault-nav.js?v=5dd4083d"></script>
-<script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=9a548ef1"></script>
+<script src="market-data.js?v=cd4873e7"></script>
+<script src="player-card.js?v=0bbd5e7c"></script>
 <script>
 /* ============================================================
    PLAYOFF RACE

@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=c9030311">
-<link rel="stylesheet" href="tailwind.css?v=76dddaa5">
+<link rel="stylesheet" href="vault.css?v=0ffe6d23">
+<link rel="stylesheet" href="tailwind.css?v=68f93bc7">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=e7dc568e"></script>
+<script src="vault-core.js?v=fcc22c9a"></script>
 <script src="vault-nav.js?v=5dd4083d"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,10 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'changed', page: 'Site', text: "A cleaner look. On phones the pages now sit in a bar along the bottom, and the header is one row everywhere. Page tops are shorter, with each page's description behind a ? by its title. How We Grade, Patch Notes, Data status and Switch League moved into the ... menu at the top right." },
+    { kind: 'changed', page: 'Team Analyzer', text: "Overview now leads with the verdict, weak spots and trade partners. What if he's out and Schedule left moved to This season; Picks by year moved to Contend or rebuild?." },
+    { kind: 'changed', page: 'Charts', text: "Value Over Time has team names at the line ends, round numbers and no dot on every day. Market charts use one blue for prices, and gold is kept for your own team and the main button." },
+    { kind: 'changed', page: 'Player Market', text: "How often he trades, his outlook and the best time to buy now sit side by side as three short facts." },
     { kind: 'changed', page: 'Player Market', text: "Market prices from Sleeper trades now refresh about every 6 hours instead of every hour. They're 45-day medians, so the numbers barely move in between, and it keeps the site's data small." },
     { kind: 'new', page: 'Trade Lab', text: "What your picks have landed: for your next draft's picks, who went at the same spot in the latest rookie class and what they were worth." },
     { kind: 'new', page: 'Player card', text: "His trades in this league: every time he moved, between which teams, and what came back." },

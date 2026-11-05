@@ -1,7 +1,8 @@
 /* ============================================================
    VAULT THEME
    A dark, quiet ledger. Graphite surfaces, one warm gold accent kept
-   for primary actions, the active page, and brand marks. Green and red
+   for primary actions, the active page, your own team, and brand marks.
+   Charts and bars of plain data use sky blue (--data). Green and red
    mean good and bad, nothing else. No glows, gradients on text, or
    glass: legibility first.
 
@@ -35,6 +36,7 @@
   --text: #ececef;
   --text-2: #a8a8b1;
   --gold: #e3b04b;
+  --data: #38bdf8;
   --gold-hi: #edc168;
   --gold-ink: #1c1406;
 }

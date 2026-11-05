@@ -1895,6 +1895,16 @@ const Vault = {
   /* One meaning for each word on every page (user, 2026-11-05). Vault.term puts a dotted line under
      a label and Vault.info adds a small ? beside a heading; both open this text on hover, or on a
      tap on a phone. Static HTML can use the data-term attribute. Keep these matching How We Grade. */
+  // Round numbers for a chart's axis, covering min to max in about `count` steps.
+  niceTicks(min, max, count = 4) {
+    const raw = (max - min || Math.abs(max) || 1) / count, mag = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw * 0.999);
+    const out = [];
+    for (let v = Math.floor(min / step) * step; v <= Math.ceil(max / step) * step + step / 2; v += step) out.push(+v.toFixed(6));
+    return out;
+  },
+  // An axis label: 160k, not 160,000.
+  axisNum(v) { return Math.abs(v) >= 10000 ? `${+(v / 1000).toFixed(1)}k` : v.toLocaleString(); },
   GLOSSARY: {
     page_overview: ['League Overview', 'Every team, this season and for the long run. Click a team to open it.'],
     page_analyzer: ['Team Analyzer', 'One team in depth: where it ranks, how this season is really going, its roster, and which way to take it. Pick any team in the menu.'],
@@ -1950,7 +1960,7 @@ const Vault = {
     starterLine: ['Over a starter', "Games where he beat his position's replacement level: what the best player who wouldn't start in your league scores a game."],
     recentTrades: ['Recent trades', 'The latest completed trades he headlined, in leagues like yours. Paid vs KTC is what the team getting him sent over or under his KTC value.'],
     scheduleLeft: ['Schedule left', "Each game left before the playoffs, with the opponent's projected lineup that week: who's available, byes and matchups included. Green is easier than the league's average that week, orange harder."],
-    picksByYear: ['Picks by year', "Each team's future picks at KTC value, year by year, with its 1sts counted. Darker means more value that year."],
+    picksByYear: ['Picks by year', "Each team's future picks at KTC value, year by year, with its 1sts counted. Brighter means more value that year."],
     whatIf: ['What if he\'s out?', "Your remaining schedule played out 4,000 times with him gone for the rest of the season and your best lineup rebuilt each week, on the same random games as your real odds so the difference is the player."],
     window5: ['Contention window', 'Each bar is one of the next seasons: how much value this roster is projected to have then. Green seasons are good enough for the playoffs.'],
   },
@@ -4280,11 +4290,13 @@ const Vault = {
         if (theirNeeds.includes(s)) { score += 2; const who = spare(t, s); matched.push(`You're deep at ${s.toUpperCase()}, which they're missing${who ? ` (${who})` : ''}`); }
       });
       const theirMode = Vault.teamMode(o);
+      // Who a win-now trade would be about, so two suggestions don't read the same.
+      const vets = team => { const who = (team.plist || []).filter(x => x.value > 0 && x.age >= 26 && !x.isPick).sort((a, b) => b.value - a.value).slice(0, 2).map(x => x.name).join(', '); return who ? ` (${who})` : ''; };
       if ((myMode === 'contend' && theirMode === 'rebuild') || (myMode === 'rebuild' && theirMode === 'contend')) {
         score += 3;
         reasons.push(myMode === 'contend'
-          ? 'They\'re building for later and you\'re contending: they\'d sell production for picks and young players'
-          : 'They\'re contending and you\'re building for later: they\'d pay picks and young players for production');
+          ? `They're building for later and you're contending: they'd sell production${vets(o)} for picks and young players`
+          : `They're contending and you're building for later: they'd pay picks and young players for production${vets(t)}`);
       } else if (myMode !== 'flexible' && myMode === theirMode) {
         score -= 3;
         reasons.push(`Both ${myMode === 'contend' ? 'contending' : 'rebuilding'}: same timeline, so you want the same things`);
