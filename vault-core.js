@@ -1942,6 +1942,7 @@ const Vault = {
     recentTrades: ['Recent trades', 'The latest completed trades he headlined, in leagues like yours. Paid vs KTC is what the team getting him sent over or under his KTC value.'],
     scheduleLeft: ['Schedule left', "Each game left before the playoffs, with the opponent's projected lineup that week: who's available, byes and matchups included. Green is easier than the league's average that week, orange harder."],
     picksByYear: ['Picks by year', "Each team's future picks at KTC value, year by year, with its 1sts counted. Darker means more value that year."],
+    whatIf: ['What if he\'s out?', "Your remaining schedule played out 4,000 times with him gone for the rest of the season and your best lineup rebuilt each week, on the same random games as your real odds so the difference is the player."],
     window5: ['Contention window', 'Each bar is one of the next seasons: how much value this roster is projected to have then. Green seasons are good enough for the playoffs.'],
   },
   glossaryHtml(key) {

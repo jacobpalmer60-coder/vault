@@ -219,6 +219,22 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
 }
 /* Show/Hide on the Trade Calculator's sections stays on one line next to the title. */
 #builder details > summary > span:last-child { white-space: nowrap; flex-shrink: 0; }
+#printReport { display: none; }
+@media print {
+  body > *:not(#printReport) { display: none !important; }
+  html, body { background: #fff !important; }
+  #printReport { display: block; color: #000; font: 11px/1.35 Inter, system-ui, sans-serif; }
+  #printReport h1 { font-size: 22px; font-weight: 700; margin: 0; }
+  #printReport h2 { font-size: 12px; font-weight: 700; margin: 12px 0 4px; }
+  #printReport p { margin: 2px 0; }
+  #printReport table { width: 100%; border-collapse: collapse; }
+  #printReport td { padding: 1.5px 4px 1.5px 0; border-bottom: 1px solid #ddd; }
+  #printReport td.n { text-align: right; }
+  #printReport .pr-stats { margin-top: 8px; }
+  #printReport .pr-stats td { border: 0; }
+  #printReport .pr-stats b { font-size: 16px; }
+  #printReport .pr-cols { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; }
+}
 /* A word with an explanation behind it (Vault.term, a table header with a title), and the small ? (Vault.info). */
 [data-term], th[title], th[data-tip], .term { cursor: help; text-decoration: underline dotted rgba(161, 161, 170, 0.6); text-underline-offset: 3px; }
 th[data-term], th.sortable, th.sortable [data-term], button [data-term] { cursor: pointer; }

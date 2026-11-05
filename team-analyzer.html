@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=60c6413b">
-<link rel="stylesheet" href="tailwind.css?v=792ab305">
+<link rel="stylesheet" href="vault.css?v=48bfbf25">
+<link rel="stylesheet" href="tailwind.css?v=506d34a4">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -52,11 +52,11 @@
   <section data-tab="future" role="tabpanel" id="timelineCard" class="hidden card rounded-vault p-6 mb-10"></section>
 </main>
 
-<script src="vault-core.js?v=5186c6a0"></script>
+<script src="vault-core.js?v=d2b7083f"></script>
 <script src="vault-nav.js?v=c411b0a5"></script>
 <script src="season-report.js?v=0596935e"></script>
 <script src="market-data.js?v=a619b6b9"></script>
-<script src="player-card.js?v=0ec7f23e"></script>
+<script src="player-card.js?v=9a548ef1"></script>
 <script src="timeline.js?v=c362660e"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -114,7 +114,7 @@ async function loadLeague(id) {
     .then(() => { renderSeason(+$('#teamSelect').value || null); Timeline.setSeason(season); });
   try {
     const { isSF, league, slots, remainingWeeks, teams: built } = await Vault.buildLeagueTeams(id);
-    window._allTeams = built; window._slots = slots; window._weeksLeft = remainingWeeks || []; window._playoffStart = league.settings?.playoff_week_start || 15;
+    window._allTeams = built; window._slots = slots; window._weeksLeft = remainingWeeks || []; window._playoffStart = league.settings?.playoff_week_start || 15; window._league = league;
     // Contend or rebuild? (timeline.js): the four paths, under This season.
     Timeline.init({ league, slots, teams: built, remainingWeeks });
 
@@ -231,9 +231,11 @@ function renderSingle(t) {
           </div>`).join('')}</div>
       </div>
     </div>
-    ${scheduleCard(t, all)}${picksGrid(t, all)}`;
+    ${whatIfCard(t)}${scheduleCard(t, all)}${picksGrid(t, all)}`;
+  wireWhatIf(t, all);
   renderGlance();
-  $('#rosterCard').innerHTML = `<div class="flex justify-end mb-2"><button type="button" id="copyRoster" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Copy as CSV</button></div>${Vault.teamRosterPanel(t, all)}`;
+  $('#rosterCard').innerHTML = `<div class="flex justify-end gap-2 mb-2"><button type="button" id="printTeam" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Print report</button><button type="button" id="copyRoster" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Copy as CSV</button></div>${Vault.teamRosterPanel(t, all)}`;
+  $('#printTeam').onclick = () => printReport(t, all);
   $('#copyRoster').onclick = async e => {
     const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const players = [...t.plist].sort((a, b) => b.value - a.value).map(p => [p.name, p.pos, p.nfl, p.age ? p.age.toFixed(1) : '', Math.round(p.value), p.ppg ? p.ppg.toFixed(1) : '']);
@@ -332,6 +334,47 @@ function leagueMap(t, all) {
         ${dots}
       </svg></div>
     </div>`;
+}
+
+/* What if a starter's out the rest of the way? The same season simulation as the odds, on the same
+   random games, with this team's lineup rebuilt week by week without him (user's list, 2026-11-05). */
+function whatIfCard(t) {
+  if (!(window._weeksLeft || []).length) return '';
+  const opts = t.lineup.filter(p => p.id).sort((a, b) => (b.ppg || 0) - (a.ppg || 0)).map(p => `<option value="${Vault.escapeHtml(p.id)}">${Vault.escapeHtml(p.name)}</option>`).join('');
+  return `<div class="card rounded-vault p-5 mt-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-1"><div class="text-[11px] uppercase tracking-widest text-zinc-400">What if he's out?${Vault.info('whatIf')}</div>
+        <select id="whatIfPick" aria-label="Starter" class="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[13px] text-zinc-200 max-w-[210px]"><option value="">Pick a starter…</option>${opts}</select></div>
+      <div id="whatIfOut" class="text-[13px] text-zinc-400">See your odds without a starter for the rest of the season.</div>
+    </div>`;
+}
+function wireWhatIf(t, all) {
+  const sel = $('#whatIfPick');
+  if (!sel) return;
+  sel.onchange = () => {
+    const box = $('#whatIfOut');
+    if (!sel.value) return;
+    const after = Vault.seasonLineupDetail(t.plist.filter(p => String(p.id) !== sel.value), window._slots), who = t.plist.find(p => String(p.id) === sel.value);
+    const byWeek = new Map([...(after.byWeek || new Map())].map(([w, v]) => [w, v - (t.optByWeek?.get(w) ?? v)]));
+    const opts = { trials: 4000, seed: 20260929 };
+    const base = Vault.simulateSeason(all, window._league, window._weeksLeft, opts).get(t.rosterId);
+    const out = Vault.simulateSeason(all, window._league, window._weeksLeft, { ...opts, strengthDelta: new Map([[t.rosterId, { flat: 0, avg: after.total - t.opt, byWeek }]]) }).get(t.rosterId);
+    const line = (label, a, b) => `<div><div class="num text-[22px] text-zinc-100">${pctText(a)} to ${pctText(b)}</div><div class="text-[12px] text-zinc-400">${label}</div></div>`;
+    box.innerHTML = `<div class="grid grid-cols-3 gap-3 mt-2">${line('playoff odds', base.playoffPct, out.playoffPct)}${line('title odds', base.championshipPct, out.championshipPct)}<div><div class="num text-[22px] text-orange-300">${(t.opt - after.total).toFixed(1)}</div><div class="text-[12px] text-zinc-400">points a week lost</div></div></div>
+      <div class="text-[12px] text-zinc-500 mt-2">Without ${Vault.escapeHtml(who?.name || 'him')}, your bench fills in each week.</div>`;
+  };
+}
+
+/* A one-page report to print or save as a PDF (user's list, 2026-11-05). Its own plain black-on-white
+   sheet, shown only when printing, so the dark page doesn't have to print well. */
+function printReport(t, all) {
+  const box = document.getElementById('printReport') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'printReport' }));
+  const e = Vault.escapeHtml, p = t.projected, rank = key => [...all].sort((a, b) => b[key] - a[key]).indexOf(t) + 1;
+  const players = [...t.plist].sort((a, b) => b.value - a.value), years = [...new Set(t.picks.map(x => +x.season))].sort();
+  box.innerHTML = `<h1>${e(t.teamName)}</h1><p>${t.record ? `${t.record.wins}-${t.record.losses}${t.record.ties ? `-${t.record.ties}` : ''} · ` : ''}${Vault.MODE_LABEL[Vault.teamMode(t)]} · The Vault, ${new Date().toLocaleDateString()}</p>
+    <table class="pr-stats"><tr><td><b>#${rank('overall')}</b> of ${all.length}<br>Team value</td><td><b>${t.opt.toFixed(1)}</b><br>Lineup PPG</td><td><b>${p ? pctText(p.playoffPct) : '—'}</b><br>Playoff odds</td><td><b>${p ? pctText(p.championshipPct) : '—'}</b><br>Title odds</td></tr></table>
+    <div class="pr-cols"><div><h2>Players</h2><table>${players.slice(0, 24).map(a => `<tr><td>${e(a.name)}</td><td>${e(a.pos)}</td><td class="n">${Math.round(a.value).toLocaleString()}</td></tr>`).join('')}</table></div>
+    <div><h2>Picks</h2>${years.map(y => `<p><b>${y}:</b> ${t.picks.filter(x => +x.season === y).map(x => e(Vault.pickName(x))).join(', ')}</p>`).join('')}</div></div>`;
+  print();
 }
 
 /* What's left this season (user's list, 2026-11-05): each game's opponent at that week's projected

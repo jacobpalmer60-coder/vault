@@ -268,6 +268,7 @@
       <div id="pcWeekly" class="mb-4"></div>
       <div id="pcMarket" class="mb-4"></div>
       <div id="pcTrades" class="mb-4 empty:hidden"></div>
+      <div id="pcMoves" class="mb-4">${r.pid ? `<button type="button" data-moves="${r.pid}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">His trades in this league</button>` : ''}</div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time${Vault.info('valueOverTime')}</div>
       <div id="pcValueChart">${valueChart}</div>
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time${Vault.info('ppgOverTime')}</div>
@@ -368,6 +369,28 @@
     }
     return dailyMarketLoading;
   }
+  async function renderMoves(pid) {
+    const box = document.getElementById('pcMoves');
+    box.innerHTML = '<div class="text-[12px] text-zinc-400">Reading every season of this league…</div>';
+    try {
+      const [chain, db] = await Promise.all([Vault.fetchSeasonChain(leagueObj.league_id, leagueObj), Vault.fetchSleeperPlayers()]);
+      const nameOf = id => { const p = db[id]; return p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'a player'; };
+      const seasons = await Promise.all(chain.map(async s => {
+        const url = what => `https://api.sleeper.app/v1/league/${s.leagueId}/${what}`;
+        const [rosters, users, ...weeks] = await Promise.all([Vault.sleeperJson(url('rosters'), 60), Vault.sleeperJson(url('users'), 60), ...Array.from({ length: 18 }, (_, i) => Vault.sleeperJson(url(`transactions/${i + 1}`), 60).catch(() => []))]);
+        const team = id => Vault.teamLabel(users.find(u => u.user_id === rosters.find(x => x.roster_id === +id)?.owner_id), id);
+        return weeks.flat().filter(t => t.type === 'trade' && t.status === 'complete' && (t.adds || {})[pid] != null).map(t => {
+          const to = +t.adds[pid], from = +(t.drops || {})[pid];
+          const gave = [...Object.entries(t.adds).filter(([, r2]) => +r2 === from).map(([id]) => nameOf(id)), ...(t.draft_picks || []).filter(pk => +pk.owner_id === from).map(pk => Vault.pickName({ season: pk.season, round: pk.round }))];
+          return { at: t.created || t.status_updated, to: team(to), from: team(from), gave };
+        });
+      }));
+      const moves = seasons.flat().sort((a, b) => b.at - a.at);
+      if (document.getElementById('pcMoves') !== box) return;
+      box.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1">His trades in this league</div>${moves.length ? moves.map(m => `<div class="py-2 border-t border-white/5 text-[12px]"><div class="text-[11px] text-zinc-500">${new Date(m.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div><div class="text-zinc-200">${Vault.escapeHtml(m.from)} to ${Vault.escapeHtml(m.to)}</div><div class="text-zinc-400">for ${Vault.escapeHtml(m.gave.join(', ') || 'nothing')}</div></div>`).join('') : '<div class="text-[12px] text-zinc-400">He hasn\'t been traded in this league.</div>'}`;
+    } catch (e) { console.error(e); box.innerHTML = `<div class="text-[12px] text-zinc-400">${Vault.escapeHtml(Vault.loadError(e))}</div>`; }
+  }
+  document.addEventListener('click', e => { const b = e.target.closest?.('[data-moves]'); if (b) renderMoves(b.dataset.moves); });
   function renderRecentTrades(r) {
     const box = document.getElementById('pcTrades'), { like, pool } = marketPool(leagueObj, r.player);
     if (!box || !like || !pool.length) return;

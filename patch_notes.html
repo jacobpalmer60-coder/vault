@@ -23,8 +23,8 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=60c6413b">
-<link rel="stylesheet" href="tailwind.css?v=792ab305">
+<link rel="stylesheet" href="vault.css?v=48bfbf25">
+<link rel="stylesheet" href="tailwind.css?v=506d34a4">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -46,7 +46,7 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=5186c6a0"></script>
+<script src="vault-core.js?v=d2b7083f"></script>
 <script src="vault-nav.js?v=c411b0a5"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
@@ -54,6 +54,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Player card', text: "His trades in this league: every time he moved, between which teams, and what came back." },
+    { kind: 'new', page: 'Home', text: "If you're in several leagues, the home page shows how each is going: record, standing, team value and playoff odds." },
+    { kind: 'new', page: 'Team Analyzer', text: "What if he's out: pick a starter to see your playoff odds, title odds and weekly points without him. Print report: a one-page sheet of your team, or save it as a PDF." },
     { kind: 'new', page: 'League History', text: "A new page with every season of your league: champions, all-time records, and head to head between any two managers." },
     { kind: 'new', page: 'Weekly Recap', text: "A new page for each finished week: results, top and low scores, the biggest swings in playoff odds, best and worst lineup calls, and that week's trades." },
     { kind: 'new', page: 'Everywhere', text: "Copy a trade as text from the Trade Calculator, or a roster as CSV from Team Analyzer. First-time visitors get three short tips, gone for good once closed." },
