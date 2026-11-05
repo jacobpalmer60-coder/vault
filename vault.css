@@ -154,6 +154,8 @@ select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable.active, th.sortable:hover { color: var(--gold); }
+th.sortable.sort-down::after { content: ' ↓'; }
+th.sortable.sort-up::after { content: ' ↑'; }
 
 tr.team-row { cursor: pointer; }
 tr.team-row:hover td { background: rgba(255, 255, 255, 0.025); }

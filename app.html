@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=57836541">
+<link rel="stylesheet" href="vault.css?v=d046a219">
 <link rel="stylesheet" href="tailwind.css?v=a6b89ca2">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -52,6 +52,7 @@
   <div class="md:hidden flex items-center justify-end gap-2 mb-3 text-[12px] text-zinc-400">
     <label for="mobileSort">Sort by</label>
     <select id="mobileSort" class="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[13px] text-zinc-200 outline-none"></select>
+    <button id="mobileFlip" type="button" aria-label="Flip the order" class="btn-ghost size-8 grid place-items-center text-[14px]"></button>
   </div>
   <div id="mobileCards" class="md:hidden space-y-2"></div>
 
@@ -136,6 +137,9 @@
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script>
 let teams = [], sort = { key: 'overall', dir: -1 };
+// Names run A to Z and ages youngest first; everything else best first. The same one again flips it.
+const firstDir = k => (k === 'teamName' || k === 'age' ? 1 : -1);
+function sortBy(k) { if (sort.key === k) sort.dir *= -1; else { sort.key = k; sort.dir = firstDir(k); } render(); }
 
 
 // Static reference (doesn't depend on this league's teams), so it renders once up front.
@@ -535,8 +539,11 @@ const MOBILE_SORTS = [['nowScore', 'Right now'], ['overall', 'Dynasty value'], [
 function renderMobileSort() {
   const sel = document.getElementById('mobileSort');
   if (!sel) return;
-  sel.innerHTML = MOBILE_SORTS.map(([k, label]) => `<option value="${k}" ${sort.key === k ? 'selected' : ''}>${label}${sort.key === k && sort.dir > 0 ? ' (reversed)' : ''}</option>`).join('');
-  sel.onchange = () => { const k = sel.value; if (sort.key === k) sort.dir *= -1; else { sort.key = k; sort.dir = k === 'teamName' || k === 'age' ? 1 : -1; } render(); };
+  sel.innerHTML = MOBILE_SORTS.map(([k, label]) => `<option value="${k}" ${sort.key === k ? 'selected' : ''}>${label}</option>`).join('');
+  sel.onchange = () => sortBy(sel.value);
+  const flip = document.getElementById('mobileFlip');
+  flip.textContent = sort.dir === firstDir(sort.key) ? '↓' : '↑';
+  flip.onclick = () => sortBy(sort.key);
 }
 // What the phone list is sorted by, so the number on each row is the one it's in order of.
 function mobileStat(t) {
@@ -623,7 +630,7 @@ const VIEWS = {
 let view = null;
 function setView(v) { view = v; sort = { key: VIEWS[v].key, dir: -1 }; render(); }
 function renderViewToggle() {
-  document.getElementById('viewToggle').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button type="button" onclick="setView('${k}')" aria-pressed="${view === k}" class="px-3.5 py-1.5 text-[13px] ${view === k ? 'bg-amber-400/15 text-amber-100' : 'text-zinc-400 hover:text-white'}">${v.label}</button>`).join('');
+  document.getElementById('viewToggle').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button type="button" onclick="setView('${k}')" aria-pressed="${sort.key === v.key}" class="px-3.5 py-1.5 text-[13px] ${sort.key === v.key ? 'bg-amber-400/15 text-amber-100' : 'text-zinc-400 hover:text-white'}">${v.label}</button>`).join('');
   document.getElementById('viewHint').textContent = sort.key === VIEWS[view].key ? VIEWS[view].hint : 'Sorted by a column: click Right now or Dynasty to go back.';
 }
 // "2nd": a team's place in the league on one measure.
@@ -662,9 +669,10 @@ function render() {
     }
     let av = a[sort.key], bv = b[sort.key];
     if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
-    return sort.dir * (av > bv ? 1 : av < bv ? -1 : 0);
+    if (av !== bv) return sort.dir * (av > bv ? 1 : -1);
+    return (b.record?.fpts || 0) - (a.record?.fpts || 0) || (b.nowScore || 0) - (a.nowScore || 0);
   });
-  document.querySelectorAll('th.sortable').forEach(th => th.classList.toggle('active', th.dataset.sort === sort.key));
+  document.querySelectorAll('th.sortable').forEach(th => { const on = th.dataset.sort === sort.key; th.classList.toggle('active', on); th.classList.toggle('sort-up', on && sort.dir > 0); th.classList.toggle('sort-down', on && sort.dir < 0); if (on) th.setAttribute('aria-sort', sort.dir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort'); });
   document.getElementById('sortLast3').classList.toggle('text-amber-200', sort.key === 'last3Sort');
   data.forEach((t, i) => { t.viewRank = i + 1; });
   posRanks = POS_COLS.map(([, f]) => rankMap(f));
@@ -737,7 +745,7 @@ document.getElementById('sortLast3').onclick = e => {
   if (sort.key === 'last3Sort') sort.dir *= -1; else sort = { key: 'last3Sort', dir: -1 };
   render();
 };
-document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => { const k = th.dataset.sort; if (sort.key === k) { sort.dir *= -1; } else { sort.key = k; sort.dir = -1; } render(); });
+document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => sortBy(th.dataset.sort));
 document.getElementById('refresh').onclick = () => { Vault.freshData(); load(); };
 
 // The 17-column table needs horizontal scroll on anything short of a very wide
