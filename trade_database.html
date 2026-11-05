@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=60c6413b">
-<link rel="stylesheet" href="tailwind.css?v=c9abf8e6">
+<link rel="stylesheet" href="tailwind.css?v=d5dffed2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -55,6 +55,7 @@
         class="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[14px] outline-none focus:border-amber-400/50 transition-colors" />
       <button id="searchClear" class="hidden shrink-0 text-[12px] text-zinc-400 hover:text-white px-2">Clear</button>
     </div>
+    <div id="dbFilters" class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2"></div>
     <div id="matchBar" class="mt-3 pt-3 border-t border-white/[0.06]"></div>
   </div>
 
@@ -77,7 +78,7 @@
 </div>
 
 <script src="vault-core.js?v=5186c6a0"></script>
-<script src="vault-nav.js?v=a81c015f"></script>
+<script src="vault-nav.js?v=a77539de"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=0ec7f23e"></script>
 <script>
@@ -576,6 +577,7 @@ async function init() {
       t.names1 = t.t1.map(id => assetLabel(id, playerMap, pickMap).name.toLowerCase());
       t.names2 = t.t2.map(id => assetLabel(id, playerMap, pickMap).name.toLowerCase());
       t.market = marketRead(t, playerMap, pickMap);
+      t.pieces = [...t.t1, ...t.t2].map(id => assetLabel(id, playerMap, pickMap));
     });
     const priced = pool.filter(t => t.market);
     const share = b => priced.length ? Math.round(priced.filter(t => t.market.bucket === b).length / priced.length * 100) : 0;
@@ -648,6 +650,28 @@ async function init() {
     // landed on a DIFFERENT side — not just both mentioned somewhere in the trade.
     // Side order in the underlying data (t1/t2) is arbitrary, so both orderings count.
     // Either box alone behaves like a single side-agnostic search.
+    // Filters (user's list, 2026-11-05): a position in the trade, how big its best piece is, how recent.
+    const FILTERS = [['pos', 'Has', [['', 'Any'], ['QB', 'QB'], ['RB', 'RB'], ['WR', 'WR'], ['TE', 'TE'], ['Pick', 'Pick']]],
+      ['size', 'Best piece', [['', 'Any'], ['7000', '7,000+'], ['4000', '4,000+'], ['under', 'Under 4,000']]],
+      ['days', 'When', [['', 'Any'], ['3', '3 days'], ['7', 'Week'], ['30', 'Month']]]];
+    const pick = { pos: '', size: '', days: '' };
+    function renderFilters() {
+      document.getElementById('dbFilters').innerHTML = FILTERS.map(([key, label, opts]) => `<div class="flex items-center gap-1"><span class="text-[11px] text-zinc-500 mr-0.5">${label}</span>${opts.map(([v, text]) => `<button type="button" data-f="${key}" data-v="${v}" aria-pressed="${pick[key] === v}" class="text-[12px] px-2 py-1 rounded-md border transition-colors ${pick[key] === v ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white'}">${text}</button>`).join('')}</div>`).join('');
+    }
+    document.getElementById('dbFilters').onclick = e => {
+      const b = e.target.closest('[data-f]');
+      if (!b) return;
+      pick[b.dataset.f] = b.dataset.v;
+      renderFilters();
+      renderList();
+    };
+    const passes = t => {
+      const top = Math.max(0, ...t.pieces.map(a => a.value || 0));
+      if (pick.pos && !t.pieces.some(a => (a.pos || 'Pick') === pick.pos)) return false;
+      if (pick.size === 'under' ? top >= 4000 : pick.size && top < +pick.size) return false;
+      return !pick.days || Date.now() - new Date(t.date).getTime() <= +pick.days * 864e5;
+    };
+    renderFilters();
     function renderList() {
       const qA = searchSideA.value.trim().toLowerCase();
       const qB = searchSideB.value.trim().toLowerCase();
@@ -660,17 +684,19 @@ async function init() {
         const q = qA || qB;
         matches = pool.filter(t => sideHas(t.names1, q) || sideHas(t.names2, q));
       }
+      const filtering = !!(pick.pos || pick.size || pick.days);
+      if (filtering) matches = matches.filter(passes);
       const sorted = [...matches].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, CAP);
 
       const label = qA && qB ? `"${searchSideA.value.trim()}" for "${searchSideB.value.trim()}"` : (qA || qB ? `"${(searchSideA.value || searchSideB.value).trim()}"` : '');
       resultCount.textContent = label
         ? `${matches.length.toLocaleString()} trade${matches.length === 1 ? '' : 's'} matching ${label}${matches.length > CAP ? ` — showing ${CAP} most recent` : ''}`
-        : (pool.length > CAP ? `The ${CAP} newest` : '');
+        : (filtering ? `${matches.length.toLocaleString()} trade${matches.length === 1 ? '' : 's'}${matches.length > CAP ? `, showing the ${CAP} newest` : ''}` : pool.length > CAP ? `The ${CAP} newest` : '');
 
       if (!sorted.length) {
         list.innerHTML = '';
         empty.classList.remove('hidden');
-        empty.textContent = label ? `No matching trades found for ${label}.` : 'No comparable trades found for this league\'s format right now.';
+        empty.textContent = label ? `No matching trades found for ${label}.` : filtering ? 'No trades match those filters.' : 'No comparable trades found for this league\'s format right now.';
         return;
       }
       empty.classList.add('hidden');

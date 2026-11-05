@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=60c6413b">
-<link rel="stylesheet" href="tailwind.css?v=c9abf8e6">
+<link rel="stylesheet" href="tailwind.css?v=d5dffed2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -53,7 +53,7 @@
 </main>
 
 <script src="vault-core.js?v=5186c6a0"></script>
-<script src="vault-nav.js?v=a81c015f"></script>
+<script src="vault-nav.js?v=a77539de"></script>
 <script src="season-report.js?v=0596935e"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=0ec7f23e"></script>
@@ -233,7 +233,14 @@ function renderSingle(t) {
     </div>
     ${scheduleCard(t, all)}${picksGrid(t, all)}`;
   renderGlance();
-  $('#rosterCard').innerHTML = Vault.teamRosterPanel(t, all);
+  $('#rosterCard').innerHTML = `<div class="flex justify-end mb-2"><button type="button" id="copyRoster" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20">Copy as CSV</button></div>${Vault.teamRosterPanel(t, all)}`;
+  $('#copyRoster').onclick = async e => {
+    const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const players = [...t.plist].sort((a, b) => b.value - a.value).map(p => [p.name, p.pos, p.nfl, p.age ? p.age.toFixed(1) : '', Math.round(p.value), p.ppg ? p.ppg.toFixed(1) : '']);
+    const picks = [...t.picks].sort((a, b) => b.value - a.value).map(p => [Vault.pickName(p), 'Pick', '', '', Math.round(p.value), '']);
+    const csv = [['Name', 'Pos', 'Team', 'Age', 'Value', 'Proj. PPG'], ...players, ...picks].map(r => r.map(cell).join(',')).join('\n');
+    try { await navigator.clipboard.writeText(csv); e.target.textContent = 'Copied'; } catch { window.prompt('Copy this:', csv); }
+  };
 }
 
 // What a trade with this partner could look like, in names (2026-10-23, user: "what they

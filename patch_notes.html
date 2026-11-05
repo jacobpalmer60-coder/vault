@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=60c6413b">
-<link rel="stylesheet" href="tailwind.css?v=c9abf8e6">
+<link rel="stylesheet" href="tailwind.css?v=d5dffed2">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -47,13 +47,17 @@
 </div>
 
 <script src="vault-core.js?v=5186c6a0"></script>
-<script src="vault-nav.js?v=a81c015f"></script>
+<script src="vault-nav.js?v=a77539de"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-05', items: [
+    { kind: 'new', page: 'Everywhere', text: "Copy a trade as text from the Trade Calculator, or a roster as CSV from Team Analyzer. First-time visitors get three short tips, gone for good once closed." },
+    { kind: 'new', page: 'League Trades', text: "Trade Search filters: a position in the trade, the size of its best piece, and how recent." },
+    { kind: 'new', page: 'Player Rankings', text: "Tier breaks: when sorted by value, a line marks where value really drops off." },
+    { kind: 'new', page: 'Compare', text: "Points by week on one chart, above the game log. A missed game breaks the line instead of reading as zero." },
     { kind: 'improved', page: 'Everywhere', text: "Player and team names can be reached with the Tab key. On a phone, sharing a trade now names the pieces in the message." },
     { kind: 'new', page: 'Everywhere', text: "Search: press Ctrl+K or the magnifying glass on any page to find a player or team and open its card." },
     { kind: 'improved', page: 'Everywhere', text: "If the daily data falls behind, a note says so. If Sleeper can't be reached, pages say that in plain words. Data status also shows injury details and season totals." },

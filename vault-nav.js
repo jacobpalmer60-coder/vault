@@ -207,6 +207,15 @@
     const old = [['KTC values', days(ktc?.updated)], ['Projections', days(proj?.updated)]].filter(([, d]) => d > 2);
     if (old.length) box.insertAdjacentHTML('beforeend', notice(`<span>${old.map(([what, d]) => `${what} are ${Math.floor(d)} days old`).join(', ')}: the daily update is behind, so numbers here may be out of date.</span><a href="status.html" class="text-amber-200 hover:text-amber-100 underline underline-offset-2 decoration-amber-200/30">Data status</a>`));
   }
+  function firstVisitTips() {
+    const box = document.getElementById('vnNotices'), key = 'vault_tips_seen';
+    let seen = true;
+    try { seen = !!localStorage.getItem(key); } catch {}
+    if (!box || seen || !isTool) return;
+    const act = matchMedia('(hover: none)').matches ? 'Tap' : 'Click';
+    box.insertAdjacentHTML('beforeend', notice(`<span>${act} any player or team name for its card. Dotted words and a small ? explain themselves. The magnifying glass finds anyone.</span><button id="vnTipsOk" class="text-amber-200 hover:text-amber-100 underline underline-offset-2 decoration-amber-200/30">Got it</button>`, 'vnTips'));
+    document.getElementById('vnTipsOk').onclick = () => { try { localStorage.setItem(key, '1'); } catch {} document.getElementById('vnTips')?.remove(); };
+  }
   async function leagueNotices(league, users) {
     const box = document.getElementById('vnNotices');
     if (!box || !league) return;
@@ -279,5 +288,5 @@
   });
   new MutationObserver(enhance).observe(document.documentElement, { childList: true, subtree: true });
 
-  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); dataAgeNotice(); });
+  document.addEventListener('DOMContentLoaded', () => { render(); mountMyTeamPicker(); enhance(); dataAgeNotice(); firstVisitTips(); });
 })();

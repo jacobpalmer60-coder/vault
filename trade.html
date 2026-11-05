@@ -24,7 +24,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=60c6413b">
-<link rel="stylesheet" href="tailwind.css?v=c9abf8e6">
+<link rel="stylesheet" href="tailwind.css?v=d5dffed2">
   <link rel="preconnect" href="https://vault-roster-audit.jacob-palmer60.workers.dev" crossorigin>
   <link rel="preconnect" href="https://rosteraudit.com" crossorigin>
 </head>
@@ -145,6 +145,7 @@
         <span id="offerBtn"></span>
         <button onclick="pinTrade()" title="Keep this trade to compare with others side by side" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors">Pin to compare</button>
         <button onclick="shareTrade(this)" title="Copy a link for the other manager: it opens on their side, as your offer to them, and they can adjust it and send it back" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors inline-flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Send offer link</button>
+        <button onclick="copyTradeText(this)" title="Copy the trade as plain text" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-colors">Copy text</button>
         <button onclick="resetTrade()" title="Clear the whole trade" class="shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-400/40 transition-colors">Reset</button>
       </div>
     </div>
@@ -239,7 +240,7 @@
 </div>
 
 <script src="vault-core.js?v=5186c6a0"></script>
-<script src="vault-nav.js?v=a81c015f"></script>
+<script src="vault-nav.js?v=a77539de"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -639,6 +640,14 @@ function renderCompare() {
   box.classList.remove('hidden');
   box.innerHTML = `<div class="flex items-baseline justify-between gap-3 flex-wrap mb-2"><div class="text-[15px] font-medium text-zinc-100">Pinned trades</div><div class="text-[12px] text-zinc-500">Up to ${COMPARE_MAX}, side by side. Pin another from the trade above.</div></div>
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">${pinned.map(card).join('')}</div>`;
+}
+
+async function copyTradeText(btn) {
+  const teamA = teamOf('A'), teamB = teamOf('B');
+  if (!teamB) return;
+  const list = (set, t) => [...set].map(k => t.assets.find(x => x.key === k)?.name).filter(Boolean).join(', ') || 'nothing';
+  const text = `${teamA.teamName} gets: ${list(selectedB, teamB)}\n${teamB.teamName} gets: ${list(selectedA, teamA)}`;
+  try { await navigator.clipboard.writeText(text); flashButtonMessage(btn, 'Copied'); } catch { window.prompt('Copy this:', text); }
 }
 
 async function shareTrade(btn) {

@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=60c6413b">
-<link rel="stylesheet" href="tailwind.css?v=c9abf8e6">
+<link rel="stylesheet" href="tailwind.css?v=d5dffed2">
 <style>
   /* Phones: tighter cells, so value, market price and projected points fit without scrolling sideways (2026-10-23). */
   @media (max-width: 639px) { table th, #tbody td { padding-left: 0.5rem !important; padding-right: 0.5rem !important; } }
@@ -112,7 +112,7 @@
 </div>
 
 <script src="vault-core.js?v=5186c6a0"></script>
-<script src="vault-nav.js?v=a81c015f"></script>
+<script src="vault-nav.js?v=a77539de"></script>
 <script src="market-data.js?v=a619b6b9"></script>
 <script src="player-card.js?v=0ec7f23e"></script>
 <script>
@@ -318,7 +318,19 @@
       return;
     }
     const frag = document.createDocumentFragment();
+    // A tier break: a real drop in value from the player above (user's list, 2026-11-05). KTC's list
+    // is smooth overall, so the whole board needs a smaller drop than one position does.
+    const byValue = sortKeys.length === 1 && sortKeys[0].key === 'value' && sortKeys[0].dir === 'desc' && !searchQuery;
+    const dropAt = ['QB', 'RB', 'WR', 'TE'].includes(posFilter) ? 0.07 : posFilter === 'ALL' ? 0.03 : null;
+    let tier = 1;
     filteredRows.forEach((r, i) => {
+      const above = filteredRows[i - 1];
+      if (byValue && dropAt && above && r.value >= 1000 && above.value - r.value >= 150 && (above.value - r.value) / above.value >= dropAt) {
+        tier++;
+        const row = document.createElement('tr');
+        row.innerHTML = `<td colspan="8" class="px-4 py-1 text-[11px] uppercase tracking-wider text-zinc-500 bg-white/[0.03]">Tier ${tier} <span class="normal-case tracking-normal">· ${Math.round((above.value - r.value) / above.value * 100)}% drop in value</span></td>`;
+        frag.appendChild(row);
+      }
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-white/[0.03] transition cursor-pointer';
       tr.dataset.kbd = ''; // Tab + Enter opens it too (vault-nav.js)
