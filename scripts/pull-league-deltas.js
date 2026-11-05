@@ -6,7 +6,7 @@
 
    Only what changed: each NFL week it reads every league with trades for the weeks since
    the last pass, plus current rosters and picks, about 10 calls a league instead of 44. A
-   league it hasn't seen in full gets everything once.
+   league it hasn't seen in full gets everything once, with or without trades on file.
 
    Team data is never published (user, 2026-10-08), and a public repo can't keep a secret, so
    each run's output is sealed to a public key before it leaves this job: AES-256-GCM with a
@@ -15,7 +15,7 @@
    apply-league-pulls.js). Logs carry counts only, never an id.
 
    Reads .crawl/sleeper-state.json (the crawl's list, restored from its cache) and
-   data/sleeper-trades/<season>.json.gz (to keep only leagues with trades). Progress is hashes
+   data/sleeper-trades/<season>.json.gz (to put leagues with trades first). Progress is hashes
    only, in .league-pull/state.json (its own cache).
      node scripts/pull-league-deltas.js                  one run (RUN_MINUTES)
      LEAGUE_LIST=ids.json OUT_FILE=x.bin ...             a test on a few leagues
@@ -126,7 +126,10 @@ function seal(plain, pubPem) {
     if (!crawl) throw new Error('no crawl list in the cache');
     const trades = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(ROOT, 'data', 'sleeper-trades', `${season}.json.gz`))).toString('utf8')).trades;
     const traded = new Set(Object.values(trades).map(t => t[1]));
-    ids = Object.keys(crawl.revisit || {}).filter(id => traded.has(hash(id)));
+    // A league the crawl knows but this pull has never read in full goes last, once: the 2026-11-04 loss
+    // took the earlier trades of about 30,000 leagues, and the crawl only revisits their new weeks.
+    const all = Object.keys(crawl.revisit || {});
+    ids = [...all.filter(id => traded.has(hash(id))), ...all.filter(id => !traded.has(hash(id)) && !known.has(hash(id)))];
   }
   const todo = ids.filter(id => !done.has(hash(id)));
   const pulled = [];
