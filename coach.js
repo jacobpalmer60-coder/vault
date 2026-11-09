@@ -777,13 +777,12 @@ function coachLeavesShort(t, give, get) {
 }
 // Their side of a fit, for selling it: their verdict and what they'd be getting that they need.
 function coachForThem(t, give, r) {
-  const thin = [...new Set(give.filter(a => a.type === 'player' && coachPosNeed(t, a.pos)).map(a => a.pos))];
-  const later = !thin.length && Vault.teamMode(t) === 'rebuild' && give.some(a => a.type === 'pick' || (a.age > 0 && a.age <= 24));
-  const why = thin.length ? `, they're thin at ${thin.join(' and ')}` : later ? `, they're building for later` : '';
-  const short = coachLeavesShort(t, give, r.o.get) ? ', <span class="text-orange-300">leaves them short at QB</span>' : '';
-  const habit = typeof negHabitFit === 'function' && negHabitFit(t.rosterId, give, r.o.get).fit > 0 ? ', fits how they trade' : '';
-  return `<span class="${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</span> for them${why}${habit}${short}`;
+  const check = coachRealityCheck({ analysis: r.j.an, improvement: improvementOf(r.j.an, 'B'), incoming: give, outgoing: r.o.get, drops: r.j.drops });
+  const benefit = check.reasons[0] || 'No clear practical benefit for their team.';
+  const concern = check.concerns.length ? ' Watch: ' + check.concerns.join(' ') : '';
+  return '<span class="' + Vault.VERDICT_TIER_TEXT[r.them.tier] + '">' + r.them.label + '</span> for them · ' + coachEsc(benefit + concern);
 }
+
 function coachRecSpec(me) {
   const f = coachFlow(), others = teams.filter(t => t !== me);
   // Cornerstones stay in, tagged (user, 2026-11-04: "dont hide the big boys"): you picked the
@@ -1043,10 +1042,11 @@ async function coachAimRun(k) {
   const gainOf = (t, give, get) => coachAfter(me.rosterId, t.rosterId, give, get).opt - me.opt;
   const beatsKtc = (give, get) => coachKtcPct(give, get) >= COACH_AIM_KTC;
   const out = [];
-  // A trade that passes: a likely yes that isn't bad for you.
+  // Goal suggestions must pass the existing trade checks and offer a practical partner benefit.
   const read = (t, give, get, extra = {}, also = () => true) => {
     const r = coachWorkRead(me, { partner: t, give, get, option: 'build' });
-    if (r.yes && coachLevelRank(r) < 2 && !(coachLeavesShort(t, give, get) && Vault.teamMode(t) === 'contend') && also(r)) { const x = { t, give, get, r, ...extra }; out.push(x); return x; }
+    const reality = coachRealityCheck({ analysis: r.j.an, improvement: improvementOf(r.j.an, 'B'), incoming: give, outgoing: get, drops: r.j.drops });
+    if (reality.suggest && r.yes && coachLevelRank(r) < 2 && !(coachLeavesShort(t, give, get) && Vault.teamMode(t) === 'contend') && also(r)) { const x = { t, give, get, r, ...extra }; out.push(x); return x; }
     return null;
   };
   // One target at a time, so the screen can count them off.
@@ -1169,10 +1169,10 @@ function coachAimHtml(me) {
     return `${head}<div class="text-[13px] text-zinc-400 py-2">${none} Try another goal, or start from a player or position.</div>`;
   }
   const names = l => l.map(a => coachEsc(a.name)).join(' + ');
-  return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} their manager would likely take.</div><div class="grid gap-2">${run.list.map((x, i) => {
+  return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} with a practical reason for the other team to consider.</div><div class="grid gap-2">${run.list.map((x, i) => {
     const tier = Vault.verdictTier(x.r.score), note = x.note || (x.gain ? `+${x.gain.toFixed(1)} pts a week` : '');
     return coachChoice(`coachAimBuild(${i})`, `Get ${names(x.get)} <span class="text-zinc-400">for ${names(x.give)}</span>`,
-      `${coachEsc(x.t.teamName)} · <span class="text-emerald-300">Likely yes</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${note ? ` · ${note}` : ''}<br>${coachForThem(x.t, x.give, x.r)}${coachAsksCornerstone(x.t, x.get) ? ' · <span class="text-amber-200/90">their cornerstone, rarely traded</span>' : ''}`);
+      `${coachEsc(x.t.teamName)} · <span class="text-emerald-300">Worth considering</span> · <span class="${Vault.VERDICT_TIER_TEXT[tier.key]}">${tier.label}</span> for you${note ? ` · ${note}` : ''}<br>${coachForThem(x.t, x.give, x.r)}${coachAsksCornerstone(x.t, x.get) ? ' · <span class="text-amber-200/90">their cornerstone, rarely traded</span>' : ''}`);
   }).join('')}</div>`;
 }
 
@@ -1421,3 +1421,37 @@ document.addEventListener('keydown', e => {
   if (!panel.contains(at) || at === panel || (e.shiftKey && at === first)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
   else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
 });
+
+/* Practical partner benefit, not an acceptance prediction.
+   Tolerances are explicit review rules, not fitted probabilities. */
+function coachRealityCheck({ analysis, improvement, incoming, outgoing, drops = 0 }) {
+  const unknown = { level: 'unknown', reasons: [], concerns: ['Not enough roster information to explain their benefit.'], suggest: false };
+  if (!analysis || !improvement || !incoming?.length || !outgoing?.length) return unknown;
+  const res = analysis.resB;
+  if (!res || !Number.isFinite(res.dOpt) || !Number.isFinite(res.dDepth) || !Number.isFinite(res.dPicks) || !Number.isFinite(improvement.ptsPerWeek)) return unknown;
+  const reasons = [], concerns = [];
+  // Match the existing calculator's 0.3 point explanation floor. Tiny simulation
+  // changes must not manufacture a reason to trade.
+  const material = 0.3;
+  const mode = improvement.mode;
+  const lineup = res.dOpt, depth = res.dDepth;
+  if (lineup >= material) reasons.push(`Their projected starting lineup gains ${lineup.toFixed(1)} points a week.`);
+  if (depth >= material) reasons.push('Their usable injury and bye-week depth improves.');
+  if (mode !== 'contend' && res.dPicks > 0) reasons.push('They add draft capital for later.');
+  if (mode !== 'contend' && Number.isFinite(res.dAge) && res.dAge <= -0.4) reasons.push('Their roster gets younger.');
+  // For contenders, future assets can be a reason when current strength is kept.
+  if (mode === 'contend' && improvement.ptsPerWeek >= -material && res.dPicks > 0) reasons.push('They add picks while keeping their projected weekly strength.');
+  if (drops > 0) concerns.push(`They need ${drops} roster cut${drops === 1 ? '' : 's'}; the value of those cuts still needs review.`);
+  if (lineup < -material) concerns.push(`Their projected starting lineup loses ${Math.abs(lineup).toFixed(1)} points a week.`);
+  if (depth < -material) concerns.push('Their usable injury and bye-week depth gets worse.');
+  const playersIn = incoming.filter(a => a.type === 'player').length;
+  const playersOut = outgoing.filter(a => a.type === 'player').length;
+  if (playersIn > playersOut && lineup < material && depth < material) concerns.push('The extra players do not improve their projected lineup or usable depth.');
+  // Reuse the existing Coach's 2-point filler threshold as a conservative
+  // REVIEW threshold. Never present it as a measured manager decision boundary.
+  const harmsWinNow = mode !== 'rebuild' && improvement.ptsPerWeek <= -2;
+  if (harmsWinNow) concerns.push('This asks a team without a rebuilding plan to give up meaningful weekly production.');
+  const level = harmsWinNow ? 'conflict' : reasons.length ? 'explained' : 'unclear';
+  return { level, reasons, concerns, suggest: level === 'explained' && drops === 0 };
+}
+if (typeof module !== 'undefined') module.exports = { coachRealityCheck };

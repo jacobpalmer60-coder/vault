@@ -9,6 +9,7 @@ on:
     paths:
       - vault-core.js
       - market-data.js
+      - coach.js
       - scripts/**
 
 permissions:
@@ -25,5 +26,6 @@ jobs:
           node-version: '20'
       - run: node scripts/check-core-loads.js
       - run: node scripts/check-math.js
+      - run: node scripts/check-coach-reality.cjs
       - name: Every script parses
         run: for f in vault-core.js market-data.js scripts/*.js scripts/market-history/*.js; do node --check "$f" || exit 1; done
