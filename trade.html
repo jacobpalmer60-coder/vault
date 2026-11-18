@@ -1473,8 +1473,6 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const imp = improvementOf(analysis, 'A');
   const s = seasonFor.get(teamA.rosterId);
   lastImprovement = { ...imp, reason: improvementReason(imp, s) + (imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : '') };
-  const chosen = Vault.planOverride[teamA.rosterId] || '';
-  const opt = (v, text) => `<option value="${v}" ${chosen === v ? 'selected' : ''}>${text}</option>`;
   const teamB = teamOf('B'), them = theirsOf(analysis);
   lastAnalysis = analysis;
   // Good for you but Leans bad or worse for them: One-sided (user, 2026-10-19).
