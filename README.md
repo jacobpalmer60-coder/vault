@@ -96,6 +96,35 @@ Do not update live valuation weights based solely on this benchmark: it studies
 historical player prices, not team strategy, acceptance probabilities or trades
 that never happened.
 
+### November 17: follow-up analysis (no live math changes)
+
+The next diagnostic separates **confirmed zero** follow-up values from **unknown**
+ones, because a missing player price cannot prove a complete loss. The
+completed-trade script now shows both **strict complete-case** and **missing
+as zero** sensitivity results and groups them by year, calendar quarter/month,
+scoring format, trade shape, largest asset's position and original raw-value gap:
+
+```powershell
+cd "$env:USERPROFILE\Desktop\vault"
+git pull
+node scripts/check-historical-outcomes.js
+node --max-old-space-size=6144 scripts/benchmark-trade-value-outcomes.js *> trade-cohorts.txt
+node scripts/benchmark-rebuild-horizon.js *> rebuild-horizons.txt
+```
+
+The rebuilding experiment evaluates price preservation after **1, 2 and 3
+years**, with earlier-year training and later-year evaluation and breakdowns
+by position, age and league format. It measures **players only**: picks,
+original rebuilding-team rosters and manager decisions are not represented,
+so it must not be advertised as a rebuild-success prediction.
+
+The Market History builder now omits trades with unknown later prices from
+its complete-case player summaries; true observed zeros still count. Rebuild
+its published aggregates using the raw trade archive before claiming the
+published win rates incorporate this change. The original 2024/2025 reversal
+is descriptive and may be affected by season mix, pick conversion,
+different follow-up coverage and overlap with the curve's training data.
+
 To compare **completed trade packages** rather than individual player values, restore
 the same archive and run
 `node --max-old-space-size=6144 scripts/benchmark-trade-value-outcomes.js`.
