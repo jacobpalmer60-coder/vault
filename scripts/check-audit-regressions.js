@@ -88,7 +88,7 @@ const against = rankHelper(rosters, rosters[0], rosters[1], [{ value: 60 }], 1,
   (_id, assets) => assets.reduce((sum, a) => sum + a.value, 0));
 assert.equal(against[0], 60);
 assert.equal(against[1], 30);
-console.log('PASS opponent's post-trade value in future rank comparisons');
+console.log("PASS opponent post-trade value in future rank comparisons");
 
 // Both teams may dislike a proposal. An equalizer must explore fixes in both
 // directions, rather than hard-code the partner as the only side needing help.
