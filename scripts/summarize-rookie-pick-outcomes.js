@@ -1,52 +1,86 @@
 #!/usr/bin/env node
 'use strict';
-/* Compact text summary of the historical research-only rookie outcome JSON.
- * Input accepts UTF-8 and PowerShell 5.1 UTF-16LE output.
+/*
+ Compact historical rookie-slot research summary.
+ Usage:
+   node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json
+   node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json --format=sf --size=12 --year=2024
+   node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json --full
+ The default surfaces the most decision-relevant standard 12-team slots;
+ --full prints every round and slot across all available formats/sizes.
  */
 const fs=require('node:fs'),path=require('node:path');
-const input=process.argv[2]||'rookie-outcomes.json';
-const bytes=fs.readFileSync(path.resolve(input));
-const text=(bytes[0]===255&&bytes[1]===254)||(bytes[0]===123&&bytes[1]===0)
- ?bytes.toString('utf16le').replace(/^\uFEFF/,'')
- :bytes.toString('utf8').replace(/^\uFEFF/,'');
-const data=JSON.parse(text.trim());
-const fmt=x=>x==null?'n/a':Math.round(x).toLocaleString('en-US');
-console.log('UNIQUE ROOKIE HISTORICAL KTC OUTCOMES (365 DAYS AFTER DRAFT)');
-console.log('Research only; drafted-player prices, NOT precise pick forecasts');
+const args=process.argv.slice(2);
+const input=args.find(s=>!s.startsWith('--'))||'rookie-outcomes.json';
+const opt=name=>{
+ const prefix='--'+name+'=';
+ return args.find(s=>s.startsWith(prefix))?.slice(prefix.length);
+};
+const full=args.includes('--full')||args.includes('--all-slots');
+const wantedFormat=opt('format');
+const wantedYear=opt('year')?Number(opt('year')):null;
+const wantedSize=opt('size')?Number(opt('size')):null;
+if(wantedSize!=null&&(!Number.isInteger(wantedSize)||wantedSize<8||wantedSize>16))throw Error('--size must be 8..16');
+if(wantedYear!=null&&(!Number.isInteger(wantedYear)||wantedYear<2020||wantedYear>2035))throw Error('--year must be a valid season');
+const buf=fs.readFileSync(path.resolve(input));
+const contents=(buf[0]===255&&buf[1]===254)||(buf[0]===123&&buf[1]===0)
+ ?buf.toString('utf16le').replace(/^\uFEFF/,'')
+ :buf.toString('utf8').replace(/^\uFEFF/,'');
+const data=JSON.parse(contents.trim());
+const fmt=n=>n==null?'n/a':Number(n).toLocaleString('en-US',{maximumFractionDigits:1});
+const pct=n=>n==null?'n/a':Number(n).toFixed(1)+'%';
+console.log('VAULT — HISTORICAL ROOKIE DRAFT RESEARCH (NOT LIVE PICK PRICES)');
+console.log('Date of analysis: '+(data.generated||'unknown')+' | outcome: 365-day player KTC price');
 console.log('Drafts assessed: '+fmt(data.counts?.eligibleDrafts)+
- ' | Unique rookies by season/format: '+fmt(data.counts?.uniqueRookies));
-console.log('Verified rookie selections: nflverse '+fmt(data.counts?.verifiedFromNflverse)+' | Sleeper '+fmt(data.counts?.verifiedFromSleeper)+' | external registry loaded: '+Boolean(data.registryLoaded));
-console.log('Excluded selections: veteran NFL draft year '+fmt(data.counts?.rejectedVeterans)+
- ' | unknown rookie year '+fmt(data.counts?.unverifiableRookieYear)+
- ' | nonfantasy '+fmt(data.counts?.rejectedNonFantasy)+
- ' | missing player identity '+fmt(data.counts?.missingSleeperIdentity)+
- ' | ambiguous matches '+fmt(data.counts?.ambiguousIdentity));
-if(!data.counts?.uniqueRookies)console.log('WARNING: no verifiable rookies. Run node scripts/fetch-nfl-draft-years.js, then rerun the benchmark.');
+ ' | distinct season/format/rookie IDs: '+fmt(data.counts?.uniqueRookies));
+console.log('Rookie verification: nflverse '+fmt(data.counts?.verifiedFromNflverse)+
+ ' selections | Sleeper '+fmt(data.counts?.verifiedFromSleeper)+
+ ' | external NFL draft registry: '+(data.registryLoaded?'loaded':'not loaded'));
+console.log('Unverifiable selections: '+fmt(data.counts?.unverifiableRookieYear)+
+ ' | veteran-year rejects: '+fmt(data.counts?.rejectedVeterans)+
+ ' | ambiguous identity: '+fmt(data.counts?.ambiguousIdentity));
+console.log('Structurally complete drafts: '+fmt(data.counts?.slotDraftsValidated)+
+ ' | incomplete/rejected: '+fmt(data.counts?.slotDraftsRejected));
+console.log('Rookie-heavy first round (>=80% verified, HEURISTIC): '+
+ fmt(data.counts?.slotDraftsRookieHeavy)+' | below threshold: '+
+ fmt(data.counts?.slotDraftsNotRookieHeavy));
 
-for(const g of data.groups||[]){
- console.log([g.year,g.format,'round '+g.round,'players '+g.n,
-  'followup-known '+g.known,'missing '+g.missing,
-  'one-year p25 '+fmt(g.followup.p25),'median '+fmt(g.followup.median),
-  'p75 '+fmt(g.followup.p75),
-  'pre-draft mid-pick '+fmt(g.preDraftPickMidMedian)].join(' | '));
+const defaultFormats=new Set(['oneQB','sf']);
+const defaultSlots=new Set(['1.01','1.04','1.08','1.12',
+ '2.01','2.06','2.12','3.01','3.12','4.01','4.12']);
+const rowFormat=g=>!wantedFormat?(full||defaultFormats.has(g.format)):g.format===wantedFormat;
+const rowYear=g=>wantedYear==null||g.year===wantedYear;
+const rowSize=g=>wantedSize==null?(full||g.draftSize===12):g.draftSize===wantedSize;
+const roundGroups=(data.groups||[]).filter(g=>rowFormat(g)&&rowYear(g));
+const slotGroups=(data.slotGroups||[]).filter(g=>rowFormat(g)&&rowYear(g)&&rowSize(g)&&
+ (full||defaultSlots.has(g.round+'.'+String(g.slot).padStart(2,'0'))));
+console.log('\nROUND-LEVEL CONTEXT (one distinct rookie per format/year/round)');
+for(const g of roundGroups){
+ console.log([g.year,g.format,'round '+g.round,'unique '+fmt(g.n),
+  'known '+fmt(g.known),'missing '+fmt(g.missing)+' ('+pct(g.missingRatePct)+')',
+  'observed median '+fmt(g.followup?.median),
+  'pre-draft pick reference '+fmt(g.preDraftPickMidMedian)].join(' | '));
 }
-console.log('\nDRAFT-SLOT RESEARCH (complete 8–16-team drafts; 1.01 differs from 1.12)');
-console.log('Valid complete draft records: '+fmt(data.counts?.slotDraftsValidated)+
- ' | rejected: '+fmt(data.counts?.slotDraftsRejected)+
- ' | verified slot selections: '+fmt(data.counts?.slotSelectionsVerified));
-console.log('Complete drafts with >=80% verified rookies in first round (heuristic only): '+fmt(data.counts?.slotDraftsRookieHeavy)+' | below threshold: '+fmt(data.counts?.slotDraftsNotRookieHeavy));
-for(const g of data.slotGroups||[]){
- console.log([g.year,g.format,g.draftSize+'-team','pick '+g.round+'.'+String(g.slot).padStart(2,'0'),
-  'selections '+fmt(g.selections),'distinct rookies '+fmt(g.distinctRookies),
-  'known '+fmt(g.known),'missing '+fmt(g.missing)+' ('+g.missingRatePct+'%)',
-  'rookie-heavy selection share '+(g.rookieHeavySharePct??'n/a')+'%',
-  'top-player selection share '+(g.mostCommonRookieSharePct??'n/a')+'%',
-  'distinct-player median '+fmt(g.followup.median),
-  'SELECTION-WEIGHTED median '+fmt(g.selectionWeightedFollowup?.median),
-  'weighted p25 '+fmt(g.selectionWeightedFollowup?.p25),'weighted p75 '+fmt(g.selectionWeightedFollowup?.p75)].join(' | '));
+console.log('\nEXACT PICK SLOTS — '+(full?'ALL':'selected 12-team standard 1QB/SF')+' cohorts');
+console.log('Columns: actual selections; unique rookies; outcome missing among selections;');
+console.log('all-draft weighted median; rookie-heavy ONLY weighted median; share from heavy drafts; concentration');
+for(const g of slotGroups){
+ console.log([g.year,g.format,g.draftSize+'-team',
+  g.round+'.'+String(g.slot).padStart(2,'0'),
+  'picks '+fmt(g.selections),'unique '+fmt(g.distinctRookies),
+  'missing '+pct(g.missingSelectionRatePct),
+  'ALL '+fmt(g.selectionWeightedFollowup?.median),
+  'ROOKIE-HEAVY '+fmt(g.rookieHeavySelectionWeightedFollowup?.median),
+  'heavy n '+fmt(g.verifiedRookieSelectionsInRookieHeavyDrafts),
+  'heavy missing '+pct(g.rookieHeavyMissingSelectionRatePct),
+  'heavy share '+pct(g.rookieHeavySharePct),
+  'top pick share '+pct(g.mostCommonRookieSharePct)
+ ].join(' | '));
 }
-console.log('Slot groups are correlated: a rookie drafted in several league slots can appear once in EACH different slot.');
-console.log('Comparing selection-weighted and distinct-player medians diagnoses distortion; rookie-heavy is NOT confirmed draft-type metadata.');
-console.log('These are historical selection distributions, NOT pick-value recommendations or independent observations.');
-console.log('Missing prices excluded from quantiles; repeated rookies in one format/season deduplicated.');
-console.log('League draft TYPE and historical pick prices remain unresolved; use size-matched slot cohorts only.');
+if(!slotGroups.length)console.log('No matching slot cohorts met the distinct-rookie sample threshold.');
+console.log('\nInterpretation: weighted price is measured 365 days after EACH actual draft choice.');
+console.log('Rookie-heavy is a first-round verification heuristic; it does NOT confirm draft type.');
+console.log('Selections repeat players across leagues. Missing future prices are not zeros.');
+console.log('Distinct-player and weighted distributions are correlated historical diagnostics.');
+console.log('DO NOT use this output to change live pick prices without chronological holdout validation.');
+if(!full)console.log('For all slots or specialty formats: add --full, or --full --format=sf_tep --size=12 --year=2024.');
