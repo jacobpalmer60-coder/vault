@@ -40,7 +40,7 @@ assert.equal(one.selections,3);
 assert.equal(one.distinctRookies,3,'same rookie per slot counts once');
 assert.equal(one.known,2);
 assert.equal(one.missing,1);
-assert.equal(one.followup.p25,50,'actual zero counted in median cohort');
+assert.equal(one.followup.p25,25,'observed zero contributes to interpolation');
 const two=result.slotGroups.find(g=>g.slot===2);
 assert.equal(two.distinctRookies,3);
 assert.equal(two.missing,1,'missing price retained as missing');
