@@ -210,7 +210,7 @@ const slotGroups=[...slotSamples.values()].map(g=>{
   // This is a transparent proxy, not an asserted draft-type label.
   rookieHeavySelectionWeightedFollowup:measure(g.rookieHeavyPrices)};
 }).sort((a,b)=>a.year-b.year||a.format.localeCompare(b.format)||a.round-b.round||a.draftSize-b.draftSize||a.slot-b.slot);
-const result={generated:new Date().toISOString().slice(0,10),horizonDays:365,
+const result={schemaVersion:2,generated:new Date().toISOString().slice(0,10),horizonDays:365,
  description:'Explicit NFL rookie-year verified picks only: KTC prices 365 days after dynasty drafts, by year, league format and round',
  counts,registryLoaded:!!draftIndex,groups:groups.filter(g=>g.n>=minDrafts),
  slotGroups:slotGroups.filter(g=>g.distinctRookies>=minDrafts),
