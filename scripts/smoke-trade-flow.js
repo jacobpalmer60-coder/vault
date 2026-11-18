@@ -52,6 +52,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
     });
     if(prepared.error)errors.push(prepared.error);
     if(!errors.length){
+      if(width<600)await page.evaluate(()=>tradeTab('teams'));
       await delay(250);
       const report=await page.evaluate(()=>{
         const visible=id=>{const el=document.getElementById(id);return !!el&&!el.classList.contains('hidden')&&el.getClientRects().length>0};
