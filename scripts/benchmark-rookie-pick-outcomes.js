@@ -18,7 +18,23 @@ const players=readSleeperPlayers(),books=new Map();
 const book=fmt=>books.get(fmt)||books.set(fmt,ktcPrices(fmt,players)).get(fmt);
 const minDrafts=Math.max(1,Number(process.env.MIN_DRAFTS)||10);
 const horizonMs=365*864e5;
-const data=new Map(),counts={draftsSeen:0,eligibleDrafts:0,selectionsSeen:0,uniqueRookies:0,conflictingRounds:0};
+const data=new Map(),counts={
+ draftsSeen:0,eligibleDrafts:0,selectionsSeen:0,uniqueRookies:0,conflictingRounds:0,
+ rejectedVeterans:0,unverifiableRookieYear:0,rejectedNonFantasy:0,missingSleeperIdentity:0
+};
+const fantasyPositions=new Set(['QB','RB','WR','TE']);
+function verifiedRookie(sid,year){
+ const p=players[sid];
+ if(!p){counts.missingSleeperIdentity++;return false}
+ if(!fantasyPositions.has(p.position)){counts.rejectedNonFantasy++;return false}
+ // Sleeper identity fields vary by vintage. Do not invent rookie status from
+ // league draft date, today's years_exp, or current player name.
+ const explicit=[p.draft_year,p.rookie_year,p.rookie_season,p.nfl_draft_year]
+  .map(Number).filter(x=>Number.isInteger(x)&&x>=1990&&x<=year+1);
+ if(!explicit.length){counts.unverifiableRookieYear++;return false}
+ if(!explicit.includes(year)){counts.rejectedVeterans++;return false}
+ return true;
+}
 function key(fmt,year,sid){return fmt+'|'+year+'|'+sid}
 const files=seasonFiles(2022).filter(f=>Number(f.slice(0,4))<=2025);
 if(!files.length)throw Error('No Sleeper trade archive seasons found in data/sleeper-trades/');
@@ -40,6 +56,7 @@ for(const file of files){
    const round=Number(selection[1]),sid=String(selection[2]||'');
    if(!Number.isInteger(round)||round<1||round>4||!sid)continue;
    counts.selectionsSeen++;
+   if(!verifiedRookie(sid,yr))continue;
    const k=key(fmt,yr,sid),prior=data.get(k);
    if(prior){
     if(prior.round!==round)counts.conflictingRounds++;
@@ -51,7 +68,7 @@ for(const file of files){
   }
  }
 }
-const buckets=new Map(),seen=new Set(),percentile=(v,q)=>{
+const buckets=new Map(),percentile=(v,q)=>{
  if(!v.length)return null;
  const a=[...v].sort((a,b)=>a-b),i=(a.length-1)*q,lo=Math.floor(i),hi=Math.ceil(i);
  return Math.round(a[lo]+(a[hi]-a[lo])*(i-lo));
@@ -88,13 +105,15 @@ const groups=[...buckets.values()].sort((a,b)=>a.year-b.year||a.format.localeCom
   draftDayMedian:percentile(g.dayValues,0.5),preDraftPickMidMedian:percentile(g.pickPrices,0.5),
   positions:g.pos})); 
 const result={generated:new Date().toISOString().slice(0,10),horizonDays:365,
- description:'Unique drafted rookie KTC price distributions one year after the draft, by season / league format / round',
+ description:'Explicit NFL rookie-year verified picks only: KTC prices 365 days after dynasty drafts, by year, league format and round',
  counts,groups:groups.filter(g=>g.n>=minDrafts),
  warnings:[
  'Research only. This is the future PRICE of rookies actually selected in drafts, not a return forecast for an individual owned draft pick.',
  'One rookie is one observation per season/format, regardless of popularity across drafts. Correlated duplicate selections are not independent samples.',
  'Missing KTC follow-up prices are excluded from percentiles and disclosed separately, never interpreted as certain zero-value outcomes.',
- 'Current Sleeper player metadata is used for positions; historic identities and unlisted players may be incomplete.',
+ 'Selection alone does not establish rookie status. Players without an explicit matching NFL draft/rookie year in Sleeper metadata are excluded and counted, not imputed.',
+ 'League draft types cannot always be validated from the compressed crawl; filtering rookie identities does not establish whether a draft was startup or rookie-only.',
+ 'Historical pick-value snapshots may not cover the pre-draft years. Missing reference prices remain null; NEVER use a modern pick price for an old draft.',
  'Draft selections can differ by league. Round-level distributions are NOT pick-slot distributions; 1.01 and 1.12 must not be treated identically.',
  'Only formats and seasons with matured full 365-day horizons are shown. Draft-day price and mid-pick baseline are context, not forecast calibration.',
  'No changes to Vault market values, draft-pick pricing, team grading, or Trade Coach suggestions.'
