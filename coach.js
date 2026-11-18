@@ -277,7 +277,12 @@ function coachJudged(me, partner, give, get) {
 // and a fair price (coachPriceFair) where that applies. coachOffers checks it too.
 function coachTheyTake(o, option) {
   const theirMin = option === 'position' || option === 'contend' ? COACH_UPGRADE_THEIR_MIN : COACH_THEIR_MIN;
-  return coachTheirScore(o) >= theirMin && (COACH_PRICE_PLAYS.has(option) || option === 'downtier' || coachPriceFair(o.give, o.get, option));
+  // The displayed negotiation answer and Coach's recommendation must use the
+  // same manager acceptance decision. An appealing price and positive verdict
+  // are not, alone, proof that the receiving manager would accept.
+  const j = coachJudged(coachMe(), o.partner, o.give, o.get);
+  return j.accepts && coachTheirScore(o) >= theirMin &&
+    (COACH_PRICE_PLAYS.has(option) || option === 'downtier' || coachPriceFair(o.give, o.get, option));
 }
 
 // Filler: under 2 pts a week and under 2 points of title odds (1 is within the simulation's wobble).
