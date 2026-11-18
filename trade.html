@@ -584,11 +584,27 @@ const COMPARE_MAX = 4;
 const compareKey = () => 'vault_compare_' + Vault.getLeagueId();
 let pinned = (() => { try { const v = JSON.parse(localStorage.getItem(compareKey()) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } })();
 function savePins() { try { localStorage.setItem(compareKey(), JSON.stringify(pinned)); } catch {} }
+function pinnedTradeKey(p) {
+  const sides = [
+    `${String(p.a)}:${[...(p.give || [])].sort().join(',')}`,
+    `${String(p.b)}:${[...(p.get || [])].sort().join(',')}`
+  ];
+  return sides.sort().join('|');
+}
+function pinnedTradeOdds(a, b, give, get) {
+  if (!remainingWeeks.length) return [];
+  const { next } = tradeSeasonOdds(a, b, give, get);
+  return [a, b].map(team => ({
+    team,
+    before: seasonBase?.get(team.rosterId),
+    after: next?.get(team.rosterId)
+  })).filter(x => x.before && x.after);
+}
 function pinTrade() {
   const a = teamOf('A'), b = teamOf('B');
   if (!a || !b || !(selectedA.size + selectedB.size)) return;
   const p = { a: a.rosterId, b: b.rosterId, give: [...selectedA], get: [...selectedB] };
-  const same = x => x.a === p.a && x.b === p.b && x.give.join() === p.give.join() && x.get.join() === p.get.join();
+  const same = x => pinnedTradeKey(x) === pinnedTradeKey(p);
   if (!pinned.some(same)) { pinned = [p, ...pinned].slice(0, COMPARE_MAX); savePins(); }
   renderCompare();
   document.getElementById('compareTray').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -616,19 +632,19 @@ function renderCompare() {
     if (gone) return `<div class="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02] flex flex-col"><div class="text-[13px] text-zinc-300">${b ? `With ${Vault.escapeHtml(b.teamName)}` : 'A pinned trade'}</div><div class="text-[12px] text-zinc-500 mt-1">Some of these pieces have changed teams since, so it can't be worked out.</div>${btns}</div>`;
     const j = negJudgeFor(a, give, b, get, negContextFor(b)), mine = improvementOf(j.an, 'A'), them = improvementOf(j.an, 'B');
     const tv = Vault.tradeSideValues(give, get), price = (tv.valueB - tv.valueA) / (((tv.valueA + tv.valueB) / 2) || 1) * 100, ktc = coachKtcPct(give, get);
-    let odds = null;
-    if (remainingWeeks.length && typeof tradeSeasonOdds === 'function') { const { next } = tradeSeasonOdds(a, b, give, get), was = seasonBase?.get(a.rosterId)?.championshipPct, now = next.get(a.rosterId)?.championshipPct; if (was != null && now != null) odds = [was, now]; }
+    const odds = pinnedTradeOdds(a, b, give, get);
     const pc = v => (v < 1 && v > 0 ? '<1' : Math.round(v)) + '%';
     const line = (k, v) => `<div class="flex items-baseline justify-between gap-3 py-1 border-t border-white/[0.05] text-[12px]"><span class="text-zinc-500">${k}</span><span class="text-right text-zinc-200">${v}</span></div>`;
     return `<div class="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02] flex flex-col min-w-0">
-        <div class="text-[12px] text-zinc-400 truncate">With <span class="text-zinc-100 font-medium">${Vault.escapeHtml(b.teamName)}</span></div>
-        <div class="text-[12px] text-zinc-300 mt-1.5"><span class="text-zinc-500">Give</span> ${names(give)}</div>
-        <div class="text-[12px] text-zinc-300 mb-2"><span class="text-zinc-500">Get</span> ${names(get)}</div>
+        <div class="text-[12px] text-zinc-400 truncate"><span class="text-zinc-100 font-medium">${Vault.escapeHtml(a.teamName)}</span> ↔ <span class="text-zinc-100 font-medium">${Vault.escapeHtml(b.teamName)}</span></div>
+        <div class="text-[12px] text-zinc-300 mt-1.5"><span class="text-zinc-500">${Vault.escapeHtml(a.teamName)} sends</span> ${names(give)}</div>
+        <div class="text-[12px] text-zinc-300 mb-2"><span class="text-zinc-500">${Vault.escapeHtml(b.teamName)} sends</span> ${names(get)}</div>
         ${line(`For ${Vault.escapeHtml(a.teamName)}`, `<span class="font-semibold ${Vault.VERDICT_TIER_TEXT[mine.tier]}">${mine.label}</span>`)}
         ${line(`For ${Vault.escapeHtml(b.teamName)}`, `<span class="font-semibold ${Vault.VERDICT_TIER_TEXT[them.tier]}">${them.label}</span>`)}
         ${line('Trade value', `${Vault.escapeHtml(a.teamName)} pays ${pctWord(price)}`)}
         ${line("KTC's calculator", pctWord(ktc))}
-        ${odds ? line('Title odds', `${pc(odds[0])} → ${pc(odds[1])}`) : ''}
+        ${odds.map(o => line(`${Vault.escapeHtml(o.team.teamName)} · odds`,
+          `Playoffs ${pc(o.before.playoffPct)} → ${pc(o.after.playoffPct)} · Title ${pc(o.before.championshipPct)} → ${pc(o.after.championshipPct)}`)).join('')}
         ${btns}
       </div>`;
   };
