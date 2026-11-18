@@ -31,6 +31,7 @@ const requireMock=name=>{
   seasonFiles:()=>['2024.json.gz','2025.json.gz'],readSeason,ktcPrices:()=>prices,formatOf:()=>'sf'
  };
  if(name==='./market-history/rookie-evidence')return {loadDraftIndex:()=>null,draftYearEvidence:evidence.draftYearEvidence};
+ if(name==='./market-history/rookie-slot')return require('./market-history/rookie-slot');
  if(name==='node:fs')return fs;
  if(name==='node:path')return path;
  throw Error(name);
