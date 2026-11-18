@@ -80,12 +80,28 @@ for(const file of files){
    counts.slotSelectionsVerified++;
    const k=[fmt,yr,p.round,p.slot,p.draftSize].join('|');
    if(!slotSamples.has(k))slotSamples.set(k,{format:fmt,year:yr,round:p.round,slot:p.slot,draftSize:p.draftSize,
-     picks:0,rookieHeavyPicks:0,rosterIds:new Map()});
+     picks:0,rookieHeavyPicks:0,rosterIds:new Map(),
+     // Use trade-day-specific follow-up prices, not the first price observed
+     // for a rookie who appears in many different drafts.
+     observedPrices:new Map(),rookieHeavyPrices:new Map(),
+     missingSelectionCount:0,rookieHeavyMissingSelectionCount:0});
    const g=slotSamples.get(k);
    g.picks++;
    if(rookieHeavy)g.rookieHeavyPicks++;
    if(!g.rosterIds.has(p.sid))g.rosterIds.set(p.sid,{sid:p.sid,follow,date,count:0});
    g.rosterIds.get(p.sid).count++;
+   // Each real selection is measured at its own draft date + 365 days;
+   // frequency aggregation retains repeated draft choices without
+   // materializing millions of independent-looking rows.
+   const price=b.at(p.sid,follow);
+   if(price==null||!Number.isFinite(Number(price))){
+    g.missingSelectionCount++;
+    if(rookieHeavy)g.rookieHeavyMissingSelectionCount++;
+   }else{
+    const value=Number(price);
+    g.observedPrices.set(value,(g.observedPrices.get(value)||0)+1);
+    if(rookieHeavy)g.rookieHeavyPrices.set(value,(g.rookieHeavyPrices.get(value)||0)+1);
+   }
   }
   for(const selection of selections){
    if(!Array.isArray(selection))continue;
@@ -152,22 +168,39 @@ function weightedPercentile(rows,q){
  // draft size). All league draft repeats are exposed via 'selections' but
  // never treated as independent observations for quantile computation.
 const slotGroups=[...slotSamples.values()].map(g=>{
- const values=[],weightedValues=[];let missing=0,missingSelections=0;
+ const values=[];let missing=0;
+ // Legacy distinct-rookie diagnostic retains one first-seen outcome per
+ // player; it must never be confused with the typical selection outcome.
  for(const item of g.rosterIds.values()){
   const price=book(g.format).at(item.sid,item.follow);
-  if(price==null||!Number.isFinite(Number(price))){missing++;missingSelections+=item.count}
-  else {values.push(Number(price));weightedValues.push({value:Number(price),weight:item.count})}
+  if(price==null||!Number.isFinite(Number(price)))missing++;
+  else values.push(Number(price));
  }
  const n=g.rosterIds.size;
+ const countEntries=m=>[...m].map(([value,weight])=>({value,weight}));
+ const measure=prices=>({
+  p25:weightedPercentile(countEntries(prices),.25),
+  median:weightedPercentile(countEntries(prices),.5),
+  p75:weightedPercentile(countEntries(prices),.75)
+ });
+ const concentration=Math.max(0,...[...g.rosterIds.values()].map(x=>x.count));
  return {format:g.format,year:g.year,round:g.round,slot:g.slot,draftSize:g.draftSize,
   selections:g.picks,distinctRookies:n,known:values.length,missing,
   verifiedRookieSelectionsInRookieHeavyDrafts:g.rookieHeavyPicks,
+  rookieHeavyKnownSelections:g.rookieHeavyPicks-g.rookieHeavyMissingSelectionCount,
+  rookieHeavyMissingSelections:g.rookieHeavyMissingSelectionCount,
   rookieHeavySharePct:+(100*g.rookieHeavyPicks/Math.max(1,g.picks)).toFixed(1),
-  missingSelectionRatePct:+(100*missingSelections/Math.max(1,g.picks)).toFixed(1),
-  mostCommonRookieSharePct:+(100*Math.max(0,...[...g.rosterIds.values()].map(x=>x.count))/Math.max(1,g.picks)).toFixed(1),
+  missingSelectionRatePct:+(100*g.missingSelectionCount/Math.max(1,g.picks)).toFixed(1),
+  rookieHeavyMissingSelectionRatePct:+(100*g.rookieHeavyMissingSelectionCount/Math.max(1,g.rookieHeavyPicks)).toFixed(1),
+  mostCommonRookieSharePct:+(100*concentration/Math.max(1,g.picks)).toFixed(1),
   missingRatePct:+(100*missing/Math.max(1,n)).toFixed(1),
   followup:{p25:percentile(values,.25),median:percentile(values,.5),p75:percentile(values,.75)},
-  selectionWeightedFollowup:{p25:weightedPercentile(weightedValues,.25),median:weightedPercentile(weightedValues,.5),p75:weightedPercentile(weightedValues,.75)}};
+  // All verifiable rookies from structurally valid drafts, including
+  // potentially contaminated startup/supplemental league drafts.
+  selectionWeightedFollowup:measure(g.observedPrices),
+  // Only complete drafts whose first round is >=80% verifiable rookies.
+  // This is a transparent proxy, not an asserted draft-type label.
+  rookieHeavySelectionWeightedFollowup:measure(g.rookieHeavyPrices)};
 }).sort((a,b)=>a.year-b.year||a.format.localeCompare(b.format)||a.round-b.round||a.draftSize-b.draftSize||a.slot-b.slot);
 const result={generated:new Date().toISOString().slice(0,10),horizonDays:365,
  description:'Explicit NFL rookie-year verified picks only: KTC prices 365 days after dynasty drafts, by year, league format and round',
@@ -183,7 +216,9 @@ const result={generated:new Date().toISOString().slice(0,10),horizonDays:365,
  'Historical pick-value snapshots may not cover the pre-draft years. Missing reference prices remain null; NEVER use a modern pick price for an old draft.',
  'Slot cohorts include only complete 8–16 team rounds with sequential overall pick numbers, and show size (10-team 1.10 differs from 12-team 1.10).',
  'Rookie-heavy diagnostic means at least 80% of the complete first-round selections are verifiable rookies. It is a heuristic and DOES NOT prove league draft type.',
- 'Selection-weighted followup reports the actual observed draft choices; players may repeat across leagues, so it is NOT a confidence interval or independent-player forecast.',
+ 'Selection-weighted followup reports each real selection priced at its own draft date + 365 days; players repeat across leagues, so it is NOT an independent-player forecast or confidence interval.',
+ 'Rookie-heavy selection-weighted followup is a separate >=80% verified first-round-players heuristic cohort. Do not treat it as confirmed rookie-only draft type.',
+ 'Both weighted cohorts exclude missing follow-up prices from quantiles and publish their distinct missing-selection rates.',
  'Distinct-rookie quantiles give a rare player equal weight to a popular player and are inappropriate as stand-alone estimates of typical pick outcomes.',
  'Repeated selections are deduplicated within EACH slot, but a rookie can occur in several different slots across leagues; slot groups are correlated and are not independent player cohorts.',
  'Draft selection frequencies are affected by league participation and draft date; never interpret them as probabilities without calibration.',
