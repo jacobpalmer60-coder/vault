@@ -9,7 +9,8 @@
            what it got, on trade value: Vault.tradeValueRatio), null under 3]
      buy   teams that got him as the headliner, a year on (trades with a year of prices
            since): [trades, % ahead on trade value then, median change in his own KTC
-           value over the year]; only with 10+
+           value over the year]; only with 10+. Zero-valued assets remain in the
+           outcome and totally wiped-out sides count as losses, not omissions.
    Keyed by normalized name, as the page looks players up. Players with MIN_TRADES+
    headlined trades.
    node --max-old-space-size=6144 scripts/market-history/build-player-history.js
@@ -18,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const { DATA, normalizeName, formatOf, readSleeperPlayers, seasonFiles, readSeason, ktcPrices } = require('./ktc-book');
 const { loadVault } = require('../lib-market');
+const { laterOutcome } = require('./outcome-values');
 const Vault = loadVault();
 const MIN_TRADES = 10, YEAR = 365 * 864e5, FROM_SEASON = 2024;
 const players = readSleeperPlayers();
@@ -60,9 +62,9 @@ for (const f of files) {
         m.h++;
         m.paid.push(pct(Vault.tradeValueRatio(gave.map(x => x.v), got.map(x => x.v))));
         if (later) {
-          const L = l => l.map(x => b.later(x.k, later) || 0).filter(v => v > 0), lg = L(got), lv = L(gave);
+          const outcome = laterOutcome(got, gave, later, b, Vault.tradeValueRatio);
           const self = b.at(a.k, later);
-          if (lg.length && lv.length) r.buy.push([pct(Vault.tradeValueRatio(lg, lv)), self > 0 ? 100 * (self / a.v - 1) : null]);
+          if (outcome) r.buy.push([outcome.pct, self > 0 ? 100 * (self / a.v - 1) : -100]);
         }
       }
     }
