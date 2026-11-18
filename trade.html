@@ -2712,6 +2712,10 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           <div><div class="text-[14px] font-mono">${Vault.num1(aft.vorpTotal)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? Vault.signed(res.dVorp, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('vorpTeam', 'VORP')}</div></div>
           <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? Vault.windowYearsText(win) : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">${Vault.term('window', 'Window')}</div></div>
         </div>
+        <div class="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/10" aria-label="What this trade does for ${Vault.escapeHtml(bef.teamName)}">
+          <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">What changes for this team</div>
+          <p class="text-[12px] leading-relaxed text-zinc-300">${VaultTradeImpact.explain(impactBySide[side], res.mode).map(s=>Vault.escapeHtml(s)).join('; ')}.</p>
+        </div>
         ${teamImpactLedgerHtml(impactBySide[side])}
         ${futureRanksHtml(side === 'A' ? teamA : teamB, side === 'A' ? aAssets : bAssets, side === 'A' ? bAssets : aAssets, side === 'A' ? teamB : teamA, side === 'A' ? bAssets : aAssets, side === 'A' ? aAssets : bAssets)}
       </div>`;
