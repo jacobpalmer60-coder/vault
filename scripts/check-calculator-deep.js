@@ -104,4 +104,28 @@ const warnings=corner(A,[A.assets[0]],B,[B.assets[0]]);
 assert.ok(warnings.includes('One sends')&&warnings.includes('Two sends'));
 assert.ok(trade.includes('[teamA, teamB].map(t =>')&&trade.includes('setTeamTimeline('));
 console.log('PASS both sides show cornerstone warnings and timeline controls');
+
+// Coach's list must agree with negotiation's accepted/rejected prediction.
+const coachSource=fs.readFileSync(path.join(__dirname,'..','coach.js'),'utf8');
+const coachStart=coachSource.indexOf('function coachTheyTake(o, option) {');
+const coachEnd=coachSource.indexOf('// Filler:',coachStart);
+assert.ok(coachStart>=0&&coachEnd>coachStart,'coach acceptance source present');
+const coachAcceptance=coachSource.slice(coachStart,coachEnd)+'\ncoachTheyTake;';
+const coachOffer={partner:{rosterId:2},give:[{key:'a'}],get:[{key:'b'}]};
+function checkCoachAcceptance(managerAccepts, theirScore=0) {
+ const ctx={
+  coachJudged:()=>({accepts:managerAccepts}),
+  coachMe:()=>({rosterId:1}),
+  coachTheirScore:()=>theirScore,
+  COACH_UPGRADE_THEIR_MIN:-15,COACH_THEIR_MIN:-6,
+  COACH_PRICE_PLAYS:new Set(['shop']),
+  coachPriceFair:()=>true
+ };
+ return vm.runInNewContext(coachAcceptance,ctx)(coachOffer,'shop');
+}
+assert.equal(checkCoachAcceptance(false),false,'Coach cannot offer a negotiation rejection');
+assert.equal(checkCoachAcceptance(true),true,'Coach keeps an accepted offer');
+assert.equal(checkCoachAcceptance(true,-20),false,'Coach retains its own partner verdict floor');
+console.log('PASS Coach recommendations agree with manager negotiation acceptance');
+
 console.log('All deep calculator parity tests passed.');
