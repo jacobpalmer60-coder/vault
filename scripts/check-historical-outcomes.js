@@ -12,6 +12,14 @@ assert.deepEqual(r.got,[100,0]);
 assert.deepEqual(r.gave,[90]);
 assert.equal(r.complete,true);
 assert.ok(r.pct>0);
+assert.ok(Math.abs(r.pct-200*(100-90)/(100+90))<1e-9,
+ 'future outcome must equal normalized sum difference, not any nonlinear trade ratio');
+const malicious=()=>0.00001; // would invert the label in the old circular benchmark
+const unaffected=laterOutcome([x('good'),x('faded')],[x('rival')],
+ '2026-10-01',book,malicious);
+assert.ok(unaffected.pct>0,'future winner must be independent of the Vault valuation algorithm');
+assert.ok(Math.abs(unaffected.pct-r.pct)<1e-9,'changing candidate model cannot change ground truth');
+
 assert.equal(read(['gone'],['rival']).pct,-200,'known zero-side loss stays visible');
 assert.equal(read(['rival'],['gone']).pct,200,'side reversal preserves sign');
 assert.equal(read(['gone'],['faded']).pct,null,'both known-zero outcomes have no winner');
