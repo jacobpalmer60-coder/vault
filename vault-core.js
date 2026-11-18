@@ -1715,33 +1715,61 @@ const Vault = {
       const since = ahead - Math.max(0, a.season - season);
       if (since >= 0) pool.push({ pos: 'WR', v: a.value * keep('WR', 22, since) });
     });
-    pool.sort((x, y) => y.v - x.v);
-    const open = slots.map(s => Vault.slotAllows(s)).sort((x, y) => x.length - y.length);
-    return open.reduce((sum, allowed) => { const at = pool.findIndex(p => allowed.includes(p.pos)); return at < 0 ? sum : sum + pool.splice(at, 1)[0].v; }, 0);
+    return Vault.bestSlotAssignment(pool, slots, p => p.v).total;
   },
   slotAllows(slot) {
     return { FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'] }[slot] || [slot];
   },
-  optimalLineupDetail(plist, slots) {
-    const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
-    const used = new Set();
-    const starters = [];
-    let total = 0;
-    let vorpTotal = 0;
-    for (const slot of slots) {
-      const allowed = Vault.slotAllows(slot);
-      const i = pool.findIndex(p => !used.has(p.id) && allowed.includes(p.pos));
-      if (i >= 0) {
-        const p = pool[i];
-        total += p.ppg;
-        if (Number.isFinite(p.vorp)) vorpTotal += p.vorp;
-        used.add(p.id);
-        starters.push({ slot, id: p.id, name: p.name, pos: p.pos, ppg: p.ppg, vorp: p.vorp });
-      } else {
-        starters.push({ slot, id: null, name: null, pos: null, ppg: 0, vorp: null });
-      }
+  bestSlotAssignment(plist, slots, scoreOf = p => p.ppg || 0) {
+    // Exact maximum-weight assignment across overlapping QB/RB/WR/TE/flex slots.
+    // Track how many of each position have been used. The nth player of a
+    // position is always its nth-best eligible scorer, so no subset enumeration.
+    const allowed = slots.map(s => Vault.slotAllows(s));
+    const positions = [...new Set(allowed.flat())];
+    const lists = positions.map(pos => plist.map((p, i) => ({ p, i, value: scoreOf(p, i) }))
+      .filter(x => x.p.pos === pos && Number.isFinite(x.value))
+      .sort((a, b) => b.value - a.value || a.i - b.i));
+    const zero = positions.map(() => 0);
+    let states = new Map([['0'.repeat(0) || zero.join(','), { counts: zero, score: 0, filled: 0, choices: [] }]]);
+    const better = (x, y) => !y || x.score > y.score + 1e-9 ||
+      (Math.abs(x.score - y.score) <= 1e-9 && x.filled > y.filled);
+    for (const options of allowed) {
+      const next = new Map();
+      const put = state => {
+        const key = state.counts.join(',');
+        if (better(state, next.get(key))) next.set(key, state);
+      };
+      states.forEach(state => {
+        // Leave a slot vacant when no eligible player remains; also permits
+        // skipping negative-point players without making a false positive shift.
+        put({ ...state, choices: [...state.choices, null] });
+        positions.forEach((pos, pi) => {
+          if (!options.includes(pos) || state.counts[pi] >= lists[pi].length) return;
+          const choice = lists[pi][state.counts[pi]];
+          const counts = [...state.counts];
+          counts[pi]++;
+          put({ counts, score: state.score + choice.value, filled: state.filled + 1,
+            choices: [...state.choices, choice] });
+        });
+      });
+      states = next;
     }
-    return { total, vorpTotal, starters };
+    let winner = null;
+    states.forEach(state => { if (better(state, winner)) winner = state; });
+    const selections = winner?.choices || slots.map(() => null);
+    const starters = slots.map((slot, i) => {
+      const selected = selections[i], p = selected?.p;
+      return p ? { slot, id: p.id, name: p.name, pos: p.pos, ppg: p.ppg,
+        vorp: p.vorp, playerIndex: selected.i, projectedPoints: selected.value }
+        : { slot, id: null, name: null, pos: null, ppg: 0, vorp: null, playerIndex: null, projectedPoints: 0 };
+    });
+    return { total: winner?.score || 0,
+      vorpTotal: selections.reduce((sum, c) => sum + (Number.isFinite(c?.p?.vorp) ? c.p.vorp : 0), 0),
+      starters };
+  },
+  optimalLineupDetail(plist, slots) {
+    const result = Vault.bestSlotAssignment(plist, slots);
+    return { total: result.total, vorpTotal: result.vorpTotal, starters: result.starters.map(({ playerIndex, projectedPoints, ...s }) => s) };
   },
 
   optimalLineup(plist, slots) {
@@ -1845,26 +1873,13 @@ const Vault = {
     if (!weeks.length || !plist.some(p => p.avail)) return { ...Vault.optimalLineupDetail(plist, slots), starts: null, weeks: 0, byWeek: null };
     let total = 0, vorpTotal = 0;
     const starts = new Map(), byWeek = new Map();
-    // The same greedy lineup as optimalLineupDetail (best available player for
-    // each slot in order, ties in roster order), on index arrays instead of
-    // copying every player every week.
     const wp = plist.map(p => Vault.weekPpgs(p, weeks));
-    const allows = slots.map(s => Vault.slotAllows(s));
     weeks.forEach((w, i) => {
-      const order = [];
-      for (let k = 0; k < plist.length; k++) if (wp[k][i] != null) order.push(k);
-      order.sort((a, b) => wp[b][i] - wp[a][i]);
-      const used = new Set();
-      let wTotal = 0, wVorp = 0;
-      for (const allowed of allows) {
-        const k = order.find(k => !used.has(plist[k].id) && allowed.includes(plist[k].pos));
-        if (k === undefined) continue;
-        const p = plist[k];
-        wTotal += wp[k][i];
-        if (Number.isFinite(p.vorp)) wVorp += p.vorp;
-        used.add(p.id);
-        if (p.id) starts.set(p.id, (starts.get(p.id) || 0) + 1);
-      }
+      const lineup = Vault.bestSlotAssignment(plist, slots, (_p, k) => wp[k][i]);
+      const wTotal = lineup.total, wVorp = lineup.vorpTotal;
+      lineup.starters.forEach(p => {
+        if (p.id != null) starts.set(p.id, (starts.get(p.id) || 0) + 1);
+      });
       total += wTotal; vorpTotal += wVorp; byWeek.set(w, wTotal);
     });
     const typical = Vault.optimalLineupDetail(Vault.typicalPool(plist, weeks), slots);
