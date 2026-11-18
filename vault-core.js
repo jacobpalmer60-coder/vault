@@ -1125,7 +1125,7 @@ const Vault = {
 
     const allEventDates = [
       ...realDrafts.map(d => new Date(d.draft.start_time)),
-      ...transactions.map(t => new Date(t.created))
+      ...transactions.map(t => new Date(Vault.tradeCompletedAt(t)))
     ];
     if (!allEventDates.length) return { snapshots: [] }; // brand-new league — nothing to replay yet
 
@@ -1159,7 +1159,7 @@ const Vault = {
       picks.forEach(pk => { if (pk.player_id) events.push({ date, drafted: String(pk.player_id) }); });
     });
     transactions.forEach(t => {
-      const date = new Date(t.created);
+      const date = new Date(Vault.tradeCompletedAt(t));
       Object.entries(t.adds || {}).forEach(([pid, rosterId]) => events.push({ date, rosterId, add: String(pid) }));
       Object.entries(t.drops || {}).forEach(([pid, rosterId]) => events.push({ date, rosterId, drop: String(pid) }));
     });
@@ -1229,7 +1229,7 @@ const Vault = {
     const pickEvents = [];
     transactions.forEach(t => (t.draft_picks || []).forEach(pk => {
       if (!histYears.includes(+pk.season)) return;
-      pickEvents.push({ date: new Date(t.created), key: `${pk.season}-${pk.round}-${pk.roster_id}`, newOwner: pk.owner_id });
+      pickEvents.push({ date: new Date(Vault.tradeCompletedAt(t)), key: `${pk.season}-${pk.round}-${pk.roster_id}`, newOwner: pk.owner_id });
     }));
     pickEvents.sort((a, b) => a.date - b.date);
 
@@ -1295,7 +1295,7 @@ const Vault = {
     // Who gave what, for the marks on Value Over Time.
     const nameOf = pid => { const p = players[pid]; return p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'a player'; };
     const trades = transactions.filter(t => t.type === 'trade').map(t => ({
-      date: new Date(t.created).toISOString().slice(0, 10), rosters: t.roster_ids || [],
+      date: new Date(Vault.tradeCompletedAt(t)).toISOString().slice(0, 10), rosters: t.roster_ids || [],
       moves: [...Object.entries(t.adds || {}).map(([pid, to]) => ({ to: +to, from: +(t.drops || {})[pid], what: nameOf(pid) })),
         ...(t.draft_picks || []).map(pk => ({ to: +pk.owner_id, from: +pk.previous_owner_id, what: Vault.pickName({ season: pk.season, round: pk.round }) }))]
     }));
@@ -4426,7 +4426,7 @@ const Vault = {
     const toATodayPrices = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility);
     const toBTodayPrices = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility);
     if (!toATodayPrices.length && !toBTodayPrices.length) return null;
-    const tradeMs = tx.status_updated || tx.created;
+    const tradeMs = Vault.tradeCompletedAt(tx);
     const atTrade = Vault.priceAtTradeDate(toATodayPrices, toBTodayPrices, pricer, tradeMs);
     const valuedAt = atTrade ? 'trade' : 'today';
     const toA = atTrade ? atTrade.toA : toATodayPrices;
@@ -4470,7 +4470,7 @@ const Vault = {
       combinedFitA: 0, combinedFitB: 0, verdict, bucket,
       anyMissingValue: [...toA, ...toB].some(a => !(a.value > 0)),
       historyFitUnavailable: true,
-      created: tx.created
+      created: tradeMs
     };
   },
 
@@ -4486,11 +4486,13 @@ const Vault = {
      roster numbering (the original team from the draft's slot_to_roster_id,
      translated by owner like the trades are). A traded 2026 2nd is worth, today,
      the rookie it turned into, not a 2027 2nd (2026-10-10). */
+  tradeCompletedAt(tx) { return +(tx?.status_updated || tx?.created || 0); },
+
   replayTradeRosters(seasonRosters, transactions, { minTimestamp = 0 } = {}) {
     const held = new Map((seasonRosters || []).map(r => [String(r.roster_id), new Set((r.players || []).map(String))]));
     const evidence = new Map();
     const seen = new Set();
-    const when = t => +(t.status_updated || t.created || 0);
+    const when = t => Vault.tradeCompletedAt(t);
     const events = (transactions || [])
       .filter(t => t?.status === 'complete' && when(t) > 0)
       .filter(t => { const id = String(t.transaction_id || ''); if (!id || seen.has(id)) return false; seen.add(id); return true; })
@@ -4761,7 +4763,7 @@ const Vault = {
         if (bucket === 'unfair') { if (favor > 0) s.unfairFor++; else s.unfairAgainst++; }
         // Best/worst judged by how the deal turned out (today's prices), with
         // the trade-day number kept alongside.
-        const rec = { opp, dVal, dValToday, pctDiff: g.pctDiff, created: g.tx.created, gradeThen: g.bucket, gradeNow: tg ? tg.bucket : g.bucket };
+        const rec = { opp, dVal, dValToday, pctDiff: g.pctDiff, created: g.created, gradeThen: g.bucket, gradeNow: tg ? tg.bucket : g.bucket };
         if (!s.best || dValToday > s.best.dValToday) s.best = rec;
         if (!s.worst || dValToday < s.worst.dValToday) s.worst = rec;
 
