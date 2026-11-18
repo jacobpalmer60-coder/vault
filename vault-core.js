@@ -1566,6 +1566,7 @@ const Vault = {
     const memo = new Map(), cut = VAULT_CONFIG.OUT_OF_RACE_PCT;
     let n = 0;
     graded.forEach(g => {
+      if (g.historyFitUnavailable) return; // no roster-at-trade-time odds to evaluate
       const wk = +g.tx?.leg;
       if (String(g.tx?.season) !== String(report.season) || !(wk >= 2)) return;
       if (!memo.has(wk)) memo.set(wk, Vault.oddsAsOfWeek(report, ctx.teams, ctx.league, ctx.remainingWeeks, wk));
