@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const html=fs.readFileSync(path.join(__dirname,'..','trade.html'),'utf8');
-const tabs=['verdict','teams','season','details'],targets=['tradeAnswer','teamImpact','seasonWrap','tradeDetails'];
+const tabs=['verdict','teams','stress','season','details'],targets=['tradeAnswer','teamImpact','stressTest','seasonWrap','tradeDetails'];
 tabs.forEach((t,i)=>{
  assert.ok(html.includes('data-tt="'+t+'" aria-selected="'),t+' tab exists');
  assert.ok(html.includes('aria-controls="'+targets[i]+'"'),t+' maps to real panel');
@@ -19,10 +19,10 @@ const buttons=tabs.map(tt=>({
  setAttribute(k,v){this.attributes[k]=v;},
  tabIndex:-1,focus(){document.activeElement=this}
 }));
-const panel={dataset:{tab:'verdict'}},season={open:false},details={open:false},listeners={};
+const panel={dataset:{tab:'verdict'}},stress={open:false},season={open:false},details={open:false},listeners={};
 const document={
  activeElement:buttons[0],
- getElementById(id){return ({tradeBar:panel,tradeTabs:{addEventListener:(event,cb)=>{listeners[event]=cb}},seasonWrap:season,tradeDetails:details})[id]},
+ getElementById(id){return ({tradeBar:panel,tradeTabs:{addEventListener:(event,cb)=>{listeners[event]=cb}},stressWrap:stress,seasonWrap:season,tradeDetails:details})[id]},
  querySelectorAll(selector){assert.equal(selector,'#tradeTabs [role="tab"]');return buttons}
 };
 const ctx=vm.createContext({document});
@@ -32,6 +32,7 @@ assert.equal(panel.dataset.tab,'teams');
 assert.equal(buttons[1].attributes['aria-selected'],'true');
 assert.equal(buttons[0].tabIndex,-1);
 assert.equal(buttons[1].tabIndex,0);
+ctx.tradeTab('stress');assert.equal(stress.open,true,'What-if scenario panel expands');
 ctx.tradeTab('season');assert.equal(season.open,true,'season view expands');
 ctx.tradeTab('details');assert.equal(details.open,true,'details view expands');
 const before=panel.dataset.tab;ctx.tradeTab('invalid');assert.equal(panel.dataset.tab,before,'invalid tab ignored');
@@ -47,4 +48,4 @@ assert.equal(panel.dataset.tab,'verdict','arrow wraps');
 listeners.keydown({key:'ArrowLeft',preventDefault(){prevented++}});
 assert.equal(panel.dataset.tab,'details','left arrow wraps');
 assert.equal(prevented,4);
-console.log('PASS phone tabs, keyboard focus, arrow wrapping, disclosure panels, both-side explanations');
+console.log('PASS phone tabs including What-if, keyboard focus, arrow wrapping, disclosure panels, both-side explanations');
