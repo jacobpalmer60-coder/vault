@@ -53,6 +53,56 @@ summary and league draft type is not yet reliably identified. Exact draft
 slot and the owner's return remain unvalidated. No live trade, draft pick
 or team valuation was modified.
 
+## Nov 18 follow-up: stable, date-correct exact-slot diagnostics
+
+Following the 2024-only NFL draft registry recovery and the local
+exact-slot results, the benchmark now emits `schemaVersion: 2` and its
+summary **refuses old results**, because the preceding output gave every
+player at a slot its earliest observed 365-day follow-up price regardless
+of the specific draft date. The corrected implementation:
+
+- Prices **each selection** 365 days after *that selection's draft day*,
+  caches repeated player/date/format price lookups and aggregates actual
+  selection frequencies without allocating one in-memory object per selection.
+- Preserves its distinct-per-player per-slot result solely as a
+  diagnostic. Players selected repeatedly across leagues are correlated.
+  Distinct-player medians must not be treated as the typical draft pick.
+- Splits the selection-weighted distribution into (a) all complete
+  drafts and (b) drafts with at least 80% verifiable NFL rookies in
+  the first round. This latter sample is a **heuristic proxy**, not
+  an authoritative draft-type label; excludes unknown-year players.
+- Exposes the *number* of heuristic-qualified selections, missing-price
+  rate in both cohorts, their medians, concentration in the most common
+  rookie, and the fraction selected in the qualified cohort.
+- Defaults to a focused standard 12-team 1QB/SF summary instead of
+  over a thousand output rows. `--full`, `--format=sf_tep`,
+  `--size=10`, and `--year=2024` permit scoped full reports.
+- Includes regression fixtures for per-draft-day follow-up variation,
+  price-is-null versus observed zero, excluded veteran-only drafts,
+  double-count prevention, complete-round rules, and stale JSON.
+
+**This is STILL RESEARCH ONLY.** A roster-quality sample from one 2024
+NFL rookie class does not provide independent years for a prospective
+chronological holdout. NFL draft registry 2025 coverage, undrafted
+players, confirmed rookie-only draft type, historical pre-draft slot
+price history, historical full roster context, and missing-KTC-price
+bias remain unresolved. Prices/grades/Trade Coach stay untouched.
+
+The revised local verification commands are:
+
+```powershell
+cd "$env:USERPROFILE\Desktop\vault"
+git pull
+node scripts/check-rookie-pick-outcomes.js
+node scripts/check-rookie-slot.js
+node scripts/check-rookie-slot-benchmark.js
+node scripts/check-rookie-slot-weighting.js
+node scripts/check-rookie-summary.js
+node --max-old-space-size=6144 scripts/benchmark-rookie-pick-outcomes.js > rookie-outcomes.json
+node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json > rookie-summary.txt
+Get-Content rookie-summary.txt
+```
+
 ## What has been tested
 
 - JS syntax for new analysis, tests and modified calculator inline script.
