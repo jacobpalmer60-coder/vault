@@ -1721,50 +1721,65 @@ const Vault = {
     return { FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'] }[slot] || [slot];
   },
   bestSlotAssignment(plist, slots, scoreOf = p => p.ppg || 0) {
-    // Exact maximum-weight assignment across overlapping QB/RB/WR/TE/flex slots.
-    // Track how many of each position have been used. The nth player of a
-    // position is always its nth-best eligible scorer, so no subset enumeration.
+    // Exact maximum-scoring lineup across overlapping flex slots. For each
+    // position only its best N eligible players matter; a DP counts those picks.
     const allowed = slots.map(s => Vault.slotAllows(s));
     const positions = [...new Set(allowed.flat())];
-    const lists = positions.map(pos => plist.map((p, i) => ({ p, i, value: scoreOf(p, i) }))
-      .filter(x => x.p.pos === pos && Number.isFinite(x.value))
-      .sort((a, b) => b.value - a.value || a.i - b.i));
-    const zero = positions.map(() => 0);
-    let states = new Map([['0'.repeat(0) || zero.join(','), { counts: zero, score: 0, filled: 0, choices: [] }]]);
-    const better = (x, y) => !y || x.score > y.score + 1e-9 ||
-      (Math.abs(x.score - y.score) <= 1e-9 && x.filled > y.filled);
-    for (const options of allowed) {
+    const positionIndex = new Map(positions.map((p, i) => [p, i]));
+    const choices = allowed.map(list => list.map(p => positionIndex.get(p)));
+    const lists = positions.map(pos => []);
+    plist.forEach((p, i) => {
+      const pi = positionIndex.get(p.pos);
+      if (pi == null) return;
+      const value = scoreOf(p, i);
+      if (Number.isFinite(value)) lists[pi].push({ p, i, value });
+    });
+    lists.forEach(list => list.sort((a, b) => b.value - a.value || a.i - b.i));
+    const base = [], radix = [];
+    let product = 1;
+    lists.forEach(list => { radix.push(product); base.push(list.length + 1); product *= (list.length + 1); });
+    // Numeric keys keep thousands of repeated lineup calculations light. Rare
+    // highly specialized leagues with huge position sets use string keys.
+    const numeric = product <= Number.MAX_SAFE_INTEGER;
+    const startKey = numeric ? 0 : positions.map(() => 0).join(',');
+    let states = new Map([[startKey, { score: 0, filled: 0, prev: null, pick: null }]]);
+    const better = (score, filled, old) => !old || score > old.score + 1e-9 ||
+      (Math.abs(score - old.score) <= 1e-9 && filled > old.filled);
+    choices.forEach(allowedPositions => {
       const next = new Map();
-      const put = state => {
-        const key = state.counts.join(',');
-        if (better(state, next.get(key))) next.set(key, state);
-      };
-      states.forEach(state => {
-        // Leave a slot vacant when no eligible player remains; also permits
-        // skipping negative-point players without making a false positive shift.
-        put({ ...state, choices: [...state.choices, null] });
-        positions.forEach((pos, pi) => {
-          if (!options.includes(pos) || state.counts[pi] >= lists[pi].length) return;
-          const choice = lists[pi][state.counts[pi]];
-          const counts = [...state.counts];
-          counts[pi]++;
-          put({ counts, score: state.score + choice.value, filled: state.filled + 1,
-            choices: [...state.choices, choice] });
-        });
+      states.forEach((state, key) => {
+        const put = (newKey, score, filled, pick) => {
+          if (better(score, filled, next.get(newKey)))
+            next.set(newKey, { score, filled, prev: state, pick });
+        };
+        put(key, state.score, state.filled, null);
+        let counts = null;
+        for (const pi of allowedPositions) {
+          let count;
+          if (numeric) count = Math.floor(key / radix[pi]) % base[pi];
+          else { if (!counts) counts = key.split(',').map(Number); count = counts[pi]; }
+          if (count >= lists[pi].length) continue;
+          const candidate = lists[pi][count];
+          const nextKey = numeric ? key + radix[pi]
+            : counts.map((v, i) => i === pi ? v + 1 : v).join(',');
+          put(nextKey, state.score + candidate.value, state.filled + 1, candidate);
+        }
       });
       states = next;
-    }
-    let winner = null;
-    states.forEach(state => { if (better(state, winner)) winner = state; });
-    const selections = winner?.choices || slots.map(() => null);
-    const starters = slots.map((slot, i) => {
-      const selected = selections[i], p = selected?.p;
-      return p ? { slot, id: p.id, name: p.name, pos: p.pos, ppg: p.ppg,
-        vorp: p.vorp, playerIndex: selected.i, projectedPoints: selected.value }
-        : { slot, id: null, name: null, pos: null, ppg: 0, vorp: null, playerIndex: null, projectedPoints: 0 };
     });
-    return { total: winner?.score || 0,
-      vorpTotal: selections.reduce((sum, c) => sum + (Number.isFinite(c?.p?.vorp) ? c.p.vorp : 0), 0),
+    let best = null;
+    states.forEach(v => { if (better(v.score, v.filled, best)) best = v; });
+    const selected = Array(slots.length).fill(null);
+    for (let i = slots.length - 1; i >= 0 && best; i--, best = best.prev) selected[i] = best.pick;
+    const starters = slots.map((slot, i) => {
+      const choice = selected[i], p = choice?.p;
+      return p ? { slot, id: p.id, name: p.name, pos: p.pos, ppg: p.ppg,
+        vorp: p.vorp, playerIndex: choice.i, projectedPoints: choice.value }
+        : { slot, id: null, name: null, pos: null, ppg: 0, vorp: null,
+            playerIndex: null, projectedPoints: 0 };
+    });
+    return { total: selected.reduce((s, x) => s + (x?.value || 0), 0),
+      vorpTotal: selected.reduce((s, x) => s + (Number.isFinite(x?.p?.vorp) ? x.p.vorp : 0), 0),
       starters };
   },
   optimalLineupDetail(plist, slots) {
