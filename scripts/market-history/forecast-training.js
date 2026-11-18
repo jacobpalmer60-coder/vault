@@ -6,7 +6,7 @@ function fitAsOf(rows, predictionDate) {
  let eligible=0, rejectedFuture=0, unknown=0;
  for (const r of rows) {
   if (!(r.outcomeDate < predictionDate)) { rejectedFuture++; continue; }
-  if (!(r.v1 >= 0) || !(r.v0 > 0)) { unknown++; continue; }
+  if (r.v1 == null || !Number.isFinite(r.v1) || r.v1 < 0 || !(r.v0 > 0)) { unknown++; continue; }
   eligible++;
   for (const key of [r.format+'|'+r.pos+'|'+r.ageBand, r.format+'|'+r.pos]) {
    const b=buckets.get(key)||{n:0,num:0,den:0};
