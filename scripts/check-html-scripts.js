@@ -17,7 +17,7 @@ for (const file of pages) {
     const attrs = script[1], body = script[2];
     if (!body.trim()) continue;
     const type = /\btype\s*=\s*["']([^"']+)/i.exec(attrs)?.[1] || '';
-    if (type && !['text/javascript', 'application/javascript', 'module'].includes(type)) continue;
+    if (type && !['text/javascript', 'application/javascript'].includes(type)) continue; // modules need a separate module parser
     try {
       new vm.Script(body, { filename: file + ':script-' + index });
       checked++;
