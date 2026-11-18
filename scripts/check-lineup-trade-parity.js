@@ -115,4 +115,29 @@ const notes = cornerstone({ teamName: 'North' }, { teamName: 'South' },
 assert.ok(notes.includes('North') && notes.includes('South'));
 assert.ok(notes.includes('First') && notes.includes('Second'));
 console.log('PASS cornerstone warnings on both sides');
+const aTeam = { rosterId: 1, assets: [{ key: 'a1', value: 800, type: 'player', name: 'A' }] };
+const bTeam = { rosterId: 2, assets: [{ key: 'b1', value: 800, type: 'player', name: 'B' }] };
+const aChosen = new Set(), bChosen = new Set();
+const matchFromB = vm.runInNewContext(
+  piece('function matchTarget(', 'function fmtSigned(') + '\nmatchTarget;',
+  {
+    selectedA: aChosen, selectedB: bChosen,
+    teamOf: side => side === 'A' ? aTeam : bTeam,
+    otherSide: side => side === 'A' ? 'B' : 'A',
+    teams: [aTeam, bTeam],
+    bestCombo: pool => ({ combo: [pool[0]] }),
+    Vault: {
+      positionalProfile: () => ({ needs: [] }),
+      tradeSideValues: (g, t) => ({
+        valueA: g.reduce((s, p) => s + p.value, 0),
+        valueB: t.reduce((s, p) => s + p.value, 0)
+      })
+    },
+    render: () => {}, Set, Map
+  }
+);
+matchFromB('B', 'b1');
+assert.ok(bChosen.has('b1') && aChosen.has('a1'));
+assert.ok(page.includes('teamOf(otherSide(side))'));
+console.log('PASS Match builds reciprocal packages from either team');
 console.log('All trade calculator parity checks passed.');
