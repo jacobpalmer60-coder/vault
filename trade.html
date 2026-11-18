@@ -1494,7 +1494,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
       <div class="num text-[26px] leading-tight mt-0.5 ${cls}">${label}</div>${close}${sub ? `<div class="text-[12px] text-zinc-400 mt-1">${sub}</div>` : ''}</div>`;
   const yourSub = offered ? `<span class="${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span>` : '';
   // Your timeline under the tiles, on its own line (2026-10-24: in the tile it was cut off on phones).
-  const timelineRow = `<div class="mt-2 text-[12px] text-zinc-400"><label class="flex flex-wrap items-center gap-x-2 gap-y-1" title="Judged on your timeline: contending weighs this season's lineup heavily, rebuilding weighs long-term value.">${Vault.possessive(Vault.escapeHtml(teamA.teamName))} timeline <select onchange="setTeamTimeline(${teamA.rosterId}, this.value)" aria-label="Your timeline" class="shrink-0 bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${chosen ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">${opt('', `${Vault.MODE_LABEL[autoTimeline(teamA)]} (auto)`)}${opt('contend', 'Contending')}${opt('rebuild', 'Rebuilding')}</select></label></div>`;
+  const timelineRow = `<div class="mt-2 text-[12px] text-zinc-400 flex flex-wrap gap-x-5 gap-y-1.5">${[teamA, teamB].map(t => { const choice = Vault.planOverride[t.rosterId] || ''; const option = (v, text) => `<option value="${v}" ${choice === v ? 'selected' : ''}>${text}</option>`; return `<label class="inline-flex flex-wrap items-center gap-x-2" title="Trade verdicts use each team's independently selected timeline.">${Vault.possessive(Vault.escapeHtml(t.teamName))} timeline <select onchange="setTeamTimeline(${t.rosterId}, this.value)" aria-label="${Vault.escapeHtml(t.teamName)} timeline" class="shrink-0 bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${choice ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">${option('', `${Vault.MODE_LABEL[autoTimeline(t)]} (auto)`)}${option('contend', 'Contending')}${option('rebuild', 'Rebuilding')}</select></label>`; }).join('')}</div>`;
   // Their out-of-race note reads under the tiles, with yours, instead of stretching their tile.
   const theirSub = '';
   el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Works for both'}</span></div>` : ''}
@@ -1572,7 +1572,7 @@ function evenPlan() {
     const an = computeTradeAnalysis(teamA, teamB, A, B, valueA, valueB);
     return { A: improvementOf(an, 'A'), B: improvementOf(an, 'B') };
   };
-  const context = negContextFor(teamB), now = judge(A0, B0);
+  const contextB = negContextFor(teamB), contextA = negContextFor(teamA), now = judge(A0, B0);
   const targets = ['B', 'A'].filter(s => now[s].level === 'bad');
   if (!targets.length) return null;
   const top = Math.max(...A0.map(a => a.value), ...B0.map(b => b.value));
@@ -1607,7 +1607,8 @@ function evenPlan() {
   for (const o of found.sort((x, y) => y.key - x.key)) {
     const pieces = [...o.add, ...o.drop];
     if (options.length >= EVEN_OPTIONS || pieces.some(p => (seen.get(p.key) || 0) >= EVEN_PIECE_REPEATS)) continue;
-    if (!negJudgeFor(teamA, o.A, teamB, o.B, context).accepts) continue;
+    if (!negJudgeFor(teamA, o.A, teamB, o.B, contextB).accepts ||
+        !negJudgeFor(teamB, o.B, teamA, o.A, contextA).accepts) continue;
     pieces.forEach(p => seen.set(p.key, (seen.get(p.key) || 0) + 1));
     options.push(o);
   }
@@ -2117,6 +2118,20 @@ function quickAdd(sel) {
   if (!selectedB.has(key)) toggle('B', key);
 }
 
+function cornerstoneWarningsHtml(teamA, aAssets, teamB, bAssets) {
+  const one = (team, assets) => {
+    const stars = assets.map(a => ({ a, c: Vault.cornerstone(team, a) })).filter(x => x.c);
+    if (!stars.length) return '';
+    return stars.map(({ a, c }) => {
+      const oneIn = Math.max(1, Math.round(1 / c.share));
+      const label = c.rank === 1 ? 'best player' : `#${c.rank} player`;
+      const cohort = c.mode === 'contend' ? 'Contending teams' : c.mode === 'rebuild' ? 'Rebuilding teams' : 'Teams like theirs';
+      return `<div class="text-[12px] text-zinc-400 mt-1.5"><span class="text-amber-300 font-medium">${Vault.escapeHtml(team.teamName)} sends their ${label}</span> · ${Vault.escapeHtml(a.name)} ranks ${label} by value on that roster. ${cohort} trade a player this important in only about 1 in ${oneIn} trades, regardless of price. Expect negotiation.</div>`;
+    }).join('');
+  };
+  return one(teamA, aAssets) + one(teamB, bAssets);
+}
+
 function updateTrade() {
   syncTradeUrl();
   rememberTrade();
@@ -2210,7 +2225,7 @@ function updateTrade() {
     ${aAssets.length && bAssets.length ? `<details class="group mt-3 max-w-[640px]" id="whyBox"><summary class="inline-flex items-center gap-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200"><span>Why</span><span class="group-open:hidden">▾</span><span class="hidden group-open:inline">▴</span></summary><div class="mt-2 space-y-1.5"><div id="whyVerdict"></div>
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
       ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName, 'mt-2.5')}</div></details>
-      ${(() => { const c = bAssets.map(a => ({ a, c: Vault.cornerstone(teamB, a) })).find(x => x.c); if (!c) return ''; const oneIn = Math.round(1 / c.c.share); return `<div class="text-[12px] text-zinc-400 mt-1.5"><span class="text-amber-300 font-medium">Their ${c.c.rank === 1 ? 'best player' : `#${c.c.rank} player`}</span> · ${Vault.escapeHtml(c.a.name)} is ${Vault.possessive(Vault.escapeHtml(teamB.teamName))} ${c.c.rank === 1 ? 'most valuable player' : `#${c.c.rank} player by value`}. ${c.c.mode === 'contend' ? 'Contending teams' : c.c.mode === 'rebuild' ? 'Rebuilding teams' : 'Teams like theirs'} send a player that high on their roster in only about 1 of ${oneIn} of their trades, at any price, so expect a no unless they're looking to move him.</div>`; })()}` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
+      ${cornerstoneWarningsHtml(teamA, aAssets, teamB, bAssets)}` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
   renderSiteStatus({ teamA, teamB, aAssets, bAssets });
   document.getElementById('priceBucket').innerHTML = (aAssets.length || bAssets.length) ? `<span title="Whether the price is fair for both teams: trade value, plus both teams' roster fit and timeline. Not the verdict, which is about your team.">Price with both teams' fit: <span class="font-medium ${bucketColor(Vault.priceWord(bucket))}">${Vault.priceWord(bucket)}</span> · ${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">(trade value alone ${capPct(pctDiff).toFixed(0)}%)</span>` : ''}</span>` : '';
   document.getElementById('consolidation').innerHTML = aAssets.length && bAssets.length ? consolidationAdviceHtml(aAssets, bAssets, teamA, teamB) : '';
