@@ -89,10 +89,10 @@
     </div>
     <!-- Phones: one part of the trade at a time (vault.css). Wider screens show them all. -->
     <div id="tradeTabs" role="tablist" aria-label="Parts of the trade" class="md:hidden flex gap-1 px-3 py-2 border-t border-white/5">
-      <button type="button" role="tab" data-tt="verdict" aria-selected="true" onclick="tradeTab('verdict')">Verdict</button>
-      <button type="button" role="tab" data-tt="teams" aria-selected="false" onclick="tradeTab('teams')">Teams</button>
-      <button type="button" role="tab" data-tt="season" aria-selected="false" onclick="tradeTab('season')">Season</button>
-      <button type="button" role="tab" data-tt="details" aria-selected="false" onclick="tradeTab('details')">Details</button>
+      <button type="button" role="tab" data-tt="verdict" aria-selected="true" aria-controls="tradeAnswer" tabindex="0" onclick="tradeTab('verdict')">Verdict</button>
+      <button type="button" role="tab" data-tt="teams" aria-selected="false" aria-controls="teamImpact" tabindex="-1" onclick="tradeTab('teams')">Teams</button>
+      <button type="button" role="tab" data-tt="season" aria-selected="false" aria-controls="seasonWrap" tabindex="-1" onclick="tradeTab('season')">Season</button>
+      <button type="button" role="tab" data-tt="details" aria-selected="false" aria-controls="tradeDetails" tabindex="-1" onclick="tradeTab('details')">Details</button>
     </div>
     <!-- The answer: the verdict for your team, then one price row (trade value,
          KTC's calculator, the market) and whether managers take trades like it. -->
@@ -234,7 +234,7 @@
 
 <script src="vault-core.js?v=192acef4"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
-<script src="team-impact.js?v=3399be6c"></script>
+<script src="team-impact.js?v=241575a8"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -2131,11 +2131,29 @@ function openRecent(i) {
 
 // Phones: which part of the trade shows. The sections it opens have nothing else to do there.
 function tradeTab(tab) {
+  const allowed = ['verdict', 'teams', 'season', 'details'];
+  if (!allowed.includes(tab)) return;
   document.getElementById('tradeBar').dataset.tab = tab;
-  document.querySelectorAll('#tradeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tt === tab)));
+  document.querySelectorAll('#tradeTabs [role="tab"]').forEach(b => {
+    const active = b.dataset.tt === tab;
+    b.setAttribute('aria-selected', String(active));
+    b.tabIndex = active ? 0 : -1;
+  });
   if (tab === 'season') document.getElementById('seasonWrap').open = true;
   if (tab === 'details') document.getElementById('tradeDetails').open = true;
 }
+// Accessible keyboard navigation for the phone-only tab strip.
+document.getElementById('tradeTabs').addEventListener('keydown', e => {
+  if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
+  const tabs = [...document.querySelectorAll('#tradeTabs [role="tab"]')];
+  const i = tabs.indexOf(document.activeElement);
+  if (i === -1) return;
+  e.preventDefault();
+  const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 :
+    (i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+  tradeTab(tabs[next].dataset.tt);
+  tabs[next].focus();
+});
 
 function fillQuickAdd() {
   const me = teamOf('A'), sel = document.getElementById('quickAdd');
