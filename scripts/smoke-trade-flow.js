@@ -73,25 +73,36 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
         const gradeBefore=document.getElementById('diffLabel')?.innerText||'';
         const tradeBefore=JSON.stringify({A:[...selectedA].sort(),B:[...selectedB].sort()});
         const coachBefore=typeof negContext==='undefined'?null:JSON.stringify(negContext);
-        const evenBefore=typeof evenFix==='undefined'?null:JSON.stringify(evenFix);
+        const evenBefore=typeof evenFix==='undefined'?null:JSON.stringify({at:evenFix?.at,baseA:evenFix?.baseA,baseB:evenFix?.baseB,nowA:evenFix?.nowA,nowB:evenFix?.nowB});
+        const defaultStress=document.getElementById('stressResults')?.innerText||'';
         stressChange('decline','30');
         stressChange('missed','4');
         const panel=document.getElementById('stressResults');
         const output=panel?.innerText||'';
         const visible=!!panel?.getClientRects().length;
+        const changedScenario=output!==defaultStress;
+        const controls=document.getElementById('stressControls')?.innerText||'';
+        const declineLabel=document.getElementById('stressDeclineLabel')?.textContent;
+        const missedLabel=document.getElementById('stressMissedLabel')?.textContent;
         const gradeAfter=document.getElementById('diffLabel')?.innerText||'';
         return {visible,both:output.includes(preparedTeamName('A'))&&output.includes(preparedTeamName('B')),
           declared:output.includes('What-if only')&&output.includes('Trade impact'),
           gradeSame:gradeBefore===gradeAfter,
+          changedScenario,
+          scenarioLabelsCorrect:declineLabel==='30%'&&missedLabel==='4',
+          exposesBothAssumptions:controls.includes('Player exposed to downside')&&output.includes('Official grading and Trade Coach are unaffected'),
           tradeSame:tradeBefore===JSON.stringify({A:[...selectedA].sort(),B:[...selectedB].sort()}),
           coachSame:coachBefore===(typeof negContext==='undefined'?null:JSON.stringify(negContext)),
-          evenSame:evenBefore===(typeof evenFix==='undefined'?null:JSON.stringify(evenFix)),
+          evenSame:evenBefore===(typeof evenFix==='undefined'?null:JSON.stringify({at:evenFix?.at,baseA:evenFix?.baseA,baseB:evenFix?.baseB,nowA:evenFix?.nowA,nowB:evenFix?.nowB})),
           overshoot:document.documentElement.scrollWidth-innerWidth};
         function preparedTeamName(side){return teamOf(side).teamName}
       });
       if(!stressReport.visible||!stressReport.both||!stressReport.declared)
        errors.push('What-if scenario does not show the full two-manager analysis');
       if(!stressReport.gradeSame)errors.push('What-if scenario changed the official verdict');
+      if(!stressReport.changedScenario)errors.push('What-if controls did not change the results');
+      if(!stressReport.scenarioLabelsCorrect)errors.push('What-if labels did not reflect requested inputs');
+      if(!stressReport.exposesBothAssumptions)errors.push('What-if assumptions and grading separation not visible');
       if(!stressReport.tradeSame)errors.push('What-if scenario mutated the assets selected for trade');
       if(!stressReport.coachSame)errors.push('What-if scenario mutated Trade Coach negotiation state');
       if(!stressReport.evenSame)errors.push('What-if scenario mutated Even It Out state');
