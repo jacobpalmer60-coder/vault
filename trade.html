@@ -903,6 +903,8 @@ function toggle(side, key) {
 function resetTrade() {
   if (typeof negReset === 'function') negReset();
   selectedA.clear(); selectedB.clear();
+  Object.assign(stressSettings,{player:'',pick:'',decline:0,missed:0,tier:'current'});
+  stressContext=null;
   render('A'); render('B');
 }
 
@@ -2212,6 +2214,7 @@ function updateTrade() {
   if (!teamB) {
     ['tradeBar', 'analysisA', 'analysisB'].forEach(id => document.getElementById(id).classList.add('hidden'));
     document.getElementById('stressTest').classList.add('hidden');
+    stressContext=null;
     document.getElementById('emptyState').classList.remove('hidden');
     if (typeof renderOfferButton === 'function') renderOfferButton();
     return;
