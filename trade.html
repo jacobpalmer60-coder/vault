@@ -91,6 +91,7 @@
     <div id="tradeTabs" role="tablist" aria-label="Parts of the trade" class="md:hidden flex gap-1 px-3 py-2 border-t border-white/5">
       <button type="button" role="tab" data-tt="verdict" aria-selected="true" aria-controls="tradeAnswer" tabindex="0" onclick="tradeTab('verdict')">Verdict</button>
       <button type="button" role="tab" data-tt="teams" aria-selected="false" aria-controls="teamImpact" tabindex="-1" onclick="tradeTab('teams')">Teams</button>
+      <button type="button" role="tab" data-tt="stress" aria-selected="false" aria-controls="stressTest" tabindex="-1" onclick="tradeTab('stress')">What-if</button>
       <button type="button" role="tab" data-tt="season" aria-selected="false" aria-controls="seasonWrap" tabindex="-1" onclick="tradeTab('season')">Season</button>
       <button type="button" role="tab" data-tt="details" aria-selected="false" aria-controls="tradeDetails" tabindex="-1" onclick="tradeTab('details')">Details</button>
     </div>
@@ -111,6 +112,19 @@
         <div id="analysisA" class="hidden min-w-0"></div>
         <div id="analysisB" class="hidden min-w-0"></div>
       </div>
+    </section>
+    <!-- A deliberate what-if separate from the official verdict and existing season-long loss check. -->
+    <section id="stressTest" aria-label="Trade Stress Test" class="hidden border-t border-white/5">
+      <details id="stressWrap" class="group">
+        <summary class="px-4 sm:px-5 py-3 cursor-pointer text-[13px] text-zinc-300 hover:text-white font-medium">
+          Trade Stress Test <span class="text-zinc-500 font-normal">· Test the downside for both teams</span>
+        </summary>
+        <div class="px-4 sm:px-5 pb-4 space-y-4">
+          <p class="text-[12px] text-zinc-400">Explore hypothetical changes without changing the official trade grade. Both teams are compared with and without the trade under identical assumptions.</p>
+          <div id="stressControls"></div>
+          <div id="stressResults" aria-live="polite"></div>
+        </div>
+      </details>
     </section>
     <details id="seasonWrap" class="group border-t border-white/5">
       <summary class="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200">
@@ -235,6 +249,7 @@
 <script src="vault-core.js?v=192acef4"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
 <script src="team-impact.js?v=241575a8"></script>
+<script src="trade-stress.js?v=627bc2d0"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -2131,7 +2146,7 @@ function openRecent(i) {
 
 // Phones: which part of the trade shows. The sections it opens have nothing else to do there.
 function tradeTab(tab) {
-  const allowed = ['verdict', 'teams', 'season', 'details'];
+  const allowed = ['verdict', 'teams', 'stress', 'season', 'details'];
   if (!allowed.includes(tab)) return;
   document.getElementById('tradeBar').dataset.tab = tab;
   document.querySelectorAll('#tradeTabs [role="tab"]').forEach(b => {
@@ -2139,6 +2154,7 @@ function tradeTab(tab) {
     b.setAttribute('aria-selected', String(active));
     b.tabIndex = active ? 0 : -1;
   });
+  if (tab === 'stress') document.getElementById('stressWrap').open = true;
   if (tab === 'season') document.getElementById('seasonWrap').open = true;
   if (tab === 'details') document.getElementById('tradeDetails').open = true;
 }
@@ -2195,6 +2211,7 @@ function updateTrade() {
   document.getElementById('offeredByWrap').classList.toggle('hidden', !teamB);
   if (!teamB) {
     ['tradeBar', 'analysisA', 'analysisB'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById('stressTest').classList.add('hidden');
     document.getElementById('emptyState').classList.remove('hidden');
     if (typeof renderOfferButton === 'function') renderOfferButton();
     return;
@@ -2295,6 +2312,7 @@ function updateTrade() {
   document.getElementById('gapClose').classList.add('hidden'); // only a shared link's note uses it now
 
   renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analysis);
+  renderTradeStress(teamA, teamB, aAssets, bAssets, analysis);
   if (typeof renderOfferButton === 'function') renderOfferButton();
 }
 
@@ -2686,6 +2704,102 @@ function teamImpactLedgerHtml(impact) {
     </div>
     <p class="text-[11px] text-zinc-500 mt-2">Pick prices reflect today's market; future rookie returns aren't projected. Lineup points measure starters, not total roster scoring.</p>
   </div>`;
+}
+
+// What-if controls deliberately do NOT recompute the official trade verdict.
+// The same scenario is applied to the sending team BEFORE the trade and the
+// receiving team AFTER it. No negative injury probabilities or fake draft odds.
+const stressSettings={player:'',pick:'',decline:0,missed:0,tier:'current'};
+let stressContext=null;
+function stressChange(field,value){
+  if(!['player','pick','decline','missed','tier'].includes(field))return;
+  stressSettings[field]=value;
+  if(field==='player'||field==='pick')renderStressControls();
+  renderStressResults();
+}
+function renderTradeStress(teamA,teamB,aAssets,bAssets,analysis){
+  const section=document.getElementById('stressTest');
+  const ready=!!(aAssets.length&&bAssets.length);
+  section.classList.toggle('hidden',!ready);
+  if(!ready){stressContext=null;return}
+  stressContext={teamA,teamB,aAssets,bAssets,analysis};
+  const options=VaultTradeStress.scan(analysis.before,analysis.after,aAssets,bAssets);
+  const hasPlayer=options.players.some(p=>String(p.id)===stressSettings.player);
+  const hasPick=options.picks.some(p=>VaultTradeStress.pickId(p)===stressSettings.pick);
+  if(!hasPlayer)stressSettings.player=options.players[0]?String(options.players[0].id):'';
+  if(!hasPick)stressSettings.pick=options.picks[0]?VaultTradeStress.pickId(options.picks[0]):'';
+  renderStressControls();
+  renderStressResults();
+}
+function renderStressControls(){
+  const ctx=stressContext;
+  if(!ctx)return;
+  const opts=VaultTradeStress.scan(ctx.analysis.before,ctx.analysis.after,ctx.aAssets,ctx.bAssets);
+  const player=opts.players.find(a=>String(a.id)===stressSettings.player);
+  const pick=opts.picks.find(a=>VaultTradeStress.pickId(a)===stressSettings.pick);
+  const escape=Vault.escapeHtml;
+  const choose=(assets,keyOf,current)=>assets.map(a=>`<option value="${escape(keyOf(a))}" ${keyOf(a)===current?'selected':''}>${escape(a.name||a.id||Vault.pickName(a))}</option>`).join('');
+  const tierAvailable=!!(pick&&!pick.became&&Vault.pickTierSpread(pick.ktcRound??pick.round));
+  if(!tierAvailable)stressSettings.tier='current';
+  document.getElementById('stressControls').innerHTML=`
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="min-w-0 space-y-2">
+        <label for="stressPlayer" class="block text-[12px] text-zinc-300">Player exposed to downside</label>
+        ${opts.players.length?`<select id="stressPlayer" class="w-full min-w-0 rounded-lg border border-white/10 bg-zinc-900 text-zinc-100 px-3 py-2 text-[13px]" onchange="stressChange('player',this.value)">${choose(opts.players,p=>String(p.id),stressSettings.player)}</select>`:'<p class="text-[12px] text-zinc-500">No player included in this deal.</p>'}
+        ${player?`<label for="stressDecline" class="block text-[12px] text-zinc-300">Hypothetical market-value decline: <span id="stressDeclineLabel" class="mono text-amber-200">${stressSettings.decline}%</span></label>
+        <input id="stressDecline" class="w-full" style="accent-color:#e5b35a" type="range" min="0" max="60" step="5" value="${stressSettings.decline}" oninput="stressChange('decline',this.value)">
+        <label for="stressMissed" class="block text-[12px] text-zinc-300">Games missed (illustrative): <span id="stressMissedLabel" class="mono text-amber-200">${stressSettings.missed}</span> / 17</label>
+        <input id="stressMissed" class="w-full" style="accent-color:#e5b35a" type="range" min="0" max="17" step="1" value="${stressSettings.missed}" oninput="stressChange('missed',this.value)">`:''}
+      </div>
+      <div class="min-w-0 space-y-2">
+        <label for="stressPick" class="block text-[12px] text-zinc-300">Traded draft pick</label>
+        ${opts.picks.length?`<select id="stressPick" class="w-full min-w-0 rounded-lg border border-white/10 bg-zinc-900 text-zinc-100 px-3 py-2 text-[13px]" onchange="stressChange('pick',this.value)">${choose(opts.picks,p=>VaultTradeStress.pickId(p),stressSettings.pick)}</select>`:'<p class="text-[12px] text-zinc-500">No pick included in this deal.</p>'}
+        ${pick&&tierAvailable?`<label for="stressTier" class="block text-[12px] text-zinc-300">What if its KTC price tier changes?</label>
+          <select id="stressTier" class="w-full rounded-lg border border-white/10 bg-zinc-900 text-zinc-100 px-3 py-2 text-[13px]" onchange="stressChange('tier',this.value)">
+            ${['current','early','mid','late'].map(t=>`<option value="${t}" ${stressSettings.tier===t?'selected':''}>${({current:'Current price',early:'Early tier',mid:'Mid tier',late:'Late tier'})[t]}</option>`).join('')}
+          </select>
+          <p class="text-[11px] leading-relaxed text-zinc-500">Uses Vault's existing pick-price spread for KTC-normalized round ${pick.ktcRound??pick.round}; not a predicted draft position or rookie.</p>`
+        :pick?'<p class="text-[12px] text-zinc-500">No supported current KTC tier spread for this pick. Its price stays unchanged.</p>':''}
+      </div>
+    </div>`;
+}
+function renderStressResults(){
+  const ctx=stressContext;
+  if(!ctx)return;
+  const {teamA,teamB,aAssets,bAssets,analysis}=ctx;
+  const config={before:analysis.before,after:analysis.after,tradeA:aAssets,tradeB:bAssets,
+    slots,player:stressSettings.player,pick:stressSettings.pick,decline:stressSettings.decline,
+    missed:stressSettings.missed,tier:stressSettings.tier,spreadFor:round=>Vault.pickTierSpread(round),
+    lineupOf:(players,positions)=>Vault.seasonLineupDetail(players,positions).total};
+  const stress=VaultTradeStress.evaluate(config);
+  const base=VaultTradeStress.evaluate({...config,decline:0,missed:0,tier:'current'});
+  const signed=(n,decimals=0)=>`${n>0?'+':n<0?'−':''}${Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:decimals,maximumFractionDigits:decimals})}`;
+  const move=(n,d=0)=>`<span class="mono ${n>0.05?'text-emerald-300':n< -0.05?'text-rose-300':'text-zinc-300'}">${signed(n,d)}</span>`;
+  const metric=(label,unit,s,normal)=>`<div class="min-w-0 border-t border-white/5 pt-2"><div class="text-[11px] text-zinc-400">${label}</div>
+     <div class="text-[13px] text-zinc-200 mono">${unit?unit:''}${s.toLocaleString(undefined,{maximumFractionDigits:label==='17-game avg lineup PPG'?1:0})} change vs no trade</div>
+     <div class="text-[12px]">Trade impact: ${move(s,label==='17-game avg lineup PPG'?1:0)} <span class="text-zinc-500">· usual ${signed(normal,label==='17-game avg lineup PPG'?1:0)}</span></div>
+   </div>`;
+  const side=(name,key)=>`<div class="min-w-0 rounded-xl bg-black/25 border border-white/10 p-3 space-y-1">
+     <div class="text-[13px] text-zinc-100 font-medium truncate">${Vault.escapeHtml(name)}</div>
+     ${metric('Total roster + picks value','',stress.change[key].totalValue,base.change[key].totalValue)}
+     ${metric('Current draft capital','',stress.change[key].pickValue,base.change[key].pickValue)}
+     ${metric('17-game avg lineup PPG','',stress.change[key].lineupPpg,base.change[key].lineupPpg)}
+   </div>`;
+  // Price and lineup shocks do not flow into the official calculator grading,
+  // season playoff probabilities, or other teams' projections.
+  document.getElementById('stressResults').innerHTML=`
+    <div class="grid md:grid-cols-2 gap-3">
+      ${side(teamA.teamName,'A')}${side(teamB.teamName,'B')}
+    </div>
+    <p class="text-[11px] leading-relaxed text-zinc-500 mt-3">
+      What-if only: the same asset changes value for its owner before and after the deal.
+      Player decline is a manually chosen market shock, not a forecast. Games missed use a simplified 17-game average with the next-best lineup (not week-by-week injury or championship odds).
+      ${stress.tierQuote?`Pick assumption: ${Vault.escapeHtml(stress.tierQuote.baseTier)} → ${Vault.escapeHtml(stress.tierQuote.tier)} at today's tier spread; no future rookie outcomes assumed.`:''}
+      “Usual” means the unchanged trade's impact. Official grading and Trade Coach are unaffected.
+    </p>`;
+  const updateLabel=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=String(v)};
+  updateLabel('stressDeclineLabel',stress.drop+'%');
+  updateLabel('stressMissedLabel',stress.missedWeeks);
 }
 
 function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analysis) {
