@@ -1841,18 +1841,25 @@ function scheduleStress(teamA, teamB, aAssets, bAssets) {
       const bef = before[side], aft = after[side], dep = side === 'A' ? depA : depB;
       const line = absent ? absent.total - bef.opt : side === 'A' ? lineA : lineB;
       const byWeek = aft.optByWeek && bef.optByWeek ? new Map([...aft.optByWeek].map(([w, value]) => {
-        const projected = absent?.byWeek?.get(w) ?? value;
+        const projected = absent ? (absent.byWeek?.get(w) ?? absent.total ?? 0) : value;
         return [w, projected - (bef.optByWeek.get(w) ?? value)];
       })) : null;
       return { flat: dep, avg: line, byWeek };
     };
     const readSide = (side, team, incoming) => {
-      const who = incoming.filter(a => a.type === 'player' && a.value > 0)
-        .sort((x, y) => y.value - x.value)[0];
-      if (!who || !after[side].optByWeek) return null;
-      const aft = after[side], without = Vault.seasonLineupDetail(aft.plist.filter(p => p.id !== who.id), slots);
-      const lost = [...aft.optByWeek].reduce((sum, [w, points]) => sum + points - (without.byWeek?.get(w) ?? points), 0);
-      if (lost < 1) return null;
+      const aft = after[side];
+      if (!aft.optByWeek) return null;
+      // The priciest incoming piece might never start. Stress the most valuable
+      // incoming player whose absence would actually change the lineup.
+      const tested = incoming.filter(a => a.type === 'player' && a.value > 0)
+        .sort((x, y) => y.value - x.value).map(who => {
+          const without = Vault.seasonLineupDetail(aft.plist.filter(p => p.id !== who.id), slots);
+          const lost = [...aft.optByWeek].reduce((sum, [w, points]) =>
+            sum + points - (without.byWeek?.get(w) ?? without.total ?? 0), 0);
+          return { who, without, lost };
+        }).find(x => x.lost >= 1);
+      if (!tested) return null;
+      const { who, without } = tested;
       const revised = seasonOdds(new Map([
         [teamA.rosterId, deltasFor('A', side === 'A' ? without : null)],
         [teamB.rosterId, deltasFor('B', side === 'B' ? without : null)]
