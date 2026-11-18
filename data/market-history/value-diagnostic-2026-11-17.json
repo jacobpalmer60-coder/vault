@@ -1,0 +1,77 @@
+{
+  "analysisDate": "2026-11-17",
+  "sourceDates": {
+    "playerHistory": "2026-11-16",
+    "holdoutProof": "2026-10-27",
+    "marketInsights": "2026-10-19"
+  },
+  "playerMarket": {
+    "playersWithOutcome": 428,
+    "headlineTradeObservations": 3582162,
+    "byPosition": {
+      "RB": {
+        "players": 119,
+        "headlineObservations": 1060761,
+        "approxShareAheadPct": 42.2,
+        "medianOfPlayerMedianChangesPct": -15
+      },
+      "QB": {
+        "players": 71,
+        "headlineObservations": 653438,
+        "approxShareAheadPct": 41.6,
+        "medianOfPlayerMedianChangesPct": -10
+      },
+      "WR": {
+        "players": 170,
+        "headlineObservations": 1498884,
+        "approxShareAheadPct": 45.4,
+        "medianOfPlayerMedianChangesPct": -18
+      },
+      "TE": {
+        "players": 68,
+        "headlineObservations": 369079,
+        "approxShareAheadPct": 48.6,
+        "medianOfPlayerMedianChangesPct": -7
+      }
+    }
+  },
+  "proofComparison": [
+    {
+      "cohort": "Teams in between",
+      "sides": 290048,
+      "vaultScore": 68.9,
+      "ktcScore": 67.4,
+      "gapToKtc": -1.5
+    },
+    {
+      "cohort": "Contenders",
+      "sides": 797293,
+      "vaultScore": 55.6,
+      "ktcScore": 66.7,
+      "gapToKtc": 11.1
+    },
+    {
+      "cohort": "Rebuilders",
+      "sides": 535529,
+      "vaultScore": 62.2,
+      "ktcScore": 69.6,
+      "gapToKtc": 7.4
+    },
+    {
+      "cohort": "Every team",
+      "sides": 1622870,
+      "vaultScore": 59.7,
+      "ktcScore": 67.7,
+      "gapToKtc": 8
+    }
+  ],
+  "limitations": [
+    "This summarizes existing published aggregates, not newly reprocessed raw transactions.",
+    "Headline-trade observations can share assets and league context; they are not statistically independent.",
+    "Weighted ahead rates use pre-rounded player-level percentages and are approximate.",
+    "Player median change is the median of player-level medians, not the median of individual trades.",
+    "Historical proof scores are preexisting, with unspecified error metric in this summary; do not interpret as percentage-point accuracies.",
+    "No causal or forward unseen-season validation was run in this environment.",
+    "A missing KTC price cannot always be distinguished from a true zero-value delisting."
+  ]
+}
