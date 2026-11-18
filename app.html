@@ -185,7 +185,7 @@ const CHART_COLORS = ['#a5b4fc', '#5ec7f5', '#f56e6e', '#7ee787', '#c792ea', '#f
 const VALUE_METRICS = {
   total: { label: 'Value', field: 'total', decimals: 0, desc: "Each team's total dynasty value, snapshotted daily." },
   optPpg: { label: 'Lineup PPG', field: 'optPpg', decimals: 1, desc: "Each team's best-lineup projected PPG (league scoring), snapshotted daily." },
-  playerValue: { label: 'Player Value', field: 'playerValue', decimals: 0, desc: "Each team's rostered-player value only (excludes picks), rebuilt back to the startup draft by replaying every completed trade, waiver and draft pick since." }
+  playerValue: { label: 'Player Value', field: 'playerValue', decimals: 0, desc: "Each team's rostered-player value (no picks), reconstructed by replaying available completed transactions in this Sleeper league season. Older-season continuity is part of the historical-reconstruction work." }
 };
 let valueHistoryMetric = 'total';
 let lastValueHistory = null, lastValueHistoryTeams = null;
