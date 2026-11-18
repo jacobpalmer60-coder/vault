@@ -53,6 +53,10 @@
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-11-18', items: [
+    { kind: 'fixed', page: 'Research', text: "Corrected future-value model testing so each prediction only trains on player-value outcomes available before that prediction date. Earlier two- and three-year improvement figures were not fully time-safe and are no longer treated as validation." },
+    { kind: 'improved', page: 'Research', text: "Added regression coverage for historical forecast chronology, known-zero versus missing future prices, and league-format separation. The live trade calculator's valuation formula is unchanged." }
+  ] },
   { date: '2026-11-17', items: [
     { kind: 'fixed', page: 'Player Market', text: "Historical trade outcomes now distinguish a confirmed zero-value asset from an unavailable future KTC price. Published player results will exclude incomplete follow-ups when the raw trade archive is rebuilt; unknown outcomes are no longer automatically treated as losses." },
     { kind: 'improved', page: 'Research', text: "Added trade-value benchmark breakdowns for 2024 versus 2025 by month, quarter, trade shape, scoring format and largest asset position. Both complete-case and missing-as-zero sensitivity results are reported." },
