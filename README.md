@@ -69,6 +69,14 @@ Rules that have bitten before:
 
 ## Long-term trade-value research
 
+Run `node scripts/diagnose-value-aggregates.js` to reproduce the published
+retrospective diagnostic from the checked-in Player Market, research insights,
+and proof data. The saved November 17 output is
+`data/market-history/value-diagnostic-2026-11-17.json` (428 player records
+with 3.58 million headline-trade observations; **not** independent examples).
+It documents existing weaknesses and is **not** a new full raw-data run.
+
+
 Run `node scripts/benchmark-future-values.js` to compare the unchanged-value baseline
 with a position/age model trained on 2022-2023 outcomes and evaluated on 2025 origins
 with full one-year follow-up. The existing age curve is shown only as a **retrospective**
