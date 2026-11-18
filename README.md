@@ -147,6 +147,50 @@ true untouched holdout: some of those completed trades informed Vault's
 existing trade-price curve. Do not make claims of improvement until an
 independent prospective split is available.
 
+### November 18: Interactive Trade Stress Test (live feature; no grading changes)
+
+The Trade Calculator now has a **What-if** tab on phones and an expandable
+**Trade Stress Test** on desktop, directly below the two manager impact
+cards. It uses the same `Vault.simulateTrade` before/after snapshots that
+the official grade uses, so the scenario applies the same changed player
+or pick price to its owner both **with and without the deal**. Both
+participating managers see the resulting change in current roster/pick
+value and illustrative lineup points; no logged-in-team special case.
+
+Managers can change:
+
+- A traded player's hypothetical market-value decline (0–60%);
+- Games missed (0–17) for that player, using the best available
+  replacement lineup and a **17-game illustration**, NOT actual
+  week-by-week injury, playoff, or championship odds;
+- A traded pick's current **KTC-normalized early/mid/late price tier**
+  where Vault already has a tier spread for the effective first or
+  second round. Unpriced tiers, already-drafted picks and later rounds
+  **do not receive invented prices or future-rookie predictions**.
+
+This is a sensitivity tool, not a new market predictor, offer acceptance
+model or trade grade. It does not change player values, rankings,
+projections, Trade Coach behavior, or the original league/roster objects.
+
+Regressions and real-browser smoke:
+
+```powershell
+node scripts/check-trade-stress.js
+node scripts/check-trade-stress-ui.js
+node scripts/check-trade-mobile-tabs.js
+node scripts/check-calculator-deep.js
+# Optional full visual/interaction pass: npx serve -l 5191 .
+# npm i --no-save puppeteer-core
+# node scripts/smoke-trade-flow.js <SleeperLeagueID>
+```
+
+The browser smoke now checks the What-if tab at desktop, phone and narrow-phone
+sizes and verifies that changing stress controls cannot change the official
+verdict. JavaScript regression tests validate trade-direction symmetry,
+missed games, shock pricing, unavailable pick tiers and zero original
+roster mutation. A full end-to-end browser session against a live Sleeper
+league is still required for a fully verified UI release.
+
 ### November 18: trade impact explanations, rookie outcome research, and responsive checks
 
 The calculator now displays the **same side-neutral before/after ledger** for
