@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /*
-  Price-side versus one-year future value on held-out completed Sleeper trades.
+  Price-side versus one-year future value on historical completed Sleeper trades.
   This is a descriptive outcome comparison, NOT an acceptance classifier.
   Uses each trade's own-day KTC price and a full 365-day outcome horizon.
   Reads the raw compressed archive from data/sleeper-trades (not in git).
@@ -72,12 +72,12 @@ for(const g of Object.values(score.detail)){
 }
 console.log(JSON.stringify({
  generated:new Date().toISOString().slice(0,10),sampleMod,horizonDays:365,
- description:'One-year future-value direction for previously accepted trades, not a trading-skill or acceptance-prediction metric',
+ description:'Retrospective one-year future-value direction for previously accepted trades; not trading-skill or acceptance-prediction metric',
  warnings:[
   'Selection bias: rejected offers are absent. Do not interpret these rates as manager acceptance probabilities.',
   'A missing KTC price can mean delisting or data absence. Review both fullFollowup and missing counts.',
   'This uses trade-day prices; it does not reconstruct full historical team rosters or contend/rebuild status.',
-  'Vault trade pricing was calibrated on prior completed trades. This is not fully independent unless the training data are excluded from evaluation.',
+  'Vault trade pricing was calibrated on completed trades that may overlap these records. This is a retrospective diagnostic, not a true untouched holdout.',
   'A direction-agreement win does not prove a better prospective model; use forward chronological holdouts.'
  ],...score
 },null,2));
