@@ -33,10 +33,10 @@ assert.equal(future,3900);
 console.log('PASS weekly and dynasty future lineup projections');
 const A={rosterId:1,teamName:'One',lineup:[],assets:[{key:'a1',type:'player',value:100},{key:'a2',type:'player',value:70}]};
 const B={rosterId:2,teamName:'Two',lineup:[],assets:[{key:'b1',type:'player',value:20},{key:'b2',type:'player',value:70},{key:'b3',type:'pick',value:10}]};
-function checkPlan(accept){
+function checkPlan(accept, opts={}){
  const approvals=[];
  const ctx={
-  teamOf:s=>s==='A'?A:B,selectedA:new Set(['a1']),selectedB:new Set(['b1']),
+  teamOf:s=>s==='A'?(opts.A||A):(opts.B||B),selectedA:opts.selectedA||new Set(['a1']),selectedB:opts.selectedB||new Set(['b1']),
   EVEN_MAX_GAP:8,EVEN_OPTIONS:6,EVEN_PIECE_REPEATS:2,
   Vault:{tradeSideValues:(a,b)=>({valueA:a.reduce((n,x)=>n+x.value,0),valueB:b.reduce((n,x)=>n+x.value,0)})},
   computeTradeAnalysis:(_a,_b,_aa,_bb,vA,vB)=>({gap:200*Math.abs(vA-vB)/(vA+vB)}),
@@ -53,6 +53,22 @@ assert.ok(good.approvals.includes(1)&&good.approvals.includes(2));
 assert.equal(checkPlan(id=>id!==1).plan,null);
 assert.equal(checkPlan(id=>id!==2).plan,null);
 console.log('PASS both sides must approve Even It Out recommendations');
+const tripleA={rosterId:11,teamName:'Triple A',lineup:[],assets:[{key:'anchorA',type:'player',value:100}]};
+const tripleB={rosterId:12,teamName:'Triple B',lineup:[],assets:[
+ {key:'anchorB',type:'player',value:20},{key:'x15',type:'player',value:15},
+ {key:'x25',type:'player',value:25},{key:'x40',type:'player',value:40}
+]};
+const triple=checkPlan(()=>true,{A:tripleA,B:tripleB,selectedA:new Set(['anchorA']),selectedB:new Set(['anchorB'])});
+assert.ok(triple.plan?.options.some(o=>o.add.length===3),'must find a fair three-piece repair');
+const starterB={...tripleB,lineup:[{id:'starter'}],assets:[
+ {key:'anchorB',type:'player',value:20},{key:'p_starter',type:'player',value:80,id:'starter'}
+]};
+const starter=checkPlan(()=>true,{A:tripleA,B:starterB,selectedA:new Set(['anchorA']),selectedB:new Set(['anchorB'])});
+assert.ok(starter.plan?.options.some(o=>o.add.some(a=>a.key==='p_starter')),'starter must be eligible when the manager accepts');
+const mirrored=checkPlan(()=>true,{A:starterB,B:tripleA,selectedA:new Set(['anchorB']),selectedB:new Set(['anchorA'])});
+assert.ok(mirrored.plan?.options.some(o=>o.add.some(a=>a.key==='p_starter')),'same fix must survive swapping A and B');
+console.log('PASS three-piece repairs, optional starters, and team-side symmetry');
+
 const corner=vm.runInNewContext(extract('function cornerstoneWarningsHtml(','function updateTrade()')+'\ncornerstoneWarningsHtml;',{
  Vault:{cornerstone:(_t,a)=>a.key.endsWith('1')?{rank:1,mode:'contend',share:0.02}:null,escapeHtml:x=>x}
 });
