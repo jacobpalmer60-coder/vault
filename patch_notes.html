@@ -54,6 +54,10 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-17', items: [
+    { kind: 'improved', page: 'Research', text: "Added reproducible long-term value evaluations: an earlier-season-trained player-price benchmark with a 2025 forward holdout, and a separate retrospective comparison of Vault versus raw KTC trade-package pricing against one-year outcomes. Missing outcome prices and historical coverage limitations are reported instead of silently treated as certain." },
+    { kind: 'changed', page: 'Trade Calculator', text: "No live value weights were changed as part of this research. A new formula must outperform the existing baseline on independently timed outcomes before it replaces the calculator's current valuation." }
+  ] },
+  { date: '2026-11-17', items: [
     { kind: 'fixed', page: 'Player Market', text: "The one-year historical trade-outcome builder now retains assets that fell to zero value, including trades where an entire side was wiped out. This corrects a survivor-selection problem in the next rebuilt dataset; previously published aggregates remain unchanged until the source archive is reprocessed." }
   ] },
   { date: '2026-11-17', items: [
