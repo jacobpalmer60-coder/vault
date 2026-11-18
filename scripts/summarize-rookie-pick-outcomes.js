@@ -27,6 +27,7 @@ const contents=(buf[0]===255&&buf[1]===254)||(buf[0]===123&&buf[1]===0)
  ?buf.toString('utf16le').replace(/^\uFEFF/,'')
  :buf.toString('utf8').replace(/^\uFEFF/,'');
 const data=JSON.parse(contents.trim());
+if(data.schemaVersion!==2)throw Error('Outdated rookie-outcome JSON: rerun node scripts/benchmark-rookie-pick-outcomes.js after git pull.');
 const fmt=n=>n==null?'n/a':Number(n).toLocaleString('en-US',{maximumFractionDigits:1});
 const pct=n=>n==null?'n/a':Number(n).toFixed(1)+'%';
 console.log('VAULT — HISTORICAL ROOKIE DRAFT RESEARCH (NOT LIVE PICK PRICES)');
