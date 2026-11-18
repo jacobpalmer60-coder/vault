@@ -1,83 +1,121 @@
 #!/usr/bin/env node
 'use strict';
 /*
-  Price-side versus one-year future value on historical completed Sleeper trades.
-  This is a descriptive outcome comparison, NOT an acceptance classifier.
-  Uses each trade's own-day KTC price and a full 365-day outcome horizon.
-  Reads the raw compressed archive from data/sleeper-trades (not in git).
-  Run: node --max-old-space-size=6144 scripts/benchmark-trade-value-outcomes.js
-  Set SAMPLE_MOD=1 for all trades (default 10 samples ~10% deterministically).
-*/
+ Retrospective 365-day completed-trade diagnostic; never an acceptance model.
+ With missing follow-up prices, STRICT removes the trade while IMPUTED counts
+ unknown assets as zero. Split by date, league format, trade shape, strongest
+ asset position, and value disparity to locate the 2024/2025 reversal.
+ Uses trade-date KTC and an ID-deterministic sample; earlier seasons may overlap
+ training data for Vault's existing value curve. No causal/holdout claims.
+ Usage: node --max-old-space-size=6144 scripts/benchmark-trade-value-outcomes.js
+ SAMPLE_MOD=10 (default, 10%); SAMPLE_MOD=1 (all).
+ */
 const {readSleeperPlayers,seasonFiles,readSeason,ktcPrices,formatOf}=require('./market-history/ktc-book');
 const {loadVault}=require('./lib-market');
 const {laterOutcome}=require('./market-history/outcome-values');
 const Vault=loadVault(),players=readSleeperPlayers();
 const books=new Map(),book=f=>books.get(f)||books.set(f,ktcPrices(f,players)).get(f);
-const sampleMod=Math.max(1,Number(process.env.SAMPLE_MOD)||10);
-const horizon=365*864e5,SKIP=new Set(['K','DEF']);
-const hash=s=>{let x=2166136261;for(let i=0;i<s.length;i++){x^=s.charCodeAt(i);x=Math.imul(x,16777619)}return x>>>0;};
-const score={seen:0,sampled:0,priced:0,mature:0,usable:0,missing:0,bothZero:0,fullFollowup:0,detail:{}};
-const group=(fmt,year)=>score.detail[fmt+'|'+year] ||= {n:0,priceWins:{vault:0,raw:0},priceTies:{vault:0,raw:0},sum: {vault:0,raw:0},missing:0,withMissing:0};
-const sign=x=>Math.sign(x),pct=(a,b)=>(200*(a-b)/((a+b)||1));
-const byVal=a=>a.reduce((s,x)=>s+x.v,0);
+const mod=Math.max(1,Number(process.env.SAMPLE_MOD)||10),horizon=365*864e5;
+const SKIP=new Set(['K','DEF']);
+const hash=s=>{let x=2166136261;for(let i=0;i<s.length;i++){x^=s.charCodeAt(i);x=Math.imul(x,16777619)}return x>>>0};
+const sum=a=>a.reduce((s,x)=>s+x.v,0);
+const shape=(a,b)=>{
+ const x=Math.min(a,b),y=Math.max(a,b);
+ return `${Math.min(x,4)}-for-${y>=4?'4+':y}`;
+};
+const stats=()=>({n:0,matched:0,notDecisive:0,vaultWins:0,rawWins:0,disagree:0,
+  vaultOnlyRight:0,rawOnlyRight:0,bothWrong:0});
+const detail={},summary={
+ seen:0,sampled:0,priced:0,mature:0,complete:0,missing:0,imputedUsable:0,
+ bothZero:0,strict:{},imputed:{},by:{formatYear:{},year:{},yearQuarter:{},yearMonth:{},
+ shape:{},highestAssetPosition:{},tradeValueGap:{},monthOfYear:{}}
+};
+summary.strict=stats();summary.imputed=stats();
+const accumulate=(s,predA,predB,outcome)=>{
+ if(outcome==null)return;
+ const win=Math.sign(outcome),a=Math.sign(predA),b=Math.sign(predB);
+ s.n++;
+ if(!win||!a||!b){s.notDecisive++;return}
+ s.matched++;
+ const aa=win===a,bb=win===b;
+ if(aa)s.vaultWins++;
+ if(bb)s.rawWins++;
+ if(a!==b){s.disagree++;if(aa)s.vaultOnlyRight++;if(bb)s.rawOnlyRight++}
+ if(!aa&&!bb)s.bothWrong++;
+};
+const rounded=s=>({
+ ...s,vaultAgreementPct:s.matched?+(100*s.vaultWins/s.matched).toFixed(2):null,
+ rawAgreementPct:s.matched?+(100*s.rawWins/s.matched).toFixed(2):null,
+ vaultAdvantagePoints:s.matched?+(100*(s.vaultWins-s.rawWins)/s.matched).toFixed(2):null
+});
 const side=(keys,b,d)=>{
  const out=[];
  for(const k of keys){
-  if(k[0]==='p'){if(Number(k.split('-')[1])>=5)continue;}
+  if(k[0]==='p'){if(Number(k.split('-')[1])>=5)continue}
   else if(SKIP.has(players[k]?.position))continue;
   const v=b.at(k,d);
   if(!(v>0))return null;
-  out.push({k,v});
+  out.push({k,v,pos:k[0]==='p'?'PICK':players[k]?.position||'UNKNOWN'});
  }
  return out.length?out:null;
 };
 const seen=new Set(),files=seasonFiles(2024).filter(x=>+x.slice(0,4)<=2025);
-if(!files.length)throw Error('Missing data/sleeper-trades archive; download the sleeper-trades GitHub release first.');
+if(!files.length)throw Error('Missing data/sleeper-trades archive. Download sleeper-trades GitHub release.');
 for(const file of files){
  const doc=readSeason(file);
  for(const [id,t] of Object.entries(doc.trades)){
-  if(seen.has(id))continue;seen.add(id);score.seen++;
-  if(hash(id)%sampleMod!==0)continue;
-  score.sampled++;
+  if(seen.has(id))continue;seen.add(id);summary.seen++;
+  if(hash(id)%mod!==0)continue;summary.sampled++;
   const [date,leagueKey,s1,s2]=t,fmt=doc.leagues[leagueKey];
-  if(!fmt)continue;
-  const format=formatOf(fmt),b=book(format);
-  const a=side(s1,b,date),c=side(s2,b,date);
+  if(!fmt||!date||!s1||!s2)continue;
+  const format=formatOf(fmt),b=book(format),a=side(s1,b,date),c=side(s2,b,date);
   if(!a||!c)continue;
-  score.priced++;
+  summary.priced++;
   const later=new Date(Date.parse(date)+horizon).toISOString().slice(0,10);
-  if(later>b.latestDate)continue;
-  score.mature++;
-  const x=laterOutcome(a,c,later,b,Vault.tradeValueRatio);
-  if(!x){score.bothZero++;continue;}
-  score.usable++;
-  const g=group(format,date.slice(0,4)),vA=a.map(x=>x.v),vB=c.map(x=>x.v);
-  const vaultEdge=Vault.tradeValueRatio(vA,vB)-1;
-  const rawEdge=byVal(a)-byVal(c);
-  const outcome=sign(x.pct);
-  const missing=[...a,...c].filter(x=>b.later(x.k,later)==null).length;
-  if(missing){score.missing++;g.withMissing++}else score.fullFollowup++;
-  // Winner agreement only on non-ties, never label acceptance as a rejection.
-  g.n++;
-  for(const [name,edge] of [['vault',vaultEdge],['raw',rawEdge]]){
-   if(!sign(edge)||!outcome)g.priceTies[name]++;
-   else if(sign(edge)===outcome)g.priceWins[name]++;
-   g.sum[name] += Math.abs(sign(edge)-outcome);
+  if(later>b.latestDate)continue;summary.mature++;
+  const out=laterOutcome(a,c,later,b,Vault.tradeValueRatio);
+  if(out.complete)summary.complete++;else summary.missing++;
+  if(out.pctImputed===null)summary.bothZero++;else summary.imputedUsable++;
+  const pricesA=a.map(x=>x.v),pricesB=c.map(x=>x.v);
+  const v=Vault.tradeValueRatio(pricesA,pricesB)-1,raw=sum(a)-sum(c);
+  accumulate(summary.strict,v,raw,out.pct);
+  accumulate(summary.imputed,v,raw,out.pctImputed);
+  const year=date.slice(0,4),mo=date.slice(5,7),q='Q'+Math.ceil(Number(mo)/3);
+  const top=[...a,...c].reduce((best,x)=>x.v>best.v?x:best);
+  const originalGap=200*Math.abs(sum(a)-sum(c))/(sum(a)+sum(c));
+  const gap=originalGap<5?'0-5%':originalGap<10?'5-10%':originalGap<20?'10-20%':'20%+';
+  const keys={
+   formatYear:year+'|'+format,year,
+   yearQuarter:year+'|'+q,yearMonth:year+'-'+mo,
+   shape:year+'|'+shape(a.length,c.length),
+   highestAssetPosition:year+'|'+top.pos,
+   tradeValueGap:year+'|'+gap,monthOfYear:mo
+  };
+  for(const [dimension,key] of Object.entries(keys)){
+   const map=summary.by[dimension],record=map[key] ||= {strict:stats(),imputed:stats(),missing:0};
+   if(!out.complete)record.missing++;
+   accumulate(record.strict,v,raw,out.pct);
+   accumulate(record.imputed,v,raw,out.pctImputed);
   }
  }
 }
-for(const g of Object.values(score.detail)){
- g.directionAgreement=Object.fromEntries(['vault','raw'].map(name=>[name,
-  +((g.priceWins[name]/Math.max(1,g.n-g.priceTies[name]))*100).toFixed(2)]));
-}
-console.log(JSON.stringify({
- generated:new Date().toISOString().slice(0,10),sampleMod,horizonDays:365,
- description:'Retrospective one-year future-value direction for previously accepted trades; not trading-skill or acceptance-prediction metric',
+const by=Object.fromEntries(Object.entries(summary.by).map(([dimension,entries])=>
+ [dimension,Object.fromEntries(Object.entries(entries).sort(([a],[b])=>a.localeCompare(b))
+ .map(([key,x])=>[key,{strict:rounded(x.strict),imputed:rounded(x.imputed),missing:x.missing}]))]));
+const result={
+ generated:new Date().toISOString().slice(0,10),sampleMod:mod,horizonDays:365,
+ description:'Year-stratified retrospective one-year trade value agreement; no manager acceptance data',
  warnings:[
-  'Selection bias: rejected offers are absent. Do not interpret these rates as manager acceptance probabilities.',
-  'A missing KTC price can mean delisting or data absence. Review both fullFollowup and missing counts.',
-  'This uses trade-day prices; it does not reconstruct full historical team rosters or contend/rebuild status.',
-  'Vault trade pricing was calibrated on completed trades that may overlap these records. This is a retrospective diagnostic, not a true untouched holdout.',
-  'A direction-agreement win does not prove a better prospective model; use forward chronological holdouts.'
- ],...score
-},null,2));
+  'Rejected offers are unobserved; cannot calculate the probability another manager accepts a trade.',
+  'Incomplete follow-up prices are excluded from strict results and zero-imputed only in sensitivity results.',
+  'Known zero prices stay zero; a missing listing is NOT automatically a complete loss.',
+  'The same trade may appear in the existing calibration data; this is not a sealed chronological holdout.',
+  'Team roster mode (contend/rebuild) was not reconstructed at the trade date.',
+  '2024 and 2025 have different calendar coverage; compare month/quarter cohorts rather than concluding season-specific causality.'
+ ],counts:{seen:summary.seen,sampled:summary.sampled,priced:summary.priced,
+  mature:summary.mature,complete:summary.complete,missing:summary.missing,
+  imputedUsable:summary.imputedUsable,bothZero:summary.bothZero},
+ overall:{strict:rounded(summary.strict),imputed:rounded(summary.imputed)},
+ by
+};
+console.log(JSON.stringify(result,null,2));
