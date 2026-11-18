@@ -10,6 +10,10 @@ on:
       - vault-core.js
       - market-data.js
       - coach.js
+      - negotiation.js
+      - trade.html
+      - trade_grades.html
+      - managers.html
       - scripts/**
 
 permissions:
@@ -27,5 +31,7 @@ jobs:
       - run: node scripts/check-core-loads.js
       - run: node scripts/check-math.js
       - run: node scripts/check-coach-reality.cjs
+      - run: node scripts/check-audit-regressions.js
+      - run: node scripts/check-html-scripts.js
       - name: Every script parses
         run: for f in vault-core.js market-data.js scripts/*.js scripts/market-history/*.js; do node --check "$f" || exit 1; done
