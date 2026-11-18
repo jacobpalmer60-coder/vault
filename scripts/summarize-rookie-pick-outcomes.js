@@ -30,5 +30,17 @@ for(const g of data.groups||[]){
   'p75 '+fmt(g.followup.p75),
   'pre-draft mid-pick '+fmt(g.preDraftPickMidMedian)].join(' | '));
 }
+console.log('\nDRAFT-SLOT RESEARCH (complete 8–16-team drafts; 1.01 differs from 1.12)');
+console.log('Valid complete draft records: '+fmt(data.counts?.slotDraftsValidated)+
+ ' | rejected: '+fmt(data.counts?.slotDraftsRejected)+
+ ' | verified slot selections: '+fmt(data.counts?.slotSelectionsVerified));
+for(const g of data.slotGroups||[]){
+ console.log([g.year,g.format,g.draftSize+'-team','pick '+g.round+'.'+String(g.slot).padStart(2,'0'),
+  'selections '+fmt(g.selections),'distinct rookies '+fmt(g.distinctRookies),
+  'known '+fmt(g.known),'missing '+fmt(g.missing)+' ('+g.missingRatePct+'%)',
+  'p25 '+fmt(g.followup.p25),'median '+fmt(g.followup.median),'p75 '+fmt(g.followup.p75)].join(' | '));
+}
+console.log('Slot groups are correlated: a rookie drafted in several league slots can appear once in EACH different slot.');
+console.log('These are historical selection distributions, NOT pick-value recommendations or independent observations.');
 console.log('Missing prices excluded from quantiles; repeated rookies in one format/season deduplicated.');
-console.log('Selection position (1.01 vs 1.12), league draft order and unknown outcomes remain unresolved.');
+console.log('League draft TYPE and historical pick prices remain unresolved; use size-matched slot cohorts only.');
