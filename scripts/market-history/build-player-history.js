@@ -10,7 +10,7 @@
      buy   teams that got him as the headliner, a year on (trades with a year of prices
            since): [trades, % ahead on trade value then, median change in his own KTC
            value over the year]; only with 10+. Zero-valued assets remain in the
-           outcome and totally wiped-out sides count as losses, not omissions.
+           outcome and totally wiped-out sides count as losses, not omissions.\n           Unknown later prices are excluded instead of treated as zero.
    Keyed by normalized name, as the page looks players up. Players with MIN_TRADES+
    headlined trades.
    node --max-old-space-size=6144 scripts/market-history/build-player-history.js
@@ -64,7 +64,12 @@ for (const f of files) {
         if (later) {
           const outcome = laterOutcome(got, gave, later, b, Vault.tradeValueRatio);
           const self = b.at(a.k, later);
-          if (outcome) r.buy.push([outcome.pct, self > 0 ? 100 * (self / a.v - 1) : -100]);
+          // A missing later KTC listing is not necessarily a zero-value asset.
+          // Publish complete-case outcomes only; observed zeros still count.
+          // Missing/delisted and pick-to-rookie mapping uncertainty can be
+          // inspected separately in the transaction benchmark.
+          if (outcome.complete && outcome.pct !== null)
+            r.buy.push([outcome.pct, self > 0 ? 100 * (self / a.v - 1) : -100]);
         }
       }
     }
