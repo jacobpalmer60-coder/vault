@@ -67,8 +67,28 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
       if(!report.visibleA||!report.visibleB)errors.push('one trade-side card is not visible');
       if(report.missing.length)errors.push('missing impact labels in both cards: '+report.missing.join(', '));
       if(report.wide>1)errors.push('trade is '+report.wide+'px wider than '+width+'px viewport');
+      const stressReport=await page.evaluate(()=>{
+        if(innerWidth<600)tradeTab('stress');
+        else document.getElementById('stressWrap').open=true;
+        const gradeBefore=document.getElementById('diffLabel')?.innerText||'';
+        stressChange('decline','30');
+        stressChange('missed','4');
+        const panel=document.getElementById('stressResults');
+        const output=panel?.innerText||'';
+        const visible=!!panel?.getClientRects().length;
+        const gradeAfter=document.getElementById('diffLabel')?.innerText||'';
+        return {visible,both:output.includes(preparedTeamName('A'))&&output.includes(preparedTeamName('B')),
+          declared:output.includes('What-if only')&&output.includes('Trade impact'),
+          gradeSame:gradeBefore===gradeAfter,
+          overshoot:document.documentElement.scrollWidth-innerWidth};
+        function preparedTeamName(side){return teamOf(side).teamName}
+      });
+      if(!stressReport.visible||!stressReport.both||!stressReport.declared)
+       errors.push('What-if scenario does not show the full two-manager analysis');
+      if(!stressReport.gradeSame)errors.push('What-if scenario changed the official verdict');
+      if(stressReport.overshoot>1)errors.push('What-if scenario overflows by '+stressReport.overshoot+'px');
       if(width<600){
-       for(const tab of ['teams','season','details','verdict']){
+       for(const tab of ['teams','stress','season','details','verdict']){
         await page.evaluate(t=>tradeTab(t),tab);
         const state=await page.evaluate(t=>({
           selected:document.querySelector('#tradeTabs [data-tt="'+t+'"]')?.getAttribute('aria-selected'),
