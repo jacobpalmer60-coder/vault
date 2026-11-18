@@ -110,6 +110,7 @@ git pull
 node scripts/check-historical-outcomes.js
 node --max-old-space-size=6144 scripts/benchmark-trade-value-outcomes.js *> trade-cohorts.txt
 node scripts/benchmark-rebuild-horizon.js *> rebuild-horizons.txt
+node scripts/summarize-value-research.js > research-summary.txt
 ```
 
 The rebuilding experiment evaluates price preservation after **1, 2 and 3
