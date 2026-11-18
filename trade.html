@@ -2020,7 +2020,7 @@ function parsePastedTrade(text) {
   if (involved.length > 2) return { error: 'This trade contains assets from more than two teams.' };
   // Pasted trades are allowed even when neither manager is the viewer.
   if (involved.length === 2 && !involved.includes(me)) me = involved[0];
-  const partner = [...count.entries()].filter(([t]) => t !== me).sort((x, y) => y[1] - x[1])[0]?.[0] || named[0] || teamOf('B');
+  const partner = [...count.entries()].filter(([t]) => t !== me).sort((x, y) => y[1] - x[1])[0]?.[0] || named.find(t => t !== me) || teamOf('B');
   if (partner === me) return { error: 'Could not identify two separate teams in this offer.' };
   const give = [], get = [], missed = [], used = new Set();
   const place = (t, a) => { if (used.has(a.key)) return; used.add(a.key); (t === me ? give : get).push(a); };
