@@ -30,6 +30,7 @@ const controller=vm.runInNewContext(src+'\n({renderTradeStress,stressChange,rend
  document:doc,Vault:vault,VaultTradeStress:Stress,slots:['RB'],Math,Set,String,Number,Object,Array,Map
 });
 const teamA={teamName:'Alpha'},teamB={teamName:'Beta'};
+el('diffLabel').innerHTML='Official unchanged verdict';
 controller.renderTradeStress(teamA,teamB,[a],[b,pick],analysis);
 assert.equal(el('stressTest').classList.contains('hidden'),false);
 assert.match(el('stressControls').innerHTML,/stressDecline/);
@@ -44,8 +45,7 @@ controller.stressChange('missed','5');
 assert.equal(controller.stressSettings.missed,'5');
 controller.stressChange('tier','early');
 assert.match(el('stressResults').innerHTML,/mid → early/);
-const beforeGradeText='official verdict unchanged';
-assert.equal(beforeGradeText,'official verdict unchanged');
+assert.equal(el('diffLabel').innerHTML,'Official unchanged verdict','stress controls never rewrite official grade');
 controller.renderTradeStress(teamA,teamB,[],[],analysis);
 assert.equal(el('stressTest').classList.contains('hidden'),true,'empty deals hide the stress panel');
 console.log('PASS interactive stress UI updates both managers, tier explanation, blank-trade state and non-mutating controls');
