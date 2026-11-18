@@ -36,6 +36,7 @@ jobs:
       - run: node scripts/check-math.js
       - run: node scripts/check-coach-reality.cjs
       - run: node scripts/check-audit-regressions.js
+      - run: node scripts/check-lineup-trade-parity.js
       - run: node scripts/check-leaguewide-parity.js
       - run: node scripts/check-history-roster-evidence.js
       - run: node scripts/check-league-history.js
