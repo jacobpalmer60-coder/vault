@@ -40,4 +40,12 @@ for(const k of ['playerValue','pickValue','overall','lineupPpg','playerCount','p
 assert.deepEqual(same.A.picksAdded,[]);assert.deepEqual(same.B.picksRemoved,[]);
 assert.equal(pieces([]).pickValue,0);
 assert.equal(side(A,A,[],[]).change.overall,0);
+// Integration guard: both cards must render the SAME ledger helper, and future
+// ranking cannot imply that future rookie production is included.
+const fs=require('node:fs'),path=require('node:path');
+const html=fs.readFileSync(path.join(__dirname,'..','trade.html'),'utf8');
+assert.ok(html.includes('<script src="team-impact.js?'),'team-impact helper must load before inline script');
+assert.ok(html.includes('VaultTradeImpact.pair(before, after, aAssets, bAssets)'),'must derive impacts for both sides once');
+assert.ok(html.includes('teamImpactLedgerHtml(impactBySide[side])'),'both team cards must share ledger renderer');
+assert.ok(html.includes('Future picks and the rookies they might become are not included'),'future rank must disclose omission of draft outcomes');
 console.log('PASS trade impact ledger swap symmetry, draft capital, player value, lineup, conserved assets, and no-op');
