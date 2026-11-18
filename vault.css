@@ -214,11 +214,12 @@ input.vs-input:focus-visible, input.vs-input:focus { outline: none !important; }
   #tradeBar:not([data-tab="verdict"]) #tradeVerdict, #tradeBar:not([data-tab="details"]) #siteStatus,
   #tradeBar:not([data-tab="verdict"]):not([data-tab="details"]) #tradeAnswer,
   #tradeBar:not([data-tab="teams"]) #teamImpact,
+  #tradeBar:not([data-tab="stress"]) #stressTest,
   #tradeBar:not([data-tab="season"]) #seasonWrap,
   #tradeBar:not([data-tab="details"]) #tradeDetails { display: none; }
   /* The tab is the heading here, and a tab has nothing to hide. #tradeBar: "#builder summary" below would win a tie. */
-  #tradeBar #seasonWrap > summary, #tradeBar #tradeDetails > summary, #teamImpact > div:first-child { display: none; }
-  #tradeBar #seasonWrap, #tradeBar #tradeDetails { padding-top: 12px; }
+  #tradeBar #seasonWrap > summary, #tradeBar #tradeDetails > summary, #tradeBar #stressWrap > summary, #teamImpact > div:first-child { display: none; }
+  #tradeBar #seasonWrap, #tradeBar #tradeDetails, #tradeBar #stressWrap { padding-top: 12px; }
 }
 /* Trade Calculator: once there's a trade, the timeline menu beside the verdict is the one to use. */
 #builder:has(#tradeBar:not(.hidden)) #needsA label, #builder:has(#tradeBar:not(.hidden)) #needsA label + .tl-sep { display: none; }
