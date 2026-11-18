@@ -170,6 +170,9 @@ node scripts/check-rookie-slot.js
 node scripts/check-rookie-slot-benchmark.js
 node scripts/check-rookie-slot-weighting.js
 node scripts/check-rookie-summary.js
+node scripts/check-historical-outcomes.js
+node scripts/check-trade-outcome-independence.js
+node scripts/check-value-research-summary.js
 ```
 
 Study **unique drafted rookies** and their observed KTC prices a year after
@@ -212,6 +215,35 @@ prices rather than fabricating busts, and deduplicates repeated rookie
 selections. It cannot infer the odds of any particular 1.01 / 1.12 selection,
 reconstruct every team's historic pick ownership or make a sealed
 chronological validation claim.
+
+### Independent historical trade validation (research only)
+
+The historical trade-backtest previously used Vault's own nonlinear
+`tradeValueRatio` to decide which completed trade side won *in the future*.
+That made its trade-direction comparison circular. **The old 2024/2025
+Vault-vs-raw percentages are invalid for model selection.** Research
+schema v2 now determines the future winner by additive one-year-later
+KTC player prices, independently from Vault's predicted trade-day
+pricing. A separate **player-only** cohort avoids the approximated
+outcomes of future draft picks. Both modes remain retrospective,
+potentially overlap Vault's calibration dataset, and do not reconstruct
+historical manager rosters or provide acceptance probabilities.
+
+Recompute and inspect the corrected results locally:
+
+```powershell
+node scripts/check-historical-outcomes.js
+node scripts/check-trade-outcome-independence.js
+node scripts/check-value-research-summary.js
+node --max-old-space-size=6144 scripts/benchmark-trade-value-outcomes.js > trade-cohorts.txt
+node scripts/summarize-value-research.js > research-summary.txt
+Get-Content research-summary.txt
+```
+
+The summary deliberately rejects old benchmark JSON that lacks
+`schemaVersion: 2`. No live trade prices, grades, or coach scores have
+been changed. A truly independent evaluation still requires a future
+untouched chronological holdout and richer historical roster context.
 
 To exercise a **populated two-team trade** in a real browser at desktop,
 phone and narrow-phone widths (plus keyboard tab and overflow checks):
