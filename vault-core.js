@@ -4651,7 +4651,7 @@ const Vault = {
     const ensure = team => {
       if (!byTeam.has(team.rosterId)) byTeam.set(team.rosterId, {
         teamName: team.teamName, rosterId: team.rosterId, record: team.record,
-        trades: 0, won: 0, lost: 0, wonNow: 0, lostNow: 0, netValue: 0, netValueToday: 0, fitSum: 0,
+        trades: 0, pricedTrades: 0, fitTrades: 0, ageTrades: 0, won: 0, lost: 0, wonNow: 0, lostNow: 0, netValue: 0, netValueToday: 0, fitSum: 0,
         netPicks: 0, ageDeltaSum: 0, olderCount: 0, youngerCount: 0,
         fair: 0, lopsided: 0, unfair: 0, unfairFor: 0, unfairAgainst: 0,
         fairNow: 0, lopsidedNow: 0, unfairNow: 0,
@@ -4671,6 +4671,7 @@ const Vault = {
         { team: g.teamB, dVal: -g.dValueAdjA, dValToday: -g.dValueAdjAToday, favor: g.fairness.overallSigned, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName, received: g.toB, given: g.toA, dOpt: g.dOptB }
       ].forEach(({ team, dVal, dValToday, favor, fit, timeline, opp, received, given, dOpt }) => {
         const s = ensure(team);
+        if (g.tx._ownerAttributionUncertain) return; // do not ascribe an old owner's trade to a replacement
         s.trades++;
         // A trade with an unresolvable asset (a player since retired/dropped/left
         // the league, priced 0 by resolveTradeAssets' fallback) still really
@@ -4686,13 +4687,20 @@ const Vault = {
         // than trying to partially correct it — there's no reliable way to know
         // how far off a guessed replacement value would be.
         if (g.anyMissingValue) return;
-        s.netValue += dVal; s.netValueToday += dValToday; s.fitSum += fit;
-        s.netPicks += timeline.dPicks; s.ageDeltaSum += timeline.dAge;
-        if (timeline.dAge > 0.25) s.olderCount++; else if (timeline.dAge < -0.25) s.youngerCount++;
+        s.pricedTrades++;
+        s.netValue += dVal; s.netValueToday += dValToday;
+        if (!g.historyFitUnavailable) {
+          s.fitSum += fit; s.fitTrades++;
+          s.ageDeltaSum += timeline.dAge; s.ageTrades++;
+          if (timeline.dAge > 0.25) s.olderCount++; else if (timeline.dAge < -0.25) s.youngerCount++;
+          if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
+        }
+        const pickValue = list => list.filter(a => a.type === 'pick').reduce((n, a) => n + a.value, 0);
+        const pickDelta = pickValue(received) - pickValue(given);
+        s.netPicks += pickDelta;
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
         if (dValToday > 0) s.wonNow++; else if (dValToday < 0) s.lostNow++;
-        if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
-        if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
+        if (pickDelta > 500) s.picksInCount++; else if (pickDelta < -500) s.picksOutCount++;
         // Piece count, not value: fewer pieces back than sent = consolidating.
         if (received.length < given.length) s.consolidateCount++; else if (received.length > given.length) s.splitCount++;
         const bucket = g.fairness.overallPct >= VAULT_CONFIG.LOPSIDED_PCT ? 'unfair' : g.fairness.overallPct >= VAULT_CONFIG.FAIR_PCT ? 'lopsided' : 'fair';
@@ -4732,8 +4740,8 @@ const Vault = {
     });
     return [...byTeam.values()].map(s => ({
       ...s,
-      avgFit: s.trades ? s.fitSum / s.trades : 0,
-      avgAgeDelta: s.trades ? s.ageDeltaSum / s.trades : 0,
+      avgFit: s.fitTrades ? s.fitSum / s.fitTrades : 0,
+      avgAgeDelta: s.ageTrades ? s.ageDeltaSum / s.ageTrades : 0,
       aged: s.netValueToday - s.netValue // value their trades gained (or lost) after being made
     // Ranked by Net Then, the price they got on the day (2026-10-19). On 2.6
     // million real trade-sides (VaultValues research-batch.js), getting good prices
@@ -4751,33 +4759,34 @@ const Vault = {
      yrs"), not a hidden score — same principle as the fairness verdict. */
   managerProfile(s, leagueAvgTrades) {
     if (!s.trades) return { style: 'Sits tight', tone: 'neutral', blurb: "Hasn't made a trade yet." };
-    const most = n => n >= Math.ceil(s.trades * 0.6);
+    if (!s.pricedTrades) return { style: 'Trades not priced', tone: 'neutral', blurb: "Trades recorded, but none have reliable values." };
+    const most = n => n >= Math.ceil(s.pricedTrades * 0.6);
     const fmt = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n)).toLocaleString();
 
     let core, tone;
     if (most(s.consolidateCount)) { core = 'consolidator'; tone = 'violet'; }
     else if (most(s.splitCount)) { core = 'depth builder'; tone = 'sky'; }
-    else if (s.avgAgeDelta <= -0.5 || most(s.picksInCount)) { core = 'youth & picks buyer'; tone = 'emerald'; }
-    else if (s.avgAgeDelta >= 0.5 || most(s.picksOutCount)) { core = 'win-now buyer'; tone = 'amber'; }
+    else if ((s.ageTrades && s.avgAgeDelta <= -0.5) || most(s.picksInCount)) { core = 'youth & picks buyer'; tone = 'emerald'; }
+    else if ((s.ageTrades && s.avgAgeDelta >= 0.5) || most(s.picksOutCount)) { core = 'win-now buyer'; tone = 'amber'; }
     else { core = 'value trader'; tone = 'neutral'; }
     const volume = leagueAvgTrades && s.trades >= leagueAvgTrades * 1.5 ? 'Active '
       : leagueAvgTrades && s.trades <= leagueAvgTrades * 0.5 ? 'Occasional ' : '';
     const style = volume ? volume + core : core.charAt(0).toUpperCase() + core.slice(1);
 
     // "3 of 5 deals", or "in their only trade" when there's just one.
-    const share = n => s.trades === 1 ? 'in their only trade' : `in ${n} of ${s.trades} deals`;
+    const share = n => s.pricedTrades === 1 ? 'in their only trade' : `in ${n} of ${s.pricedTrades} deals`;
     const yrs = d => (d < 0 ? '−' : '+') + Math.abs(d).toFixed(1);
     const how = {
       'consolidator': `Sends more pieces than they get back ${share(s.consolidateCount)}.`,
       'depth builder': `Turns one piece into several ${share(s.splitCount)}.`,
-      'youth & picks buyer': s.avgAgeDelta <= -0.5 ? `Gets younger through trades (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Nets draft picks ${share(s.picksInCount)}.`,
-      'win-now buyer': s.avgAgeDelta >= 0.5 ? `Adds older, proven talent (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Spends draft picks ${share(s.picksOutCount)}.`,
+      'youth & picks buyer': s.ageTrades && s.avgAgeDelta <= -0.5 ? `Gets younger through trades (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Nets draft picks ${share(s.picksInCount)}.`,
+      'win-now buyer': s.ageTrades && s.avgAgeDelta >= 0.5 ? `Adds older, proven talent (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Spends draft picks ${share(s.picksOutCount)}.`,
       'value trader': 'No clear lean toward youth, veterans, or picks.'
     }[core];
 
     // Value at trade time, then how it has aged. Each clause says where things
     // stand today, so "aged poorly" never sits next to a team still well ahead.
-    const one = s.trades === 1, deals = one ? 'the deal' : 'the deals';
+    const one = s.pricedTrades === 1, deals = one ? 'the deal' : 'the deals';
     const side = v => (v >= 250 ? 1 : v <= -250 ? -1 : 0);
     const then = side(s.netValue), now = side(s.netValueToday);
     const swing = s.netValueToday - s.netValue;
@@ -4788,8 +4797,8 @@ const Vault = {
     // Ahead overall while losing most deals (or the reverse): a few big results
     // outweighed more small ones. Said, so it doesn't read as a contradiction
     // of the W-L column.
-    if (!one && then > 0 && s.won < s.lost) outcome += `, though they won only ${s.won} of ${s.trades}: ${s.won === 1 ? 'the win was' : 'the wins were'} bigger`;
-    else if (!one && then < 0 && s.won > s.lost) outcome += `, though they won ${s.won} of ${s.trades}: ${s.lost === 1 ? 'the loss was' : 'the losses were'} bigger`;
+    if (!one && then > 0 && s.won < s.lost) outcome += `, though they won only ${s.won} of ${s.pricedTrades}: ${s.won === 1 ? 'the win was' : 'the wins were'} bigger`;
+    else if (!one && then < 0 && s.won > s.lost) outcome += `, though they won ${s.won} of ${s.pricedTrades}: ${s.lost === 1 ? 'the loss was' : 'the losses were'} bigger`;
     if (Math.abs(swing) >= 1000 || now !== then) {
       if (now === then) outcome += then === 0 ? `; still about even (${today})`
         : (swing > 0) === (then > 0) ? `, and ${deals} ${one ? 'has' : 'have'} aged even ${then > 0 ? 'better' : 'worse'} (${today})`
@@ -4805,8 +4814,8 @@ const Vault = {
       market = ` At market prices, ${side(s.netMarket) > 0 ? 'ahead' : side(s.netMarket) < 0 ? 'behind' : 'about even'} (${fmt(s.netMarket)}).`;
     }
 
-    const fit = s.avgFit >= 1.5 ? (one ? ' The trade fit their own timeline and needs.' : ' Their trades usually fit their own timeline and needs.')
-      : s.avgFit <= -1.5 ? (one ? ' The trade worked against their own timeline or needs.' : ' Their trades often work against their own timeline or needs.') : '';
+    const fit = s.fitTrades && s.avgFit >= 1.5 ? (one ? ' The trade fit their own timeline and needs.' : ' Their trades usually fit their own timeline and needs.')
+      : s.fitTrades && s.avgFit <= -1.5 ? (one ? ' The trade worked against their own timeline or needs.' : ' Their trades often work against their own timeline or needs.') : '';
     return { style, tone, blurb: `${how} ${outcome}.${market}${fit}` };
   },
 
@@ -4817,39 +4826,40 @@ const Vault = {
       if (s.trades >= leagueAvgTrades * 1.5) notes.push({ tone: 'neutral', text: `Active trader — ${s.trades} trades vs. a league average of ${leagueAvgTrades.toFixed(1)}.` });
       else if (s.trades <= leagueAvgTrades * 0.5) notes.push({ tone: 'neutral', text: `Rarely trades — just ${s.trades} vs. a league average of ${leagueAvgTrades.toFixed(1)}.` });
     }
+    if (!s.pricedTrades) return [...notes, { tone: 'neutral', text: 'No fully priced trades available for reliable value comparisons.' }];
     // Hindsight: did their trades gain or lose value after being made?
     const aged = s.netValueToday - s.netValue, fmtN = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n)).toLocaleString();
     // Not a skill (2026-10-19): across 2.6 million real trade-sides, value gained
     // after a trade one season didn't carry over to the next (correlation 0.01).
     if (aged >= 1000) notes.push({ tone: 'neutral', text: `Their trades have gained ${fmtN(aged)} in value since they were made. Across real trades that part is mostly luck: it didn't carry over from one season to the next.` });
     else if (aged <= -1000) notes.push({ tone: 'neutral', text: `Their trades have lost ${fmtN(aged).slice(1)} in value since they were made. Across real trades that part is mostly luck: it didn't carry over from one season to the next.` });
-    if (s.trades >= 3) {
-      const winRate = s.wonNow / s.trades;
+    if (s.pricedTrades >= 3) {
+      const winRate = s.wonNow / s.pricedTrades;
       if (winRate >= 0.65) notes.push({ tone: 'good', text: `Most of their trades have come out ahead at today's values (${s.wonNow}-${s.lostNow}).` });
-      else if (s.lostNow > s.wonNow && s.lostNow / s.trades >= 0.6) notes.push({ tone: 'bad', text: `Most of their trades have come out behind at today's values (${s.wonNow}-${s.lostNow}).` });
+      else if (s.lostNow > s.wonNow && s.lostNow / s.pricedTrades >= 0.6) notes.push({ tone: 'bad', text: `Most of their trades have come out behind at today's values (${s.wonNow}-${s.lostNow}).` });
     }
-    if (s.avgFit >= 1.5) notes.push({ tone: 'good', text: `Trades tend to fit the team's own timeline and needs, not just KTC value.` });
-    else if (s.avgFit <= -1.5) notes.push({ tone: 'bad', text: `Trades often work against the team's own timeline or needs, even when the dollars are close.` });
-    if (s.trades >= 3) {
+    if (s.fitTrades && s.avgFit >= 1.5) notes.push({ tone: 'good', text: `Trades tend to fit the team's own timeline and needs, not just KTC value.` });
+    else if (s.fitTrades && s.avgFit <= -1.5) notes.push({ tone: 'bad', text: `Trades often work against the team's own timeline or needs, even when the dollars are close.` });
+    if (s.pricedTrades >= 3) {
       // Trade-type frequency, not just net dollar direction — "how often", not
       // "how much". A manager can average a small net pick gain while still
       // clearly being a picks-first trader in most of their individual deals.
-      if (s.picksInCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades for draft picks — ${s.picksInCount} of ${s.trades} deals net picks.` });
-      else if (s.picksOutCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades picks away — ${s.picksOutCount} of ${s.trades} deals spend picks.` });
+      if (s.picksInCount >= Math.ceil(s.pricedTrades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades for draft picks — ${s.picksInCount} of ${s.pricedTrades} deals net picks.` });
+      else if (s.picksOutCount >= Math.ceil(s.pricedTrades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades picks away — ${s.picksOutCount} of ${s.pricedTrades} deals spend picks.` });
       // "Consistently" only when most individual deals actually go that way — an
       // average can be dragged by one big swing, so otherwise say "leans".
-      const mostly = n => n >= Math.ceil(s.trades * 0.6);
-      if (s.avgAgeDelta <= -0.5) notes.push({ tone: 'neutral', text: mostly(s.youngerCount)
-        ? `Consistently gets younger through trades — ${s.youngerCount} of ${s.trades} deals (avg −${Math.abs(s.avgAgeDelta).toFixed(1)} yrs/trade).`
+      const mostly = n => n >= Math.ceil(s.pricedTrades * 0.6);
+      if (s.ageTrades && s.avgAgeDelta <= -0.5) notes.push({ tone: 'neutral', text: mostly(s.youngerCount)
+        ? `Consistently gets younger through trades — ${s.youngerCount} of ${s.pricedTrades} deals (avg −${Math.abs(s.avgAgeDelta).toFixed(1)} yrs/trade).`
         : `Leans younger through trades on average (−${Math.abs(s.avgAgeDelta).toFixed(1)} yrs/trade).` });
-      else if (s.avgAgeDelta >= 0.5) notes.push({ tone: 'neutral', text: mostly(s.olderCount)
-        ? `Consistently gets older through trades — ${s.olderCount} of ${s.trades} deals (avg +${s.avgAgeDelta.toFixed(1)} yrs/trade).`
+      else if (s.ageTrades && s.avgAgeDelta >= 0.5) notes.push({ tone: 'neutral', text: mostly(s.olderCount)
+        ? `Consistently gets older through trades — ${s.olderCount} of ${s.pricedTrades} deals (avg +${s.avgAgeDelta.toFixed(1)} yrs/trade).`
         : `Leans older through trades on average (+${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
       // Does this manager only make moves that actually help their starting lineup?
-      if (s.optUpCount >= Math.ceil(s.trades * 0.75)) notes.push({ tone: 'good', text: `Almost exclusively makes trades that raise the starting lineup's PPG (${s.optUpCount} of ${s.trades}).` });
-      else if (s.optDownCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'bad', text: `Often trades away from lineup strength — ${s.optDownCount} of ${s.trades} deals lowered their lineup's points.` });
+      if (s.optUpCount >= Math.ceil(s.pricedTrades * 0.75)) notes.push({ tone: 'good', text: `Almost exclusively makes trades that raise the starting lineup's PPG (${s.optUpCount} of ${s.pricedTrades}).` });
+      else if (s.optDownCount >= Math.ceil(s.pricedTrades * 0.6)) notes.push({ tone: 'bad', text: `Often trades away from lineup strength — ${s.optDownCount} of ${s.pricedTrades} deals lowered their lineup's points.` });
     }
-    if (s.trades >= 2) {
+    if (s.pricedTrades >= 2) {
       // Which single position this manager's trades lean toward or away from —
       // only surfaced when it's a real pattern, not incidental noise.
       const posEntries = Object.entries(s.posNet).filter(([, v]) => Math.abs(v) >= 1500);
