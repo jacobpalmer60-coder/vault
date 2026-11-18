@@ -1743,6 +1743,26 @@ const Vault = {
     });
     const n = slots.length, m = candidates.length + n;
     if (!n) return [];
+    // Required positions and standard FLEX/SUPER_FLEX form disjoint or nested
+    // eligible sets. For those common leagues, restrictive-first greedy is exact
+    // and substantially faster in Trade Coach's many weekly lineup evaluations.
+    const nested = allowed.every((a, i) => allowed.every((b, j) => {
+      if (j <= i) return true;
+      const overlap = a.some(pos => b.includes(pos));
+      return !overlap || a.every(pos => b.includes(pos)) || b.every(pos => a.includes(pos));
+    }));
+    if (nested) {
+      const result = Array(n).fill(-1);
+      const order = [...Array(n).keys()].sort((a, b) => allowed[a].length - allowed[b].length || a - b);
+      const ranked = [...candidates].sort((a, b) => b.score - a.score || a.index - b.index);
+      const used = new Set();
+      order.forEach(row => {
+        const chosen = ranked.find(p => !used.has(p.index) && allowed[row].includes(p.pos));
+        if (chosen) { result[row] = chosen.index; used.add(chosen.index); }
+      });
+      return result;
+    }
+    // Intersecting nonnested flex slots still need maximum-weight matching.
     const u = new Float64Array(n + 1), v = new Float64Array(m + 1);
     const assignedTo = new Int32Array(m + 1), previous = new Int32Array(m + 1);
     for (let row = 1; row <= n; row++) {
