@@ -67,4 +67,25 @@ Rules that have bitten before:
 - **Every visible change** gets a plain-language line in `patch_notes.html`, and `how_we_grade.html` has
   to stay true.
 
+## Long-term trade-value research
+
+Run `node scripts/benchmark-future-values.js` to compare the unchanged-value baseline
+with a position/age model trained on 2022-2023 outcomes and evaluated on 2025 origins
+with full one-year follow-up. The existing age curve is shown only as a **retrospective**
+reference: it was built using 2026 data and must not be treated as independent
+holdout evidence. The benchmark reports errors both excluding missing one-year prices
+and treating them as zero, because an absent KTC listing cannot always prove the
+asset became worthless. It also has survivor bias: the current player catalog is
+needed to recover historical ages. Run with `--write` only when you deliberately
+want to save the dated benchmark snapshot.
+
+`node scripts/check-historical-outcomes.js` validates preservation of zero-value
+pieces and mirror outcomes. The corrected Player Market one-year results require a
+rebuild from the archived raw Sleeper transactions:
+`node --max-old-space-size=6144 scripts/market-history/build-player-history.js`
+after restoring the `sleeper-trades` release assets to `data/sleeper-trades/`.
+Do not update live valuation weights based solely on this benchmark: it studies
+historical player prices, not team strategy, acceptance probabilities or trades
+that never happened.
+
 To check every page before pushing, see the top of `scripts/smoke.js`.
