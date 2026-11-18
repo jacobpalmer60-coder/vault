@@ -166,6 +166,7 @@ node scripts/check-team-impact.js
 node scripts/check-trade-mobile-tabs.js
 node scripts/check-calculator-deep.js
 node scripts/check-rookie-pick-outcomes.js
+node scripts/check-rookie-slot.js
 ```
 
 Study **unique drafted rookies** and their observed KTC prices a year after
@@ -178,7 +179,17 @@ node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json > rookie-sum
 Get-Content rookie-summary.txt
 ```
 
-The original draft crawl did not have historical rookie-year metadata and produced zero verified rookies. The historical NFL source may cover **2024 but not 2025**. The importer now saves any complete season with at least 200 recorded NFL selections, prints available years, and warns about missing seasons rather than failing because its cross-year total is below an arbitrary threshold. Missing years remain unavailable for trustworthy rookie-price forecasts. The explicit import from nflverse's public NFL draft data supplies verified year, name and position; mismatched or ambiguous identities are excluded. The source cannot identify undrafted free agents or recover years of missing pre-draft pick prices. License and source: https://github.com/nflverse/nfldata/blob/master/data/draft_picks.csv. Import the file locally before analysis.\n\nThis is **research, not a deployable pick forecast**: it shows distribution
+The original draft crawl did not have historical rookie-year metadata and produced zero verified rookies. The historical NFL source may cover **2024 but not 2025**. The importer now saves any complete season with at least 200 recorded NFL selections, prints available years, and warns about missing seasons rather than failing because its cross-year total is below an arbitrary threshold. Missing years remain unavailable for trustworthy rookie-price forecasts. The explicit import from nflverse's public NFL draft data supplies verified year, name and position; mismatched or ambiguous identities are excluded. The source cannot identify undrafted free agents or recover years of missing pre-draft pick prices. License and source: https://github.com/nflverse/nfldata/blob/master/data/draft_picks.csv. Import the file locally before analysis.\n\nThe same benchmark also reports **draft-size-specific exact slot groups**
+(8–16-team leagues, e.g. 1.01, 1.10, 1.12). A group is included only
+when a draft has a complete, sequentially numbered round and enough
+distinct rookies. A player selected at different picks in different
+leagues can appear once **per slot**; these slot cohorts overlap and must
+not be treated as independent trials. Sample size, missing outcomes,
+repeated selections and league size are reported explicitly. Startup
+drafts still cannot be separated reliably with this data, so these
+are descriptive distributions rather than a validated pick prediction.
+
+This is **research, not a deployable pick forecast**: it shows distribution
 and missingness by round, format and season, excludes unavailable future
 prices rather than fabricating busts, and deduplicates repeated rookie
 selections. It cannot infer the odds of any particular 1.01 / 1.12 selection,
