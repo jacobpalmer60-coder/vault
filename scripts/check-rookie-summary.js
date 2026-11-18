@@ -11,7 +11,7 @@ const slot=(format,size,round,slot,all,heavy)=>({
  verifiedRookieSelectionsInRookieHeavyDrafts:80,rookieHeavyMissingSelectionRatePct:1,
  rookieHeavySharePct:80,mostCommonRookieSharePct:50
 });
-const report={generated:'2026-11-18',registryLoaded:true,
+const report={schemaVersion:2,generated:'2026-11-18',registryLoaded:true,
  counts:{eligibleDrafts:5,uniqueRookies:25,verifiedFromNflverse:100,verifiedFromSleeper:0,
   unverifiableRookieYear:0,rejectedVeterans:0,ambiguousIdentity:0,
   slotDraftsValidated:3,slotDraftsRejected:1,slotDraftsRookieHeavy:2,slotDraftsNotRookieHeavy:1},
@@ -47,4 +47,7 @@ assert.match(filtered,/sf \| 10-team \| 1.01/);
 assert.doesNotMatch(filtered,/sf \| 12-team \| 1.01/);
 assert.doesNotMatch(filtered,/sf_tep \\| 12-team \\| 1\\.01/);
 assert.ok(compact.split('\n').length<35,'default summary remains readable');
+report.schemaVersion=1;
+assert.throws(()=>render([]),/Outdated rookie-outcome JSON/,'stale research JSON cannot be misread');
+report.schemaVersion=2;
 console.log('PASS concise default summary, weighted and rookie-heavy medians, full output, size and format filters');
