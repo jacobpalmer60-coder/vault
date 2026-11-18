@@ -54,4 +54,7 @@ const lateAcceptance = { ...trade, transaction_id: 'late', created: 50, status_u
 const accepted = Vault.replayTradeRosters(rosters, [lateAcceptance, waiver], { minTimestamp: 100 });
 assert.equal(accepted.get('late').status, 'replayed');
 console.log('PASS completion timestamp governs time-of-trade replay');
+assert.equal(Vault.tradeCompletedAt({ created: 100, status_updated: 250 }), 250);
+assert.equal(Vault.tradeCompletedAt({ created: 100, status_updated: null }), 100);
+console.log('PASS historical prices and graph dates use accepted time consistently');
 console.log('All historical roster evidence tests passed.');
