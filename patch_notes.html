@@ -54,6 +54,12 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-18', items: [
+    { kind: 'improved', page: 'Trade Calculator', text: "Added a plain-language explanation of the calculated lineup, player-value and draft-capital changes to both teams' impact cards. No new market-value formula is applied." },
+    { kind: 'improved', page: 'Trade Calculator', text: "Phone trade tabs now support arrow-key, Home and End keyboard navigation, with explicit panel relationships for screen readers and refreshed browser caching." },
+    { kind: 'new', page: 'Research', text: "Added historical rookie draft outcome distributions by round, format and year, with repeated rookies deduplicated and missing KTC follow-up prices reported separately. Research only; not a live future-pick forecast." },
+    { kind: 'new', page: 'Testing', text: "Added populated trade browser smoke checks for desktop, phone and narrow-phone viewports, plus pure keyboard-tab and rookie-outcome regression tests." }
+  ] },
+  { date: '2026-11-18', items: [
     { kind: 'improved', page: 'Trade Calculator', text: "Both teams now get a consistent before-and-after roster-impact breakdown showing player values, draft capital, total team value and lineup points. The calculations reuse the existing trade simulation without altering market-price math." },
     { kind: 'fixed', page: 'Trade Calculator', text: "Future rank is explicitly labeled as projected PLAYER lineup value rank, not a future overall team or title projection. The note clarifies that unknown future rookie returns on draft picks are excluded." },
     { kind: 'improved', page: 'Research', text: "Added an A/B symmetric trade-impact ledger regression test, with no-change and asset-conservation checks." }
