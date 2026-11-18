@@ -50,7 +50,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=4410f81b"></script>
+<script src="vault-core.js?v=8443ad49"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
 <script src="market-data.js?v=9e9371ed"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
@@ -182,6 +182,7 @@ const SEASON_TRIALS = 4000, SEASON_SEED = 20260929;
 let seasonBase = null;
 const seasonMemo = new Map();
 function seasonEffect(g) {
+  if (g.historyFitUnavailable) return null;
   if (!ctx || !ctx.remainingWeeks.length || String(g.tx.season) !== String(ctx.league.season)) return null;
   if (seasonMemo.has(g.tx.transaction_id)) return seasonMemo.get(g.tx.transaction_id);
   const A = ctx.teams.find(t => t.rosterId === g.teamA.rosterId), B = ctx.teams.find(t => t.rosterId === g.teamB.rosterId);
@@ -216,6 +217,7 @@ function seasonEffect(g) {
 // A side out of the playoff race when it traded (Vault.markOutOfRace): its verdict
 // leaves out this season's points, as the Trade Calculator does.
 function outOfRaceNote(g) {
+  if (g.historyFitUnavailable) return '';
   const out = ['A', 'B'].filter(s => g['outOfRace' + s]);
   if (!out.length) return '';
   const pct = v => (v < 1 ? 'under 1' : Math.round(v)) + '%';
@@ -310,18 +312,19 @@ function renderGrade(g) {
   return `
       <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
         <div class="text-[12px] text-zinc-400 mono">${date}</div>
-        <div class="flex items-center gap-x-4 gap-y-1 flex-wrap">${['A', 'B'].map(side => { const imp = Vault.gradedImprovement(g, side); return `<span class="inline-flex items-center gap-1.5" title="The verdict for ${Vault.escapeHtml(g['team' + side].teamName)} (${Vault.MODE_LABEL[imp.mode]}), the Trade Calculator's: value at the time, roster fit, timeline and this season's points${imp.outOfRace ? ' (not counted: out of the playoff race then)' : ''}."><span class="size-2 rounded-full ${VERDICT_DOT[imp.level]}"></span><span class="text-[13px] font-medium ${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span><span class="text-[12px] text-zinc-400">for ${Vault.escapeHtml(g['team' + side].teamName)}</span></span>`; }).join('')}</div>
+        <div class="flex items-center gap-x-4 gap-y-1 flex-wrap">${['A', 'B'].map(side => { const imp = Vault.gradedImprovement(g, side); return `<span class="inline-flex items-center gap-1.5" title="${g.historyFitUnavailable ? 'Historical value comparison only. Roster fit, plans and points at that time cannot be inferred from today.' : `Trade Calculator verdict for ${Vault.escapeHtml(g['team' + side].teamName)}: price, roster fit, timeline and this season's points.`}"><span class="size-2 rounded-full ${VERDICT_DOT[imp.level]}"></span><span class="text-[13px] font-medium ${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span><span class="text-[12px] text-zinc-400">for ${Vault.escapeHtml(g['team' + side].teamName)}</span></span>`; }).join('')}</div>
       </div>
       ${outOfRaceNote(g)}
+       ${g.historyFitUnavailable ? '<p class="mb-3 text-[12px] text-amber-200/85">Historical trade: asset prices only. Original roster fit, lineup change, and team plans are not available; today’s roster is not used to estimate them.</p>' : ''}${g.tx._ownerAttributionUncertain ? '<p class="mb-3 text-[12px] text-zinc-400">Manager attribution is uncertain after a roster ownership change; team labels refer to current rosters.</p>' : ''}
       <div class="max-w-lg mb-4">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`, null)}</div>
       <div class="grid md:grid-cols-2 gap-4 mb-3">
         <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.teamLink(g.teamA)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.teamLink(g.teamA)} received <span class="text-zinc-400 normal-case tracking-normal">${g.historyFitUnavailable ? '· value only' : '· ' + Vault.MODE_LABEL[g.timelineA.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toA)}</div>
           ${sideValueLine(g.toA)}
         </div>
         <div>
-          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.teamLink(g.teamB)} received <span class="text-zinc-400 normal-case tracking-normal">· ${Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
+          <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">${Vault.teamLink(g.teamB)} received <span class="text-zinc-400 normal-case tracking-normal">${g.historyFitUnavailable ? '· value only' : '· ' + Vault.MODE_LABEL[g.timelineB.mode]}</span></div>
           <div class="text-[13px]">${assetChips(g.toB)}</div>
           ${sideValueLine(g.toB)}
         </div>
@@ -382,7 +385,7 @@ function renderTeamPicker() {
   const box = document.getElementById('teamFilterBar');
   if (!ctx) return;
   const mineId = String(Vault.getMyTeamId(Vault.getLeagueId()) || '');
-  const count = id => allGraded.filter(g => String(g.teamA.rosterId) === id || String(g.teamB.rosterId) === id).length;
+  const count = id => allGraded.filter(g => !g.tx._ownerAttributionUncertain && (String(g.teamA.rosterId) === id || String(g.teamB.rosterId) === id)).length;
   const opt = (v, label) => `<option value="${v}" ${String(teamFilter || '') === v ? 'selected' : ''}>${label}</option>`;
   box.innerHTML = `<label class="inline-flex items-center gap-2 text-[12px] text-zinc-400">Team
       <select onchange="setTeamFilter(this.value)" aria-label="Show one team's trades" class="bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[13px] text-zinc-100 outline-none focus:border-white/30">
@@ -396,7 +399,7 @@ function setSort(k) { sortKey = k; renderFilters(); renderList(); }
 function renderList() {
   let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => Vault.priceWord(g.bucket) === fairFilter);
   const id = teamFilterId();
-  if (id) items = items.filter(g => String(g.teamA.rosterId) === id || String(g.teamB.rosterId) === id);
+  if (id) items = items.filter(g => !g.tx._ownerAttributionUncertain && (String(g.teamA.rosterId) === id || String(g.teamB.rosterId) === id));
   renderTeamPicker();
   items = [...items].sort((a, b) => sortKey === 'lopsided' ? b.fairness.overallPct - a.fairness.overallPct : b.created - a.created);
 

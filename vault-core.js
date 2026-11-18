@@ -1523,6 +1523,12 @@ const Vault = {
     const outOfRace = !!g['outOfRace' + side];
     const ptsPerWeek = outOfRace ? 0 : (g['dOpt' + side] || 0) + (dep.perWeek || 0);
     const tilt = side === 'A' ? Vault.verdictValueTilt(g.toA, g.toB, tl?.mode || 'flexible') : Vault.verdictValueTilt(g.toB, g.toA, tl?.mode || 'flexible');
+    if (g.historyFitUnavailable) {
+      // No archived roster/projection context: show the measured price edge, not a fake team fit.
+      const tier = valuePct >= VAULT_CONFIG.FAIR_PCT ? 'slight' : valuePct <= -VAULT_CONFIG.FAIR_PCT ? 'leansbad' : 'tossup';
+      const style = { slight: { level: 'good', label: 'Value gained' }, leansbad: { level: 'bad', label: 'Value lost' }, tossup: { level: 'tossup', label: 'Similar value' } }[tier];
+      return { ...style, tier, mode: 'price-only', valuePct, rosterFit: 0, timelineFit: 0, ptsPerWeek: 0, outOfRace: false };
+    }
     return { ...Vault.tradeImprovement({ valuePct, rosterFit, timelineFit, mode: tl?.mode || 'flexible', ptsPerWeek, valueTilt: tilt.pct }), outOfRace };
   },
   /* Playoff odds as of a week of this season (2026-10-23, for Trade Grades' out-of-race
@@ -1560,6 +1566,7 @@ const Vault = {
     const memo = new Map(), cut = VAULT_CONFIG.OUT_OF_RACE_PCT;
     let n = 0;
     graded.forEach(g => {
+      if (g.historyFitUnavailable) return; // no roster-at-trade-time odds to evaluate
       const wk = +g.tx?.leg;
       if (String(g.tx?.season) !== String(report.season) || !(wk >= 2)) return;
       if (!memo.has(wk)) memo.set(wk, Vault.oddsAsOfWeek(report, ctx.teams, ctx.league, ctx.remainingWeeks, wk));
@@ -4416,120 +4423,58 @@ const Vault = {
     const [rA, rB] = tx.roster_ids;
     const teamA = teamById.get(rA), teamB = teamById.get(rB);
     if (!teamA || !teamB) return null;
-
-    const toATodayPrices = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what A received (B gave)
-    const toBTodayPrices = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what B received (A gave)
+    const toATodayPrices = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility);
+    const toBTodayPrices = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility);
     if (!toATodayPrices.length && !toBTodayPrices.length) return null;
-
-    // Graded at the prices on the trade date when every asset has one (see
-    // Vault.priceAtTradeDate); today's prices otherwise. The today-priced read
-    // is kept either way as "how it aged".
     const tradeMs = tx.status_updated || tx.created;
     const atTrade = Vault.priceAtTradeDate(toATodayPrices, toBTodayPrices, pricer, tradeMs);
     const valuedAt = atTrade ? 'trade' : 'today';
     const toA = atTrade ? atTrade.toA : toATodayPrices;
     const toB = atTrade ? atTrade.toB : toBTodayPrices;
-    // Completed trades are won and lost on KTC values (user, 2026-10-11: "market
-    // shouldn't matter for trade grades, just wins and losses through KTC value"),
-    // counted with trade value's math (extra pieces, the best piece), then and now.
-    // Market prices stay in the Trade Calculator, for trades not yet made. (From
-    // 10/9 they used the market of the trade's day, whose stale reads, a rookie
-    // read at +140% before KTC caught up, flipped who won.)
+    // Historical transactions carry prices, not a trustworthy snapshot of both teams'
+    // rosters, projected points, owner intent, and playoff standings when the deal occurred.
+    // Applying today's roster fit to that old transaction invents an impact that wasn't measured.
+    // Until point-in-time rosters AND projections are available, grade price only.
+    const gradeMarket = false;
+    const then = Vault.tradeSideValues(toB, toA, { market: gradeMarket });
     const today = Vault.tradeSideValues(toBTodayPrices, toATodayPrices, { market: false });
+    const avgAdj = (then.valueA + then.valueB) / 2 || 1;
+    const signedPctDiff = (then.valueA - then.valueB) / avgAdj * 100;
+    const pctDiff = Math.abs(signedPctDiff);
+    const dValueAdjA = then.valueB - then.valueA;
     const todayAvg = (today.valueA + today.valueB) / 2 || 1;
     const todaySignedPctDiff = (today.valueA - today.valueB) / todayAvg * 100;
-    const dValueAdjAToday = today.valueB - today.valueA; // same basis as dValueAdjA, at today's prices
-
-    // Fairness uses KTC's own consolidation adjustment (see Vault.tradeSideValues) —
-    // toB is what A gave (B received it), toA is what B gave.
-    const gradeMarket = false;
-    const { valueA: aGaveAdj, valueB: bGaveAdj } = Vault.tradeSideValues(toB, toA, { market: gradeMarket });
-    const avgAdj = (aGaveAdj + bGaveAdj) / 2 || 1;
-    const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
-    const dValueAdjA = bGaveAdj - aGaveAdj; // positive = A came out ahead on value
-
-    const timelineA = Vault.timelineFitNotes(teamA, toATodayPrices, toBTodayPrices);
-    const timelineB = Vault.timelineFitNotes(teamB, toBTodayPrices, toATodayPrices);
-    const archA = Vault.archetypeFitNotes(teamA, toATodayPrices, toBTodayPrices);
-    const archB = Vault.archetypeFitNotes(teamB, toBTodayPrices, toATodayPrices);
-
-    // Value/production divergence (see Vault.valueRiskNotes) — resolveTradeAssets
-    // builds toA/toB fresh from playersDb/valMap/ppgMap, not from a team's plist, so
-    // they don't carry the valueRiskGap buildLeagueTeams already computed; best-
-    // effort lookup by player id against every CURRENTLY rostered player in the
-    // league. A player traded away and since dropped, or who left the league
-    // entirely, won't resolve and is silently skipped — same as any player too new
-    // at their position for a real percentile (see buildLeagueTeams).
-    const riskById = new Map(teams.flatMap(t => t.plist).filter(p => p.valueRiskGap != null).map(p => [p.id, p.valueRiskGap]));
-    const withRisk = list => list.map(a => ({ ...a, valueRiskGap: riskById.get(a.id) }));
-    const riskA = Vault.valueRiskNotes(withRisk(toB)); // toB = what B received = what A gave up
-    const riskB = Vault.valueRiskNotes(withRisk(toA)); // toA = what A received = what B gave up
-
-    // Reconstruct each team's roster (and optimal-lineup PPG) the day before this
-    // trade by running Vault.simulateTrade in reverse: passing what each side
-    // actually RECEIVED as the "give" list undoes the trade against their CURRENT
-    // roster. Confusingly, simulateTrade's OWN before/after refer to ITS OWN
-    // give/take (this reversed trade), so sim.before.A is teamA's real CURRENT
-    // (already-post-trade) roster and sim.after.A is the RECONSTRUCTED pre-trade one.
-    const sim = Vault.simulateTrade(teams, slots, rA, rB, toATodayPrices, toBTodayPrices);
-    const dOptA = sim.before.A.opt - sim.after.A.opt;
-    const dOptB = sim.before.B.opt - sim.after.B.opt;
-    const dVorpA = sim.before.A.vorpTotal - sim.after.A.vorpTotal;
-    const dVorpB = sim.before.B.vorpTotal - sim.after.B.vorpTotal;
-
-    // What each side gave up, valued by what it was actually worth to the team that
-    // received it (Vault.needAdjustedTradeValues), judged against the recipient's
-    // reconstructed PRE-trade roster (sim.after, despite the name — see above).
-    // Informational only — see the note above Vault.needAdjustedTradeValue: the
-    // Fair/Lopsided/Unfair badge is gated on raw pctDiff alone, so a manager can
-    // check it against KTC's own calculator. pctDiffNeed is kept as a "here's how
-    // need-weighting reads it instead" tooltip detail (Trade Grades).
-    const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toBTodayPrices, toATodayPrices);
-    const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
-    const pctDiffNeed = Math.abs((aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100);
-    const signedPctDiff = Math.sign((aGaveAdj - bGaveAdj) || 1) * pctDiff;
-    // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand) — for a
-    // completed trade this reads less like "how sure are we" and more like "how much
-    // of this verdict rode on pieces that were genuinely unproven at the time," since
-    // the picks/rookies involved have often resolved into real production by now.
-    const { bandPct } = Vault.tradeConfidenceBand(toB, toA, aGaveAdj, bGaveAdj);
-
-    // positionalFitNotes needs both snapshots — see its own comment for why. What
-    // each team received is judged against its pre-trade roster (sim.after, despite
-    // the name — see above); what it gave up is judged against its real current
-    // roster, so a position that only looks thin because of THIS trade still gets
-    // caught, not just a position that was already thin beforehand.
-    const fitA = Vault.positionalFitNotes(sim.after.A, teams, teamA, teams, toATodayPrices, toBTodayPrices, timelineA.mode);
-    const fitB = Vault.positionalFitNotes(sim.after.B, teams, teamB, teams, toBTodayPrices, toATodayPrices, timelineB.mode);
-    const optNoteA = Vault.optShiftNote(timelineA.mode, dOptA);
-    const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
-    const vorpNoteA = Vault.vorpShiftNote(timelineA.mode, dVorpA);
-    const vorpNoteB = Vault.vorpShiftNote(timelineB.mode, dVorpB);
-    // Depth: pre-trade roster (sim.after, see above) → today's roster.
-    const depthA = Vault.depthShift(timelineA.mode, sim.after.A, teamA, slots);
-    const depthB = Vault.depthShift(timelineB.mode, sim.after.B, teamB, slots);
-
-    const combinedFitA = Vault.capFitForDepth(fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0) + depthA.fit, depthA);
-    const combinedFitB = Vault.capFitForDepth(fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0) + depthB.fit, depthB);
-
-    // Same three-factor split as the Trade Calculator: roster = positional need +
-    // lineup PPG/VORP shift, timeline = age/picks vs. mode + archetype. (No
-    // contention-window term here — Trade Grades doesn't reconstruct windows.)
-    const rosterFitA = fitA.posFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0) + depthA.fit;
-    const rosterFitB = fitB.posFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0) + depthB.fit;
-    const fairness = Vault.blendedFairness(signedPctDiff, rosterFitA, rosterFitB, timelineA.fit + archA.archFit, timelineB.fit + archB.archFit);
-    const favored = fairness.overallSigned > 0 ? 'B' : 'A';
-
-    const verdict = Vault.historyVerdict(fairness.overallPct, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB, favored);
-    const bucket = Vault.fairnessBucket(fairness.overallPct, combinedFitA, combinedFitB);
-    const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
-
-    // toAToday/toBToday: the same pieces at today's prices (Trade Grades' This season
-    // line works from today's rosters).
-    return { tx, teamA, teamB, toA, toB, gradeMarket, toAToday: toATodayPrices, toBToday: toBTodayPrices, depthA, depthB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
+    const dValueAdjAToday = today.valueB - today.valueA;
+    const { bandPct } = Vault.tradeConfidenceBand(toB, toA, then.valueA, then.valueB);
+    const fairness = Vault.blendedFairness(signedPctDiff, 0, 0, 0, 0);
+    const bucket = Vault.fairnessBucket(pctDiff, 0, 0);
+    const favored = signedPctDiff > 0 ? teamB : teamA;
+    const label = bucket === 'Unfair' || bucket === 'Lopsided' ? `${bucket} — Favored ${favored.teamName}` : 'Fair on trade value';
+    const names = list => list.map(a => Vault.escapeHtml(a.name)).join(', ') || 'no listed assets';
+    const text = `${Vault.escapeHtml(teamA.teamName)} received ${names(toA)}; ${Vault.escapeHtml(teamB.teamName)} received ${names(toB)}.`;
+    const verdict = { tone: bucket === 'Unfair' ? 'bad' : 'neutral', label, text };
+    const timeline = () => ({ mode: 'flexible', fit: 0, dAge: 0, dPicks: 0, notes: [] });
+    const fit = () => ({ posFit: 0, notes: [] });
+    const arch = () => ({ archFit: 0, notes: [] });
+    const depth = () => ({ fit: 0, perWeek: 0, note: null });
+    return {
+      tx, teamA, teamB, toA, toB, gradeMarket,
+      toAToday: toATodayPrices, toBToday: toBTodayPrices,
+      depthA: depth(), depthB: depth(),
+      pctDiff, pctDiffNeed: null, signedPctDiff, bandPct, fairness,
+      valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA,
+      fitA: fit(), fitB: fit(), timelineA: timeline(), timelineB: timeline(),
+      archA: arch(), archB: arch(), riskA: [], riskB: [],
+      dOptA: null, dOptB: null, dVorpA: null, dVorpB: null,
+      optNoteA: null, optNoteB: null, vorpNoteA: null, vorpNoteB: null,
+      combinedFitA: 0, combinedFitB: 0, verdict, bucket,
+      anyMissingValue: [...toA, ...toB].some(a => !(a.value > 0)),
+      historyFitUnavailable: true,
+      created: tx.created
+    };
   },
 
-  // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
+    // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
   // each season's own league_id (fetchLeagueHistory discards it after pulling
   // rosters) — fetchAndGradeAllTrades needs it to fetch each season's real
   // transactions, not just that season's final records. Same "0" (a first
@@ -4631,6 +4576,11 @@ const Vault = {
       return rawTrades.map(tx => ({
         ...tx,
         season: s.season, // which league season it happened in (Trade Grades' "This season")
+        // A mid-season replacement can take over an existing roster id. If the
+        // initiator isn't one of that roster pair's currently listed owners, the
+        // old manager cannot be attributed reliably. Keep the trade, not a false
+        // claim on the current managers' records.
+        _ownerAttributionUncertain: !!tx.creator && !tx.roster_ids.some(id => String(ownerByOldRoster.get(id)) === String(tx.creator)),
         roster_ids: tx.roster_ids.map(translateRoster),
         adds: Object.fromEntries(Object.entries(tx.adds || {}).map(([pid, rid]) => [pid, translateRoster(rid)])),
         draft_picks: (tx.draft_picks || []).map(pk => ({
@@ -4702,7 +4652,7 @@ const Vault = {
     const ensure = team => {
       if (!byTeam.has(team.rosterId)) byTeam.set(team.rosterId, {
         teamName: team.teamName, rosterId: team.rosterId, record: team.record,
-        trades: 0, won: 0, lost: 0, wonNow: 0, lostNow: 0, netValue: 0, netValueToday: 0, fitSum: 0,
+        trades: 0, pricedTrades: 0, fitTrades: 0, ageTrades: 0, won: 0, lost: 0, wonNow: 0, lostNow: 0, netValue: 0, netValueToday: 0, fitSum: 0,
         netPicks: 0, ageDeltaSum: 0, olderCount: 0, youngerCount: 0,
         fair: 0, lopsided: 0, unfair: 0, unfairFor: 0, unfairAgainst: 0,
         fairNow: 0, lopsidedNow: 0, unfairNow: 0,
@@ -4722,6 +4672,7 @@ const Vault = {
         { team: g.teamB, dVal: -g.dValueAdjA, dValToday: -g.dValueAdjAToday, favor: g.fairness.overallSigned, fit: g.combinedFitB, timeline: g.timelineB, opp: g.teamA.teamName, received: g.toB, given: g.toA, dOpt: g.dOptB }
       ].forEach(({ team, dVal, dValToday, favor, fit, timeline, opp, received, given, dOpt }) => {
         const s = ensure(team);
+        if (g.tx._ownerAttributionUncertain) return; // do not ascribe an old owner's trade to a replacement
         s.trades++;
         // A trade with an unresolvable asset (a player since retired/dropped/left
         // the league, priced 0 by resolveTradeAssets' fallback) still really
@@ -4737,13 +4688,20 @@ const Vault = {
         // than trying to partially correct it — there's no reliable way to know
         // how far off a guessed replacement value would be.
         if (g.anyMissingValue) return;
-        s.netValue += dVal; s.netValueToday += dValToday; s.fitSum += fit;
-        s.netPicks += timeline.dPicks; s.ageDeltaSum += timeline.dAge;
-        if (timeline.dAge > 0.25) s.olderCount++; else if (timeline.dAge < -0.25) s.youngerCount++;
+        s.pricedTrades++;
+        s.netValue += dVal; s.netValueToday += dValToday;
+        if (!g.historyFitUnavailable) {
+          s.fitSum += fit; s.fitTrades++;
+          s.ageDeltaSum += timeline.dAge; s.ageTrades++;
+          if (timeline.dAge > 0.25) s.olderCount++; else if (timeline.dAge < -0.25) s.youngerCount++;
+          if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
+        }
+        const pickValue = list => list.filter(a => a.type === 'pick').reduce((n, a) => n + a.value, 0);
+        const pickDelta = pickValue(received) - pickValue(given);
+        s.netPicks += pickDelta;
         if (dVal > 0) s.won++; else if (dVal < 0) s.lost++;
         if (dValToday > 0) s.wonNow++; else if (dValToday < 0) s.lostNow++;
-        if (timeline.dPicks > 500) s.picksInCount++; else if (timeline.dPicks < -500) s.picksOutCount++;
-        if (dOpt > 1) s.optUpCount++; else if (dOpt < -1) s.optDownCount++;
+        if (pickDelta > 500) s.picksInCount++; else if (pickDelta < -500) s.picksOutCount++;
         // Piece count, not value: fewer pieces back than sent = consolidating.
         if (received.length < given.length) s.consolidateCount++; else if (received.length > given.length) s.splitCount++;
         const bucket = g.fairness.overallPct >= VAULT_CONFIG.LOPSIDED_PCT ? 'unfair' : g.fairness.overallPct >= VAULT_CONFIG.FAIR_PCT ? 'lopsided' : 'fair';
@@ -4783,8 +4741,8 @@ const Vault = {
     });
     return [...byTeam.values()].map(s => ({
       ...s,
-      avgFit: s.trades ? s.fitSum / s.trades : 0,
-      avgAgeDelta: s.trades ? s.ageDeltaSum / s.trades : 0,
+      avgFit: s.fitTrades ? s.fitSum / s.fitTrades : 0,
+      avgAgeDelta: s.ageTrades ? s.ageDeltaSum / s.ageTrades : 0,
       aged: s.netValueToday - s.netValue // value their trades gained (or lost) after being made
     // Ranked by Net Then, the price they got on the day (2026-10-19). On 2.6
     // million real trade-sides (VaultValues research-batch.js), getting good prices
@@ -4802,33 +4760,34 @@ const Vault = {
      yrs"), not a hidden score — same principle as the fairness verdict. */
   managerProfile(s, leagueAvgTrades) {
     if (!s.trades) return { style: 'Sits tight', tone: 'neutral', blurb: "Hasn't made a trade yet." };
-    const most = n => n >= Math.ceil(s.trades * 0.6);
+    if (!s.pricedTrades) return { style: 'Trades not priced', tone: 'neutral', blurb: "Trades recorded, but none have reliable values." };
+    const most = n => n >= Math.ceil(s.pricedTrades * 0.6);
     const fmt = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n)).toLocaleString();
 
     let core, tone;
     if (most(s.consolidateCount)) { core = 'consolidator'; tone = 'violet'; }
     else if (most(s.splitCount)) { core = 'depth builder'; tone = 'sky'; }
-    else if (s.avgAgeDelta <= -0.5 || most(s.picksInCount)) { core = 'youth & picks buyer'; tone = 'emerald'; }
-    else if (s.avgAgeDelta >= 0.5 || most(s.picksOutCount)) { core = 'win-now buyer'; tone = 'amber'; }
+    else if ((s.ageTrades && s.avgAgeDelta <= -0.5) || most(s.picksInCount)) { core = 'youth & picks buyer'; tone = 'emerald'; }
+    else if ((s.ageTrades && s.avgAgeDelta >= 0.5) || most(s.picksOutCount)) { core = 'win-now buyer'; tone = 'amber'; }
     else { core = 'value trader'; tone = 'neutral'; }
     const volume = leagueAvgTrades && s.trades >= leagueAvgTrades * 1.5 ? 'Active '
       : leagueAvgTrades && s.trades <= leagueAvgTrades * 0.5 ? 'Occasional ' : '';
     const style = volume ? volume + core : core.charAt(0).toUpperCase() + core.slice(1);
 
     // "3 of 5 deals", or "in their only trade" when there's just one.
-    const share = n => s.trades === 1 ? 'in their only trade' : `in ${n} of ${s.trades} deals`;
+    const share = n => s.pricedTrades === 1 ? 'in their only trade' : `in ${n} of ${s.pricedTrades} deals`;
     const yrs = d => (d < 0 ? '−' : '+') + Math.abs(d).toFixed(1);
     const how = {
       'consolidator': `Sends more pieces than they get back ${share(s.consolidateCount)}.`,
       'depth builder': `Turns one piece into several ${share(s.splitCount)}.`,
-      'youth & picks buyer': s.avgAgeDelta <= -0.5 ? `Gets younger through trades (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Nets draft picks ${share(s.picksInCount)}.`,
-      'win-now buyer': s.avgAgeDelta >= 0.5 ? `Adds older, proven talent (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Spends draft picks ${share(s.picksOutCount)}.`,
+      'youth & picks buyer': s.ageTrades && s.avgAgeDelta <= -0.5 ? `Gets younger through trades (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Nets draft picks ${share(s.picksInCount)}.`,
+      'win-now buyer': s.ageTrades && s.avgAgeDelta >= 0.5 ? `Adds older, proven talent (avg ${yrs(s.avgAgeDelta)} yrs per deal).` : `Spends draft picks ${share(s.picksOutCount)}.`,
       'value trader': 'No clear lean toward youth, veterans, or picks.'
     }[core];
 
     // Value at trade time, then how it has aged. Each clause says where things
     // stand today, so "aged poorly" never sits next to a team still well ahead.
-    const one = s.trades === 1, deals = one ? 'the deal' : 'the deals';
+    const one = s.pricedTrades === 1, deals = one ? 'the deal' : 'the deals';
     const side = v => (v >= 250 ? 1 : v <= -250 ? -1 : 0);
     const then = side(s.netValue), now = side(s.netValueToday);
     const swing = s.netValueToday - s.netValue;
@@ -4839,8 +4798,8 @@ const Vault = {
     // Ahead overall while losing most deals (or the reverse): a few big results
     // outweighed more small ones. Said, so it doesn't read as a contradiction
     // of the W-L column.
-    if (!one && then > 0 && s.won < s.lost) outcome += `, though they won only ${s.won} of ${s.trades}: ${s.won === 1 ? 'the win was' : 'the wins were'} bigger`;
-    else if (!one && then < 0 && s.won > s.lost) outcome += `, though they won ${s.won} of ${s.trades}: ${s.lost === 1 ? 'the loss was' : 'the losses were'} bigger`;
+    if (!one && then > 0 && s.won < s.lost) outcome += `, though they won only ${s.won} of ${s.pricedTrades}: ${s.won === 1 ? 'the win was' : 'the wins were'} bigger`;
+    else if (!one && then < 0 && s.won > s.lost) outcome += `, though they won ${s.won} of ${s.pricedTrades}: ${s.lost === 1 ? 'the loss was' : 'the losses were'} bigger`;
     if (Math.abs(swing) >= 1000 || now !== then) {
       if (now === then) outcome += then === 0 ? `; still about even (${today})`
         : (swing > 0) === (then > 0) ? `, and ${deals} ${one ? 'has' : 'have'} aged even ${then > 0 ? 'better' : 'worse'} (${today})`
@@ -4856,8 +4815,8 @@ const Vault = {
       market = ` At market prices, ${side(s.netMarket) > 0 ? 'ahead' : side(s.netMarket) < 0 ? 'behind' : 'about even'} (${fmt(s.netMarket)}).`;
     }
 
-    const fit = s.avgFit >= 1.5 ? (one ? ' The trade fit their own timeline and needs.' : ' Their trades usually fit their own timeline and needs.')
-      : s.avgFit <= -1.5 ? (one ? ' The trade worked against their own timeline or needs.' : ' Their trades often work against their own timeline or needs.') : '';
+    const fit = s.fitTrades && s.avgFit >= 1.5 ? (one ? ' The trade fit their own timeline and needs.' : ' Their trades usually fit their own timeline and needs.')
+      : s.fitTrades && s.avgFit <= -1.5 ? (one ? ' The trade worked against their own timeline or needs.' : ' Their trades often work against their own timeline or needs.') : '';
     return { style, tone, blurb: `${how} ${outcome}.${market}${fit}` };
   },
 
@@ -4868,39 +4827,40 @@ const Vault = {
       if (s.trades >= leagueAvgTrades * 1.5) notes.push({ tone: 'neutral', text: `Active trader — ${s.trades} trades vs. a league average of ${leagueAvgTrades.toFixed(1)}.` });
       else if (s.trades <= leagueAvgTrades * 0.5) notes.push({ tone: 'neutral', text: `Rarely trades — just ${s.trades} vs. a league average of ${leagueAvgTrades.toFixed(1)}.` });
     }
+    if (!s.pricedTrades) return [...notes, { tone: 'neutral', text: 'No fully priced trades available for reliable value comparisons.' }];
     // Hindsight: did their trades gain or lose value after being made?
     const aged = s.netValueToday - s.netValue, fmtN = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n)).toLocaleString();
     // Not a skill (2026-10-19): across 2.6 million real trade-sides, value gained
     // after a trade one season didn't carry over to the next (correlation 0.01).
     if (aged >= 1000) notes.push({ tone: 'neutral', text: `Their trades have gained ${fmtN(aged)} in value since they were made. Across real trades that part is mostly luck: it didn't carry over from one season to the next.` });
     else if (aged <= -1000) notes.push({ tone: 'neutral', text: `Their trades have lost ${fmtN(aged).slice(1)} in value since they were made. Across real trades that part is mostly luck: it didn't carry over from one season to the next.` });
-    if (s.trades >= 3) {
-      const winRate = s.wonNow / s.trades;
+    if (s.pricedTrades >= 3) {
+      const winRate = s.wonNow / s.pricedTrades;
       if (winRate >= 0.65) notes.push({ tone: 'good', text: `Most of their trades have come out ahead at today's values (${s.wonNow}-${s.lostNow}).` });
-      else if (s.lostNow > s.wonNow && s.lostNow / s.trades >= 0.6) notes.push({ tone: 'bad', text: `Most of their trades have come out behind at today's values (${s.wonNow}-${s.lostNow}).` });
+      else if (s.lostNow > s.wonNow && s.lostNow / s.pricedTrades >= 0.6) notes.push({ tone: 'bad', text: `Most of their trades have come out behind at today's values (${s.wonNow}-${s.lostNow}).` });
     }
-    if (s.avgFit >= 1.5) notes.push({ tone: 'good', text: `Trades tend to fit the team's own timeline and needs, not just KTC value.` });
-    else if (s.avgFit <= -1.5) notes.push({ tone: 'bad', text: `Trades often work against the team's own timeline or needs, even when the dollars are close.` });
-    if (s.trades >= 3) {
+    if (s.fitTrades && s.avgFit >= 1.5) notes.push({ tone: 'good', text: `Trades tend to fit the team's own timeline and needs, not just KTC value.` });
+    else if (s.fitTrades && s.avgFit <= -1.5) notes.push({ tone: 'bad', text: `Trades often work against the team's own timeline or needs, even when the dollars are close.` });
+    if (s.pricedTrades >= 3) {
       // Trade-type frequency, not just net dollar direction — "how often", not
       // "how much". A manager can average a small net pick gain while still
       // clearly being a picks-first trader in most of their individual deals.
-      if (s.picksInCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades for draft picks — ${s.picksInCount} of ${s.trades} deals net picks.` });
-      else if (s.picksOutCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades picks away — ${s.picksOutCount} of ${s.trades} deals spend picks.` });
+      if (s.picksInCount >= Math.ceil(s.pricedTrades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades for draft picks — ${s.picksInCount} of ${s.pricedTrades} deals net picks.` });
+      else if (s.picksOutCount >= Math.ceil(s.pricedTrades * 0.6)) notes.push({ tone: 'neutral', text: `Frequently trades picks away — ${s.picksOutCount} of ${s.pricedTrades} deals spend picks.` });
       // "Consistently" only when most individual deals actually go that way — an
       // average can be dragged by one big swing, so otherwise say "leans".
-      const mostly = n => n >= Math.ceil(s.trades * 0.6);
-      if (s.avgAgeDelta <= -0.5) notes.push({ tone: 'neutral', text: mostly(s.youngerCount)
-        ? `Consistently gets younger through trades — ${s.youngerCount} of ${s.trades} deals (avg −${Math.abs(s.avgAgeDelta).toFixed(1)} yrs/trade).`
+      const mostly = n => n >= Math.ceil(s.pricedTrades * 0.6);
+      if (s.ageTrades && s.avgAgeDelta <= -0.5) notes.push({ tone: 'neutral', text: mostly(s.youngerCount)
+        ? `Consistently gets younger through trades — ${s.youngerCount} of ${s.pricedTrades} deals (avg −${Math.abs(s.avgAgeDelta).toFixed(1)} yrs/trade).`
         : `Leans younger through trades on average (−${Math.abs(s.avgAgeDelta).toFixed(1)} yrs/trade).` });
-      else if (s.avgAgeDelta >= 0.5) notes.push({ tone: 'neutral', text: mostly(s.olderCount)
-        ? `Consistently gets older through trades — ${s.olderCount} of ${s.trades} deals (avg +${s.avgAgeDelta.toFixed(1)} yrs/trade).`
+      else if (s.ageTrades && s.avgAgeDelta >= 0.5) notes.push({ tone: 'neutral', text: mostly(s.olderCount)
+        ? `Consistently gets older through trades — ${s.olderCount} of ${s.pricedTrades} deals (avg +${s.avgAgeDelta.toFixed(1)} yrs/trade).`
         : `Leans older through trades on average (+${s.avgAgeDelta.toFixed(1)} yrs/trade).` });
       // Does this manager only make moves that actually help their starting lineup?
-      if (s.optUpCount >= Math.ceil(s.trades * 0.75)) notes.push({ tone: 'good', text: `Almost exclusively makes trades that raise the starting lineup's PPG (${s.optUpCount} of ${s.trades}).` });
-      else if (s.optDownCount >= Math.ceil(s.trades * 0.6)) notes.push({ tone: 'bad', text: `Often trades away from lineup strength — ${s.optDownCount} of ${s.trades} deals lowered their lineup's points.` });
+      if (s.optUpCount >= Math.ceil(s.pricedTrades * 0.75)) notes.push({ tone: 'good', text: `Almost exclusively makes trades that raise the starting lineup's PPG (${s.optUpCount} of ${s.pricedTrades}).` });
+      else if (s.optDownCount >= Math.ceil(s.pricedTrades * 0.6)) notes.push({ tone: 'bad', text: `Often trades away from lineup strength — ${s.optDownCount} of ${s.pricedTrades} deals lowered their lineup's points.` });
     }
-    if (s.trades >= 2) {
+    if (s.pricedTrades >= 2) {
       // Which single position this manager's trades lean toward or away from —
       // only surfaced when it's a real pattern, not incidental noise.
       const posEntries = Object.entries(s.posNet).filter(([, v]) => Math.abs(v) >= 1500);
