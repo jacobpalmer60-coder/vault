@@ -172,12 +172,13 @@ Study **unique drafted rookies** and their observed KTC prices a year after
 the draft using the historical Sleeper draft archive already stored locally:
 
 ```powershell
+node scripts/fetch-nfl-draft-years.js
 node --max-old-space-size=6144 scripts/benchmark-rookie-pick-outcomes.js > rookie-outcomes.json
 node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json > rookie-summary.txt
 Get-Content rookie-summary.txt
 ```
 
-This is **research, not a deployable pick forecast**: it shows distribution
+The original draft crawl did not have historical rookie-year metadata and produced zero verified rookies. The explicit import from nflverse's public NFL draft data supplies verified year, name and position; mismatched or ambiguous identities are excluded. The source cannot identify undrafted free agents or recover years of missing pre-draft pick prices. License and source: https://github.com/nflverse/nfldata/blob/master/data/draft_picks.csv. Import the file locally before analysis.\n\nThis is **research, not a deployable pick forecast**: it shows distribution
 and missingness by round, format and season, excludes unavailable future
 prices rather than fabricating busts, and deduplicates repeated rookie
 selections. It cannot infer the odds of any particular 1.01 / 1.12 selection,
