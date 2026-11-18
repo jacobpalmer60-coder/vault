@@ -167,6 +167,7 @@ node scripts/check-trade-mobile-tabs.js
 node scripts/check-calculator-deep.js
 node scripts/check-rookie-pick-outcomes.js
 node scripts/check-rookie-slot.js
+node scripts/check-rookie-slot-benchmark.js
 ```
 
 Study **unique drafted rookies** and their observed KTC prices a year after
