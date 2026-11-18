@@ -17,6 +17,14 @@ const fs=require('node:fs'),path=require('node:path');
 const {slotsForDraft}=require('./market-history/rookie-slot');
 const players=readSleeperPlayers(),books=new Map();
 const book=fmt=>books.get(fmt)||books.set(fmt,ktcPrices(fmt,players)).get(fmt);
+// The same rookie/date/format appears in many leagues. Cache historical
+// prices to keep millions of selection-frequency observations affordable.
+const oneYearPrices=new Map();
+function priceAtFollowup(format,sid,follow){
+ const key=format+'|'+sid+'|'+follow;
+ if(!oneYearPrices.has(key))oneYearPrices.set(key,book(format).at(sid,follow));
+ return oneYearPrices.get(key);
+}
 const minDrafts=Math.max(1,Number(process.env.MIN_DRAFTS)||10);
 const horizonMs=365*864e5;
 const data=new Map(),slotSamples=new Map(),counts={
@@ -93,7 +101,7 @@ for(const file of files){
    // Each real selection is measured at its own draft date + 365 days;
    // frequency aggregation retains repeated draft choices without
    // materializing millions of independent-looking rows.
-   const price=b.at(p.sid,follow);
+   const price=priceAtFollowup(fmt,p.sid,follow);
    if(price==null||!Number.isFinite(Number(price))){
     g.missingSelectionCount++;
     if(rookieHeavy)g.rookieHeavyMissingSelectionCount++;
@@ -172,7 +180,7 @@ const slotGroups=[...slotSamples.values()].map(g=>{
  // Legacy distinct-rookie diagnostic retains one first-seen outcome per
  // player; it must never be confused with the typical selection outcome.
  for(const item of g.rosterIds.values()){
-  const price=book(g.format).at(item.sid,item.follow);
+  const price=priceAtFollowup(g.format,item.sid,item.follow);
   if(price==null||!Number.isFinite(Number(price)))missing++;
   else values.push(Number(price));
  }
