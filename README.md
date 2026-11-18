@@ -147,4 +147,55 @@ true untouched holdout: some of those completed trades informed Vault's
 existing trade-price curve. Do not make claims of improvement until an
 independent prospective split is available.
 
+### November 18: trade impact explanations, rookie outcome research, and responsive checks
+
+The calculator now displays the **same side-neutral before/after ledger** for
+both trade participants, accompanied by a plain-language description of the
+lineup, player-value, and draft-capital changes. This uses the existing
+`Vault.simulateTrade` math. Market-pricing weights, team grades, trade-coach
+recommendation scoring and future age curves were **not** recalibrated.
+
+The player future-rank view is not a total-team forecast: it omits the future
+rookies that picks might become. Mobile trade tabs now support arrow-key,
+Home and End navigation as well as touch/click.
+
+Run cheap regressions:
+
+```powershell
+node scripts/check-team-impact.js
+node scripts/check-trade-mobile-tabs.js
+node scripts/check-calculator-deep.js
+node scripts/check-rookie-pick-outcomes.js
+```
+
+Study **unique drafted rookies** and their observed KTC prices a year after
+the draft using the historical Sleeper draft archive already stored locally:
+
+```powershell
+node --max-old-space-size=6144 scripts/benchmark-rookie-pick-outcomes.js > rookie-outcomes.json
+node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json > rookie-summary.txt
+Get-Content rookie-summary.txt
+```
+
+This is **research, not a deployable pick forecast**: it shows distribution
+and missingness by round, format and season, excludes unavailable future
+prices rather than fabricating busts, and deduplicates repeated rookie
+selections. It cannot infer the odds of any particular 1.01 / 1.12 selection,
+reconstruct every team's historic pick ownership or make a sealed
+chronological validation claim.
+
+To exercise a **populated two-team trade** in a real browser at desktop,
+phone and narrow-phone widths (plus keyboard tab and overflow checks):
+
+```powershell
+npm i --no-save puppeteer-core
+# In a separate PowerShell window: npx serve -l 5191 .
+node scripts/smoke-trade-flow.js <SleeperLeagueID>
+```
+
+The browser test needs Chrome or Edge and a real Sleeper league ID. It was
+authored and syntax-checked in the connected coding environment, but full
+local-browser execution must happen where the website is accessible. Consult
+`docs/TRADE_CALCULATOR_NEXT_PASS_2026-11-18.md` for scope and limitations.
+
 To check every page before pushing, see the top of `scripts/smoke.js`.
