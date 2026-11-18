@@ -24,7 +24,7 @@ const prices={
 let output;
 const requireMock=name=>{
  if(name==='./market-history/ktc-book')return {
-  readSleeperPlayers:()=>({'100':{position:'QB'},'200':{position:'WR'},'300':{position:'RB'},'400':{position:'TE'},'500':{position:'QB'}}),
+  readSleeperPlayers:()=>({'100':{position:'QB',draft_year:2024},'200':{position:'WR',draft_year:2024},'300':{position:'RB',draft_year:2024},'400':{position:'TE',draft_year:2024},'500':{position:'QB',draft_year:2025}}),
   seasonFiles:()=>['2024.json.gz','2025.json.gz'],readSeason,ktcPrices:()=>prices,formatOf:()=>'sf'
  };
  if(name==='node:fs')return fs;
@@ -33,8 +33,10 @@ const requireMock=name=>{
 };
 vm.runInNewContext(code,{require:requireMock,process:{env:{MIN_DRAFTS:'1'}},console:{log:x=>output=JSON.parse(x)},Date,Map,Set,Number,String,Object,Array,Math,RegExp,Error}, {filename:'benchmark-rookie-pick-outcomes.js'});
 assert.equal(output.counts.draftsSeen,6,'two season files each include three draft fixtures');
-assert.equal(output.counts.uniqueRookies,5,'unique rookie counted per season and scoring format');
+assert.equal(output.counts.uniqueRookies,5,'unique rookies counted per season and scoring format');
 assert.ok(output.warnings.some(w=>w.includes('not a return forecast')));
+assert.equal(output.counts.rejectedVeterans,0);
+assert.equal(output.counts.unverifiableRookieYear,0);
 const r1=output.groups.find(g=>g.year===2024&&g.round===1);
 assert.equal(r1.n,2,'duplicates across drafts count once');
 assert.equal(r1.known,2);
