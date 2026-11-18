@@ -25,7 +25,7 @@ assert.equal(impact.A.change.playerValue,-1400,'player value reflects moved asse
 assert.equal(impact.B.change.playerValue,1400,'partner gets opposite player value');
 assert.equal(impact.A.change.overall,-150,'team value includes both categories');
 assert.equal(impact.B.change.overall,150,'zero-sum exchange of market assets');
-assert.equal(impact.A.change.lineupPpg,-1.8);
+assert.ok(Math.abs(impact.A.change.lineupPpg+1.8)<1e-9);
 assert.ok(Math.abs(impact.B.change.lineupPpg-3.1)<1e-9);
 assert.deepEqual(impact.A.picksAdded,['2028-2-2']);
 assert.deepEqual(impact.B.picksRemoved,['2028-2-2']);
