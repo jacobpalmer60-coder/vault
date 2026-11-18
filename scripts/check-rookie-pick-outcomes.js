@@ -35,8 +35,8 @@ vm.runInNewContext(code,{require:requireMock,process:{env:{MIN_DRAFTS:'1'}},cons
 assert.equal(output.counts.draftsSeen,6,'two season files each include three draft fixtures');
 assert.equal(output.counts.uniqueRookies,5,'unique rookies counted per season and scoring format');
 assert.ok(output.warnings.some(w=>w.includes('not a return forecast')));
-assert.equal(output.counts.rejectedVeterans,1,'veterans selected in a spring draft are excluded');
-assert.equal(output.counts.unverifiableRookieYear,1,'unverifiable rookie year is excluded');
+assert.equal(output.counts.rejectedVeterans,2,'veterans selected in a spring draft are excluded in both archive fixtures');
+assert.equal(output.counts.unverifiableRookieYear,2,'unverifiable rookie year is excluded in both archive fixtures');
 const r1=output.groups.find(g=>g.year===2024&&g.round===1);
 assert.equal(r1.n,2,'duplicates across drafts count once');
 assert.equal(r1.known,2);
