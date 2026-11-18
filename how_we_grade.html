@@ -145,7 +145,8 @@
       <p class="hwg-lead">Past trades are judged at each piece's price the day they happened, so a later breakout doesn't rewrite the grade.</p>
       <details class="hwg-more"><summary>How it works</summary>
       <p>Completed trades on Trade Grades are measured from each asset's <strong>price at the date of the trade</strong> when price history exists. When one asset lacks that history, the entire deal is clearly marked as using today's prices instead. Trade Grades uses KTC values for these completed deals; it does not apply the proposed-trade market premium to the past. Today's prices appear next to the historical prices so managers can see how the assets aged.</p>
-      <p><strong>Historical lineup, roster-fit, and timeline effects are not graded.</strong> We cannot reliably reconstruct each manager's exact roster, plan, projections, and standings at the moment of every archived transaction. Using today's roster would produce a false historical verdict. The live Trade Calculator still evaluates both teams' fit and playoff changes before a proposed trade.</p>
+      <p><strong>Archived roster evidence (first phase).</strong> For trades after each season's latest completed draft, Vault now replays recorded completed player moves backward from that season's archived rosters. If those moves reconcile, the Trade Grades details show provisional pre-trade player counts for both teams. If transactions are missing, a draft lies between the trade and the available roster, or the replay cannot reconcile a move, it reports the gap rather than claiming a past roster. These counts do not affect grading.</p>
+       <p><strong>Historical lineup, roster-fit, and timeline effects are not graded.</strong> We cannot reliably reconstruct each manager's exact roster, plan, projections, and standings at the moment of every archived transaction. Using today's roster would produce a false historical verdict. The live Trade Calculator still evaluates both teams' fit and playoff changes before a proposed trade.</p>
       </details>
     </section>
 
@@ -274,7 +275,7 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=8443ad49"></script>
+<script src="vault-core.js?v=6caceb29"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
 <script>
 // Fill every figure from the live settings so this page can't drift from the

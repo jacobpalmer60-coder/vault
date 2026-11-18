@@ -1125,7 +1125,7 @@ const Vault = {
 
     const allEventDates = [
       ...realDrafts.map(d => new Date(d.draft.start_time)),
-      ...transactions.map(t => new Date(t.created))
+      ...transactions.map(t => new Date(Vault.tradeCompletedAt(t)))
     ];
     if (!allEventDates.length) return { snapshots: [] }; // brand-new league — nothing to replay yet
 
@@ -1159,7 +1159,7 @@ const Vault = {
       picks.forEach(pk => { if (pk.player_id) events.push({ date, drafted: String(pk.player_id) }); });
     });
     transactions.forEach(t => {
-      const date = new Date(t.created);
+      const date = new Date(Vault.tradeCompletedAt(t));
       Object.entries(t.adds || {}).forEach(([pid, rosterId]) => events.push({ date, rosterId, add: String(pid) }));
       Object.entries(t.drops || {}).forEach(([pid, rosterId]) => events.push({ date, rosterId, drop: String(pid) }));
     });
@@ -1229,7 +1229,7 @@ const Vault = {
     const pickEvents = [];
     transactions.forEach(t => (t.draft_picks || []).forEach(pk => {
       if (!histYears.includes(+pk.season)) return;
-      pickEvents.push({ date: new Date(t.created), key: `${pk.season}-${pk.round}-${pk.roster_id}`, newOwner: pk.owner_id });
+      pickEvents.push({ date: new Date(Vault.tradeCompletedAt(t)), key: `${pk.season}-${pk.round}-${pk.roster_id}`, newOwner: pk.owner_id });
     }));
     pickEvents.sort((a, b) => a.date - b.date);
 
@@ -1295,7 +1295,7 @@ const Vault = {
     // Who gave what, for the marks on Value Over Time.
     const nameOf = pid => { const p = players[pid]; return p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'a player'; };
     const trades = transactions.filter(t => t.type === 'trade').map(t => ({
-      date: new Date(t.created).toISOString().slice(0, 10), rosters: t.roster_ids || [],
+      date: new Date(Vault.tradeCompletedAt(t)).toISOString().slice(0, 10), rosters: t.roster_ids || [],
       moves: [...Object.entries(t.adds || {}).map(([pid, to]) => ({ to: +to, from: +(t.drops || {})[pid], what: nameOf(pid) })),
         ...(t.draft_picks || []).map(pk => ({ to: +pk.owner_id, from: +pk.previous_owner_id, what: Vault.pickName({ season: pk.season, round: pk.round }) }))]
     }));
@@ -4426,7 +4426,7 @@ const Vault = {
     const toATodayPrices = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility);
     const toBTodayPrices = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility);
     if (!toATodayPrices.length && !toBTodayPrices.length) return null;
-    const tradeMs = tx.status_updated || tx.created;
+    const tradeMs = Vault.tradeCompletedAt(tx);
     const atTrade = Vault.priceAtTradeDate(toATodayPrices, toBTodayPrices, pricer, tradeMs);
     const valuedAt = atTrade ? 'trade' : 'today';
     const toA = atTrade ? atTrade.toA : toATodayPrices;
@@ -4470,7 +4470,7 @@ const Vault = {
       combinedFitA: 0, combinedFitB: 0, verdict, bucket,
       anyMissingValue: [...toA, ...toB].some(a => !(a.value > 0)),
       historyFitUnavailable: true,
-      created: tx.created
+      created: tradeMs
     };
   },
 
@@ -4486,6 +4486,46 @@ const Vault = {
      roster numbering (the original team from the draft's slot_to_roster_id,
      translated by owner like the trades are). A traded 2026 2nd is worth, today,
      the rookie it turned into, not a 2027 2nd (2026-10-10). */
+  tradeCompletedAt(tx) { return +(tx?.status_updated || tx?.created || 0); },
+
+  replayTradeRosters(seasonRosters, transactions, { minTimestamp = 0 } = {}) {
+    const held = new Map((seasonRosters || []).map(r => [String(r.roster_id), new Set((r.players || []).map(String))]));
+    const evidence = new Map();
+    const seen = new Set();
+    const when = t => Vault.tradeCompletedAt(t);
+    const events = (transactions || [])
+      .filter(t => t?.status === 'complete' && when(t) > 0)
+      .filter(t => { const id = String(t.transaction_id || ''); if (!id || seen.has(id)) return false; seen.add(id); return true; })
+      .sort((a, b) => when(b) - when(a) || String(b.transaction_id).localeCompare(String(a.transaction_id)));
+    let chainIntact = held.size > 0 && Number.isFinite(minTimestamp) && minTimestamp >= 0;
+    for (const tx of events) {
+      const isTrade = tx.type === 'trade' && (tx.roster_ids || []).length === 2;
+      if (when(tx) < minTimestamp) {
+        if (isTrade) evidence.set(String(tx.transaction_id), { status: Number.isFinite(minTimestamp) ? 'before-draft' : 'unavailable' });
+        continue;
+      }
+      const adds = Object.entries(tx.adds || {}), drops = Object.entries(tx.drops || {});
+      const beforeIntact = chainIntact;
+      // Every later move has been undone when this transaction is examined. Verify
+      // the recorded recipient still holds the player at this moment; a mismatch
+      // means the available log cannot prove earlier roster membership.
+      const aligned = adds.every(([pid, rid]) => held.get(String(rid))?.has(String(pid)));
+      const validRosters = [...adds, ...drops].every(([, rid]) => held.has(String(rid)));
+      const playersMoved = adds.filter(([pid]) => Object.prototype.hasOwnProperty.call(tx.drops || {}, pid));
+      const transferPairKnown = adds.every(([pid]) => Object.prototype.hasOwnProperty.call(tx.drops || {}, pid));
+      adds.forEach(([pid, rid]) => held.get(String(rid))?.delete(String(pid)));
+      drops.forEach(([pid, rid]) => held.get(String(rid))?.add(String(pid)));
+      if (isTrade) {
+        const counts = tx.roster_ids.map(rid => held.get(String(rid))?.size ?? null);
+        const status = !beforeIntact || !aligned || !validRosters || !transferPairKnown || counts.some(x => x == null)
+          ? 'partial' : adds.length ? 'replayed' : 'no-player-transfers';
+        evidence.set(String(tx.transaction_id), { status, rosterCountsBefore: counts, movedPlayers: playersMoved.length });
+      }
+      if (!aligned || !validRosters) chainIntact = false;
+    }
+    return evidence;
+  },
+
   async draftedPickPlayers(seasonChain, years, currentRosterIdForOwner, playersDb) {
     const out = new Map(), json = u => fetch(u).then(r => (r.ok ? r.json() : null)).catch(() => null);
     await Promise.all(seasonChain.filter(s => years.includes(+s.season)).map(async s => {
@@ -4566,16 +4606,27 @@ const Vault = {
     // out its own 18 weeks in parallel too, same pattern the single-season fetch
     // used before.
     const seasonTrades = await Promise.all(seasonChain.map(async s => {
-      const [seasonRosters, ...weeks] = await Promise.all([
+      const [seasonRosters, seasonDrafts, ...weeks] = await Promise.all([
         s.leagueId === leagueId ? Promise.resolve(rosters) : fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/rosters`).then(r => r.json()).catch(() => []),
-        ...[...Array(18)].map((_, i) => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i + 1}`, 5).catch(() => []))
+        Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/drafts`, 4).catch(() => null),
+        ...[...Array(18)].map((_, i) => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i + 1}`, 5).catch(() => null))
       ]);
       const ownerByOldRoster = new Map((seasonRosters || []).map(ro => [ro.roster_id, ro.owner_id]));
       const translateRoster = oldRid => currentRosterIdForOwner.get(ownerByOldRoster.get(oldRid));
-      const rawTrades = weeks.flat().filter(t => t && t.type === 'trade' && t.status === 'complete' && (t.roster_ids || []).length === 2);
+      const completeTxs = weeks.flatMap(w => Array.isArray(w) ? w : []).filter(t => t && t.status === 'complete');
+      const rawTrades = completeTxs.filter(t => t.type === 'trade' && (t.roster_ids || []).length === 2);
+      // A draft changes roster membership without necessarily appearing as an
+      // ordinary add/drop transaction. Rewind only as far as the last completed
+      // draft; earlier trade rosters remain unavailable until draft replay exists.
+      // A missing API week or draft list also disables this evidence (not grades).
+      const draftCutoff = Array.isArray(seasonDrafts) && weeks.every(Array.isArray)
+        ? Math.max(0, ...seasonDrafts.filter(d => d.status === 'complete').map(d => +(d.start_time || 0)))
+        : Infinity;
+      const replay = Vault.replayTradeRosters(seasonRosters, completeTxs, { minTimestamp: draftCutoff });
       return rawTrades.map(tx => ({
         ...tx,
         season: s.season, // which league season it happened in (Trade Grades' "This season")
+        _rosterReplay: replay.get(String(tx.transaction_id)) || null, // original season roster IDs, before translation
         // A mid-season replacement can take over an existing roster id. If the
         // initiator isn't one of that roster pair's currently listed owners, the
         // old manager cannot be attributed reliably. Keep the trade, not a false
@@ -4712,7 +4763,7 @@ const Vault = {
         if (bucket === 'unfair') { if (favor > 0) s.unfairFor++; else s.unfairAgainst++; }
         // Best/worst judged by how the deal turned out (today's prices), with
         // the trade-day number kept alongside.
-        const rec = { opp, dVal, dValToday, pctDiff: g.pctDiff, created: g.tx.created, gradeThen: g.bucket, gradeNow: tg ? tg.bucket : g.bucket };
+        const rec = { opp, dVal, dValToday, pctDiff: g.pctDiff, created: g.created, gradeThen: g.bucket, gradeNow: tg ? tg.bucket : g.bucket };
         if (!s.best || dValToday > s.best.dValToday) s.best = rec;
         if (!s.worst || dValToday < s.worst.dValToday) s.worst = rec;
 

@@ -50,7 +50,7 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=8443ad49"></script>
+<script src="vault-core.js?v=6caceb29"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
 <script src="market-data.js?v=9e9371ed"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
@@ -292,6 +292,25 @@ function showGrade(i) {
   history.replaceState(history.state, '', gradeHash(g));
 }
 
+function historicalRosterReplayText(g) {
+  if (!g.historyFitUnavailable) return '';
+  const r = g.tx?._rosterReplay;
+  if (!r) return '';
+  let detail = '';
+  if (r.status === 'replayed') {
+    const a = r.rosterCountsBefore?.[0], b = r.rosterCountsBefore?.[1];
+    detail = `Replayed player transactions align with ${r.movedPlayers} traded player${r.movedPlayers === 1 ? '' : 's'}. Immediately before the deal, the reconstructed rosters held ${a} and ${b} players.`;
+  } else if (r.status === 'before-draft') {
+    detail = 'This trade predates the last completed draft in that season. Draft moves must be reconstructed before a roster snapshot can be shown.';
+  } else if (r.status === 'partial') {
+    detail = 'Some recorded moves could not be reconciled with the season roster. No pre-trade roster is claimed.';
+  } else if (r.status === 'unavailable') {
+    detail = 'One or more archived transaction or draft feeds were unavailable, so historical roster membership was not reconstructed.';
+  } else if (r.status === 'no-player-transfers') {
+    detail = 'No traded players to reconcile (this trade may contain only draft picks). Historical team fit remains unavailable.';
+  }
+  return detail ? `<p class="mb-3 text-[12px] text-zinc-400">Historical roster evidence: ${Vault.escapeHtml(detail)} This is transaction-replay evidence, not an independently verified historical lineup or a component of this price grade.</p>` : '';
+}
 function renderGrade(g) {
   const date = new Date(g.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const bucket = g.bucket;
@@ -315,6 +334,7 @@ function renderGrade(g) {
         <div class="flex items-center gap-x-4 gap-y-1 flex-wrap">${['A', 'B'].map(side => { const imp = Vault.gradedImprovement(g, side); return `<span class="inline-flex items-center gap-1.5" title="${g.historyFitUnavailable ? 'Historical value comparison only. Roster fit, plans and points at that time cannot be inferred from today.' : `Trade Calculator verdict for ${Vault.escapeHtml(g['team' + side].teamName)}: price, roster fit, timeline and this season's points.`}"><span class="size-2 rounded-full ${VERDICT_DOT[imp.level]}"></span><span class="text-[13px] font-medium ${Vault.VERDICT_TIER_TEXT[imp.tier]}">${imp.label}</span><span class="text-[12px] text-zinc-400">for ${Vault.escapeHtml(g['team' + side].teamName)}</span></span>`; }).join('')}</div>
       </div>
       ${outOfRaceNote(g)}
+      ${historicalRosterReplayText(g)}
        ${g.historyFitUnavailable ? '<p class="mb-3 text-[12px] text-amber-200/85">Historical trade: asset prices only. Original roster fit, lineup change, and team plans are not available; today’s roster is not used to estimate them.</p>' : ''}${g.tx._ownerAttributionUncertain ? '<p class="mb-3 text-[12px] text-zinc-400">Manager attribution is uncertain after a roster ownership change; team labels refer to current rosters.</p>' : ''}
       <div class="max-w-lg mb-4">${Vault.fairnessPanelHtml(g.fairness, g.bandPct, g.teamA.teamName, g.teamB.teamName, `${capPct(g.fairness.fitMovedIt ? g.fairness.overallPct : g.pctDiff).toFixed(0)}% off`, null)}</div>
       <div class="grid md:grid-cols-2 gap-4 mb-3">
