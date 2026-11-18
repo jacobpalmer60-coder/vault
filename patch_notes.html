@@ -54,6 +54,11 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-17', items: [
+    { kind: 'fixed', page: 'Player Market', text: "Historical trade outcomes now distinguish a confirmed zero-value asset from an unavailable future KTC price. Published player results will exclude incomplete follow-ups when the raw trade archive is rebuilt; unknown outcomes are no longer automatically treated as losses." },
+    { kind: 'improved', page: 'Research', text: "Added trade-value benchmark breakdowns for 2024 versus 2025 by month, quarter, trade shape, scoring format and largest asset position. Both complete-case and missing-as-zero sensitivity results are reported." },
+    { kind: 'new', page: 'Research', text: "Added a separate experimental one-, two- and three-year forecast for rebuilding-oriented player value, trained on earlier seasons. It is research only and does not change live trade prices or pretend to model actual rebuilding team records." }
+  ] },
+  { date: '2026-11-17', items: [
     { kind: 'improved', page: 'Research', text: "Added reproducible long-term value evaluations: an earlier-season-trained player-price benchmark with a 2025 forward holdout, and a separate retrospective comparison of Vault versus raw KTC trade-package pricing against one-year outcomes. Missing outcome prices and historical coverage limitations are reported instead of silently treated as certain." },
     { kind: 'changed', page: 'Trade Calculator', text: "No live value weights were changed as part of this research. A new formula must outperform the existing baseline on independently timed outcomes before it replaces the calculator's current valuation." }
   ] },
