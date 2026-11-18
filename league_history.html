@@ -76,14 +76,58 @@ async function allSeasons(id) {
   const league = await get(`league/${id}`, 5);
   if (!league || league.error) throw new Error('League not found.');
   const chain = await Vault.fetchSeasonChain(id, league);
-  const rosters = await get(`league/${id}/rosters`, 5);
-  const me = rosters.find(r => String(r.roster_id) === String(Vault.getMyTeamId(id)))?.owner_id;
-  for (let last = chain[chain.length - 1], i = 0; me && i < 25; i++) {
-    const older = await get(`user/${me}/leagues/nfl/${+last.season - 1}`, 1440).catch(() => []);
-    const same = (older || []).find(l => Vault.norm(l.name) === Vault.norm(league.name));
-    if (!same) break;
-    chain.push(...(await Vault.fetchSeasonChain(same.league_id, same)));
-    last = chain[chain.length - 1];
+  const visited = new Set(chain.map(s => String(s.leagueId)));
+  const cachedOwners = new Map();
+  async function ownersFor(leagueId) {
+    const key = String(leagueId);
+    if (cachedOwners.has(key)) return cachedOwners.get(key);
+    const rosterList = await get(`league/${leagueId}/rosters`, 1440).catch(() => []);
+    const owners = new Set((Array.isArray(rosterList) ? rosterList : [])
+      .flatMap(r => [r.owner_id, ...(r.co_owners || [])]).filter(Boolean).map(String));
+    cachedOwners.set(key, owners);
+    return owners;
+  }
+  const originalName = Vault.norm(league.name || '');
+  let lastName = originalName;
+  for (let i = 0; i < 25; i++) {
+    const last = chain[chain.length - 1], year = +last.season - 1;
+    if (!Number.isInteger(year) || year < 2000) break;
+    const owners = await ownersFor(last.leagueId);
+    if (owners.size < 2) break;
+    // This is a LEAGUE history: ask every manager who was in its last known
+    // season, not just the owner of the viewer's selected team.
+    const ownerLeagues = await Promise.all([...owners].map(async owner => ({
+      owner, leagues: await get(`user/${encodeURIComponent(owner)}/leagues/nfl/${year}`, 1440).catch(() => [])
+    })));
+    const candidates = new Map();
+    ownerLeagues.forEach(({ owner, leagues }) => (Array.isArray(leagues) ? leagues : []).forEach(candidate => {
+      const key = String(candidate.league_id || '');
+      if (!key || visited.has(key) || String(candidate.season) !== String(year)) return;
+      if (!candidates.has(key)) candidates.set(key, { league: candidate, seenWith: new Set() });
+      candidates.get(key).seenWith.add(owner);
+    }));
+    // Require corroboration by at least two distinct owners before even
+    // checking a candidate; a manager can play in several unrelated leagues.
+    const plausible = [...candidates.values()].filter(c => c.seenWith.size >= 2);
+    if (!plausible.length) break;
+    const checked = (await Promise.all(plausible.map(async ({ league: older }) => {
+      const olderOwners = await ownersFor(older.league_id);
+      const overlap = [...owners].filter(o => olderOwners.has(o)).length;
+      const sameName = [lastName, originalName].includes(Vault.norm(older.name || ''));
+      // A renamed league needs a much stronger cross-manager identity match.
+      if (overlap < (sameName ? 2 : Math.max(3, Math.ceil(owners.size / 2)))) return null;
+      return { league: older, overlap, sameName, score: overlap * 10 + (sameName ? 6 : 0) };
+    }))).filter(Boolean).sort((a, b) => b.score - a.score);
+    if (!checked.length || (checked[1] && checked[1].score === checked[0].score)) break;
+    // A matching name is insufficient on its own. These must be the same
+    // managers across seasons, with no ambiguous equally strong candidate.
+    const older = checked[0].league;
+    const tail = await Vault.fetchSeasonChain(older.league_id, older);
+    const fresh = tail.filter(s => !visited.has(String(s.leagueId)));
+    if (!fresh.length) break;
+    fresh.forEach(s => visited.add(String(s.leagueId)));
+    chain.push(...fresh);
+    lastName = Vault.norm(older.name || '') || lastName;
   }
   return chain;
 }
