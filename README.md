@@ -168,6 +168,8 @@ node scripts/check-calculator-deep.js
 node scripts/check-rookie-pick-outcomes.js
 node scripts/check-rookie-slot.js
 node scripts/check-rookie-slot-benchmark.js
+node scripts/check-rookie-slot-weighting.js
+node scripts/check-rookie-summary.js
 ```
 
 Study **unique drafted rookies** and their observed KTC prices a year after
@@ -178,7 +180,21 @@ node scripts/fetch-nfl-draft-years.js
 node --max-old-space-size=6144 scripts/benchmark-rookie-pick-outcomes.js > rookie-outcomes.json
 node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json > rookie-summary.txt
 Get-Content rookie-summary.txt
+# Optional: every exact slot for a single format and league size
+node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json --full --format=sf --size=12 > rookie-sf12-full.txt
 ```
+
+The revised summary defaults to a **short 12-team 1QB and Superflex report**
+instead of printing all thousand-plus slot rows. It shows actual one-year
+KTC price distributions **weighted by draft selections**, alongside a
+separate **rookie-heavy** subgroup (at least 80% of its first round has
+verified NFL rookies). For recurring players, every draft choice is priced
+at its own draft date plus 365 days rather than inheriting the first
+encountered price. This subgroup is a **heuristic**, not proof of the
+league's rookie-only draft type, and repeated players across leagues are
+not statistically independent. No result has been approved for live
+draft-pick valuation; 2025 draft-year coverage and missing historical
+pick prices remain key limitations.
 
 The original draft crawl did not have historical rookie-year metadata and produced zero verified rookies. The historical NFL source may cover **2024 but not 2025**. The importer now saves any complete season with at least 200 recorded NFL selections, prints available years, and warns about missing seasons rather than failing because its cross-year total is below an arbitrary threshold. Missing years remain unavailable for trustworthy rookie-price forecasts. The explicit import from nflverse's public NFL draft data supplies verified year, name and position; mismatched or ambiguous identities are excluded. The source cannot identify undrafted free agents or recover years of missing pre-draft pick prices. License and source: https://github.com/nflverse/nfldata/blob/master/data/draft_picks.csv. Import the file locally before analysis.\n\nThe same benchmark also reports **draft-size-specific exact slot groups**
 (8–16-team leagues, e.g. 1.01, 1.10, 1.12). A group is included only
