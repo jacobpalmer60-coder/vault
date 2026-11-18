@@ -113,6 +113,16 @@ node scripts/benchmark-rebuild-horizon.js *> rebuild-horizons.txt
 node scripts/summarize-value-research.js > research-summary.txt
 ```
 
+The forecasting tests now enforce **strict as-of outcome availability** for
+every test month: an origin from 2021 whose 3-year result is not known until
+2024 cannot train a prediction made in 2023. The old 3-year result therefore
+had temporal leakage and must not be quoted as a clean holdout. Run
+`node scripts/check-rebuild-forecast-chronology.js` to validate chronology,
+zero-versus-missing prices, and format isolation. Inspect each horizon's
+`trainingCoverage` and `groups.formatAndPosition`; especially the 3-year
+forecast's early-2023 months may have very few available training outcomes.
+**Do not promote this forecast based on the old benchmark output.**
+
 The rebuilding experiment evaluates price preservation after **1, 2 and 3
 years**, with earlier-year training and later-year evaluation and breakdowns
 by position, age and league format. It measures **players only**: picks,
