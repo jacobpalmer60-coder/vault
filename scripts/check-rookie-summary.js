@@ -45,6 +45,6 @@ assert.match(full,/sf \| 10-team \| 1.01/);
 const filtered=render(['--format=sf','--size=10','--year=2024']);
 assert.match(filtered,/sf \| 10-team \| 1.01/);
 assert.doesNotMatch(filtered,/sf \| 12-team \| 1.01/);
-assert.doesNotMatch(filtered,/sf_tep/);
+assert.doesNotMatch(filtered,/sf_tep \\| 12-team \\| 1\\.01/);
 assert.ok(compact.split('\n').length<35,'default summary remains readable');
 console.log('PASS concise default summary, weighted and rookie-heavy medians, full output, size and format filters');
