@@ -4,18 +4,18 @@
  Rebuild-oriented player-value research at 1-, 2-, and 3-year horizons.
  Price preservation is not equivalent to rebuilding-team success, and draft
  picks are not included. No current calculator grade or weights are changed.
- Training origins and test origins are separated chronologically by horizon:
- 1y: 2022-23 train, 2025 test
- 2y: 2020-22 train, 2024 test
- 3y: 2020-21 train, 2023 test
- Models use ONLY earlier-origin prices for training; current age-curve is
- included as a retrospective comparator (it is NOT a clean holdout).
+ Training requires outcomes known BEFORE each prediction origin,
+ not merely earlier training-origin years. A three-year outcome from 2021
+ was not knowable in 2023 and is therefore excluded. As-of training is
+ recomputed by test month. Current age-curve is a retrospective comparator
+ only; it has seen the test period.
  Today's known player names/ages introduce survivorship bias.
  */
 const fs=require('node:fs'),path=require('node:path');
 const ROOT=path.join(__dirname,'..');
 const read=p=>JSON.parse(fs.readFileSync(path.join(ROOT,p),'utf8'));
 const {normalizeName}=require('./market-history/ktc-book');
+const {fitAsOf}=require('./market-history/forecast-training');
 const catalog=read('data/ktc-values.json');
 const meta=new Map(catalog.players.filter(p=>p.age>0).map(p=>[normalizeName(p.name),p]));
 const today=Date.parse(catalog.updated),YEAR=365.25*864e5,MIN_VALUE=1000;
@@ -48,7 +48,7 @@ const sampleFor=(doc,format,years,allowedYears)=>{
    const v0=values.get(i);
    if(!(v0>=MIN_VALUE))continue;
    const age=p.age-(today-Date.parse(d))/YEAR;
-   rows.push({format,pos:p.pos,age,ageBand:ageBand(age),planBand:planBand(age),v0,v1:values.get(end)??null});
+   rows.push({format,pos:p.pos,age,ageBand:ageBand(age),planBand:planBand(age),v0,v1:values.get(end)??null,originDate:d,outcomeDate:dates[end]});
   }
  }
  return rows;
@@ -73,24 +73,13 @@ for(const cfg of configurations){
   test.push(...sampleFor(doc,format,cfg.years,[cfg.test]));
  }
  if(!train.length||!test.length){outputs.push({years:cfg.years,error:'Insufficient history'});continue}
- // Train age/position/format cell from earlier years, with a position-wide
- // fallback for sparse groups. The per-cell shrinkage prevents runaway ratios.
- const buckets=new Map();
- const add=(key,x)=>{
-  const e=buckets.get(key)||{count:0,num:0,den:0};
-  e.count++;e.num+=Math.min(2,x.v1/x.v0)*x.v0;e.den+=x.v0;
-  buckets.set(key,e);
- };
- for(const row of train)if(row.v1!==null){
-  add(row.format+'|'+row.pos+'|'+row.ageBand,row);
-  add(row.format+'|'+row.pos,row);
- }
- const factor=r=>{
-  const a=buckets.get(r.format+'|'+r.pos+'|'+r.ageBand);
-  const b=buckets.get(r.format+'|'+r.pos);
-  const e=a&&a.count>=20?a:b;
-  return e?(e.num+100000)/(e.den+100000):1;
- };
+ // Fit only outcomes already observable strictly before each test month.
+ // In particular 2021 + 3 years is 2024, and cannot be used to test 2023.
+ const byMonth=new Map();
+ for(const month of new Set(test.map(r=>r.originDate)))byMonth.set(month,fitAsOf(train,month));
+ const factor=r=>byMonth.get(r.originDate).factor(r);
+ const trainingCoverage=Object.fromEntries([...byMonth.entries()].sort(([a],[b])=>a.localeCompare(b))
+  .map(([month,x])=>[month,{eligible:x.eligible,excludedFuture:x.rejectedFuture,unknown:x.unknown}]));
  const existing=r=>curve[r.format]?.[r.pos]?.[Math.min(36,Math.max(21,Math.round(r.age)))]?.[cfg.years-1]??1;
  const analyze=rows=>({
   unmodified:simpleMetric(rows,()=>1),
@@ -111,7 +100,7 @@ for(const cfg of configurations){
   }
  }
  outputs.push({years:cfg.years,trainYears:cfg.train,testYear:cfg.test,
-  trainN:train.length,testN:test.length,missing:test.length-scored.length,
+  trainN:train.length,testN:test.length,missing:test.length-scored.length,trainingCoverage,
   completeCase:analyze(scored),
   missingAsZero:analyze(test),
   groups
@@ -125,6 +114,7 @@ const output={
   'Historical player population is matched through the current KTC player catalog; delisted players are omitted (survivorship).',
   'An absent follow-up KTC price is not certainly a worthless asset; both complete and zero-imputed outcomes are shown.',
   'Current age curve contains post-test data and is retrospective only. Never select a model using its apparent holdout performance.',
+  'As-of training is recomputed for each test month; only prior observed outcomes are eligible.',
   'Repeated monthly observations for the same player are dependent; report groups and period effects, not naive independent confidence intervals.',
   'These experiments do NOT change live market-price trade value, player grade or fantasy team odds.'
  ],horizons:outputs
