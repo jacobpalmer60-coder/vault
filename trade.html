@@ -1112,6 +1112,29 @@ function matchTarget(side, key) {
       }
       if (!swapped) break;
     }
+    // Local swaps cannot escape a poor initial package when all of its pieces
+    // need replacing. Compare bounded complete 1/2/3-piece packages using the
+    // SAME two-sided price as the calculator, not a single-sided proxy.
+    // Keep the original result in consideration even if outside the shortlist.
+    const targetEach = asset.value;
+    const shortlist = [...new Map([
+      ...[1, 2, 3].flatMap(n => [...pool]
+        .sort((a, b) => Math.abs(a.value - targetEach / n) - Math.abs(b.value - targetEach / n))
+        .slice(0, n === 3 ? 12 : 16)),
+      ...pool.slice(0, 8), ...picked
+    ].map(a => [a.key, a])).values()].slice(0, 32);
+    let bestMatch = picked, bestMatchScore = evalOtherCombo(picked) + (picked.length - 1) * COMBO_SIZE_PENALTY_PCT;
+    const testMatch = list => {
+      const score = evalOtherCombo(list) + (list.length - 1) * COMBO_SIZE_PENALTY_PCT;
+      if (score < bestMatchScore - 1e-9) { bestMatch = list; bestMatchScore = score; }
+    };
+    shortlist.forEach(a => testMatch([a]));
+    shortlist.forEach((a, i) => shortlist.slice(i + 1).forEach(b => testMatch([a, b])));
+    // A price-aware subset keeps three-piece search practical on large rosters.
+    const thirds = shortlist.slice(0, 18);
+    thirds.forEach((a, i) => thirds.slice(i + 1).forEach((b, j) =>
+      thirds.slice(i + j + 2).forEach(c => testMatch([a, b, c]))));
+    picked = bestMatch;
     picked.forEach(a => otherSel.add(a.key));
   }
 
