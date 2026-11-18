@@ -89,7 +89,7 @@ function testMatch(reverse) {
   },render:()=>{}
  };
  const code=extract('function matchTarget(side, key) {','function fmtSigned');
- vm.runInNewContext(code+'\\nmatchTarget('+JSON.stringify(reverse?'B':'A')+',"a");',ctx);
+ vm.runInNewContext(code+'\nmatchTarget('+JSON.stringify(reverse?'B':'A')+',"a");',ctx);
  return [...(reverse?selectedA:selectedB)].sort();
 }
 assert.deepEqual(testMatch(false),['p30','p40','q30']);
