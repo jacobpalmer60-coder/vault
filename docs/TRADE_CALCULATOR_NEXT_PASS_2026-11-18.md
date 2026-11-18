@@ -26,6 +26,33 @@ regardless of how many leagues drafted him. Missing values are reported
 separately. Outcomes include quantiles (p10, p25, median, p75, p90),
 observed count, missing count, and pre-draft mid-pick reference prices.
 
+
+## November 18 local-results audit and rookie-cohort correction
+
+The local run reported **134,358 eligible spring drafts** and **18,468
+distinct season/format/player identities**, but a large majority of
+observations had no one-year KTC price, and the pre-draft price column was
+unavailable for every format. Those aggregates must **not** be used to set
+draft-pick valuations. Selection in a March–August league draft does not
+establish that a selected player is an NFL rookie; startup and supplemental
+drafts can include veterans.
+
+The benchmark now requires an explicit Sleeper NFL draft/rookie year equal
+to the spring draft season, in addition to QB/RB/WR/TE eligibility. Veteran,
+unverifiable, missing-player and non-fantasy selections are counted as
+exclusions. Without verified rookie-year metadata, an observation is
+excluded rather than accepted as a rookie. This is an intentionally
+**conservative filter**: if the stored Sleeper metadata does not contain a
+draft or rookie year, the benchmark can have zero usable cohorts. A zero
+cohort is a clear blocker, not a reason to silently revert to the old
+mixing rule.
+
+The per-round distribution remains **research-only** because historical
+pre-draft pick-price snapshots are absent in the existing local outcome
+summary and league draft type is not yet reliably identified. Exact draft
+slot and the owner's return remain unvalidated. No live trade, draft pick
+or team valuation was modified.
+
 ## What has been tested
 
 - JS syntax for new analysis, tests and modified calculator inline script.
