@@ -4499,7 +4499,7 @@ const Vault = {
     for (const tx of events) {
       const isTrade = tx.type === 'trade' && (tx.roster_ids || []).length === 2;
       if (when(tx) < minTimestamp) {
-        if (isTrade) evidence.set(String(tx.transaction_id), { status: 'before-draft' });
+        if (isTrade) evidence.set(String(tx.transaction_id), { status: Number.isFinite(minTimestamp) ? 'before-draft' : 'unavailable' });
         continue;
       }
       const adds = Object.entries(tx.adds || {}), drops = Object.entries(tx.drops || {});
