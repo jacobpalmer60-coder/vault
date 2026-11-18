@@ -33,7 +33,7 @@ const requireMock=name=>{
 };
 vm.runInNewContext(code,{require:requireMock,process:{env:{MIN_DRAFTS:'1'}},console:{log:x=>output=JSON.parse(x)},Date,Map,Set,Number,String,Object,Array,Math,RegExp,Error}, {filename:'benchmark-rookie-pick-outcomes.js'});
 assert.equal(output.counts.draftsSeen,6,'two season files each include three draft fixtures');
-assert.equal(output.counts.uniqueRookies,4,'2025 is not yet matured?');
+assert.equal(output.counts.uniqueRookies,5,'unique rookie counted per season and scoring format');
 assert.ok(output.warnings.some(w=>w.includes('not a return forecast')));
 const r1=output.groups.find(g=>g.year===2024&&g.round===1);
 assert.equal(r1.n,2,'duplicates across drafts count once');
