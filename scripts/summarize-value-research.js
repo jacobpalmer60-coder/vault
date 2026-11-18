@@ -36,6 +36,21 @@ for(const h of forecast.horizons||[]){
  console.log(h.years+'y',`train=${(h.trainYears||[]).join(',')} test=${h.testYear} n=${m.unmodified.n} missing=${h.missing}`,
   `unchanged MAE=${m.unmodified.mae}`,`trained MAE=${m.priorYearsTrained.mae}`,
   `current curve (LEAKY reference) MAE=${m.currentCurveRetrospective.mae}`);
+ const coverage=Object.entries(h.trainingCoverage||{});
+ if(coverage.length) {
+  const first=coverage[0],last=coverage[coverage.length-1];
+  console.log(' As-of known training observations:',first[0]+'='+first[1].eligible, 'to',last[0]+'='+last[1].eligible);
+  if(first[1].eligible<100)console.log('  WARNING: Early prediction months have too little prior matured history for reliable forecasts');
+ }
+ for(const [label,field] of [['Positions','position'],['League formats','format'],['Position by format','formatAndPosition']]){
+  console.log(' '+label+' (complete-case MAE; lower is better):');
+  for(const [key,group] of Object.entries(h.groups?.[field]||{}).sort(([a],[b])=>a.localeCompare(b))){
+   const c=group.completeCase,n=group.known;
+   if(n<30)continue;
+   const base=c.unmodified.mae,trained=c.priorYearsTrained.mae;
+   console.log('  '+key+' n='+n+' baseline='+base+' trained='+trained+' '+(trained>base?'REGRESSION':''));
+  }
+ }
  console.log(' Age proxies (under24 = young core, 30plus = veteran):');
  for(const [k,x] of Object.entries(h.groups?.age||{})){
   const n=x.known,models=x.completeCase;
