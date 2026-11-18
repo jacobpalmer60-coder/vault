@@ -17,6 +17,7 @@ on:
       - app.html
       - team-analyzer.html
       - trade_lab.html
+      - league_history.html
       - scripts/**
 
 permissions:
@@ -37,6 +38,7 @@ jobs:
       - run: node scripts/check-audit-regressions.js
       - run: node scripts/check-leaguewide-parity.js
       - run: node scripts/check-history-roster-evidence.js
+      - run: node scripts/check-league-history.js
       - run: node scripts/check-html-scripts.js
       - name: Every script parses
         run: for f in vault-core.js market-data.js scripts/*.js scripts/market-history/*.js; do node --check "$f" || exit 1; done
