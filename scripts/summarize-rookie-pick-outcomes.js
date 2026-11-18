@@ -34,13 +34,19 @@ console.log('\nDRAFT-SLOT RESEARCH (complete 8–16-team drafts; 1.01 differs fr
 console.log('Valid complete draft records: '+fmt(data.counts?.slotDraftsValidated)+
  ' | rejected: '+fmt(data.counts?.slotDraftsRejected)+
  ' | verified slot selections: '+fmt(data.counts?.slotSelectionsVerified));
+console.log('Complete drafts with >=80% verified rookies in first round (heuristic only): '+fmt(data.counts?.slotDraftsRookieHeavy)+' | below threshold: '+fmt(data.counts?.slotDraftsNotRookieHeavy));
 for(const g of data.slotGroups||[]){
  console.log([g.year,g.format,g.draftSize+'-team','pick '+g.round+'.'+String(g.slot).padStart(2,'0'),
   'selections '+fmt(g.selections),'distinct rookies '+fmt(g.distinctRookies),
   'known '+fmt(g.known),'missing '+fmt(g.missing)+' ('+g.missingRatePct+'%)',
-  'p25 '+fmt(g.followup.p25),'median '+fmt(g.followup.median),'p75 '+fmt(g.followup.p75)].join(' | '));
+  'rookie-heavy selection share '+(g.rookieHeavySharePct??'n/a')+'%',
+  'top-player selection share '+(g.mostCommonRookieSharePct??'n/a')+'%',
+  'distinct-player median '+fmt(g.followup.median),
+  'SELECTION-WEIGHTED median '+fmt(g.selectionWeightedFollowup?.median),
+  'weighted p25 '+fmt(g.selectionWeightedFollowup?.p25),'weighted p75 '+fmt(g.selectionWeightedFollowup?.p75)].join(' | '));
 }
 console.log('Slot groups are correlated: a rookie drafted in several league slots can appear once in EACH different slot.');
+console.log('Comparing selection-weighted and distinct-player medians diagnoses distortion; rookie-heavy is NOT confirmed draft-type metadata.');
 console.log('These are historical selection distributions, NOT pick-value recommendations or independent observations.');
 console.log('Missing prices excluded from quantiles; repeated rookies in one format/season deduplicated.');
 console.log('League draft TYPE and historical pick prices remain unresolved; use size-matched slot cohorts only.');
