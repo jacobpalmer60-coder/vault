@@ -1721,13 +1721,13 @@ const Vault = {
     return { FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'] }[slot] || [slot];
   },
   bestSlotAssignment(plist, slots, scoreOf = p => p.ppg || 0) {
-    // Exact maximum-scoring lineup across overlapping flex slots. For each
-    // position only its best N eligible players matter; a DP counts those picks.
+    // Exact assignment: restricted slots first, then optimize the overlapping
+    // flex slots. Choosing the top N of a fixed position cannot hurt an optimum:
+    // interchangeable players of that position can be swapped between its slots.
     const allowed = slots.map(s => Vault.slotAllows(s));
     const positions = [...new Set(allowed.flat())];
     const positionIndex = new Map(positions.map((p, i) => [p, i]));
-    const choices = allowed.map(list => list.map(p => positionIndex.get(p)));
-    const lists = positions.map(pos => []);
+    const lists = positions.map(() => []);
     plist.forEach((p, i) => {
       const pi = positionIndex.get(p.pos);
       if (pi == null) return;
@@ -1735,42 +1735,58 @@ const Vault = {
       if (Number.isFinite(value)) lists[pi].push({ p, i, value });
     });
     lists.forEach(list => list.sort((a, b) => b.value - a.value || a.i - b.i));
-    const base = [], radix = [];
-    let product = 1;
-    lists.forEach(list => { radix.push(product); base.push(list.length + 1); product *= (list.length + 1); });
-    // Numeric keys keep thousands of repeated lineup calculations light. Rare
-    // highly specialized leagues with huge position sets use string keys.
-    const numeric = product <= Number.MAX_SAFE_INTEGER;
-    const startKey = numeric ? 0 : positions.map(() => 0).join(',');
-    let states = new Map([[startKey, { score: 0, filled: 0, prev: null, pick: null }]]);
-    const better = (score, filled, old) => !old || score > old.score + 1e-9 ||
-      (Math.abs(score - old.score) <= 1e-9 && filled > old.filled);
-    choices.forEach(allowedPositions => {
-      const next = new Map();
-      states.forEach((state, key) => {
-        const put = (newKey, score, filled, pick) => {
-          if (better(score, filled, next.get(newKey)))
-            next.set(newKey, { score, filled, prev: state, pick });
-        };
-        put(key, state.score, state.filled, null);
-        let counts = null;
-        for (const pi of allowedPositions) {
-          let count;
-          if (numeric) count = Math.floor(key / radix[pi]) % base[pi];
-          else { if (!counts) counts = key.split(',').map(Number); count = counts[pi]; }
-          if (count >= lists[pi].length) continue;
-          const candidate = lists[pi][count];
-          const nextKey = numeric ? key + radix[pi]
-            : counts.map((v, i) => i === pi ? v + 1 : v).join(',');
-          put(nextKey, state.score + candidate.value, state.filled + 1, candidate);
-        }
-      });
-      states = next;
-    });
-    let best = null;
-    states.forEach(v => { if (better(v.score, v.filled, best)) best = v; });
     const selected = Array(slots.length).fill(null);
-    for (let i = slots.length - 1; i >= 0 && best; i--, best = best.prev) selected[i] = best.pick;
+    const counts = positions.map(() => 0);
+    const flex = [];
+    allowed.forEach((eligible, index) => {
+      if (eligible.length !== 1) {
+        flex.push({ index, options: eligible.map(pos => positionIndex.get(pos)) });
+        return;
+      }
+      const pi = positionIndex.get(eligible[0]);
+      const candidate = lists[pi][counts[pi]];
+      if (candidate && candidate.value >= 0) {
+        selected[index] = candidate;
+        counts[pi]++;
+      }
+    });
+    if (flex.length) {
+      const base = [], radix = [];
+      let product = 1;
+      lists.forEach(list => { radix.push(product); base.push(list.length + 1); product *= list.length + 1; });
+      const numeric = product <= Number.MAX_SAFE_INTEGER;
+      const encode = c => numeric ? c.reduce((sum, v, i) => sum + v * radix[i], 0) : c.join(',');
+      const startKey = encode(counts);
+      let states = new Map([[startKey, { score: 0, filled: 0, prev: null, pick: null }]]);
+      const better = (score, filled, old) => !old || score > old.score + 1e-9 ||
+        (Math.abs(score - old.score) <= 1e-9 && filled > old.filled);
+      flex.forEach(({ options }) => {
+        const next = new Map();
+        states.forEach((state, key) => {
+          const put = (newKey, score, filled, pick) => {
+            if (better(score, filled, next.get(newKey)))
+              next.set(newKey, { score, filled, prev: state, pick });
+          };
+          put(key, state.score, state.filled, null);
+          let decoded = null;
+          for (const pi of options) {
+            let count;
+            if (numeric) count = Math.floor(key / radix[pi]) % base[pi];
+            else { if (!decoded) decoded = key.split(',').map(Number); count = decoded[pi]; }
+            if (count >= lists[pi].length) continue;
+            const candidate = lists[pi][count];
+            const nextKey = numeric ? key + radix[pi]
+              : decoded.map((v, i) => i === pi ? v + 1 : v).join(',');
+            put(nextKey, state.score + candidate.value, state.filled + 1, candidate);
+          }
+        });
+        states = next;
+      });
+      let best = null;
+      states.forEach(v => { if (better(v.score, v.filled, best)) best = v; });
+      for (let i = flex.length - 1; i >= 0 && best; i--, best = best.prev)
+        selected[flex[i].index] = best.pick;
+    }
     const starters = slots.map((slot, i) => {
       const choice = selected[i], p = choice?.p;
       return p ? { slot, id: p.id, name: p.name, pos: p.pos, ppg: p.ppg,
@@ -1778,8 +1794,8 @@ const Vault = {
         : { slot, id: null, name: null, pos: null, ppg: 0, vorp: null,
             playerIndex: null, projectedPoints: 0 };
     });
-    return { total: selected.reduce((s, x) => s + (x?.value || 0), 0),
-      vorpTotal: selected.reduce((s, x) => s + (Number.isFinite(x?.p?.vorp) ? x.p.vorp : 0), 0),
+    return { total: selected.reduce((sum, x) => sum + (x?.value || 0), 0),
+      vorpTotal: selected.reduce((sum, x) => sum + (Number.isFinite(x?.p?.vorp) ? x.p.vorp : 0), 0),
       starters };
   },
   optimalLineupDetail(plist, slots) {
