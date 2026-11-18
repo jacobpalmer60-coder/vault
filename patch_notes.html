@@ -54,6 +54,11 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-18', items: [
+    { kind: 'new', page: 'Trade Calculator', text: "Trade Stress Test: the new What-if tab explores a traded player's hypothetical market-value decline and missed games, plus early/mid/late pick-price tiers where Vault has current price spreads. Both teams are measured with and without the trade under the same assumptions." },
+    { kind: 'improved', page: 'Trade Calculator', text: "The Stress Test's numbers are explicitly hypothetical, include roster value, draft capital and an illustrative 17-game replacement-lineup average, and never alter official grades, values or Trade Coach." },
+    { kind: 'improved', page: 'Testing', text: "Added side-symmetric player and pick stress regression tests, interactive What-if UI tests, and desktop/phone/narrow-phone browser smoke checks." }
+  ] },
+  { date: '2026-11-18', items: [
     { kind: 'improved', page: 'Trade Calculator', text: "Added a plain-language explanation of the calculated lineup, player-value and draft-capital changes to both teams' impact cards. No new market-value formula is applied." },
     { kind: 'improved', page: 'Trade Calculator', text: "Phone trade tabs now support arrow-key, Home and End keyboard navigation, with explicit panel relationships for screen readers and refreshed browser caching." },
     { kind: 'new', page: 'Research', text: "Added historical rookie draft outcome distributions by round, format and year, with repeated rookies deduplicated and missing KTC follow-up prices reported separately. Research only; not a live future-pick forecast." },
