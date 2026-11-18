@@ -23,17 +23,22 @@ const data=new Map(),counts={
  rejectedVeterans:0,unverifiableRookieYear:0,rejectedNonFantasy:0,missingSleeperIdentity:0
 };
 const fantasyPositions=new Set(['QB','RB','WR','TE']);
+const {loadDraftIndex,draftYearEvidence}=require('./market-history/rookie-evidence');
+const draftIndex=loadDraftIndex(path.join(__dirname,'..','data','research','nfl-draft-years.csv'));
+counts.verifiedFromNflverse=0;
+counts.verifiedFromSleeper=0;
+counts.ambiguousIdentity=0;
 function verifiedRookie(sid,year){
  const p=players[sid];
  if(!p){counts.missingSleeperIdentity++;return false}
  if(!fantasyPositions.has(p.position)){counts.rejectedNonFantasy++;return false}
- // Sleeper identity fields vary by vintage. Do not invent rookie status from
- // league draft date, today's years_exp, or current player name.
- const explicit=[p.draft_year,p.rookie_year,p.rookie_season,p.nfl_draft_year]
-  .map(Number).filter(x=>Number.isInteger(x)&&x>=1990&&x<=year+1);
- if(!explicit.length){counts.unverifiableRookieYear++;return false}
- if(!explicit.includes(year)){counts.rejectedVeterans++;return false}
- return true;
+ const evidence=draftYearEvidence(p,year,draftIndex);
+ if(evidence==='sleeper'){counts.verifiedFromSleeper++;return true}
+ if(evidence==='nflverse'){counts.verifiedFromNflverse++;return true}
+ if(evidence==='other-year'){counts.rejectedVeterans++;return false}
+ if(evidence==='ambiguous'){counts.ambiguousIdentity++;return false}
+ counts.unverifiableRookieYear++;
+ return false;
 }
 function key(fmt,year,sid){return fmt+'|'+year+'|'+sid}
 const files=seasonFiles(2022).filter(f=>Number(f.slice(0,4))<=2025);
@@ -106,12 +111,13 @@ const groups=[...buckets.values()].sort((a,b)=>a.year-b.year||a.format.localeCom
   positions:g.pos})); 
 const result={generated:new Date().toISOString().slice(0,10),horizonDays:365,
  description:'Explicit NFL rookie-year verified picks only: KTC prices 365 days after dynasty drafts, by year, league format and round',
- counts,groups:groups.filter(g=>g.n>=minDrafts),
+ counts,registryLoaded:!!draftIndex,groups:groups.filter(g=>g.n>=minDrafts),
  warnings:[
  'Research only. This is the future PRICE of rookies actually selected in drafts, not a return forecast for an individual owned draft pick.',
  'One rookie is one observation per season/format, regardless of popularity across drafts. Correlated duplicate selections are not independent samples.',
  'Missing KTC follow-up prices are excluded from percentiles and disclosed separately, never interpreted as certain zero-value outcomes.',
- 'Selection alone does not establish rookie status. Players without an explicit matching NFL draft/rookie year in Sleeper metadata are excluded and counted, not imputed.',
+ 'Selection alone does not establish rookie status. Verified rookie year must match explicit Sleeper fields or an unambiguous nflverse NFL-draft name and position.',
+ 'Undrafted rookie free agents are omitted unless Sleeper has their explicit rookie year; name matches cannot establish identity for duplicate names.',
  'League draft types cannot always be validated from the compressed crawl; filtering rookie identities does not establish whether a draft was startup or rookie-only.',
  'Historical pick-value snapshots may not cover the pre-draft years. Missing reference prices remain null; NEVER use a modern pick price for an old draft.',
  'Draft selections can differ by league. Round-level distributions are NOT pick-slot distributions; 1.01 and 1.12 must not be treated identically.',
