@@ -2601,10 +2601,17 @@ function futureRanksHtml(team, gives, gets, otherTeam, otherGives, otherGets) {
 }
 // How the other manager trades, from their trades in this league (negHabitFit). Painted once their
 // history is in: it loads in the background and the card shouldn't wait on it.
-function paintHabitLine(team, gets, gives) {
-  const box = document.getElementById('habitLine');
+function paintHabitLine(side, team, gets, gives) {
+  const id = `habitLine${side}`, box = document.getElementById(id);
   if (!box) return;
-  if (!Negotiation.styles) { negPreloadStyles()?.then(() => { if (document.getElementById('habitLine') === box) paintHabitLine(team, gets, gives); }); return; }
+  if (!Negotiation.styles) {
+    negPreloadStyles()?.then(() => {
+      // The viewer may switch either team while history loads.
+      if (document.getElementById(id) === box && teamOf(side)?.rosterId === team.rosterId)
+        paintHabitLine(side, team, gets, gives);
+    });
+    return;
+  }
   const { habits, fit } = negHabitFit(team.rosterId, gets, gives);
   if (!habits.length) { box.textContent = ''; return; }
   const said = habits.map((h, i) => `${h.say} in ${h.n} of ${h.of}${i ? '' : ' trades'}`).join(' and ');
@@ -2635,7 +2642,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           <span class="size-2 rounded-full shrink-0 mt-1.5 ${TONE_DOT[head.tone]}"></span>
           <p class="text-[13px] ${TONE[head.tone]} leading-relaxed"><span class="font-medium">${head.text}.</span> <span class="font-normal">${Vault.buildSynopsis('', res.notes)}</span></p>
         </div>
-        ${side === 'B' ? '<p id="habitLine" class="text-[12px] text-zinc-400 mb-3 empty:hidden"></p>' : ''}
+        <p id="habitLine${side}" class="text-[12px] text-zinc-400 mb-3 empty:hidden"></p>
         ${res.notes.length ? `<details class="group mb-3">
           <summary class="flex items-center gap-1.5 py-1 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
             <svg class="size-3 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
@@ -2654,7 +2661,8 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
         ${futureRanksHtml(side === 'A' ? teamA : teamB, side === 'A' ? aAssets : bAssets, side === 'A' ? bAssets : aAssets, side === 'A' ? teamB : teamA, side === 'A' ? bAssets : aAssets, side === 'A' ? aAssets : bAssets)}
       </div>`;
   });
-  paintHabitLine(teamB, aAssets, bAssets);
+  paintHabitLine('A', teamA, bAssets, aAssets);
+  paintHabitLine('B', teamB, aAssets, bAssets);
 
 }
 
