@@ -15,11 +15,13 @@ console.log('UNIQUE ROOKIE HISTORICAL KTC OUTCOMES (365 DAYS AFTER DRAFT)');
 console.log('Research only; drafted-player prices, NOT precise pick forecasts');
 console.log('Drafts assessed: '+fmt(data.counts?.eligibleDrafts)+
  ' | Unique rookies by season/format: '+fmt(data.counts?.uniqueRookies));
+console.log('Verified rookie selections: nflverse '+fmt(data.counts?.verifiedFromNflverse)+' | Sleeper '+fmt(data.counts?.verifiedFromSleeper)+' | external registry loaded: '+Boolean(data.registryLoaded));
 console.log('Excluded selections: veteran NFL draft year '+fmt(data.counts?.rejectedVeterans)+
  ' | unknown rookie year '+fmt(data.counts?.unverifiableRookieYear)+
  ' | nonfantasy '+fmt(data.counts?.rejectedNonFantasy)+
- ' | missing player identity '+fmt(data.counts?.missingSleeperIdentity));
-if(!data.counts?.uniqueRookies)console.log('WARNING: no verifiable rookies. Confirm Sleeper player metadata has draft_year or rookie_year before interpreting price results.');
+ ' | missing player identity '+fmt(data.counts?.missingSleeperIdentity)+
+ ' | ambiguous matches '+fmt(data.counts?.ambiguousIdentity));
+if(!data.counts?.uniqueRookies)console.log('WARNING: no verifiable rookies. Run node scripts/fetch-nfl-draft-years.js, then rerun the benchmark.');
 
 for(const g of data.groups||[]){
  console.log([g.year,g.format,'round '+g.round,'players '+g.n,
