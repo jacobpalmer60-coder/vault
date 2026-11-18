@@ -1653,7 +1653,7 @@ function evenPlan() {
 // The first fix in words, worked out a moment after the trade settles, so typing a trade stays quick.
 let evenLine = null, evenLineTimer = 0;
 function scheduleEvenLine() {
-  const key = [[...selectedA].sort(), [...selectedB].sort(), teamOf('B')?.rosterId, JSON.stringify(Vault.planOverride || {})].join('|');
+  const key = [teamOf('A')?.rosterId, teamOf('B')?.rosterId, [...selectedA].sort(), [...selectedB].sort(), JSON.stringify(Vault.planOverride || {})].join('|');
   if (evenLine?.key === key) return paintEvenLine();
   clearTimeout(evenLineTimer);
   evenLineTimer = setTimeout(() => { evenLine = { key, plan: evenPlan() }; paintEvenLine(); }, 150);
@@ -1662,7 +1662,7 @@ function paintEvenLine() {
   const box = document.getElementById('evenLine');
   if (!box) return;
   const f = evenLine.plan, esc = Vault.escapeHtml;
-  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-500">No small change gets this to a price both teams could take.</div>'; return; }
+  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-500">No suggested adjustment in this search meets both teams' price and acceptance checks.</div>'; return; }
   const o = f.options[0], giver = o.helpB ? f.teamA : f.teamB, names = l => l.map(a => esc(a.name)).join(' and ');
   const change = [o.add.length ? `${esc(giver.teamName)} adds <span class="text-zinc-100">${names(o.add)}</span>` : '', o.drop.length ? `<span class="text-zinc-100">${names(o.drop)}</span> comes out` : ''].filter(Boolean).join(' and ');
   // Says what the fix reaches, not that it's even: the team it's for, then the other team's read.
