@@ -54,6 +54,11 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-18', items: [
+    { kind: 'improved', page: 'Trade Calculator', text: "Both teams now get a consistent before-and-after roster-impact breakdown showing player values, draft capital, total team value and lineup points. The calculations reuse the existing trade simulation without altering market-price math." },
+    { kind: 'fixed', page: 'Trade Calculator', text: "Future rank is explicitly labeled as projected PLAYER lineup value rank, not a future overall team or title projection. The note clarifies that unknown future rookie returns on draft picks are excluded." },
+    { kind: 'improved', page: 'Research', text: "Added an A/B symmetric trade-impact ledger regression test, with no-change and asset-conservation checks." }
+  ] },
+  { date: '2026-11-18', items: [
     { kind: 'fixed', page: 'Research', text: "Corrected future-value model testing so each prediction only trains on player-value outcomes available before that prediction date. Earlier two- and three-year improvement figures were not fully time-safe and are no longer treated as validation." },
     { kind: 'improved', page: 'Research', text: "Added regression coverage for historical forecast chronology, known-zero versus missing future prices, and league-format separation. The live trade calculator's valuation formula is unchanged." }
   ] },
