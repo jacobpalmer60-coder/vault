@@ -1715,32 +1715,83 @@ const Vault = {
       const since = ahead - Math.max(0, a.season - season);
       if (since >= 0) pool.push({ pos: 'WR', v: a.value * keep('WR', 22, since) });
     });
-    pool.sort((x, y) => y.v - x.v);
-    const open = slots.map(s => Vault.slotAllows(s)).sort((x, y) => x.length - y.length);
-    return open.reduce((sum, allowed) => { const at = pool.findIndex(p => allowed.includes(p.pos)); return at < 0 ? sum : sum + pool.splice(at, 1)[0].v; }, 0);
+    const best = Vault.bestLineupIndices(pool, slots, p => p.v);
+    return best.reduce((sum, index) => sum + (index >= 0 ? pool[index].v : 0), 0);
   },
   slotAllows(slot) {
     return { FLEX: ['RB', 'WR', 'TE'], SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'], WRRB_FLEX: ['RB', 'WR'], REC_FLEX: ['WR', 'TE'] }[slot] || [slot];
   },
-  optimalLineupDetail(plist, slots) {
-    const pool = [...plist].sort((a, b) => b.ppg - a.ppg);
-    const used = new Set();
-    const starters = [];
-    let total = 0;
-    let vorpTotal = 0;
-    for (const slot of slots) {
-      const allowed = Vault.slotAllows(slot);
-      const i = pool.findIndex(p => !used.has(p.id) && allowed.includes(p.pos));
-      if (i >= 0) {
-        const p = pool[i];
-        total += p.ppg;
-        if (Number.isFinite(p.vorp)) vorpTotal += p.vorp;
-        used.add(p.id);
-        starters.push({ slot, id: p.id, name: p.name, pos: p.pos, ppg: p.ppg, vorp: p.vorp });
-      } else {
-        starters.push({ slot, id: null, name: null, pos: null, ppg: 0, vorp: null });
-      }
+  bestLineupIndices(plist, slots, scoreAt) {
+    const allowed = slots.map(s => Vault.slotAllows(s));
+    const limits = new Map();
+    allowed.forEach(options => options.forEach(pos => limits.set(pos, (limits.get(pos) || 0) + 1)));
+    const groups = new Map();
+    plist.forEach((player, index) => {
+      if (!player || !limits.has(player.pos)) return;
+      const score = scoreAt(player, index);
+      if (!Number.isFinite(score) || score <= 0) return;
+      if (!groups.has(player.pos)) groups.set(player.pos, new Map());
+      const key = player.id != null ? String(player.id) : `index:${index}`;
+      const existing = groups.get(player.pos).get(key);
+      if (!existing || score > existing.score) groups.get(player.pos).set(key, { index, pos: player.pos, score });
+    });
+    // Any player beyond the best K at a position cannot start: only K slots
+    // accept that position. The cap makes exact assignment fast for large benches.
+    const candidates = [];
+    groups.forEach((group, pos) => {
+      candidates.push(...[...group.values()].sort((a, b) => b.score - a.score || a.index - b.index).slice(0, limits.get(pos)));
+    });
+    const n = slots.length, m = candidates.length + n;
+    if (!n) return [];
+    const u = new Float64Array(n + 1), v = new Float64Array(m + 1);
+    const assignedTo = new Int32Array(m + 1), previous = new Int32Array(m + 1);
+    for (let row = 1; row <= n; row++) {
+      assignedTo[0] = row;
+      let j0 = 0;
+      const minCost = new Float64Array(m + 1).fill(Infinity);
+      const seen = new Uint8Array(m + 1);
+      do {
+        seen[j0] = 1;
+        const i0 = assignedTo[j0];
+        let delta = Infinity, next = 0;
+        for (let j = 1; j <= m; j++) {
+          if (seen[j]) continue;
+          const c = candidates[j - 1];
+          const cost = c ? (allowed[i0 - 1].includes(c.pos) ? -c.score + c.index * 1e-9 : 1e9) : 0;
+          const reduced = cost - u[i0] - v[j];
+          if (reduced < minCost[j]) { minCost[j] = reduced; previous[j] = j0; }
+          if (minCost[j] < delta) { delta = minCost[j]; next = j; }
+        }
+        for (let j = 0; j <= m; j++) {
+          if (seen[j]) { u[assignedTo[j]] += delta; v[j] -= delta; }
+          else minCost[j] -= delta;
+        }
+        j0 = next;
+      } while (assignedTo[j0] !== 0);
+      do {
+        const j1 = previous[j0];
+        assignedTo[j0] = assignedTo[j1];
+        j0 = j1;
+      } while (j0 !== 0);
     }
+    const starts = Array(n).fill(-1);
+    for (let j = 1; j <= candidates.length; j++) {
+      const row = assignedTo[j] - 1;
+      if (row >= 0 && allowed[row].includes(candidates[j - 1].pos)) starts[row] = candidates[j - 1].index;
+    }
+    return starts;
+  },
+
+  optimalLineupDetail(plist, slots) {
+    const picks = Vault.bestLineupIndices(plist, slots, p => p.ppg);
+    let total = 0, vorpTotal = 0;
+    const starters = picks.map((i, n) => {
+      const p = i >= 0 ? plist[i] : null;
+      if (!p) return { slot: slots[n], id: null, name: null, pos: null, ppg: 0, vorp: null };
+      total += p.ppg;
+      if (Number.isFinite(p.vorp)) vorpTotal += p.vorp;
+      return { slot: slots[n], id: p.id, name: p.name, pos: p.pos, ppg: p.ppg, vorp: p.vorp };
+    });
     return { total, vorpTotal, starters };
   },
 
@@ -1849,20 +1900,14 @@ const Vault = {
     // each slot in order, ties in roster order), on index arrays instead of
     // copying every player every week.
     const wp = plist.map(p => Vault.weekPpgs(p, weeks));
-    const allows = slots.map(s => Vault.slotAllows(s));
     weeks.forEach((w, i) => {
-      const order = [];
-      for (let k = 0; k < plist.length; k++) if (wp[k][i] != null) order.push(k);
-      order.sort((a, b) => wp[b][i] - wp[a][i]);
-      const used = new Set();
+      const best = Vault.bestLineupIndices(plist, slots, (p, k) => wp[k][i]);
       let wTotal = 0, wVorp = 0;
-      for (const allowed of allows) {
-        const k = order.find(k => !used.has(plist[k].id) && allowed.includes(plist[k].pos));
-        if (k === undefined) continue;
+      for (const k of best) {
+        if (k < 0) continue;
         const p = plist[k];
         wTotal += wp[k][i];
         if (Number.isFinite(p.vorp)) wVorp += p.vorp;
-        used.add(p.id);
         if (p.id) starts.set(p.id, (starts.get(p.id) || 0) + 1);
       }
       total += wTotal; vorpTotal += wVorp; byWeek.set(w, wTotal);
