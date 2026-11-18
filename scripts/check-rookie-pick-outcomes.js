@@ -2,6 +2,9 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const code=fs.readFileSync(path.join(__dirname,'benchmark-rookie-pick-outcomes.js'),'utf8');
+const evidence=require('./market-history/rookie-evidence');
+assert.equal(evidence.draftYearEvidence({position:'QB',first_name:'Alex',last_name:'Rookie'},2024,new Map([['2024|QB|alex rookie',1]])),'nflverse');
+assert.equal(evidence.draftYearEvidence({position:'QB',first_name:'Alex',last_name:'Rookie'},2024,new Map([['2024|QB|alex rookie',2]])),'ambiguous');
 const readSeason=()=>({
  leagues:{L:[2,0]},
  drafts:{
@@ -27,11 +30,12 @@ const requireMock=name=>{
   readSleeperPlayers:()=>({'100':{position:'QB',draft_year:2024},'200':{position:'WR',draft_year:2024},'300':{position:'RB',draft_year:2024},'400':{position:'TE',draft_year:2024},'500':{position:'QB',draft_year:2025},'600':{position:'RB',draft_year:2021},'700':{position:'WR'}}),
   seasonFiles:()=>['2024.json.gz','2025.json.gz'],readSeason,ktcPrices:()=>prices,formatOf:()=>'sf'
  };
+ if(name==='./market-history/rookie-evidence')return {loadDraftIndex:()=>null,draftYearEvidence:evidence.draftYearEvidence};
  if(name==='node:fs')return fs;
  if(name==='node:path')return path;
  throw Error(name);
 };
-vm.runInNewContext(code,{require:requireMock,process:{env:{MIN_DRAFTS:'1'}},console:{log:x=>output=JSON.parse(x)},Date,Map,Set,Number,String,Object,Array,Math,RegExp,Error}, {filename:'benchmark-rookie-pick-outcomes.js'});
+vm.runInNewContext(code,{require:requireMock,process:{env:{MIN_DRAFTS:'1'}},console:{log:x=>output=JSON.parse(x)},__dirname,Date,Map,Set,Number,String,Object,Array,Math,RegExp,Error}, {filename:'benchmark-rookie-pick-outcomes.js'});
 assert.equal(output.counts.draftsSeen,6,'two season files each include three draft fixtures');
 assert.equal(output.counts.uniqueRookies,5,'unique rookies counted per season and scoring format');
 assert.ok(output.warnings.some(w=>w.includes('not a return forecast')));
