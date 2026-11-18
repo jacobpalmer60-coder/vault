@@ -71,6 +71,9 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
         if(innerWidth<600)tradeTab('stress');
         else document.getElementById('stressWrap').open=true;
         const gradeBefore=document.getElementById('diffLabel')?.innerText||'';
+        const tradeBefore=JSON.stringify({A:[...selectedA].sort(),B:[...selectedB].sort()});
+        const coachBefore=typeof negContext==='undefined'?null:JSON.stringify(negContext);
+        const evenBefore=typeof evenFix==='undefined'?null:JSON.stringify(evenFix);
         stressChange('decline','30');
         stressChange('missed','4');
         const panel=document.getElementById('stressResults');
@@ -80,12 +83,18 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
         return {visible,both:output.includes(preparedTeamName('A'))&&output.includes(preparedTeamName('B')),
           declared:output.includes('What-if only')&&output.includes('Trade impact'),
           gradeSame:gradeBefore===gradeAfter,
+          tradeSame:tradeBefore===JSON.stringify({A:[...selectedA].sort(),B:[...selectedB].sort()}),
+          coachSame:coachBefore===(typeof negContext==='undefined'?null:JSON.stringify(negContext)),
+          evenSame:evenBefore===(typeof evenFix==='undefined'?null:JSON.stringify(evenFix)),
           overshoot:document.documentElement.scrollWidth-innerWidth};
         function preparedTeamName(side){return teamOf(side).teamName}
       });
       if(!stressReport.visible||!stressReport.both||!stressReport.declared)
        errors.push('What-if scenario does not show the full two-manager analysis');
       if(!stressReport.gradeSame)errors.push('What-if scenario changed the official verdict');
+      if(!stressReport.tradeSame)errors.push('What-if scenario mutated the assets selected for trade');
+      if(!stressReport.coachSame)errors.push('What-if scenario mutated Trade Coach negotiation state');
+      if(!stressReport.evenSame)errors.push('What-if scenario mutated Even It Out state');
       if(stressReport.overshoot>1)errors.push('What-if scenario overflows by '+stressReport.overshoot+'px');
       if(width<600){
        for(const tab of ['teams','stress','season','details','verdict']){
