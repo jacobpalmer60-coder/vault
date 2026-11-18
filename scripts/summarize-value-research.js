@@ -16,6 +16,7 @@ function load(file){
  return JSON.parse(str.trim());
 }
 const trades=load(process.argv[2]||'trade-cohorts.txt');
+if(trades.schemaVersion!==2)throw Error('Outdated trade-cohorts benchmark: rerun scripts/benchmark-trade-value-outcomes.js. Older outcome labels used Vault pricing and are not an independent test.');
 const forecast=load(process.argv[3]||'rebuild-horizons.txt');
 const num=n=>typeof n==='number'?n.toLocaleString('en-US'):'n/a';
 const pp=n=>typeof n==='number'?(n>=0?'+':'')+n.toFixed(2):'n/a';
@@ -25,6 +26,13 @@ console.log('=== HISTORICAL TRADE PRICE DIRECTION (STRICT COMPLETE CASES) ===');
 console.log('Sampled:',num(trades.counts?.sampled),'Mature:',num(trades.counts?.mature),
   'Complete:',num(trades.counts?.complete),'Missing:',num(trades.counts?.missing));
 for(const [year,x] of rows)console.log(year,fmt(x.strict));
+console.log('\n=== PLAYER-ONLY TRADES (STRICT, NO ROOKIE PICK CONVERSION) ===');
+console.log('Mature player-only trades:',num(trades.counts?.playerOnlyMature),
+ 'Complete:',num(trades.counts?.playerOnlyComplete));
+for(const [year,x] of Object.entries(trades.by?.playerOnlyYear||{}).sort(([a],[b])=>a.localeCompare(b)))
+ console.log(year,fmt(x.strict));
+console.log('The future label is an independent additive price-sum comparison, NOT the Vault trade formula.');
+console.log('Player-only removes the estimated future value of draft picks; still retrospective and not a sealed holdout.');
 console.log('\n=== QUARTERS (STRICT) ===');
 for(const [k,x] of Object.entries(trades.by?.yearQuarter||{}))if(x.strict.n>=100)console.log(k,fmt(x.strict));
 console.log('\n=== MATERIAL PACKAGE SHAPES BY YEAR (>= 1000 COMPLETE DECISIONS) ===');
@@ -59,4 +67,5 @@ for(const h of forecast.horizons||[]){
     'trained='+models.priorYearsTrained.mae);
  }
 }
-console.log('\nResearch only. No rebuild roster reconstruction, independent price-curve holdout, or live grading change.');
+console.log('\nTrade outcome labels were corrected in schema v2; do not compare raw 2024/2025 agreement numbers from old schema.');
+console.log('Research only. No rebuild roster reconstruction, independent price-curve holdout, or live grading change.');
