@@ -72,14 +72,15 @@ function negPreloadStyles() {
    their worst exactly as often as chance) did not, so none of those are said here. */
 const HABIT_MIN = 4, HABIT_SHARE = 0.6;
 function negHabitsOf(s) {
-  const out = [], add = (key, n, of, say) => { if (of >= HABIT_MIN && n >= 3 && n / of >= HABIT_SHARE) out.push({ key, n, of, say }); };
+  const out = [], priced = s.pricedTrades ?? s.trades;
+  const add = (key, n, of, say) => { if (of >= HABIT_MIN && n >= 3 && n / of >= HABIT_SHARE) out.push({ key, n, of, say }); };
   const pickDeals = s.picksInCount + s.picksOutCount;
   add('picksIn', s.picksInCount, pickDeals, 'nets picks');
   add('picksOut', s.picksOutCount, pickDeals, 'spends picks');
-  add('younger', s.youngerCount, s.trades, 'gets younger');
-  add('older', s.olderCount, s.trades, 'gets older');
-  add('consolidate', s.consolidateCount, s.trades, 'sends more pieces than they get');
-  add('split', s.splitCount, s.trades, 'gets more pieces than they send');
+  add('younger', s.youngerCount, priced, 'gets younger');
+  add('older', s.olderCount, priced, 'gets older');
+  add('consolidate', s.consolidateCount, priced, 'sends more pieces than they get');
+  add('split', s.splitCount, priced, 'gets more pieces than they send');
   return out.sort((a, b) => b.n / b.of - a.n / a.of).slice(0, 2);
 }
 // Which habits a trade follows, from the side of the team that gets `gets` and sends `gives`.
