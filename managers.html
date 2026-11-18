@@ -77,9 +77,9 @@ function renderCard(s) {
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-1 text-center py-3 border-y border-white/5 mb-4">
-        <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[12px] text-zinc-400">Trades</div></div>
-        <div title="Trades they came out ahead in: at today's prices, and (below) at each trade's own"><div class="text-[14px] mono">${s.wonNow} of ${s.trades} <span class="text-[12px] text-zinc-500">won now</span></div><div class="text-[12px] text-zinc-400">${s.won} of ${s.trades} then</div></div>
-        <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${fmtSigned(s.avgFit, 1)}</div><div class="text-[12px] text-zinc-400">Avg Fit</div></div>
+        <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[12px] text-zinc-400">Trades · ${s.pricedTrades} priced</div></div>
+        <div title="Trades they came out ahead in: at today's prices, and (below) at each trade's own"><div class="text-[14px] mono">${s.wonNow} of ${s.pricedTrades} <span class="text-[12px] text-zinc-500">won now</span></div><div class="text-[12px] text-zinc-400">${s.won} of ${s.pricedTrades} then</div></div>
+        <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${s.fitTrades ? fmtSigned(s.avgFit, 1) : '—'}</div><div class="text-[12px] text-zinc-400">Avg Fit</div></div>
         <div title="How many of this manager's trades graded Fair, Lopsided, and Unfair: at today's prices, and (below) on the day"><div class="text-[14px] mono"><span class="text-emerald-400">${s.fairNow}</span> · <span class="text-orange-400">${s.lopsidedNow}</span> · <span class="text-rose-400">${s.unfairNow}</span> <span class="text-[12px] text-zinc-500">now</span></div><div class="text-[12px] text-zinc-400"><span class="text-emerald-400">${s.fair}</span> · <span class="text-orange-400">${s.lopsided}</span> · <span class="text-rose-400">${s.unfair}</span> then</div><div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">Fair · Lop · Unfair</div></div>
       </div>
 
@@ -181,11 +181,11 @@ function renderSummaryTable(rows, teams) {
                 </td>
                 <td class="hidden sm:table-cell px-3 py-3 whitespace-nowrap"><span class="text-[12px] px-2 py-0.5 rounded-md border ${STYLE_PILL[p.tone]}">${p.style}</span></td>
                 <td class="px-3 py-3 text-right mono text-zinc-400">${s.trades}</td>
-                <td class="hidden sm:table-cell px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.won} of ${s.trades}` : '—'}</td>
-                <td class="hidden sm:table-cell px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.trades ? `${s.wonNow} of ${s.trades}` : '—'}</td>
+                <td class="hidden sm:table-cell px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.pricedTrades ? `${s.won} of ${s.pricedTrades}` : '—'}</td>
+                <td class="hidden sm:table-cell px-3 py-3 text-right mono whitespace-nowrap text-zinc-300">${s.pricedTrades ? `${s.wonNow} of ${s.pricedTrades}` : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValue) : '—'}</td>
                 <td class="px-3 py-3 text-right">${s.trades ? signedCell(s.netValueToday) : '—'}</td>
-                <td class="hidden sm:table-cell px-4 py-3 text-right mono ${s.avgFit > 0.5 ? 'text-emerald-400' : s.avgFit < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.trades ? (s.avgFit >= 0 ? '+' : '−') + Math.abs(s.avgFit).toFixed(1) : '—'}</td>
+                <td class="hidden sm:table-cell px-4 py-3 text-right mono ${s.avgFit > 0.5 ? 'text-emerald-400' : s.avgFit < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.fitTrades ? (s.avgFit >= 0 ? '+' : '−') + Math.abs(s.avgFit).toFixed(1) : '—'}</td>
               </tr>${open ? `<tr><td colspan="8" class="px-3 pb-3">${renderCard(s)}</td></tr>` : ''}`;
             }).join('')}
           </tbody>
