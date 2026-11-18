@@ -185,7 +185,7 @@ const CHART_COLORS = ['#a5b4fc', '#5ec7f5', '#f56e6e', '#7ee787', '#c792ea', '#f
 const VALUE_METRICS = {
   total: { label: 'Value', field: 'total', decimals: 0, desc: "Each team's total dynasty value, snapshotted daily." },
   optPpg: { label: 'Lineup PPG', field: 'optPpg', decimals: 1, desc: "Each team's best-lineup projected PPG (league scoring), snapshotted daily." },
-  playerValue: { label: 'Player Value', field: 'playerValue', decimals: 0, desc: "Each team's rostered-player value only (excludes picks), rebuilt back to the startup draft by replaying every completed trade, waiver and draft pick since." }
+  playerValue: { label: 'Player Value', field: 'playerValue', decimals: 0, desc: "Each team's rostered-player value (no picks), reconstructed by replaying available completed transactions in this Sleeper league season. Older-season continuity is part of the historical-reconstruction work." }
 };
 let valueHistoryMetric = 'total';
 let lastValueHistory = null, lastValueHistoryTeams = null;
@@ -209,6 +209,44 @@ function setTrendWindow(days) {
 // Redrawn when the width changes, since it's drawn to fit.
 let valueHistoryWidth = 0;
 addEventListener('resize', () => { const w = document.getElementById('valueHistoryChart')?.clientWidth || 0; if (lastValueHistory && w && Math.abs(w - valueHistoryWidth) > 40) renderValueHistory(lastValueHistory, lastValueHistoryTeams); });
+function renderLeagueTradeMarks(trades, rosterIds, series, snaps, x, y, mineId) {
+  const allowed = new Set(rosterIds.map(String)), byKey = new Map();
+  (trades || []).forEach(t => {
+    if (!t?.date) return;
+    [...new Set((t.rosters || []).map(String))].forEach(rosterId => {
+      if (!allowed.has(rosterId)) return;
+      const moved = t.moves || [];
+      const got = moved.filter(m => String(m.to) === rosterId).map(m => m.what || 'an asset');
+      const sent = moved.filter(m => String(m.from) === rosterId).map(m => m.what || 'an asset');
+      const key = `${t.date}|${rosterId}`;
+      if (!byKey.has(key)) byKey.set(key, { date: t.date, rosterId, details: [] });
+      byKey.get(key).details.push(`Got ${got.join(', ') || 'nothing'}; sent ${sent.join(', ') || 'nothing'}`);
+    });
+  });
+  const dayIndex = new Map(snaps.map((s, i) => [s.date, i]));
+  const seriesById = new Map(series.map(s => [String(s.id), s]));
+  const eventsByDate = new Map();
+  const marks = [];
+  byKey.forEach(event => {
+    const i = dayIndex.get(event.date), team = seriesById.get(event.rosterId);
+    if (i == null || !team || team.points[i] == null) return;
+    if (!eventsByDate.has(event.date)) eventsByDate.set(event.date, []);
+    eventsByDate.get(event.date).push(event);
+    const base = mineId == null || team.mine ? 1 : 0.7;
+    const summary = `${event.date} · ${team.name}: ${event.details.join(' | ')}`;
+    marks.push(`<g data-series="${team.id}" data-base="${base}" style="transition:opacity .15s;opacity:${base}"><circle cx="${x(i)}" cy="${y(team.points[i])}" r="5" fill="#14161b" stroke="${team.color}" stroke-width="2"><title>${Vault.escapeHtml(summary)}</title></circle></g>`);
+  });
+  return { tradeMarks: marks.join(''), eventsByDate };
+}
+function chartTradeTooltip(eventsByDate, date, series) {
+  const events = eventsByDate?.get(date) || [];
+  if (!events.length) return '';
+  const rows = events.slice(0, 6).map(event => {
+    const name = series.find(s => String(s.id) === event.rosterId)?.name || `Team ${event.rosterId}`;
+    return `<div class="mb-1"><span class="font-medium text-zinc-200">${Vault.escapeHtml(name)}</span>: ${Vault.escapeHtml(event.details.join(' | '))}</div>`;
+  }).join('');
+  return `<div class="mt-2 pt-2 border-t border-white/10 whitespace-normal max-w-[340px]"><div class="text-zinc-400 mb-1">Completed trades</div>${rows}${events.length > 6 ? `<div class="text-zinc-500">+${events.length - 6} more team trade events</div>` : ''}</div>`;
+}
 function renderValueHistory(history, currentTeams) {
   lastValueHistory = history; lastValueHistoryTeams = currentTeams;
   valueHistoryWidth = document.getElementById('valueHistoryChart')?.clientWidth || 0;
@@ -318,14 +356,8 @@ function renderValueHistory(history, currentTeams) {
   // re-created, whenever the metric/window toggle changes).
   currentChartInfo = { snaps, series, field, decimals, ML, MT, plotW, plotH, W, H };
   const hoverRect = `<rect x="${ML}" y="${MT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>`;
-  const mine = series.find(s => s.mine);
-  const myTrades = mine ? (history.trades || []).filter(t => t.rosters.includes(mineId)) : [];
-  const tradeMarks = myTrades.map(t => {
-    const i = snaps.findIndex(s => s.date === t.date), v = mine.points[i];
-    if (i < 0 || v == null) return '';
-    const got = t.moves.filter(m => m.to === mineId).map(m => m.what), sent = t.moves.filter(m => m.from === mineId).map(m => m.what);
-    return `<circle cx="${x(i)}" cy="${y(v)}" r="5" fill="#14161b" stroke="#fbbf24" stroke-width="2"><title>${t.date}: got ${Vault.escapeHtml(got.join(', ') || 'nothing')} for ${Vault.escapeHtml(sent.join(', ') || 'nothing')}</title></circle>`;
-  }).join('');
+  const { tradeMarks, eventsByDate } = renderLeagueTradeMarks(history.trades, rosterIds, series, snaps, x, y, mineId);
+  currentChartInfo.eventsByDate = eventsByDate;
 
   // Legend sorted by current value (most relevant ordering — matches the
   // standings table) rather than snapshot/roster order, and hoverable to
@@ -339,7 +371,7 @@ function renderValueHistory(history, currentTeams) {
 
   mount.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" id="valueHistorySvg">${gridLines}${lines}${hoverRect}${tradeMarks}${dateTicks}${endLabels}</svg>
-    ${tradeMarks ? '<div class="text-[11px] text-zinc-500 mt-1">Rings mark your trades. Hover one for what moved.</div>' : ''}
+    ${eventsByDate.size ? '<div class="text-[11px] text-zinc-500 mt-1">Rings mark completed trades for every team. Hover the chart to see who traded and what moved.</div>' : ''}
     <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1.5">
       ${legendRows.map(({ s, last, delta }) => `
         <div class="flex items-center gap-1.5 text-[12px] px-1.5 py-1 rounded-lg cursor-default legend-row" data-series="${s.id}">
@@ -376,7 +408,7 @@ function wireChartHover() {
   document.addEventListener('mousemove', e => {
     const svg = e.target.closest('#valueHistorySvg');
     if (!svg || !currentChartInfo) { clear(); return; }
-    const { snaps, series, field, decimals, ML, MT, plotW, plotH, W } = currentChartInfo;
+    const { snaps, series, field, decimals, ML, MT, plotW, plotH, W, eventsByDate } = currentChartInfo;
     if (!snaps.length) { clear(); return; }
     const rect = svg.getBoundingClientRect();
     const svgX = (e.clientX - rect.left) / rect.width * W;
@@ -402,7 +434,7 @@ function wireChartHover() {
       .sort((a, b) => b.v - a.v)
       .map(r => `<div class="flex items-center gap-1.5"><span class="size-1.5 rounded-full shrink-0" style="background:${r.s.color}"></span><span class="text-zinc-300 truncate">${Vault.escapeHtml(r.s.name)}</span><span class="mono ml-auto">${fmt(r.v)}</span></div>`)
       .join('');
-    tooltip.innerHTML = `<div class="text-zinc-400 mb-1">${snap.date}${snap.estimated ? ' (estimated)' : ''}</div>${rows || '<div class="text-zinc-400">No data this day</div>'}`;
+    tooltip.innerHTML = `<div class="text-zinc-400 mb-1">${snap.date}${snap.estimated ? ' (estimated)' : ''}</div>${rows || '<div class="text-zinc-400">No data this day</div>'}${chartTradeTooltip(eventsByDate, snap.date, series)}`;
     tooltip.classList.remove('hidden');
     // Right of and below the cursor, flipping to the other side when it would
     // run off the window (it used to get cut off near the right edge).

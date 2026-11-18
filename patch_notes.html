@@ -54,6 +54,12 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-17', items: [
+    { kind: 'fixed', page: 'League Overview', text: "Value Over Time now marks completed trades on every participating team's line, not only your selected team's line. Hovering a date shows the trade details for the league." },
+    { kind: 'improved', page: 'Trade Lab', text: "Rookie pick landing comparisons now include the next picks of every manager in your league, instead of only your picks." },
+    { kind: 'improved', page: 'Team Analyzer', text: "Best trade partners can open a calculator comparison from any team's profile, not only your own." },
+    { kind: 'fixed', page: 'Trade Calculator', text: "Paste a trade now supports two managers other than you and no longer silently picks the highest-valued draft pick when multiple picks match the description." }
+  ] },
+  { date: '2026-11-17', items: [
     { kind: 'fixed', page: 'Trade Calculator', text: "The next three seasons' lineup value ranks now account for both trading teams changing at once. The old comparison measured your new roster against the partner's old one." },
     { kind: 'improved', page: 'Trade Calculator', text: "The injury stress test now checks both teams. It focuses on the most valuable incoming player who would actually change each lineup and handles a missing week-by-week replacement projection." },
     { kind: 'improved', page: 'Trade Calculator', text: "Even it out checks both directions when a deal is bad for both sides, searches every eligible single piece and a broader set of two-piece combinations, and still requires a reasonable price and their manager's predicted approval." },

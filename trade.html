@@ -1992,7 +1992,7 @@ function renderLineups(teamA, teamB, analysis) {
    you're not in isn't opened. */
 const pasteNorm = s => Vault.normalizeName(s).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 function parsePastedTrade(text) {
-  const me = teamOf('A'), players = new Map(), lasts = new Map();
+  let me = teamOf('A'); const players = new Map(), lasts = new Map();
   teams.forEach(t => t.assets.filter(a => a.type === 'player').forEach(a => {
     const n = pasteNorm(a.name), last = n.split(' ').pop();
     players.set(n, { a, t });
@@ -2015,9 +2015,13 @@ function parsePastedTrade(text) {
   });
   const count = new Map();
   segments.forEach(s => s.found.forEach(f => count.set(f.t, (count.get(f.t) || 0) + 1)));
-  const named = segments.map(s => s.team).filter(t => t && t !== me);
-  const partner = [...count.entries()].filter(([t]) => t !== me).sort((x, y) => y[1] - x[1])[0]?.[0] || named[0] || teamOf('B');
-  if (![...count.keys()].includes(me) && count.size >= 2) return { error: "That trade doesn't look like it has your team in it." };
+  const named = segments.map(s => s.team).filter(Boolean);
+  const involved = [...new Set([...count.keys(), ...named])];
+  if (involved.length > 2) return { error: 'This trade contains assets from more than two teams.' };
+  // Pasted trades are allowed even when neither manager is the viewer.
+  if (involved.length === 2 && !involved.includes(me)) me = involved[0];
+  const partner = [...count.entries()].filter(([t]) => t !== me).sort((x, y) => y[1] - x[1])[0]?.[0] || named.find(t => t !== me) || teamOf('B');
+  if (partner === me) return { error: 'Could not identify two separate teams in this offer.' };
   const give = [], get = [], missed = [], used = new Set();
   const place = (t, a) => { if (used.has(a.key)) return; used.add(a.key); (t === me ? give : get).push(a); };
   segments.forEach(s => {
@@ -2027,14 +2031,17 @@ function parsePastedTrade(text) {
       const fits = t => (t ? t.assets : []).filter(a => a.type === 'pick' && a.season === p.season && a.round === p.round && !used.has(a.key) && (!p.tier || (a.tier || '').toLowerCase() === p.tier)).sort((x, y) => y.value - x.value);
       const own = side ? fits(side) : [], mine = fits(me), theirs = fits(partner);
       // Next to a team's players, it's that team's. Otherwise whichever team has one, if only one does.
-      const pick = own[0] ? { t: side, a: own[0] } : mine[0] && !theirs[0] ? { t: me, a: mine[0] } : theirs[0] && !mine[0] ? { t: partner, a: theirs[0] } : null;
-      if (pick) place(pick.t, pick.a); else missed.push(p.text);
+      const pick = own.length === 1 ? { t: side, a: own[0] }
+        : !side && mine.length === 1 && !theirs.length ? { t: me, a: mine[0] }
+        : !side && theirs.length === 1 && !mine.length ? { t: partner, a: theirs[0] } : null;
+      if (pick) place(pick.t, pick.a);
+      else missed.push(p.text + ((own.length > 1 || mine.length > 1 || theirs.length > 1) ? ' (multiple matching picks; select the exact pick manually)' : ''));
     });
   });
-  return { partner, give, get, missed };
+  return { sideA: me, partner, give, get, missed };
 }
 function openPaste() {
-  Vault.popup({ title: 'Paste a trade', html: `<p class="text-[13px] text-zinc-400 mb-3">Copy an offer from Sleeper or your group chat. Players, and picks written like 2027 1st, are found by name.</p>
+  Vault.popup({ title: 'Paste a trade', html: `<p class="text-[13px] text-zinc-400 mb-3">Copy any two-team offer from Sleeper or league chat, including trades between other managers. Players and picks such as 2027 1st are found by name; ambiguous picks need manual selection.</p>
     <textarea id="pasteText" rows="6" aria-label="The trade" placeholder="Nico Collins and a 2027 2nd for Bijan Robinson" class="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2.5 text-[14px] text-zinc-100 outline-none focus:border-white/25"></textarea>
     <div id="pasteNote" class="mt-2 text-[13px] text-orange-300 empty:hidden"></div>
     <button type="button" onclick="applyPaste()" class="mt-3 text-[13px] px-4 py-2 rounded-lg btn-gold-solid">Open this trade</button>` });
@@ -2044,7 +2051,8 @@ function applyPaste() {
   const note = document.getElementById('pasteNote'), r = parsePastedTrade(document.getElementById('pasteText').value);
   if (r.error) { note.textContent = r.error; return; }
   if (!r.partner || !(r.give.length + r.get.length)) { note.textContent = "Couldn't find any players or picks in that."; return; }
-  const selB = document.getElementById('teamB');
+  const selA = document.getElementById('teamA'), selB = document.getElementById('teamB');
+  if (selA.value !== String(r.sideA.rosterId)) { selA.value = String(r.sideA.rosterId); selA.onchange(); }
   if (selB.value !== String(r.partner.rosterId)) { selB.value = String(r.partner.rosterId); selB.onchange(); }
   negLoad(r.give.map(a => a.key), r.get.map(a => a.key));
   if (r.missed.length) { note.textContent = `Left out, so check these: ${r.missed.join(', ')}.`; return; }

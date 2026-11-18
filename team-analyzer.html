@@ -186,7 +186,7 @@ function renderSingle(t) {
   };
   const flaws = Vault.fatalFlaws(t, leagueAvg, all);
   const partners = getTradePartners(t, all);
-  const isMine = Vault.myTeam(all) === t; // your own team: each partner links to Trade Coach's trades with them
+  const isMine = Vault.myTeam(all) === t; // your team keeps the direct Trade Coach link; other teams can still explore their deals
 
   const statTiles = [
     statTile(Vault.term('overall', 'Overall'), t.overall, Math.round(t.overall).toLocaleString(), all, 'overall', t.rosterId, true),
@@ -228,7 +228,7 @@ function renderSingle(t) {
               <div class="text-[12px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0" title="How well the two rosters and timelines complement each other">${p.fit >= 6 ? 'Strong fit' : p.fit >= 3 ? 'Good fit' : p.fit >= 1 ? 'Some fit' : 'Weak fit'}</div>
             </div>
             <div class="mt-1.5 space-y-0.5">${[...partnerLines(t, p), ...p.reasons].slice(0, 3).map(r => `<div class="flex gap-1.5 text-[13px] text-zinc-300"><span class="text-emerald-400/80">•</span><span>${Vault.escapeHtml(r)}</span></div>`).join('')}</div>
-            ${isMine ? `<a href="${Vault.linkTo('trade.html')}&coach=team&with=${p.rosterId}" class="inline-block mt-1.5 text-[12px] text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20">Start a trade with them</a>` : ''}
+            <a href="${Vault.linkTo('trade.html')}${isMine ? `&coach=team&with=${p.rosterId}` : `&a=${t.rosterId}&b=${p.rosterId}`}" class="inline-block mt-1.5 text-[12px] text-zinc-200 hover:text-white underline underline-offset-2 decoration-white/20">${isMine ? 'Start a trade with them' : 'Explore a trade between these teams'}</a>
           </div>`).join('')}</div>
       </div>
     </div>
