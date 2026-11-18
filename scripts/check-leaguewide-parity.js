@@ -54,7 +54,7 @@ const owners = [
 ];
 const picks = groups(owners, { buys: { '1-early': [1, 100], '2-late': [1, 60] } });
 assert.equal(picks.length, 3);
-assert.deepEqual(picks.map(p => p.picks.length).sort(), [0, 1, 1]);
+assert.deepEqual([...picks].map(p => p.picks.length).sort(), [0, 1, 1]);
 console.log('PASS all league teams appear in pick comparison');
 
 const viewer = { teamName: 'Manager A', assets: [{ key: 'p_1', name: 'Alan One', type: 'player', value: 200 }] };
