@@ -88,4 +88,15 @@ Do not update live valuation weights based solely on this benchmark: it studies
 historical player prices, not team strategy, acceptance probabilities or trades
 that never happened.
 
+To compare **completed trade packages** rather than individual player values, restore
+the same archive and run
+`node --max-old-space-size=6144 scripts/benchmark-trade-value-outcomes.js`.
+It deterministically samples roughly one in ten trades by ID; set `SAMPLE_MOD=1`
+to process the full archive. The output compares Vault's trade-price winner with
+the raw KTC-sum winner against one-year-later asset value, with separate counts
+for missing later prices. This is a *retrospective diagnostic*, not a
+true untouched holdout: some of those completed trades informed Vault's
+existing trade-price curve. Do not make claims of improvement until an
+independent prospective split is available.
+
 To check every page before pushing, see the top of `scripts/smoke.js`.
