@@ -234,6 +234,7 @@
 
 <script src="vault-core.js?v=192acef4"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
+<script src="team-impact.js?v=3399be6c"></script>
 <script>
 let teams = [], league = null, slots = [], rosterCap = 0;
 // Regular-season games left (Vault.fetchRemainingSchedule), for "This season" odds.
@@ -2632,7 +2633,7 @@ function futureRanksHtml(team, gives, gets, otherTeam, otherGives, otherGets) {
     const a = rank(was, othersBefore), b = rank(now, othersAfter);
     return `<div><div class="text-[14px] font-mono ${b < a ? 'text-emerald-400' : b > a ? 'text-rose-400' : ''}">${a === b ? ord(a) : `${ord(a)} → ${ord(b)}`}</div><div class="text-[12px] text-zinc-400">${+league.season + ahead}</div></div>`;
   }).join('');
-  return `<div class="mt-3 pt-3 border-t border-white/5"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">Lineup value rank${Vault.info('futureRank')}</div><div class="grid grid-cols-3 gap-2 text-center">${cells}</div></div>`;
+  return `<div class="mt-3 pt-3 border-t border-white/5"><div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-1.5">Projected player lineup value rank${Vault.info('futureRank')}</div><div class="grid grid-cols-3 gap-2 text-center">${cells}</div><p class="text-[11px] text-zinc-500 mt-2">Player lineup value projection, not a future total-team ranking. Future picks and the rookies they might become are not included; other teams' rosters are held constant except the trade partner.</p></div>`;
 }
 // How the other manager trades, from their trades in this league (negHabitFit). Painted once their
 // history is in: it loads in the background and the card shouldn't wait on it.
@@ -2645,6 +2646,30 @@ function paintHabitLine(team, gets, gives) {
   const said = habits.map((h, i) => `${h.say} in ${h.n} of ${h.of}${i ? '' : ' trades'}`).join(' and ');
   box.innerHTML = `${Vault.escapeHtml(team.teamName)} ${said}.${fit > 0 ? ' This trade fits that.' : fit < 0 ? ' This trade goes the other way.' : ''}${Vault.info('managerHabit')}`;
 }
+// Every number here is computed from the same two authoritative before/after
+// snapshots used by the calculator grade. No second valuation model or hidden
+// assumption about the user's selected team. A and B receive identical rules.
+function teamImpactLedgerHtml(impact) {
+  const signed = (n, decimals = 0) => {
+    if (Math.abs(n) < (decimals ? 0.05 : 0.5)) return '0';
+    return (n > 0 ? '+' : '−') + Math.abs(n).toLocaleString(undefined, {maximumFractionDigits: decimals,minimumFractionDigits: decimals});
+  };
+  const tone = n => n > 0.05 ? 'text-emerald-400' : n < -0.05 ? 'text-rose-400' : 'text-zinc-400';
+  const metric = (title, prior, now, change, decimals = 0) =>
+    `<div class="min-w-0"><div class="text-[11px] text-zinc-400">${title}</div><div class="text-[13px] mono text-zinc-100">${Math.round(prior).toLocaleString()} → ${Math.round(now).toLocaleString()}</div><div class="text-[12px] mono ${tone(change)}">${signed(change,decimals)}</div></div>`;
+  const d=impact.change,b=impact.before,a=impact.after;
+  return `<div class="pt-3 mt-3 border-t border-white/5">
+    <div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Roster impact · before → after</div>
+    <div class="grid grid-cols-2 gap-x-3 gap-y-3">
+      ${metric('Total team value',b.overall,a.overall,d.overall)}
+      ${metric('Player value',b.playerValue,a.playerValue,d.playerValue)}
+      ${metric('Draft capital (today)',b.pickValue,a.pickValue,d.pickValue)}
+      ${metric('Lineup PPG',b.lineupPpg.toFixed(1),a.lineupPpg.toFixed(1),d.lineupPpg,1).replace(/([0-9,]+) → ([0-9,]+)/,(_,x,y)=>Number(x.replace(/,/g,'')).toFixed(1)+' → '+Number(y.replace(/,/g,'')).toFixed(1))}
+    </div>
+    <p class="text-[11px] text-zinc-500 mt-2">Pick prices reflect today's market; future rookie returns aren't projected. Lineup points measure starters, not total roster scoring.</p>
+  </div>`;
+}
+
 function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analysis) {
   if (!aAssets.length && !bAssets.length) {
     document.getElementById('analysisA').classList.add('hidden');
@@ -2656,6 +2681,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 
   const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, bandPct, fairness, overallPct, verdict, bucket } = analysis;
 
+  const impactBySide = VaultTradeImpact.pair(before, after, aAssets, bAssets);
   [['A', before.A, after.A, resA, dValueAdjA], ['B', before.B, after.B, resB, dValueAdjB]].forEach(([side, bef, aft, res, dValueAdj]) => {
     const head = heads[side];
     const win = wins[side];
@@ -2686,6 +2712,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           <div><div class="text-[14px] font-mono">${Vault.num1(aft.vorpTotal)}</div><div class="text-[12px] leading-tight h-4 ${res.dVorp > 0.05 ? 'text-emerald-400' : res.dVorp < -0.05 ? 'text-rose-400' : 'text-zinc-400'}">${Math.abs(res.dVorp) > 0.05 ? Vault.signed(res.dVorp, x => x.toFixed(1)) : ''}</div><div class="text-[12px] text-zinc-400">${Vault.term('vorpTeam', 'VORP')}</div></div>
           <div><div class="text-[14px] font-mono whitespace-nowrap">${win.hasWindow ? Vault.windowYearsText(win) : 'None'}</div><div class="h-4"></div><div class="text-[12px] text-zinc-400">${Vault.term('window', 'Window')}</div></div>
         </div>
+        ${teamImpactLedgerHtml(impactBySide[side])}
         ${futureRanksHtml(side === 'A' ? teamA : teamB, side === 'A' ? aAssets : bAssets, side === 'A' ? bAssets : aAssets, side === 'A' ? teamB : teamA, side === 'A' ? bAssets : aAssets, side === 'A' ? aAssets : bAssets)}
       </div>`;
   });
