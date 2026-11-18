@@ -32,16 +32,16 @@ counts.ambiguousIdentity=0;
 counts.slotDraftsValidated=0;
 counts.slotDraftsRejected=0;
 counts.slotSelectionsVerified=0;
-function verifiedRookie(sid,year){
+function verifiedRookie(sid,year,track=true){
  const p=players[sid];
- if(!p){counts.missingSleeperIdentity++;return false}
- if(!fantasyPositions.has(p.position)){counts.rejectedNonFantasy++;return false}
+ if(!p){if(track)counts.missingSleeperIdentity++;return false}
+ if(!fantasyPositions.has(p.position)){if(track)counts.rejectedNonFantasy++;return false}
  const evidence=draftYearEvidence(p,year,draftIndex);
- if(evidence==='sleeper'){counts.verifiedFromSleeper++;return true}
- if(evidence==='nflverse'){counts.verifiedFromNflverse++;return true}
- if(evidence==='other-year'){counts.rejectedVeterans++;return false}
- if(evidence==='ambiguous'){counts.ambiguousIdentity++;return false}
- counts.unverifiableRookieYear++;
+ if(evidence==='sleeper'){if(track)counts.verifiedFromSleeper++;return true}
+ if(evidence==='nflverse'){if(track)counts.verifiedFromNflverse++;return true}
+ if(evidence==='other-year'){if(track)counts.rejectedVeterans++;return false}
+ if(evidence==='ambiguous'){if(track)counts.ambiguousIdentity++;return false}
+ if(track)counts.unverifiableRookieYear++;
  return false;
 }
 function key(fmt,year,sid){return fmt+'|'+year+'|'+sid}
@@ -67,7 +67,7 @@ for(const file of files){
   if(slotData.reason==='ok')counts.slotDraftsValidated++;
   else counts.slotDraftsRejected++;
   for(const p of slotData.slots){
-   if(!verifiedRookie(p.sid,yr))continue;
+   if(!verifiedRookie(p.sid,yr,false))continue;
    counts.slotSelectionsVerified++;
    const k=[fmt,yr,p.round,p.slot,p.draftSize].join('|');
    if(!slotSamples.has(k))slotSamples.set(k,{format:fmt,year:yr,round:p.round,slot:p.slot,draftSize:p.draftSize,
