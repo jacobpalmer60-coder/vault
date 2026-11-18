@@ -103,6 +103,49 @@ node scripts/summarize-rookie-pick-outcomes.js rookie-outcomes.json > rookie-sum
 Get-Content rookie-summary.txt
 ```
 
+## November 18 independent historical trade diagnostic correction
+
+A separate audit revealed that the completed-trade historical benchmark
+used the **same nonlinear Vault trade formula in its FUTURE outcome label**
+that it was assessing as a candidate predictor. This was circular.
+`scripts/market-history/outcome-values.js` now labels the future winner
+using the **simple additive sum of future observed KTC values** (a
+sign-symmetric normalized difference in the interval -200..200).
+Observed zero remains zero; missing values remain missing, with
+explicit zero-imputed sensitivity only.
+
+`scripts/benchmark-trade-value-outcomes.js` now publishes
+`schemaVersion: 2`; it reports a separate **player-only cohort**
+that excludes any trade with future draft-pick outcomes, because the
+existing `ktcPrices.later` uses a round-average rookie return proxy
+for picks instead of reconstructing which actual rookies each manager
+drafted. The general all-asset benchmark is retained as a flagged
+retrospective diagnostic. `scripts/summarize-value-research.js`
+rejects historical trade results from the previous schema, and reports
+player-only agreement by year.
+
+**IMPORTANT:** The previously shared 2024 and 2025 direction-agreement
+percentages must be recalculated. In particular, any claim that Vault
+beat raw KTC in 2025 or lost in 2024 is **not validated under the corrected
+independent ground truth**. No production trading rules changed.
+
+Additional regression checks:
+
+```powershell
+node scripts/check-historical-outcomes.js
+node scripts/check-trade-outcome-independence.js
+node scripts/check-value-research-summary.js
+node --max-old-space-size=6144 scripts/benchmark-trade-value-outcomes.js > trade-cohorts.txt
+node scripts/summarize-value-research.js > research-summary.txt
+Get-Content research-summary.txt
+```
+
+Even after this correction, KTC future prices are not the same as
+lineup production, actual title chances or manager satisfaction.
+Player-only samples can overlap model calibration, and accepted
+trades are selected rather than a representative sample of all offers.
+No forward out-of-time holdout has been performed.
+
 ## What has been tested
 
 - JS syntax for new analysis, tests and modified calculator inline script.
