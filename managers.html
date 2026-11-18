@@ -222,27 +222,55 @@ function renderPaysUp(stats, allGraded, league) {
   box.classList.remove('hidden');
 }
 
-/* Your own record (user, 2026-11-05): what the verdict said about each of your trades at the
-   time, and whether it held up on value since. Trades with a piece we can't price are left out. */
-function renderYourRecord(allGraded, teams) {
-  const box = document.getElementById('yourRecord'), me = Vault.myTeam(teams);
-  if (!me) return;
-  const groups = [['Good or better', ['great', 'good', 'slight'], 'text-emerald-300'], ['Toss-up', ['tossup'], 'text-amber-300'], ['Leans bad or worse', ['leansbad', 'bad', 'terrible'], 'text-orange-300']]
-    .map(([label, tiers, tone]) => ({ label, tiers, tone, n: 0, ahead: 0 }));
-  allGraded.forEach(g => {
-    const side = g.teamA.rosterId === me.rosterId ? 'A' : g.teamB.rosterId === me.rosterId ? 'B' : null;
-    if (!side || g.anyMissingValue) return;
-    const group = groups.find(x => x.tiers.includes(Vault.gradedImprovement(g, side).tier));
-    if (!group) return;
+/* League-wide trade records: same price buckets for every manager. */
+function managerTradeRecordGroups(allGraded, rosterId) {
+  const groups = [
+    { label: 'Favorable value', tiers: ['great', 'good', 'slight'], tone: 'text-emerald-300', n: 0, ahead: 0 },
+    { label: 'Roughly even', tiers: ['tossup'], tone: 'text-amber-300', n: 0, ahead: 0 },
+    { label: 'Unfavorable value', tiers: ['leansbad', 'bad', 'terrible'], tone: 'text-orange-300', n: 0, ahead: 0 }
+  ];
+  let unavailable = 0, uncertain = 0;
+  (allGraded || []).forEach(g => {
+    const side = String(g.teamA?.rosterId) === String(rosterId) ? 'A'
+      : String(g.teamB?.rosterId) === String(rosterId) ? 'B' : null;
+    if (!side) return;
+    // A later roster replacement must never inherit an unidentified former
+    // manager's trading record. Unknown prices also have no grade to count.
+    if (g.tx?._ownerAttributionUncertain) { uncertain++; return; }
+    if (g.anyMissingValue) { unavailable++; return; }
+    const tier = Vault.gradedImprovement(g, side).tier;
+    const group = groups.find(x => x.tiers.includes(tier));
+    if (!group) { unavailable++; return; }
     group.n++;
     if ((side === 'A' ? g.dValueAdjAToday : -g.dValueAdjAToday) > 0) group.ahead++;
   });
-  const total = groups.reduce((s, x) => s + x.n, 0);
-  if (!total) return;
-  const row = x => `<div class="flex items-baseline justify-between gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]"><span class="${x.tone}">${x.label}</span><span class="text-zinc-300">${x.n ? `<span class="mono text-zinc-100">${x.ahead} of ${x.n}</span> ahead on value today` : '<span class="text-zinc-500">none yet</span>'}</span></div>`;
-  box.innerHTML = `<div class="card rounded-vault-sm px-5 py-4"><div class="text-[15px] font-semibold text-zinc-100">Your record</div>
-    <div class="text-[12px] text-zinc-400 mt-0.5 mb-2">What the verdict said about ${Vault.escapeHtml(me.teamName)}'s trades when you made them, and how they've held up.</div>${groups.map(row).join('')}</div>`;
+  return { groups, total: groups.reduce((sum, g) => sum + g.n, 0), unavailable, uncertain };
+}
+let managerRecordState = null;
+function renderManagerRecord(rosterId) {
+  const state = managerRecordState, box = document.getElementById('yourRecord');
+  if (!state || !box) return;
+  const team = state.teams.find(t => String(t.rosterId) === String(rosterId));
+  if (!team) return;
+  const { groups, total, unavailable, uncertain } = managerTradeRecordGroups(state.allGraded, team.rosterId);
+  const row = g => `<div class="flex items-baseline justify-between gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]"><span class="${g.tone}">${g.label}</span><span class="text-zinc-300">${g.n ? `<span class="mono text-zinc-100">${g.ahead} of ${g.n}</span> ahead on value today` : '<span class="text-zinc-500">none yet</span>'}</span></div>`;
+  const options = [...state.teams].sort((a, b) => a.teamName.localeCompare(b.teamName)).map(t =>
+    `<option value="${t.rosterId}" ${String(t.rosterId) === String(rosterId) ? 'selected' : ''}>${Vault.escapeHtml(t.teamName)}</option>`).join('');
+  box.innerHTML = `<div class="card rounded-vault-sm px-5 py-4">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <div class="text-[15px] font-semibold text-zinc-100">Manager trade records</div>
+      <label class="text-[12px] text-zinc-400 flex items-center gap-2">Team <select id="managerRecordTeam" onchange="renderManagerRecord(this.value)" aria-label="Manager trade record team" class="max-w-[220px] bg-black/40 border border-white/10 text-zinc-100 text-[13px] px-2.5 py-1.5 rounded-lg">${options}</select></label>
+    </div>
+    <p class="text-[12px] text-zinc-400 mt-1 mb-2">${Vault.escapeHtml(team.teamName)}: how their completed trades were priced at the time and whether the received assets are ahead on value today. Historical roster fit is unavailable, so this is a price comparison, not an appraisal of their decisions.</p>
+    ${total ? groups.map(row).join('') : '<p class="py-2 text-[12px] text-zinc-500">No completed trades with fully available prices for this manager.</p>'}
+    ${(unavailable || uncertain) ? `<p class="text-[11px] text-zinc-500 mt-2">${unavailable ? `${unavailable} trade${unavailable === 1 ? '' : 's'} could not be priced. ` : ''}${uncertain ? `${uncertain} trade${uncertain === 1 ? '' : 's'} excluded because historical manager ownership could not be verified.` : ''}</p>` : ''}
+  </div>`;
   box.classList.remove('hidden');
+}
+function initManagerRecord(allGraded, teams) {
+  if (!teams?.length) return;
+  managerRecordState = { allGraded, teams };
+  renderManagerRecord(Vault.myTeam(teams)?.rosterId ?? teams[0].rosterId);
 }
 
 async function init() {
@@ -256,7 +284,7 @@ async function init() {
     status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
     render(stats, teams);
-    renderYourRecord(allGraded, teams);
+    initManagerRecord(allGraded, teams);
     renderPaysUp(stats, allGraded, league);
   } catch (e) {
     console.error(e);
