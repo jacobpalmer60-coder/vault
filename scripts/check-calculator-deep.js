@@ -69,6 +69,34 @@ const mirrored=checkPlan(()=>true,{A:starterB,B:tripleA,selectedA:new Set(['anch
 assert.ok(mirrored.plan?.options.some(o=>o.add.some(a=>a.key==='p_starter')),'same fix must survive swapping A and B');
 console.log('PASS three-piece repairs, optional starters, and team-side symmetry');
 
+function testMatch(reverse) {
+ const anchor={rosterId:21,assets:[{key:'a',value:100,pos:'WR',type:'player'}]};
+ const pieces={rosterId:22,assets:[
+  {key:'p75',value:75,type:'player'},{key:'p30',value:30,type:'player'},
+  {key:'q30',value:30,type:'player'},{key:'p40',value:40,type:'player'}
+ ]};
+ const left=reverse?pieces:anchor,right=reverse?anchor:pieces;
+ const selectedA=new Set(),selectedB=new Set();
+ const ctx={
+  teams:[left,right],teamOf:side=>side==='A'?left:right,
+  otherSide:side=>side==='A'?'B':'A',selectedA,selectedB,
+  bestCombo:()=>({combo:[pieces.assets[0]]}),COMBO_SIZE_PENALTY_PCT:3,
+  Vault:{
+   positionalProfile:()=>({}),
+   tradeSideValues:(a,b)=>({
+    valueA:a.reduce((n,x)=>n+x.value,0),valueB:b.reduce((n,x)=>n+x.value,0)
+   })
+  },render:()=>{}
+ };
+ const code=extract('function matchTarget(side, key) {','function fmtSigned');
+ vm.runInNewContext(code+'\\nmatchTarget('+JSON.stringify(reverse?'B':'A')+',"a");',ctx);
+ return [...(reverse?selectedA:selectedB)].sort();
+}
+assert.deepEqual(testMatch(false),['p30','p40','q30']);
+assert.deepEqual(testMatch(true),['p30','p40','q30']);
+console.log('PASS matched packages use real price and work in either trade direction');
+
+
 const corner=vm.runInNewContext(extract('function cornerstoneWarningsHtml(','function updateTrade()')+'\ncornerstoneWarningsHtml;',{
  Vault:{cornerstone:(_t,a)=>a.key.endsWith('1')?{rank:1,mode:'contend',share:0.02}:null,escapeHtml:x=>x}
 });
