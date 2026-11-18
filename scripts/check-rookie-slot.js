@@ -15,7 +15,7 @@ for(const size of [8,10,12,14,16]){
 }
 assert.equal(slotsForDraft(draft(7)).reason,'unknown-draft-size');
 assert.equal(slotsForDraft(draft(17)).reason,'unknown-draft-size');
-assert.equal(slotsForDraft(draft(12).filter(p=>p[0]!==4)).reason,'unknown-draft-size');
+assert.equal(slotsForDraft(draft(12).filter(p=>p[0]!==4)).reason,'incomplete-first-round');
 assert.equal(slotsForDraft(draft(12).map(p=>p[0]===4?[3,1,p[2]]:p)).reason,'incomplete-first-round');
 const partial=slotsForDraft(draft(12).filter(p=>p[0]!==15));
 assert.equal(partial.reason,'ok');
