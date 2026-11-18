@@ -2133,6 +2133,17 @@ function quickAdd(sel) {
   if (!selectedB.has(key)) toggle('B', key);
 }
 
+function cornerstoneWarningsHtml(teamA, teamB, aAssets, bAssets) {
+  return [[teamA, aAssets], [teamB, bAssets]].map(([team, outgoing]) => {
+    const key = outgoing.map(a => ({ a, c: Vault.cornerstone(team, a) })).find(x => x.c);
+    if (!key) return '';
+    const { a, c } = key;
+    const oneIn = Math.max(1, Math.round(1 / (c.share || 1)));
+    const rank = c.rank === 1 ? 'most valuable player' : `#${c.rank} player by value`;
+    return `<div class="text-[12px] text-zinc-400 mt-1.5"><span class="text-amber-300 font-medium">${Vault.escapeHtml(team.teamName)} is sending a cornerstone</span> · ${Vault.escapeHtml(a.name)} is that team's ${rank}. Teams with a similar roster and timeline move a player this important in about 1 of ${oneIn} trades, even when the price is reasonable. Check whether that manager is willing to move them.</div>`;
+  }).join('');
+}
+
 function updateTrade() {
   syncTradeUrl();
   rememberTrade();
@@ -2226,7 +2237,7 @@ function updateTrade() {
     ${aAssets.length && bAssets.length ? `<details class="group mt-3 max-w-[640px]" id="whyBox"><summary class="inline-flex items-center gap-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200"><span>Why</span><span class="group-open:hidden">▾</span><span class="hidden group-open:inline">▴</span></summary><div class="mt-2 space-y-1.5"><div id="whyVerdict"></div>
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
       ${marketAcceptHtml(accept, teamA.teamName, teamB.teamName, 'mt-2.5')}</div></details>
-      ${(() => { const c = bAssets.map(a => ({ a, c: Vault.cornerstone(teamB, a) })).find(x => x.c); if (!c) return ''; const oneIn = Math.round(1 / c.c.share); return `<div class="text-[12px] text-zinc-400 mt-1.5"><span class="text-amber-300 font-medium">Their ${c.c.rank === 1 ? 'best player' : `#${c.c.rank} player`}</span> · ${Vault.escapeHtml(c.a.name)} is ${Vault.possessive(Vault.escapeHtml(teamB.teamName))} ${c.c.rank === 1 ? 'most valuable player' : `#${c.c.rank} player by value`}. ${c.c.mode === 'contend' ? 'Contending teams' : c.c.mode === 'rebuild' ? 'Rebuilding teams' : 'Teams like theirs'} send a player that high on their roster in only about 1 of ${oneIn} of their trades, at any price, so expect a no unless they're looking to move him.</div>`; })()}` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
+      ${cornerstoneWarningsHtml(teamA, teamB, aAssets, bAssets)}` : marketAcceptHtml(accept, teamA.teamName, teamB.teamName)}`;
   renderSiteStatus({ teamA, teamB, aAssets, bAssets });
   document.getElementById('priceBucket').innerHTML = (aAssets.length || bAssets.length) ? `<span title="Whether the price is fair for both teams: trade value, plus both teams' roster fit and timeline. Not the verdict, which is about your team.">Price with both teams' fit: <span class="font-medium ${bucketColor(Vault.priceWord(bucket))}">${Vault.priceWord(bucket)}</span> · ${offPct.toFixed(0)}% off, ${leans}${fairness.fitMovedIt ? ` <span class="text-zinc-500">(trade value alone ${capPct(pctDiff).toFixed(0)}%)</span>` : ''}</span>` : '';
   document.getElementById('consolidation').innerHTML = aAssets.length && bAssets.length ? consolidationAdviceHtml(aAssets, bAssets, teamA, teamB) : '';
