@@ -27,17 +27,6 @@ const configurations=[
 const formats=['sf','oneQB'],POSITIONS=new Set(['QB','RB','WR','TE']);
 const ageBand=a=>a<24?'under24':a<27?'24-26':a<30?'27-29':'30plus';
 const planBand=a=>a<27?'youngCore':a>=28?'veteran':'transition';
-const trainFactor=(rows,key,r)=> {
- const entries=rows.filter(x=>x.v1!==null&&key(x)===key(r));
- const values=entries.reduce((acc,x)=>{
-  // cap huge multipliers so a one-year breakout doesn't set the whole cohort
-  acc.num+=Math.min(2,x.v1/x.v0)*x.v0;
-  acc.den+=x.v0;
-  return acc;
- },{num:0,den:0});
- // prior equivalent to 100k KTC units at 1.0, applied identically to all cohorts
- return (values.num+100000)/(values.den+100000);
-};
 const sampleFor=(doc,format,years,allowedYears)=>{
  const dates=doc.dates,indices=new Map(dates.map((d,i)=>[d,i]));
  const months=dates.map((d,i)=>d.endsWith('-01')?i:-1).filter(i=>i>=0);
