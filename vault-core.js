@@ -1523,6 +1523,12 @@ const Vault = {
     const outOfRace = !!g['outOfRace' + side];
     const ptsPerWeek = outOfRace ? 0 : (g['dOpt' + side] || 0) + (dep.perWeek || 0);
     const tilt = side === 'A' ? Vault.verdictValueTilt(g.toA, g.toB, tl?.mode || 'flexible') : Vault.verdictValueTilt(g.toB, g.toA, tl?.mode || 'flexible');
+    if (g.historyFitUnavailable) {
+      // No archived roster/projection context: show the measured price edge, not a fake team fit.
+      const tier = valuePct >= VAULT_CONFIG.FAIR_PCT ? 'slight' : valuePct <= -VAULT_CONFIG.FAIR_PCT ? 'leansbad' : 'tossup';
+      const style = { slight: { level: 'good', label: 'Value gained' }, leansbad: { level: 'bad', label: 'Value lost' }, tossup: { level: 'tossup', label: 'Similar value' } }[tier];
+      return { ...style, tier, mode: 'price-only', valuePct, rosterFit: 0, timelineFit: 0, ptsPerWeek: 0, outOfRace: false };
+    }
     return { ...Vault.tradeImprovement({ valuePct, rosterFit, timelineFit, mode: tl?.mode || 'flexible', ptsPerWeek, valueTilt: tilt.pct }), outOfRace };
   },
   /* Playoff odds as of a week of this season (2026-10-23, for Trade Grades' out-of-race
@@ -4416,120 +4422,58 @@ const Vault = {
     const [rA, rB] = tx.roster_ids;
     const teamA = teamById.get(rA), teamB = teamById.get(rB);
     if (!teamA || !teamB) return null;
-
-    const toATodayPrices = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what A received (B gave)
-    const toBTodayPrices = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility); // what B received (A gave)
+    const toATodayPrices = Vault.resolveTradeAssets(tx, rA, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility);
+    const toBTodayPrices = Vault.resolveTradeAssets(tx, rB, playersDb, valMap, pickValueByKey, ppgMap, replacementLevels, playerVolatility);
     if (!toATodayPrices.length && !toBTodayPrices.length) return null;
-
-    // Graded at the prices on the trade date when every asset has one (see
-    // Vault.priceAtTradeDate); today's prices otherwise. The today-priced read
-    // is kept either way as "how it aged".
     const tradeMs = tx.status_updated || tx.created;
     const atTrade = Vault.priceAtTradeDate(toATodayPrices, toBTodayPrices, pricer, tradeMs);
     const valuedAt = atTrade ? 'trade' : 'today';
     const toA = atTrade ? atTrade.toA : toATodayPrices;
     const toB = atTrade ? atTrade.toB : toBTodayPrices;
-    // Completed trades are won and lost on KTC values (user, 2026-10-11: "market
-    // shouldn't matter for trade grades, just wins and losses through KTC value"),
-    // counted with trade value's math (extra pieces, the best piece), then and now.
-    // Market prices stay in the Trade Calculator, for trades not yet made. (From
-    // 10/9 they used the market of the trade's day, whose stale reads, a rookie
-    // read at +140% before KTC caught up, flipped who won.)
+    // Historical transactions carry prices, not a trustworthy snapshot of both teams'
+    // rosters, projected points, owner intent, and playoff standings when the deal occurred.
+    // Applying today's roster fit to that old transaction invents an impact that wasn't measured.
+    // Until point-in-time rosters AND projections are available, grade price only.
+    const gradeMarket = false;
+    const then = Vault.tradeSideValues(toB, toA, { market: gradeMarket });
     const today = Vault.tradeSideValues(toBTodayPrices, toATodayPrices, { market: false });
+    const avgAdj = (then.valueA + then.valueB) / 2 || 1;
+    const signedPctDiff = (then.valueA - then.valueB) / avgAdj * 100;
+    const pctDiff = Math.abs(signedPctDiff);
+    const dValueAdjA = then.valueB - then.valueA;
     const todayAvg = (today.valueA + today.valueB) / 2 || 1;
     const todaySignedPctDiff = (today.valueA - today.valueB) / todayAvg * 100;
-    const dValueAdjAToday = today.valueB - today.valueA; // same basis as dValueAdjA, at today's prices
-
-    // Fairness uses KTC's own consolidation adjustment (see Vault.tradeSideValues) —
-    // toB is what A gave (B received it), toA is what B gave.
-    const gradeMarket = false;
-    const { valueA: aGaveAdj, valueB: bGaveAdj } = Vault.tradeSideValues(toB, toA, { market: gradeMarket });
-    const avgAdj = (aGaveAdj + bGaveAdj) / 2 || 1;
-    const pctDiff = Math.abs(aGaveAdj - bGaveAdj) / avgAdj * 100;
-    const dValueAdjA = bGaveAdj - aGaveAdj; // positive = A came out ahead on value
-
-    const timelineA = Vault.timelineFitNotes(teamA, toATodayPrices, toBTodayPrices);
-    const timelineB = Vault.timelineFitNotes(teamB, toBTodayPrices, toATodayPrices);
-    const archA = Vault.archetypeFitNotes(teamA, toATodayPrices, toBTodayPrices);
-    const archB = Vault.archetypeFitNotes(teamB, toBTodayPrices, toATodayPrices);
-
-    // Value/production divergence (see Vault.valueRiskNotes) — resolveTradeAssets
-    // builds toA/toB fresh from playersDb/valMap/ppgMap, not from a team's plist, so
-    // they don't carry the valueRiskGap buildLeagueTeams already computed; best-
-    // effort lookup by player id against every CURRENTLY rostered player in the
-    // league. A player traded away and since dropped, or who left the league
-    // entirely, won't resolve and is silently skipped — same as any player too new
-    // at their position for a real percentile (see buildLeagueTeams).
-    const riskById = new Map(teams.flatMap(t => t.plist).filter(p => p.valueRiskGap != null).map(p => [p.id, p.valueRiskGap]));
-    const withRisk = list => list.map(a => ({ ...a, valueRiskGap: riskById.get(a.id) }));
-    const riskA = Vault.valueRiskNotes(withRisk(toB)); // toB = what B received = what A gave up
-    const riskB = Vault.valueRiskNotes(withRisk(toA)); // toA = what A received = what B gave up
-
-    // Reconstruct each team's roster (and optimal-lineup PPG) the day before this
-    // trade by running Vault.simulateTrade in reverse: passing what each side
-    // actually RECEIVED as the "give" list undoes the trade against their CURRENT
-    // roster. Confusingly, simulateTrade's OWN before/after refer to ITS OWN
-    // give/take (this reversed trade), so sim.before.A is teamA's real CURRENT
-    // (already-post-trade) roster and sim.after.A is the RECONSTRUCTED pre-trade one.
-    const sim = Vault.simulateTrade(teams, slots, rA, rB, toATodayPrices, toBTodayPrices);
-    const dOptA = sim.before.A.opt - sim.after.A.opt;
-    const dOptB = sim.before.B.opt - sim.after.B.opt;
-    const dVorpA = sim.before.A.vorpTotal - sim.after.A.vorpTotal;
-    const dVorpB = sim.before.B.vorpTotal - sim.after.B.vorpTotal;
-
-    // What each side gave up, valued by what it was actually worth to the team that
-    // received it (Vault.needAdjustedTradeValues), judged against the recipient's
-    // reconstructed PRE-trade roster (sim.after, despite the name — see above).
-    // Informational only — see the note above Vault.needAdjustedTradeValue: the
-    // Fair/Lopsided/Unfair badge is gated on raw pctDiff alone, so a manager can
-    // check it against KTC's own calculator. pctDiffNeed is kept as a "here's how
-    // need-weighting reads it instead" tooltip detail (Trade Grades).
-    const { aValAdjNeed: aGaveAdjNeed, bValAdjNeed: bGaveAdjNeed } = Vault.needAdjustedTradeValues(sim.after.A, sim.after.B, teams, toBTodayPrices, toATodayPrices);
-    const avgAdjNeed = (aGaveAdjNeed + bGaveAdjNeed) / 2 || 1;
-    const pctDiffNeed = Math.abs((aGaveAdjNeed - bGaveAdjNeed) / avgAdjNeed * 100);
-    const signedPctDiff = Math.sign((aGaveAdj - bGaveAdj) || 1) * pctDiff;
-    // Same ± band as the Trade Calculator (Vault.tradeConfidenceBand) — for a
-    // completed trade this reads less like "how sure are we" and more like "how much
-    // of this verdict rode on pieces that were genuinely unproven at the time," since
-    // the picks/rookies involved have often resolved into real production by now.
-    const { bandPct } = Vault.tradeConfidenceBand(toB, toA, aGaveAdj, bGaveAdj);
-
-    // positionalFitNotes needs both snapshots — see its own comment for why. What
-    // each team received is judged against its pre-trade roster (sim.after, despite
-    // the name — see above); what it gave up is judged against its real current
-    // roster, so a position that only looks thin because of THIS trade still gets
-    // caught, not just a position that was already thin beforehand.
-    const fitA = Vault.positionalFitNotes(sim.after.A, teams, teamA, teams, toATodayPrices, toBTodayPrices, timelineA.mode);
-    const fitB = Vault.positionalFitNotes(sim.after.B, teams, teamB, teams, toBTodayPrices, toATodayPrices, timelineB.mode);
-    const optNoteA = Vault.optShiftNote(timelineA.mode, dOptA);
-    const optNoteB = Vault.optShiftNote(timelineB.mode, dOptB);
-    const vorpNoteA = Vault.vorpShiftNote(timelineA.mode, dVorpA);
-    const vorpNoteB = Vault.vorpShiftNote(timelineB.mode, dVorpB);
-    // Depth: pre-trade roster (sim.after, see above) → today's roster.
-    const depthA = Vault.depthShift(timelineA.mode, sim.after.A, teamA, slots);
-    const depthB = Vault.depthShift(timelineB.mode, sim.after.B, teamB, slots);
-
-    const combinedFitA = Vault.capFitForDepth(fitA.posFit + timelineA.fit + archA.archFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0) + depthA.fit, depthA);
-    const combinedFitB = Vault.capFitForDepth(fitB.posFit + timelineB.fit + archB.archFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0) + depthB.fit, depthB);
-
-    // Same three-factor split as the Trade Calculator: roster = positional need +
-    // lineup PPG/VORP shift, timeline = age/picks vs. mode + archetype. (No
-    // contention-window term here — Trade Grades doesn't reconstruct windows.)
-    const rosterFitA = fitA.posFit + (optNoteA ? optNoteA.fit : 0) + (vorpNoteA ? vorpNoteA.fit : 0) + depthA.fit;
-    const rosterFitB = fitB.posFit + (optNoteB ? optNoteB.fit : 0) + (vorpNoteB ? vorpNoteB.fit : 0) + depthB.fit;
-    const fairness = Vault.blendedFairness(signedPctDiff, rosterFitA, rosterFitB, timelineA.fit + archA.archFit, timelineB.fit + archB.archFit);
-    const favored = fairness.overallSigned > 0 ? 'B' : 'A';
-
-    const verdict = Vault.historyVerdict(fairness.overallPct, dValueAdjA, combinedFitA, combinedFitB, teamA.teamName, teamB.teamName, avgAdj, fitA, fitB, timelineA, timelineB, favored);
-    const bucket = Vault.fairnessBucket(fairness.overallPct, combinedFitA, combinedFitB);
-    const anyMissingValue = [...toA, ...toB].some(a => a.value <= 0);
-
-    // toAToday/toBToday: the same pieces at today's prices (Trade Grades' This season
-    // line works from today's rosters).
-    return { tx, teamA, teamB, toA, toB, gradeMarket, toAToday: toATodayPrices, toBToday: toBTodayPrices, depthA, depthB, pctDiff, pctDiffNeed, signedPctDiff, bandPct, fairness, valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA, fitA, fitB, timelineA, timelineB, archA, archB, riskA, riskB, dOptA, dOptB, optNoteA, optNoteB, dVorpA, dVorpB, vorpNoteA, vorpNoteB, combinedFitA, combinedFitB, verdict, bucket, anyMissingValue, created: tx.created };
+    const dValueAdjAToday = today.valueB - today.valueA;
+    const { bandPct } = Vault.tradeConfidenceBand(toB, toA, then.valueA, then.valueB);
+    const fairness = Vault.blendedFairness(signedPctDiff, 0, 0, 0, 0);
+    const bucket = Vault.fairnessBucket(pctDiff, 0, 0);
+    const favored = signedPctDiff > 0 ? teamB : teamA;
+    const label = bucket === 'Unfair' || bucket === 'Lopsided' ? `${bucket} — Favored ${favored.teamName}` : 'Fair on trade value';
+    const names = list => list.map(a => Vault.escapeHtml(a.name)).join(', ') || 'no listed assets';
+    const text = `${Vault.escapeHtml(teamA.teamName)} received ${names(toA)}; ${Vault.escapeHtml(teamB.teamName)} received ${names(toB)}.`;
+    const verdict = { tone: bucket === 'Unfair' ? 'bad' : 'neutral', label, text };
+    const timeline = () => ({ mode: 'flexible', fit: 0, dAge: 0, dPicks: 0, notes: [] });
+    const fit = () => ({ posFit: 0, notes: [] });
+    const arch = () => ({ archFit: 0, notes: [] });
+    const depth = () => ({ fit: 0, perWeek: 0, note: null });
+    return {
+      tx, teamA, teamB, toA, toB, gradeMarket,
+      toAToday: toATodayPrices, toBToday: toBTodayPrices,
+      depthA: depth(), depthB: depth(),
+      pctDiff, pctDiffNeed: null, signedPctDiff, bandPct, fairness,
+      valuedAt, todaySignedPctDiff, dValueAdjAToday, dValueAdjA,
+      fitA: fit(), fitB: fit(), timelineA: timeline(), timelineB: timeline(),
+      archA: arch(), archB: arch(), riskA: [], riskB: [],
+      dOptA: null, dOptB: null, dVorpA: null, dVorpB: null,
+      optNoteA: null, optNoteB: null, vorpNoteA: null, vorpNoteB: null,
+      combinedFitA: 0, combinedFitB: 0, verdict, bucket,
+      anyMissingValue: [...toA, ...toB].some(a => !(a.value > 0)),
+      historyFitUnavailable: true,
+      created: tx.created
+    };
   },
 
-  // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
+    // Walks the same previous_league_id chain fetchLeagueHistory does, but keeps
   // each season's own league_id (fetchLeagueHistory discards it after pulling
   // rosters) — fetchAndGradeAllTrades needs it to fetch each season's real
   // transactions, not just that season's final records. Same "0" (a first
@@ -4631,6 +4575,11 @@ const Vault = {
       return rawTrades.map(tx => ({
         ...tx,
         season: s.season, // which league season it happened in (Trade Grades' "This season")
+        // A mid-season replacement can take over an existing roster id. If the
+        // initiator isn't one of that roster pair's currently listed owners, the
+        // old manager cannot be attributed reliably. Keep the trade, not a false
+        // claim on the current managers' records.
+        _ownerAttributionUncertain: !!tx.creator && !tx.roster_ids.some(id => String(ownerByOldRoster.get(id)) === String(tx.creator)),
         roster_ids: tx.roster_ids.map(translateRoster),
         adds: Object.fromEntries(Object.entries(tx.adds || {}).map(([pid, rid]) => [pid, translateRoster(rid)])),
         draft_picks: (tx.draft_picks || []).map(pk => ({
