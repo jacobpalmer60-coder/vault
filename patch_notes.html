@@ -54,6 +54,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-17', items: [
+    { kind: 'fixed', page: 'Player Market', text: "The one-year historical trade-outcome builder now retains assets that fell to zero value, including trades where an entire side was wiped out. This corrects a survivor-selection problem in the next rebuilt dataset; previously published aggregates remain unchanged until the source archive is reprocessed." }
+  ] },
+  { date: '2026-11-17', items: [
     { kind: 'fixed', page: 'Trade Coach', text: "Trade Coach now checks the same predicted manager acceptance decision as the negotiation panel before recommending an offer. A fair price and an acceptable verdict no longer override a manager-specific predicted rejection." }
   ] },
   { date: '2026-11-17', items: [
