@@ -41,11 +41,27 @@
       picksRemoved: beforePicks.filter(k => !afterSet.has(k))
     };
   }
+  // Describe effects, not whether a manager should accept an offer.
+  // Never imply a price change is a guaranteed win or future pick outcome.
+  function explain(impact, mode) {
+    const d=impact.change, phrases=[];
+    const pp=Math.abs(d.lineupPpg).toFixed(1);
+    if (d.lineupPpg >= 0.5) phrases.push('adds '+pp+' projected starting-lineup points per week');
+    else if (d.lineupPpg <= -0.5) phrases.push('gives up '+pp+' projected starting-lineup points per week');
+    else phrases.push('has little effect on projected starting-lineup points');
+    if (d.pickValue > 0) phrases.push('adds '+Math.round(d.pickValue).toLocaleString('en-US')+' in current draft-pick value');
+    else if (d.pickValue < 0) phrases.push('spends '+Math.round(-d.pickValue).toLocaleString('en-US')+' in current draft-pick value');
+    if (d.playerValue > 0) phrases.push('gains '+Math.round(d.playerValue).toLocaleString('en-US')+' in current player value');
+    else if (d.playerValue < 0) phrases.push('loses '+Math.round(-d.playerValue).toLocaleString('en-US')+' in current player value');
+    if (mode === 'rebuild') phrases.push('evaluate future assets and timeline separately from this season’s points');
+    if (mode === 'contend') phrases.push('check whether the immediate lineup effect justifies any draft capital spent');
+    return phrases;
+  }
   function pair(before, after, givenA, givenB) {
     return {
       A: side(before.A, after.A, givenB, givenA),
       B: side(before.B, after.B, givenA, givenB)
     };
   }
-  return Object.freeze({side, pair, pieces});
+  return Object.freeze({side, pair, pieces, explain});
 });
