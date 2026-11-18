@@ -126,4 +126,41 @@ assert.ok(plan.options.some(o => o.helpB === false), 'must also search the user 
 assert.ok(plan.options.some(o => o.add.length === 2), 'must try two-piece additions');
 console.log('PASS two-direction, multi-piece trade equalizer');
 
+// The injury stress scenario is presented for BOTH recipients, not just Team A.
+const stressHtml = { innerHTML: '' };
+const before = {
+  A: { rosterId: 1, opt: 10, optByWeek: new Map([[11, 10]]) },
+  B: { rosterId: 2, opt: 10, optByWeek: new Map([[11, 10]]) }
+};
+const after = {
+  A: { rosterId: 1, opt: 20, optByWeek: new Map([[11, 20]]), plist: [{ id: 'x' }] },
+  B: { rosterId: 2, opt: 20, optByWeek: new Map([[11, 20]]), plist: [{ id: 'y' }] }
+};
+const seasonInput = {
+  before, after, depA: 0, depB: 0, lineA: 10, lineB: 10,
+  next: new Map([[1, { championshipPct: 30 }], [2, { championshipPct: 35 }]])
+};
+const stress = vm.runInNewContext(
+  extract('function scheduleStress(', 'function renderSeasonImpact(') + '\nscheduleStress;',
+  {
+    stressTimer: 0, clearTimeout: () => {}, setTimeout: fn => { fn(); return 1; },
+    document: { getElementById: id => id === 'stressLine' ? stressHtml : null },
+    remainingWeeks: [{ week: 11 }], tradeSeasonOdds: () => seasonInput,
+    Vault: {
+      seasonLineupDetail: () => ({ total: 0, byWeek: new Map([[11, 0]]) }),
+      escapeHtml: x => x, info: () => ''
+    },
+    slots: ['WR'],
+    seasonOdds: () => new Map([[1, { championshipPct: 10 }], [2, { championshipPct: 11 }]]),
+    seasonBase: new Map([[1, { championshipPct: 20 }], [2, { championshipPct: 20 }]]),
+    Map, Set, Math
+  }
+);
+stress({ rosterId: 1, teamName: 'Alpha' }, { rosterId: 2, teamName: 'Beta' },
+  [{ type: 'player', id: 'y', name: 'Y', value: 20 }],
+  [{ type: 'player', id: 'x', name: 'X', value: 20 }]);
+assert.ok(stressHtml.innerHTML.includes('Alpha'));
+assert.ok(stressHtml.innerHTML.includes('Beta'));
+console.log('PASS two-sided injury stress test');
+
 console.log('All trade audit regression checks passed.');
