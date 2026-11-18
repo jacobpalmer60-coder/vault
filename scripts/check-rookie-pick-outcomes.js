@@ -5,7 +5,7 @@ const code=fs.readFileSync(path.join(__dirname,'benchmark-rookie-pick-outcomes.j
 const readSeason=()=>({
  leagues:{L:[2,0]},
  drafts:{
-  d1:['2024-05-01','L',null,[[1,1,'100'],[2,1,'200'],[3,2,'300']]],
+  d1:['2024-05-01','L',null,[[1,1,'100'],[2,1,'200'],[3,2,'300'],[4,3,'600'],[5,3,'700']]],
   d2:['2024-06-01','L',null,[[1,1,'100'],[2,1,'200'],[3,2,'400']]],
   d3:['2025-06-01','L',null,[[1,1,'500']]]
  }
@@ -24,7 +24,7 @@ const prices={
 let output;
 const requireMock=name=>{
  if(name==='./market-history/ktc-book')return {
-  readSleeperPlayers:()=>({'100':{position:'QB',draft_year:2024},'200':{position:'WR',draft_year:2024},'300':{position:'RB',draft_year:2024},'400':{position:'TE',draft_year:2024},'500':{position:'QB',draft_year:2025}}),
+  readSleeperPlayers:()=>({'100':{position:'QB',draft_year:2024},'200':{position:'WR',draft_year:2024},'300':{position:'RB',draft_year:2024},'400':{position:'TE',draft_year:2024},'500':{position:'QB',draft_year:2025},'600':{position:'RB',draft_year:2021},'700':{position:'WR'}}),
   seasonFiles:()=>['2024.json.gz','2025.json.gz'],readSeason,ktcPrices:()=>prices,formatOf:()=>'sf'
  };
  if(name==='node:fs')return fs;
@@ -35,8 +35,8 @@ vm.runInNewContext(code,{require:requireMock,process:{env:{MIN_DRAFTS:'1'}},cons
 assert.equal(output.counts.draftsSeen,6,'two season files each include three draft fixtures');
 assert.equal(output.counts.uniqueRookies,5,'unique rookies counted per season and scoring format');
 assert.ok(output.warnings.some(w=>w.includes('not a return forecast')));
-assert.equal(output.counts.rejectedVeterans,0);
-assert.equal(output.counts.unverifiableRookieYear,0);
+assert.equal(output.counts.rejectedVeterans,1,'veterans selected in a spring draft are excluded');
+assert.equal(output.counts.unverifiableRookieYear,1,'unverifiable rookie year is excluded');
 const r1=output.groups.find(g=>g.year===2024&&g.round===1);
 assert.equal(r1.n,2,'duplicates across drafts count once');
 assert.equal(r1.known,2);
