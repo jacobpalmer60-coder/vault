@@ -737,10 +737,14 @@ function assetRow(side, a, isSelected, extra, gainFor) {
   // player), and "Match" becomes a league-wide value browser (who else, on ANY team,
   // is priced like this) rather than silently building the same kind of package Find
   // already builds, which just made the two buttons redundant on a Team B row.
-  // Your row: Match builds a package from your partner; Shop sends it to Trade
-  // Coach's Shop a player. Partner row: Get opens Trade Coach's Get a player.
-  const matchAction = side === 'A' && teamOf('B') ? `matchTarget('A','${a.key}')` : '';
-  const matchTitle = 'Build a package from your trade partner to match this';
+  // Match works on BOTH sides; Shop/Get remains the optional
+  // league-wide Trade Coach flow for sending or acquiring the piece.
+  // The same matching engine accepts either side: selecting a partner's
+  // asset can build an offer from Team A, just as a Team A asset can fetch
+  // a matching package from the partner. "Get" still opens Trade Coach.
+  const matchAction = teamOf(otherSide(side)) ? `matchTarget('${side}','${a.key}')` : '';
+  const matchTitle = side === 'A' ? 'Build a matching package from Team B'
+    : 'Build a matching package from Team A';
   const findAction = side === 'A' ? `coachShopFor('${a.key}')` : `coachGetFor('${a.key}')`;
   const findTitle = side === 'A' ? 'See the best offer from every team for this' : 'See offers their manager would take for this';
   const findLabel = side === 'A' ? 'Shop' : 'Get';
