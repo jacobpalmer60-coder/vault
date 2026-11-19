@@ -255,9 +255,14 @@ const PAYS_UP_AT = 8, PAYS_UP_MIN = 2, PAYS_UP_MAX = 15;
 // `me` is a new object whenever the league's rosters reload, which starts over.
 const coachCache = { me: null, plan: null, pool: null, judged: new Map() };
 function coachCacheFor(me) {
-  // Either team's timeline changes the grades (Vault.planOverride), so any change starts over.
-  const plan = JSON.stringify(Vault.planOverride);
-  if (coachCache.me !== me || coachCache.plan !== plan) Object.assign(coachCache, { me, plan, pool: null, judged: new Map() });
+  // The answer depends on both teams' plans, league roster composition AND
+  // the other manager's observed trade style. Never reuse stale judgments
+  // after the league or negotiation history changes.
+  const plan=JSON.stringify(Vault.planOverride||{});
+  if(coachCache.me!==me||coachCache.plan!==plan){
+    Object.assign(coachCache,{me,plan,pool:null,judged:new Map()});
+    coachScoreMemo.clear();
+  }
   return coachCache;
 }
 function coachJudged(me, partner, give, get) {
@@ -332,7 +337,15 @@ function coachSync() {
   if (neg) neg.classList.toggle('hidden', !(Coach.option === 'negotiate' && Negotiation.rounds.length));
 }
 // Something the read depends on changed (a timeline, trade history): drop cached judgments and redraw.
-function coachReset() { coachScoreMemo.clear(); if (Coach.work) Coach.work.tweaks = null; if (coachOpen()) { renderCoach(); if (Coach.work) coachWorkTweaks(); } }
+function coachReset() {
+  coachScoreMemo.clear();
+  // Re-read each partner's current profile and their full trade analysis;
+  // simply clearing the display score left a cached 'would accept' answer.
+  coachCache.me=null;coachCache.plan=null;coachCache.pool=null;coachCache.judged.clear();
+  Coach.results={};
+  if(Coach.work)Coach.work.tweaks=null;
+  if(coachOpen()){renderCoach();if(Coach.work)coachWorkTweaks()}
+}
 // From a roster row: Shop (your piece: what to do with it) or Get (their player: build it).
 function coachFresh() { Coach.option = 'coach'; Coach.flow = null; Coach.work = null; }
 function coachShopFor(key) { coachFresh(); setView('coach'); coachPickAny(key); }
