@@ -20,6 +20,17 @@ function audit(data){
  const full=data.overall?.strict,players=data.playerOnly?.strict;
  if(!full||!players)throw Error('Expected overall and playerOnly complete-case statistics');
  const min=1000;
+ // A benchmark of price direction is not a direct benchmark of roster-aware
+ // trade grades. Report how much performance differs within the specific
+ // conditions where the consolidation curve could plausibly matter.
+ const strata=(data.by?.tradeValueGap||{});
+ const majorShapes=Object.entries(data.by?.shape||{}).filter(([,e])=>e.strict?.matched>=min)
+  .sort((a,b)=>a[1].strict.vaultAdvantagePoints-b[1].strict.vaultAdvantagePoints)
+  .map(([shape,e])=>({shape,n:e.strict.matched,advantage:e.strict.vaultAdvantagePoints,
+    disagree:e.strict.disagree||0,vaultOnlyRight:e.strict.vaultOnlyRight||0,rawOnlyRight:e.strict.rawOnlyRight||0}));
+ const gapGroups=Object.entries(strata).filter(([,e])=>e.strict?.matched>=min)
+  .map(([gap,e])=>({gap,n:e.strict.matched,advantage:e.strict.vaultAdvantagePoints,
+    disagreementRatePct:e.strict.matched?+(100*(e.strict.disagree||0)/e.strict.matched).toFixed(2):null}));
  for(const [year,entry] of Object.entries(data.by?.year||{})){
   const r=entry.strict;
   if(r.matched<min){push('limited','year '+year,'Too few decisive cases for comparison',r.matched);continue}
@@ -50,12 +61,14 @@ function audit(data){
  if(byYears.some(x=>x.advantage>0)&&byYears.some(x=>x.advantage<0))
   push('warning','year stability','Vault vs raw advantage reverses direction between seasons; do not deploy a global adjustment',null);
  return {generated:data.generated,sampleMod:data.sampleMod,counts:data.counts,overall:full,playerOnly:players,
-  yearly:byYears,findings,
+  yearly:byYears,majorShapes,gapGroups,findings,
   guardrails:[
    'Only previously completed trades are sampled; rejected proposals and manager acceptance are unobserved.',
    'No uncontaminated chronological holdout or historical team roster reconstruction is available.',
    'Player-only controls for unverified future pick conversions; do not tune pick prices from this benchmark.',
    'Directional agreement measures relative future market prices, not win probability or actual fantasy outcomes.',
+   'Vault uses a nonlinear consolidation adjustment: a negative advantage does not directly establish an error in lineup, roster-fit, or team-specific trade grading.',
+   'Check one-for-one trade parity and stratify by price gap before interpreting the broad aggregate.',
    'Do not auto-change live trade value, ranking, Even It Out or Trade Coach from this report.'
   ]};
 }
@@ -65,6 +78,20 @@ function main(file){
  console.log('TRADE ACCURACY AUDIT — RESEARCH ONLY');
  console.log('Sample: 1/'+report.sampleMod+' | complete cases: '+report.counts.complete+' | player-only: '+report.counts.playerOnlyComplete);
  for(const f of report.findings)console.log('['+f.severity+'] '+f.scope+': '+f.message+(f.n==null?'':' (n='+f.n+')'));
+ console.log('\nMost negative package cohorts (decisive cases, research only):');
+ for(const row of report.majorShapes.slice(0,12))console.log(row.shape+
+  ' n='+row.n+' advantage='+row.advantage+' pp'+
+  ' disagreement='+row.disagree+' Vault-only-right='+row.vaultOnlyRight+' raw-only-right='+row.rawOnlyRight);
+ console.log('\nStarting-price gap cohorts:');
+ for(const row of report.gapGroups)console.log(row.gap+' n='+row.n+
+  ' advantage='+row.advantage+' pp disagreement rate='+row.disagreementRatePct+'%');
+ const oneForOne=report.majorShapes.filter(x=>x.shape.endsWith('|1-for-1'));
+ if(oneForOne.length){
+  console.log('\nOne-for-one sanity check:');
+  for(const row of oneForOne)console.log(row.shape+
+   ' disagreement='+row.disagree+
+   (row.disagree===0?' PASS':' WARNING — nonlinear adjustment should not change 1-for-1 direction'));
+ }
  console.log('\nGuardrails:\n'+report.guardrails.map(x=>'- '+x).join('\n'));
  return report;
 }
