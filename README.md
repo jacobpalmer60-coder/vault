@@ -260,6 +260,26 @@ selections. It cannot infer the odds of any particular 1.01 / 1.12 selection,
 reconstruct every team's historic pick ownership or make a sealed
 chronological validation claim.
 
+### Experimental separation of market prices and team-specific trade value
+
+A **research-only** comparison now reports additive current market prices,
+the existing nonlinear consolidation adjustment, separately supplied
+before/after roster impacts for both teams, and separately supplied
+manager acceptance judgments. Missing roster/acceptance evidence is
+explicitly marked unknown rather than inferred from prices.
+
+```powershell
+node scripts/check-trade-price-separation.js
+node scripts/review-trade-separation.js docs/trade-separation-example.json
+node --max-old-space-size=6144 scripts/benchmark-separated-trade-pricing.js > separated-pricing.json
+node scripts/report-separated-trade-pricing.js separated-pricing.json > separated-pricing-report.txt
+Get-Content separated-pricing-report.txt
+```
+
+Read [the research design](docs/TRADE_PRICE_SEPARATION_RESEARCH.md)
+for historical data limitations and validation requirements. **This work
+does not modify live trade grades, Coach, Even It Out or any price feed.**
+
 ### Independent historical trade validation (research only)
 
 The historical trade-backtest previously used Vault's own nonlinear
