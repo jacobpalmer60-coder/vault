@@ -14,6 +14,14 @@ assert.ok(m.marketPct<0&&m.packagePct>0,'full consolidation reverses price direc
 assert.equal(weightedSignal(m,0),m.marketPct,'0 is raw additive KTC');
 assert.equal(weightedSignal(m,1),m.packagePct,'1 is old consolidation');
 assert.ok(weightedSignal(m,0.5)>m.marketPct&&weightedSignal(m,0.5)<m.packagePct);
+const mirroredPrice=priceSignals(bundle,raw,{tradeValueRatio:(a,b)=>2/3});
+assert.ok(Math.abs(mirroredPrice.marketPct+m.marketPct)<1e-9,
+ 'reversing team A/B must reverse market price advantage');
+assert.ok(Math.abs(mirroredPrice.packagePct+m.packagePct)<1e-9,
+ 'reversing team A/B must reverse the consolidation advantage');
+for(const w of WEIGHTS)assert.ok(Math.abs(weightedSignal(mirroredPrice,w)+weightedSignal(m,w))<1e-9,
+ 'reversing teams must reverse every predeclared scenario');
+
 assert.throws(()=>weightedSignal(m,0.15),/declared research/);
 assert.deepEqual(JSON.stringify({raw,bundle}),copy,'original assets never mutated');
 const noEvidence=assessment(raw,bundle,{tradeValueRatio:ratio});
