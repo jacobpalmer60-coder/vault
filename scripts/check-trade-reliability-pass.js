@@ -32,14 +32,14 @@ const stylesCtx={
  Vault:{planOverride:{}},Negotiation:{styles:null},
  coachScoreMemo:new Map([['a',1]]),Map,Object,JSON
 };
-vm.runInNewContext(cacheCode,stylesCtx);
+const cacheFunctions=vm.runInNewContext(cacheCode+'\n({coachCacheFor,coachCache})',stylesCtx);
 const currentTeam={rosterId:1};
-stylesCtx.coachCacheFor(currentTeam);
-stylesCtx.coachCache.judged.set('offer',{accepts:true});
+cacheFunctions.coachCacheFor(currentTeam);
+cacheFunctions.coachCache.judged.set('offer',{accepts:true});
 stylesCtx.coachScoreMemo.set('score',3);
 stylesCtx.Negotiation.styles=new Map([[2,{trades:4}]]);
-stylesCtx.coachCacheFor(currentTeam);
-assert.equal(stylesCtx.coachCache.judged.size,0,'new partner history invalidates acceptance');
+cacheFunctions.coachCacheFor(currentTeam);
+assert.equal(cacheFunctions.coachCache.judged.size,0,'new partner history invalidates acceptance');
 assert.equal(stylesCtx.coachScoreMemo.size,0,'new partner history invalidates rank scores');
 const audits=require('./audit-trade-accuracy');
 const sample={
