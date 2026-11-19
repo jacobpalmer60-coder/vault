@@ -33,6 +33,7 @@ const coachMe = () => teamOf('A'); // the calculator's left side is always your 
 const coachScoreMemo = new Map();
 // o: a judge result (has .an) or an offer { partner, give, get }.
 function coachScore(o) {
+  coachCacheFor(coachMe());
   if (o.an) return improvementOf(o.an, 'A').score;
   if (o.score != null) return o.score;
   const id = `${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
@@ -46,6 +47,7 @@ function coachScore(o) {
 // true score, so a card's verdict matches the calculator's.
 const COACH_VALUE_CREDIT = 4;
 function coachRankScore(o) {
+  coachCacheFor(coachMe());
   const imp = o.an ? improvementOf(o.an, 'A') : null;
   if (imp) return Vault.tradeImprovement({ ...imp, valuePct: Math.min(imp.valuePct, COACH_VALUE_CREDIT) }).score;
   const id = `rank:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
@@ -104,6 +106,7 @@ const coachValuePct = o => { const tv = Vault.tradeSideValues(o.give, o.get); re
 const COACH_PREMIUM_OK = new Set(['target', 'position', 'want', 'upgrade']), COACH_TARGET_PREMIUM = 6;
 // The other team's verdict score for the same trade (memoized like coachScore).
 function coachTheirScore(o) {
+  coachCacheFor(coachMe());
   const id = `them:${o.partner.rosterId}:${negKeys(o.give).join()}>${negKeys(o.get).join()}:${Vault.planOverride[coachMe().rosterId] || ''}`;
   if (!coachScoreMemo.has(id)) coachScoreMemo.set(id, improvementOf(coachJudged(coachMe(), o.partner, o.give, o.get).an, 'B').score);
   return coachScoreMemo.get(id);
@@ -253,14 +256,15 @@ const PAYS_UP_AT = 8, PAYS_UP_MIN = 2, PAYS_UP_MAX = 15;
 // rosters (2026-10-23, "Faster Coach"): building them takes about 3 seconds and
 // grading about 1.5, and a filter change or Search again doesn't change either.
 // `me` is a new object whenever the league's rosters reload, which starts over.
-const coachCache = { me: null, plan: null, pool: null, judged: new Map() };
+const coachCache = { me: null, plan: null, styles: null, pool: null, judged: new Map() };
 function coachCacheFor(me) {
   // The answer depends on both teams' plans, league roster composition AND
   // the other manager's observed trade style. Never reuse stale judgments
   // after the league or negotiation history changes.
   const plan=JSON.stringify(Vault.planOverride||{});
-  if(coachCache.me!==me||coachCache.plan!==plan){
-    Object.assign(coachCache,{me,plan,pool:null,judged:new Map()});
+  const styles=Negotiation.styles||null;
+  if(coachCache.me!==me||coachCache.plan!==plan||coachCache.styles!==styles){
+    Object.assign(coachCache,{me,plan,styles,pool:null,judged:new Map()});
     coachScoreMemo.clear();
   }
   return coachCache;
@@ -341,7 +345,7 @@ function coachReset() {
   coachScoreMemo.clear();
   // Re-read each partner's current profile and their full trade analysis;
   // simply clearing the display score left a cached 'would accept' answer.
-  coachCache.me=null;coachCache.plan=null;coachCache.pool=null;coachCache.judged.clear();
+  coachCache.me=null;coachCache.plan=null;coachCache.styles=null;coachCache.pool=null;coachCache.judged.clear();
   Coach.results={};
   if(Coach.work)Coach.work.tweaks=null;
   if(coachOpen()){renderCoach();if(Coach.work)coachWorkTweaks()}
