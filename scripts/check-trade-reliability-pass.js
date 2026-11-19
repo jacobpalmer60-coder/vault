@@ -25,6 +25,22 @@ assert.equal(state.coachCache.judged.size,0);
 assert.equal(state.coachScoreMemo.size,0);
 assert.equal(state.Coach.work.tweaks,null);
 assert.equal(Object.keys(state.Coach.results).length,0);
+// Even without an explicit reset, a newly loaded trade-history style map
+// invalidates the scores and the cached counterparty's acceptance prediction.
+const cacheCode=part(coach,'const coachCache = {','function coachJudged(');
+const stylesCtx={
+ Vault:{planOverride:{}},Negotiation:{styles:null},
+ coachScoreMemo:new Map([['a',1]]),Map,Object,JSON
+};
+vm.runInNewContext(cacheCode,stylesCtx);
+const currentTeam={rosterId:1};
+stylesCtx.coachCacheFor(currentTeam);
+stylesCtx.coachCache.judged.set('offer',{accepts:true});
+stylesCtx.coachScoreMemo.set('score',3);
+stylesCtx.Negotiation.styles=new Map([[2,{trades:4}]]);
+stylesCtx.coachCacheFor(currentTeam);
+assert.equal(stylesCtx.coachCache.judged.size,0,'new partner history invalidates acceptance');
+assert.equal(stylesCtx.coachScoreMemo.size,0,'new partner history invalidates rank scores');
 const audits=require('./audit-trade-accuracy');
 const sample={
  schemaVersion:2,generated:'2026-11-18',sampleMod:10,
