@@ -80,7 +80,8 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
         const text=id=>document.getElementById(id)?.innerText||'';
         const a=text('analysisA'),b=text('analysisB');
         const labels=['Roster impact','What changes for this team','Lineup PPG','Draft capital (today)','Player value','Total team value'];
-        const missing=labels.filter(label=>!a.includes(label)||!b.includes(label));
+        // innerText may reflect uppercase CSS headings; require labels on both sides.
+        const missing=labels.filter(label=>!a.toLowerCase().includes(label.toLowerCase())||!b.toLowerCase().includes(label.toLowerCase()));
         return {visibleA:visible('analysisA'),visibleB:visible('analysisB'),
           missing,wide:document.documentElement.scrollWidth-innerWidth,
           aTeam:a.slice(0,100),bTeam:b.slice(0,100)};
