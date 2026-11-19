@@ -2794,9 +2794,11 @@ function renderStressResults(){
    </div>`;
   const side=(name,key)=>`<div class="min-w-0 rounded-xl bg-black/25 border border-white/10 p-3 space-y-1">
      <div class="text-[13px] text-zinc-100 font-medium truncate">${Vault.escapeHtml(name)}</div>
+     <div class="text-[11px] text-zinc-400 mb-2">Compared with the unchanged trade</div>
      ${metric('Total roster + picks value','',stress.change[key].totalValue,base.change[key].totalValue)}
      ${metric('Current draft capital','',stress.change[key].pickValue,base.change[key].pickValue)}
      ${metric('17-game avg lineup PPG','',stress.change[key].lineupPpg,base.change[key].lineupPpg)}
+     <div class="text-[12px] pt-2 mt-2 border-t border-white/10">Scenario difference from usual: ${move(stress.change[key].totalValue-base.change[key].totalValue)} roster value, ${move(stress.change[key].lineupPpg-base.change[key].lineupPpg,1)} lineup PPG</div>
    </div>`;
   // Price and lineup shocks do not flow into the official calculator grading,
   // season playoff probabilities, or other teams' projections.
@@ -2808,7 +2810,7 @@ function renderStressResults(){
       What-if only: the same asset changes value for its owner before and after the deal.
       Player decline is a manually chosen market shock, not a forecast. Games missed use a simplified 17-game average with the next-best lineup (not week-by-week injury or championship odds).
       ${stress.tierQuote?`Pick assumption: ${Vault.escapeHtml(stress.tierQuote.baseTier)} → ${Vault.escapeHtml(stress.tierQuote.tier)} at today's tier spread; no future rookie outcomes assumed.`:''}
-      “Usual” means the unchanged trade's impact. Official grading and Trade Coach are unaffected.
+      “Usual” means the unchanged trade's impact; scenario difference isolates only the hypothetical effect. Green/red indicates a relative value or points change, not a predicted win/loss. Official grading, Even It Out and Trade Coach are unaffected.
     </p>`;
   const updateLabel=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=String(v)};
   updateLabel('stressDeclineLabel',stress.drop+'%');
