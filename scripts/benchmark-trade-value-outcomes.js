@@ -31,7 +31,7 @@ const detail={},summary={
  seen:0,sampled:0,priced:0,mature:0,complete:0,missing:0,imputedUsable:0,
  playerOnlyMature:0,playerOnlyComplete:0,
  bothZero:0,strict:{},imputed:{},by:{formatYear:{},year:{},yearQuarter:{},yearMonth:{},
- shape:{},highestAssetPosition:{},tradeValueGap:{},monthOfYear:{},playerOnlyYear:{}}
+ shape:{},playerOnlyShape:{},highestAssetPosition:{},tradeValueGap:{},monthOfYear:{},playerOnlyYear:{}}
 };
 summary.strict=stats();summary.imputed=stats();
 summary.playerOnlyStrict=stats();summary.playerOnlyImputed=stats();
@@ -103,7 +103,7 @@ for(const file of files){
    shape:year+'|'+shape(a.length,c.length),
    highestAssetPosition:year+'|'+top.pos,
    tradeValueGap:year+'|'+gap,monthOfYear:mo,
-   ...(playerOnly?{playerOnlyYear:year}:{})
+   ...(playerOnly?{playerOnlyYear:year,playerOnlyShape:year+'|'+shape(a.length,c.length)}:{})
   };
   for(const [dimension,key] of Object.entries(keys)){
    const map=summary.by[dimension],record=map[key] ||= {strict:stats(),imputed:stats(),missing:0};
@@ -125,6 +125,7 @@ const result={
   'Known zero prices stay zero; a missing listing is NOT automatically a complete loss.',
   'Future winner is now scored independently: additive sum of future KTC prices, not Vault.tradeValueRatio. Historical results from older benchmark versions are NOT comparable.',
   'Trades with picks have estimated post-draft pick outcomes based on round-average rookie prices; the player-only cohort avoids this proxy.',
+  'Player-only shape cohorts isolate consolidation adjustments without round-average draft pick outcome proxies; they remain retrospective and are not roster-aware grades.',
   'The same trade may appear in the existing calibration data; this is not a sealed chronological holdout.',
   'Team roster mode (contend/rebuild) was not reconstructed at the trade date.',
   '2024 and 2025 have different calendar coverage; compare month/quarter cohorts rather than concluding season-specific causality.'
