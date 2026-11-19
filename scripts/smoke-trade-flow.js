@@ -27,12 +27,33 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
  try{
   for(const [name,width,height] of sizes){
    const page=await browser.newPage();
+   // Vault requires a saved league AND team before a tool can open. Each
+   // viewport runs in a fresh browser page, so seed a temporary team id.
+   // Actual teams and the chosen test trade are discovered from live rosters
+   // below. Never depend on a user having completed the entry screen.
+   await page.evaluateOnNewDocument(id=>{
+    try{
+     localStorage.setItem('vault_league_id',String(id));
+     localStorage.setItem('vault_my_team_'+id,'1');
+    }catch{}
+   },leagueId);
    const errors=[];
    page.on('pageerror',e=>errors.push('page error: '+e.message));
    await page.setViewport({width,height,deviceScaleFactor:1,isMobile:width<600,hasTouch:width<600});
    try{
     await page.goto(base+'/trade.html?league_id='+encodeURIComponent(leagueId),{waitUntil:'domcontentloaded',timeout:60000});
-    await page.waitForFunction(()=>typeof teams!=='undefined'&&teams.length>=2&&teams.some(t=>t.assets?.length),{timeout:60000});
+    await page.waitForFunction(()=>
+      (typeof teams!=='undefined'&&teams.length>=2&&teams.some(t=>t.assets?.length)) ||
+      (location.pathname==='/'&&new URLSearchParams(location.search).has('next')) ||
+      !!document.querySelector('#status.text-red-400'),
+      {timeout:60000});
+    const loaded=await page.evaluate(()=>({
+      ready:typeof teams!=='undefined'&&teams.length>=2&&teams.some(t=>t.assets?.length),
+      url:location.pathname+location.search,status:document.getElementById('status')?.textContent||''
+    }));
+    if(!loaded.ready)throw Error('Trade calculator did not load teams at '+loaded.url+
+      (loaded.status?' — '+loaded.status:'')+
+      '. Check Sleeper connectivity and local Vault server.');
     const prepared=await page.evaluate(()=>{
       if(!document.getElementById('setup').classList.contains('hidden')){
         document.getElementById('loadRostersBtn').click();
