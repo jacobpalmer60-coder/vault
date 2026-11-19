@@ -284,6 +284,25 @@ node scripts/summarize-value-research.js > research-summary.txt
 Get-Content research-summary.txt
 ```
 
+Run the reliability regressions and inspect whether historical performance
+is stable across seasons, draft-pick inclusion and package shapes:
+
+```powershell
+node scripts/check-calculator-deep.js
+node scripts/check-trade-stress.js
+node scripts/check-trade-reliability-pass.js
+node scripts/audit-trade-accuracy.js trade-cohorts.txt > trade-accuracy-audit.txt
+Get-Content trade-accuracy-audit.txt
+```
+
+The November reliability pass fixes three separate concerns:
+**Even It Out** suggestions are bound to the same two managers, selected
+assets and timeline; **Trade Coach** clears cached willingness, roster fit,
+and scoring when manager context or trade-history profiles change; the
+**Trade Stress Test** shows scenario differences for both teams relative
+to the unchanged deal without changing the official verdict. These are
+guardrails and presentation changes, **not new projected values**.
+
 The summary deliberately rejects old benchmark JSON that lacks
 `schemaVersion: 2`. No live trade prices, grades, or coach scores have
 been changed. A truly independent evaluation still requires a future
