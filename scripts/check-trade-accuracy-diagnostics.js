@@ -24,10 +24,14 @@ const data={
  by:{year:{2024:{strict:s(3000,-10),imputed:s(3000,-8)}},
  playerOnlyYear:{2024:{strict:s(1000,-5)}},
  shape:{'2024|1-for-1':{strict:s(1200,0,0)},'2024|1-for-2':{strict:s(1500,-15,600)}},
+ playerOnlyShape:{'2024|1-for-1':{strict:s(1200,0,0)},'2024|1-for-2':{strict:s(1000,-8,200)}},
  tradeValueGap:{'2024|0-5%':{strict:s(1800,-13,500)}}}
 };
 const result=audit(data);
 assert.equal(result.majorShapes.length,2);
+assert.equal(result.playerOnlyShapes.length,2);
+assert.equal(result.playerOnlyShapes[0].shape,'2024|1-for-2');
+assert.equal(result.playerOnlyShapes[0].advantage,-8);
 assert.equal(result.majorShapes[0].shape,'2024|1-for-2');
 assert.equal(result.majorShapes[1].disagree,0);
 assert.equal(result.gapGroups[0].disagreementRatePct,27.78);
