@@ -291,9 +291,19 @@ is stable across seasons, draft-pick inclusion and package shapes:
 node scripts/check-calculator-deep.js
 node scripts/check-trade-stress.js
 node scripts/check-trade-reliability-pass.js
+node scripts/check-trade-accuracy-diagnostics.js
 node scripts/audit-trade-accuracy.js trade-cohorts.txt > trade-accuracy-audit.txt
 Get-Content trade-accuracy-audit.txt
 ```
+
+When a retrospective price-direction audit shows a large Vault-versus-raw
+gap, inspect its **1-for-1 parity**, **1-for-N package-level disagreements**,
+and **starting-price gap** cohorts before changing the live model. Vault's
+nonlinear consolidation rule is designed for the *trade's present fairness*
+and manager preferences; the audit labels what happens to the original
+pieces' KTC price sums a year later. Both questions matter, but they're
+not interchangeable. The updated audit reports where disagreement happens;
+it does not claim a controlled comparison or validate future acceptance.
 
 The November reliability pass fixes three separate concerns:
 **Even It Out** suggestions are bound to the same two managers, selected
