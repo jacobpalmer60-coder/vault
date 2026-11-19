@@ -11,6 +11,26 @@ const part=(source,a,b)=>{
 assert.ok(trade.includes('evenFix.contextKey===evenContextKey()'),'Even It Out must validate both-team and timeline identity');
 assert.ok(trade.includes('evenLine.plan.contextKey!==evenContextKey()'),'outdated suggestions cannot be applied');
 assert.ok(trade.includes('if(current!==key)return;'),'deferred suggestion must check selected assets before commit');
+// Exercise the protection, not just the presence of the source text.
+const evenCode=part(trade,'const evenContextKey = () =>','function evenPlan()');
+const sideA={rosterId:1},sideB={rosterId:2};
+const evenCtx={
+ Vault:{planOverride:{}},teamOf:s=>s==='A'?sideA:sideB,
+ selectedA:new Set(['a']),selectedB:new Set(['b']),Set,JSON
+};
+const even=vm.runInNewContext('let evenFix=null;'+evenCode+
+ '\n({live:()=>evenFixLive(),set:f=>{evenFix=f},apply:()=>evenApply(),key:()=>evenContextKey()})',evenCtx);
+even.set({contextKey:even.key(),nowA:['a'],nowB:['b'],options:[{helpB:true,add:[],drop:[]}],at:0});
+assert.equal(even.live(),true);
+sideB.rosterId=3;
+assert.equal(even.live(),false,'new partner invalidates old trade suggestion');
+even.apply(); // stale context refuses before any assets are mutated
+assert.deepEqual([...evenCtx.selectedA],['a']);
+assert.deepEqual([...evenCtx.selectedB],['b']);
+sideB.rosterId=2;
+even.set({contextKey:even.key(),nowA:['a'],nowB:['b'],options:[{helpB:true,add:[],drop:[]}],at:0});
+evenCtx.Vault.planOverride[2]='rebuild';
+assert.equal(even.live(),false,'partner timeline change invalidates old suggestion');
 assert.ok(trade.includes('Scenario difference from usual:'),'Stress Test shows deviation from unchanged trade');
 assert.ok(trade.includes('Official grading, Even It Out and Trade Coach are unaffected.'),'scenario is not promoted to a verdict');
 // Make sure resetting Coach clears not just displayed scores but cached decisions.
