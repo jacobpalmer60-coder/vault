@@ -16,7 +16,8 @@ const evenCode=part(trade,'const evenContextKey = () =>','function evenPlan()');
 const sideA={rosterId:1},sideB={rosterId:2};
 const evenCtx={
  Vault:{planOverride:{}},teamOf:s=>s==='A'?sideA:sideB,
- selectedA:new Set(['a']),selectedB:new Set(['b']),Set,JSON
+ selectedA:new Set(['a']),selectedB:new Set(['b']),
+ evenSame:(set,keys)=>set.size===keys.length&&keys.every(k=>set.has(k)),Set,JSON
 };
 const even=vm.runInNewContext('let evenFix=null;'+evenCode+
  '\n({live:()=>evenFixLive(),set:f=>{evenFix=f},apply:()=>evenApply(),key:()=>evenContextKey()})',evenCtx);
