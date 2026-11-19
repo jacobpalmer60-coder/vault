@@ -903,6 +903,7 @@ function toggle(side, key) {
 function resetTrade() {
   if (typeof negReset === 'function') negReset();
   selectedA.clear(); selectedB.clear();
+  evenFix=null;evenLine=null;
   Object.assign(stressSettings,{player:'',pick:'',decline:0,missed:0,tier:'current'});
   stressContext=null;
   render('A'); render('B');
@@ -1585,8 +1586,12 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
 const EVEN_OPTIONS = 6, EVEN_PIECE_REPEATS = 2, EVEN_MAX_GAP = 8;
 let evenFix = null;
 const evenSame = (set, keys) => set.size === keys.length && keys.every(k => set.has(k));
-const evenFixLive = () => !!evenFix && evenSame(selectedA, evenFix.nowA) && evenSame(selectedB, evenFix.nowB);
+const evenContextKey = () => [teamOf('A')?.rosterId,teamOf('B')?.rosterId,
+  JSON.stringify(Vault.planOverride||{})].join('|');
+const evenFixLive = () => !!evenFix && evenFix.contextKey===evenContextKey() &&
+  evenSame(selectedA,evenFix.nowA) && evenSame(selectedB,evenFix.nowB);
 function evenApply() {
+  if(!evenFix || evenFix.contextKey!==evenContextKey()) { evenFix=null; return; }
   const f = evenFix, o = f.options[f.at];
   selectedA = new Set(f.baseA); selectedB = new Set(f.baseB);
   const giverSel = o.helpB ? selectedA : selectedB, otherSel = o.helpB ? selectedB : selectedA;
@@ -1666,7 +1671,7 @@ function evenPlan() {
     pieces.forEach(p => seen.set(p.key, (seen.get(p.key) || 0) + 1));
     options.push(o);
   }
-  return options.length ? { baseA: [...selectedA], baseB: [...selectedB], options, at: 0, teamA, teamB } : null;
+  return options.length ? { baseA: [...selectedA], baseB: [...selectedB], options, at: 0, teamA, teamB, contextKey: evenContextKey() } : null;
 }
 // The first fix in words, worked out a moment after the trade settles, so typing a trade stays quick.
 let evenLine = null, evenLineTimer = 0;
@@ -1674,7 +1679,11 @@ function scheduleEvenLine() {
   const key = [teamOf('A')?.rosterId, teamOf('B')?.rosterId, [...selectedA].sort(), [...selectedB].sort(), JSON.stringify(Vault.planOverride || {})].join('|');
   if (evenLine?.key === key) return paintEvenLine();
   clearTimeout(evenLineTimer);
-  evenLineTimer = setTimeout(() => { evenLine = { key, plan: evenPlan() }; paintEvenLine(); }, 150);
+  evenLineTimer = setTimeout(() => {
+    const current=[teamOf('A')?.rosterId,teamOf('B')?.rosterId,[...selectedA].sort(),[...selectedB].sort(),JSON.stringify(Vault.planOverride||{})].join('|');
+    if(current!==key)return;
+    evenLine={key,plan:evenPlan()};paintEvenLine();
+  },150);
 }
 function paintEvenLine() {
   const box = document.getElementById('evenLine');
@@ -1692,7 +1701,8 @@ function paintEvenLine() {
     </div>`;
 }
 function evenItOut() {
-  if (!evenLine?.plan) return;
+  if (!evenLine?.plan || evenLine.plan.contextKey!==evenContextKey()) return;
+  if (!evenSame(selectedA,evenLine.plan.baseA) || !evenSame(selectedB,evenLine.plan.baseB)) return;
   const { teamA, teamB, ...plan } = evenLine.plan;
   evenFix = plan;
   evenApply();
