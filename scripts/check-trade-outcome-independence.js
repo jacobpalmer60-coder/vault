@@ -43,6 +43,10 @@ assert.equal(result.playerOnly.strict.rawWins,0);
 assert.equal(result.overall.strict.notDecisive,1,
  'pick-containing trade finishes with equal future sums and must not be assigned a winner');
 assert.equal(result.by.playerOnlyYear['2024'].strict.n,1);
+assert.equal(result.by.playerOnlyShape['2024|1-for-1'].strict.n,1,
+ 'player-only shape includes only trades without future pick proxies');
+assert.equal(result.by.shape['2024|1-for-2'].strict.n,1,
+ 'full package shapes still retain mixed pick-containing trades');
 assert.equal(result.by.year['2024'].strict.n,2);
 assert.ok(result.warnings.some(x=>x.includes('independently')));
 console.log('PASS independent future-value trade labels, future ties and player-only cohort isolation');
