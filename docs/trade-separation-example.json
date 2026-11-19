@@ -1,0 +1,19 @@
+{
+  "description": "Synthetic illustration only; receiving sides, not a real NFL trade.",
+  "sideA": [
+    {
+      "name": "Example top-tier WR",
+      "value": 8000
+    }
+  ],
+  "sideB": [
+    {
+      "name": "Example starting RB",
+      "value": 5000
+    },
+    {
+      "name": "Example young WR",
+      "value": 4000
+    }
+  ]
+}
