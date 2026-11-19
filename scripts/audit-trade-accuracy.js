@@ -28,6 +28,11 @@ function audit(data){
   .sort((a,b)=>a[1].strict.vaultAdvantagePoints-b[1].strict.vaultAdvantagePoints)
   .map(([shape,e])=>({shape,n:e.strict.matched,advantage:e.strict.vaultAdvantagePoints,
     disagree:e.strict.disagree||0,vaultOnlyRight:e.strict.vaultOnlyRight||0,rawOnlyRight:e.strict.rawOnlyRight||0}));
+ const playerOnlyShapes=Object.entries(data.by?.playerOnlyShape||{}).filter(([,e])=>e.strict?.matched>=min)
+  .sort((a,b)=>a[1].strict.vaultAdvantagePoints-b[1].strict.vaultAdvantagePoints)
+  .map(([shape,e])=>({shape,n:e.strict.matched,advantage:e.strict.vaultAdvantagePoints,
+    disagree:e.strict.disagree||0,vaultOnlyRight:e.strict.vaultOnlyRight||0,
+    rawOnlyRight:e.strict.rawOnlyRight||0}));
  const gapGroups=Object.entries(strata).filter(([,e])=>e.strict?.matched>=min)
   .map(([gap,e])=>({gap,n:e.strict.matched,advantage:e.strict.vaultAdvantagePoints,
     disagreementRatePct:e.strict.matched?+(100*(e.strict.disagree||0)/e.strict.matched).toFixed(2):null}));
@@ -61,7 +66,7 @@ function audit(data){
  if(byYears.some(x=>x.advantage>0)&&byYears.some(x=>x.advantage<0))
   push('warning','year stability','Vault vs raw advantage reverses direction between seasons; do not deploy a global adjustment',null);
  return {generated:data.generated,sampleMod:data.sampleMod,counts:data.counts,overall:full,playerOnly:players,
-  yearly:byYears,majorShapes,gapGroups,findings,
+  yearly:byYears,majorShapes,playerOnlyShapes,gapGroups,findings,
   guardrails:[
    'Only previously completed trades are sampled; rejected proposals and manager acceptance are unobserved.',
    'No uncontaminated chronological holdout or historical team roster reconstruction is available.',
@@ -82,6 +87,13 @@ function main(file){
  for(const row of report.majorShapes.slice(0,12))console.log(row.shape+
   ' n='+row.n+' advantage='+row.advantage+' pp'+
   ' disagreement='+row.disagree+' Vault-only-right='+row.vaultOnlyRight+' raw-only-right='+row.rawOnlyRight);
+ console.log('\nPlayer-only package shapes (no approximated pick follow-up):');
+ if(!('playerOnlyShape' in (data.by||{})))console.log('Not available: rerun benchmark with the latest version.');
+ else if(!report.playerOnlyShapes.length)console.log('No player-only shapes reached the minimum decisive sample of 1,000.');
+ for(const row of report.playerOnlyShapes.slice(0,15))console.log(row.shape+
+  ' n='+row.n+' advantage='+row.advantage+' pp'+
+  ' disagreement='+row.disagree+' Vault-only-right='+row.vaultOnlyRight+
+  ' raw-only-right='+row.rawOnlyRight);
  console.log('\nStarting-price gap cohorts:');
  for(const row of report.gapGroups)console.log(row.gap+' n='+row.n+
   ' advantage='+row.advantage+' pp disagreement rate='+row.disagreementRatePct+'%');
