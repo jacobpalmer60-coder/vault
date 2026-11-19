@@ -292,9 +292,14 @@ node scripts/check-calculator-deep.js
 node scripts/check-trade-stress.js
 node scripts/check-trade-reliability-pass.js
 node scripts/check-trade-accuracy-diagnostics.js
+node scripts/check-trade-outcome-independence.js
+# Rerun the benchmark after pulling: player-only package shapes are a NEW cohort.
+node --max-old-space-size=6144 scripts/benchmark-trade-value-outcomes.js > trade-cohorts.txt
 node scripts/audit-trade-accuracy.js trade-cohorts.txt > trade-accuracy-audit.txt
 Get-Content trade-accuracy-audit.txt
 ```
+
+The audit now separates **player-only package shapes** from the full package groups, where draft picks depend on future round-level price proxies. Older `trade-cohorts.txt` files remain readable but cannot display the new player-only shape breakdown. Rerun the benchmark after pulling.
 
 When a retrospective price-direction audit shows a large Vault-versus-raw
 gap, inspect its **1-for-1 parity**, **1-for-N package-level disagreements**,
