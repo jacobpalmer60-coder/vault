@@ -38,6 +38,7 @@ function checkPlan(accept, opts={}){
  const ctx={
   teamOf:s=>s==='A'?(opts.A||A):(opts.B||B),selectedA:opts.selectedA||new Set(['a1']),selectedB:opts.selectedB||new Set(['b1']),
   EVEN_MAX_GAP:8,EVEN_OPTIONS:6,EVEN_PIECE_REPEATS:2,
+  evenContextKey:()=>[opts.A?.rosterId||A.rosterId,opts.B?.rosterId||B.rosterId,'{}'].join('|'),
   Vault:{tradeSideValues:(a,b)=>({valueA:a.reduce((n,x)=>n+x.value,0),valueB:b.reduce((n,x)=>n+x.value,0)})},
   computeTradeAnalysis:(_a,_b,_aa,_bb,vA,vB)=>({gap:200*Math.abs(vA-vB)/(vA+vB)}),
   improvementOf:an=>({level:an.gap<=8?'tossup':'bad',score:an.gap<=8?0:-20}),
