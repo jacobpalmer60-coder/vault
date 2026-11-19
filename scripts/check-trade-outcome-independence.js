@@ -45,10 +45,10 @@ assert.equal(result.overall.strict.notDecisive,1,
 assert.equal(result.by.playerOnlyYear['2024'].strict.n,1);
 assert.equal(result.by.playerOnlyShape['2024|1-for-1'].strict.n,1,
  'player-only shape includes only trades without future pick proxies');
-assert.equal(result.by.shape['2024|1-for-2'].strict.n,0,
- 'pick-containing tie is retained as a shape but correctly excluded from decisive scoring');
-assert.equal(result.by.shape['2024|1-for-2'].strict.notDecisive,0,
- 'a null future outcome does not count as decisive or indecisive prediction');
+assert.equal(result.by.shape['2024|1-for-2'].strict.n,1,
+ 'mixed-cohort trade shape retains a tied but known future result');
+assert.equal(result.by.shape['2024|1-for-2'].strict.notDecisive,1,
+ 'positive-value future ties are counted without declaring a winner');
 assert.equal(result.by.year['2024'].strict.n,2);
 assert.ok(result.warnings.some(x=>x.includes('independently')));
 console.log('PASS independent future-value trade labels, future ties and player-only cohort isolation');
