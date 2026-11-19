@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const {priceSignals,weightedSignal,assessment,WEIGHTS}=require('./research-trade-separation');
 const {report}=require('./report-separated-trade-pricing');
+const {review}=require('./review-trade-separation');
 const {laterOutcome}=require('./market-history/outcome-values');
 const raw=[{key:'star',value:100}],bundle=[{key:'b',value:65},{key:'c',value:65}];
 const copy=JSON.stringify({raw,bundle});
@@ -66,6 +67,16 @@ assert.equal(data.playerOnlyYear['2025'].weights['0'].right,1,'raw price winner 
 assert.equal(data.playerOnlyYear['2025'].weights['1'].wrong,1,'full consolidation predicts wrong bundle direction');
 assert.equal(data.playerOnlyShape['2024|1-for-1'].weights['0'].right,
  data.playerOnlyShape['2024|1-for-1'].weights['1'].right,'one-for-one parity');
+const sideBySide=review({sideA:raw,sideB:bundle},ratio);
+assert.ok(sideBySide.includes('Additive market price'));
+assert.ok(sideBySide.includes('NOT MEASURED'));
+assert.ok(sideBySide.includes('UNKNOWN'));
+assert.ok(sideBySide.includes('No final trade recommendation'));
+const described=review({sideA:raw,sideB:bundle,
+ rosterImpact:{A:{lineupDelta:2},B:{lineupDelta:-2}},
+ acceptance:{A:{accepts:true},B:{accepts:false}}},ratio);
+assert.ok(described.includes('"accepts":false'));
+assert.ok(described.includes('Evidence supplied for BOTH sides'));
 const formatted=report(data);
 assert.ok(formatted.includes('Player-only packages'));
 assert.ok(formatted.includes('full-minus-raw'));
