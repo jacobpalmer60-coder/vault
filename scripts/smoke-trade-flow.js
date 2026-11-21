@@ -112,7 +112,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
           gradeSame:gradeBefore===gradeAfter,
           changedScenario,
           scenarioLabelsCorrect:declineLabel==='30%'&&missedLabel==='4',
-          exposesBothAssumptions:controls.includes('Player exposed to downside')&&output.includes('Official grading and Trade Coach are unaffected'),
+          exposesBothAssumptions:controls.includes('Player exposed to downside')&&output.includes('Official grading, Even It Out and Trade Coach are unaffected'),
           tradeSame:tradeBefore===JSON.stringify({A:[...selectedA].sort(),B:[...selectedB].sort()}),
           coachSame:coachBefore===(typeof negContext==='undefined'?null:JSON.stringify(negContext)),
           evenSame:evenBefore===(typeof evenFix==='undefined'?null:JSON.stringify({at:evenFix?.at,baseA:evenFix?.baseA,baseB:evenFix?.baseB,nowA:evenFix?.nowA,nowB:evenFix?.nowB})),
