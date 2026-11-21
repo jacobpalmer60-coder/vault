@@ -1392,7 +1392,7 @@ const fairnessBarHtml = (signedPct, bandPct) => Vault.fairnessBarHtml(signedPct,
 // the overall % the grade uses (fairness.overallSigned), so the numbers and the
 // verdict can never disagree. Fit only ever widens the gap (never closes it),
 // and when that rule kicks in the table says so instead of hiding it.
-function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonusGet, ktc, pieces = []) {
+function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonusGet, ktc, pieces = [], listedGive = null, listedGet = null) {
   // Trade value prices each piece at what it actually trades for (Vault.gradeValue),
   // so its totals can differ from KTC's before any premium: name the biggest mover.
   const mover = pieces.filter(a => Math.abs(Vault.gradeMarketPct(a)) >= 1).sort((x, y) => Math.abs(Vault.gradeMarketPct(y) * y.value) - Math.abs(Vault.gradeMarketPct(x) * x.value))[0];
@@ -1410,6 +1410,10 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
       <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.teamLink(me)} sends</span>
       <span class="text-[11px] text-zinc-400 max-w-[140px] leading-tight justify-self-end">${Vault.escapeHtml(me.teamName)} gets</span>
       <span class="text-[11px] uppercase tracking-wider text-zinc-400">Net</span>
+      ${listedGive === null || listedGet === null ? '' : `<span class="term text-[12px] text-zinc-400 text-left" title="Sum of the listed prices of the actual assets on each side, before package consolidation or Vault's trade-market adjustments. This is not a roster-fit grade.">Listed prices (sum)</span>
+      <span class="text-[14px] text-zinc-300">${n(listedGive)}</span>
+      <span class="text-[14px] text-zinc-300">${n(listedGet)}</span>
+      <span class="text-[14px] font-medium">${d(listedGet - listedGive)}</span>`}
       <span class="term text-[12px] text-zinc-400 text-left" title="${PRICE_TIP.trade}">Trade value</span>
       <span class="text-[14px] text-zinc-100">${n(giveVal)}</span>
       <span class="text-[14px] text-zinc-100">${n(getVal)}</span>
@@ -1537,7 +1541,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const timelineRow = `<div class="mt-2 text-[12px] text-zinc-400 flex flex-wrap gap-x-5 gap-y-1.5">${[teamA, teamB].map(t => { const choice = Vault.planOverride[t.rosterId] || ''; const option = (v, text) => `<option value="${v}" ${choice === v ? 'selected' : ''}>${text}</option>`; return `<label class="inline-flex flex-wrap items-center gap-x-2" title="Trade verdicts use each team's independently selected timeline.">${Vault.possessive(Vault.escapeHtml(t.teamName))} timeline <select onchange="setTeamTimeline(${t.rosterId}, this.value)" aria-label="${Vault.escapeHtml(t.teamName)} timeline" class="shrink-0 bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${choice ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">${option('', `${Vault.MODE_LABEL[autoTimeline(t)]} (auto)`)}${option('contend', 'Contending')}${option('rebuild', 'Rebuilding')}</select></label>`; }).join('')}</div>`;
   // Their out-of-race note reads under the tiles, with yours, instead of stretching their tile.
   const theirSub = '';
-  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Works for both'}</span></div>` : ''}
+  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Good grades for both · acceptance unconfirmed'}</span></div>` : ''}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-w-[640px]">
       ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp), Vault.info('verdict'))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
@@ -2279,7 +2283,7 @@ function updateTrade() {
   const analysis = computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj);
   const { pctDiff, pctDiffNeed, bandPct: diffBandPct, bucket, fairness, overallPct } = analysis;
   const { bonusA, bonusB } = Vault.tradeSideValues(aAssets, bAssets);
-  document.getElementById('valueTable').innerHTML = valueTableHtml(aValAdj, bValAdj, fairness, teamA, teamB, bonusA, bonusB, ktcView, [...aAssets, ...bAssets]);
+  document.getElementById('valueTable').innerHTML = valueTableHtml(aValAdj, bValAdj, fairness, teamA, teamB, bonusA, bonusB, ktcView, [...aAssets, ...bAssets], aVal, bVal);
   // Fairness label spells out the same Fair/Lopsided/Unfair thresholds the color
   // already encodes, since a raw dollar diff alone doesn't tell you what counts as
   // fair. Great/Good are gated on value FIRST (bucket can only read Great/Good if
