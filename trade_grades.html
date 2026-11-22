@@ -442,11 +442,14 @@ async function init() {
   try {
     const leagueId = Vault.getLeagueId();
     status.textContent = 'Loading player database and trade history…';
-    const { league, isSF, teams, slots, remainingWeeks, allGraded: graded } = await Vault.fetchAndGradeAllTrades(leagueId);
+    const { league, isSF, teams, slots, remainingWeeks, allGraded: graded, tradeActivity, weekErrors } = await Vault.fetchAndGradeAllTrades(leagueId);
     allGraded = graded;
     ctx = { league, teams, slots, remainingWeeks };
 
-    status.textContent = `${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
+    const ungraded=(tradeActivity||[]).filter(tx=>!tx.graded).length;
+    status.textContent = `${allGraded.length} graded trades of ${(tradeActivity||[]).length} completed Sleeper trades • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`+
+      (ungraded ? ` · ${ungraded} ungraded (missing valuations or unmapped history)` : '')+
+      (weekErrors?.length ? ` · WARNING: ${weekErrors.length} season(s) have missing transaction weeks` : '');
     status.className = 'text-[13px] text-zinc-400 mt-1';
     renderFilters();
     // A link to one trade: the whole list, with that trade open.
