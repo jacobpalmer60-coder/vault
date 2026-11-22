@@ -4662,6 +4662,10 @@ const Vault = {
       const missingWeeks = weeks.flatMap((w, i) => Array.isArray(w) ? [] : [i]);
       const completeTxs = weeks.flatMap(w => Array.isArray(w) ? w : []).filter(t => t && t.status === 'complete');
       const rawTrades = completeTxs.filter(t => t.type === 'trade' && (t.roster_ids || []).length === 2);
+      const openTrades = s.leagueId === leagueId ? weeks.flatMap(w => Array.isArray(w) ? w : [])
+        .filter(t => t?.type === 'trade' && ['pending','review'].includes(t.status) && (t.roster_ids || []).length === 2)
+        .map(tx => ({ transaction_id: tx.transaction_id, status: tx.status,
+          roster_ids: tx.roster_ids.map(translateRoster), created: Vault.tradeCompletedAt(tx), season: s.season })) : [];
       // A draft changes roster membership without necessarily appearing as an
       // ordinary add/drop transaction. Rewind only as far as the last completed
       // draft; earlier trade rosters remain unavailable until draft replay exists.
@@ -4670,7 +4674,7 @@ const Vault = {
         ? Math.max(0, ...seasonDrafts.filter(d => d.status === 'complete').map(d => +(d.start_time || 0)))
         : Infinity;
       const replay = Vault.replayTradeRosters(seasonRosters, completeTxs, { minTimestamp: draftCutoff });
-      return { missingWeeks, season: s.season, trades: rawTrades.map(tx => ({
+      return { missingWeeks, season: s.season, openTrades, trades: rawTrades.map(tx => ({
         ...tx,
         season: s.season, // which league season it happened in (Trade Grades' "This season")
         _rosterReplay: replay.get(String(tx.transaction_id)) || null, // original season roster IDs, before translation
@@ -4691,6 +4695,8 @@ const Vault = {
     }));
 
     const weekErrors = seasonTrades.filter(s => s.missingWeeks.length).map(s => ({ season: s.season, weeks: s.missingWeeks }));
+    const pendingTrades = seasonTrades.flatMap(s => s.openTrades).filter((tx,i,arr)=>
+      arr.findIndex(x=>String(x.transaction_id)===String(tx.transaction_id))===i);
     const seen = new Set();
     const trades = seasonTrades.flatMap(s => s.trades).filter(t => t && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
 
@@ -4744,7 +4750,7 @@ const Vault = {
       season: tx.season, created: Vault.tradeCompletedAt(tx),
       graded: gradeIds.has(String(tx.transaction_id))
     }));
-    return { league, isSF, teams, slots, allGraded, tradeActivity, weekErrors, remainingWeeks: remainingWeeks || [] };
+    return { league, isSF, teams, slots, allGraded, tradeActivity, pendingTrades, weekErrors, remainingWeeks: remainingWeeks || [] };
   },
 
   /* ---------- Manager tendencies ----------
