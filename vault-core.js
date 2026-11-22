@@ -4655,10 +4655,11 @@ const Vault = {
       const [seasonRosters, seasonDrafts, ...weeks] = await Promise.all([
         s.leagueId === leagueId ? Promise.resolve(rosters) : fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/rosters`).then(r => r.json()).catch(() => []),
         Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/drafts`, 4).catch(() => null),
-        ...[...Array(18)].map((_, i) => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i + 1}`, 5).catch(() => null))
+        ...[...Array(19)].map((_, i) => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i}`, 0).catch(() => null))
       ]);
       const ownerByOldRoster = new Map((seasonRosters || []).map(ro => [ro.roster_id, ro.owner_id]));
       const translateRoster = oldRid => currentRosterIdForOwner.get(ownerByOldRoster.get(oldRid));
+      const missingWeeks = weeks.flatMap((w, i) => Array.isArray(w) ? [] : [i]);
       const completeTxs = weeks.flatMap(w => Array.isArray(w) ? w : []).filter(t => t && t.status === 'complete');
       const rawTrades = completeTxs.filter(t => t.type === 'trade' && (t.roster_ids || []).length === 2);
       // A draft changes roster membership without necessarily appearing as an
@@ -4669,7 +4670,7 @@ const Vault = {
         ? Math.max(0, ...seasonDrafts.filter(d => d.status === 'complete').map(d => +(d.start_time || 0)))
         : Infinity;
       const replay = Vault.replayTradeRosters(seasonRosters, completeTxs, { minTimestamp: draftCutoff });
-      return rawTrades.map(tx => ({
+      return { missingWeeks, season: s.season, trades: rawTrades.map(tx => ({
         ...tx,
         season: s.season, // which league season it happened in (Trade Grades' "This season")
         _rosterReplay: replay.get(String(tx.transaction_id)) || null, // original season roster IDs, before translation
@@ -4686,11 +4687,12 @@ const Vault = {
           owner_id: translateRoster(pk.owner_id),
           previous_owner_id: pk.previous_owner_id != null ? translateRoster(pk.previous_owner_id) : pk.previous_owner_id
         }))
-      }));
+      })) };
     }));
 
+    const weekErrors = seasonTrades.filter(s => s.missingWeeks.length).map(s => ({ season: s.season, weeks: s.missingWeeks }));
     const seen = new Set();
-    const trades = seasonTrades.flat().filter(t => t && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
+    const trades = seasonTrades.flatMap(s => s.trades).filter(t => t && !seen.has(t.transaction_id) && seen.add(t.transaction_id));
 
     // teams[].picks only covers the LIVE future-tradeable window (Vault.futurePickYears)
     // — a completed draft correctly drops that year from it entirely, since it's no
@@ -4733,7 +4735,16 @@ const Vault = {
     }
 
     const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels, playerVolatility, pricer)).filter(Boolean);
-    return { league, isSF, teams, slots, allGraded, remainingWeeks: remainingWeeks || [] };
+    const gradeIds = new Set(allGraded.map(g => String(g.tx.transaction_id)));
+    // Keep the complete Sleeper activity log separate from pricing success.
+    // Price gaps should not make real completed trades disappear from Managers.
+    const tradeActivity = trades.map(tx => ({
+      transaction_id: tx.transaction_id, roster_ids: tx.roster_ids,
+      _ownerAttributionUncertain: tx._ownerAttributionUncertain,
+      season: tx.season, created: Vault.tradeCompletedAt(tx),
+      graded: gradeIds.has(String(tx.transaction_id))
+    }));
+    return { league, isSF, teams, slots, allGraded, tradeActivity, weekErrors, remainingWeeks: remainingWeeks || [] };
   },
 
   /* ---------- Manager tendencies ----------
@@ -4744,7 +4755,7 @@ const Vault = {
      `teams` (optional, the full league from buildLeagueTeams) seeds every manager
      with a zero-trade record first — without it, a manager who's made zero trades
      silently disappears instead of showing up as "hasn't traded". */
-  buildManagerStats(allGraded, teams) {
+  buildManagerStats(allGraded, teams, tradeActivity = null) {
     const byTeam = new Map();
     const ensure = team => {
       if (!byTeam.has(team.rosterId)) byTeam.set(team.rosterId, {
@@ -4763,6 +4774,17 @@ const Vault = {
       return byTeam.get(team.rosterId);
     };
     (teams || []).forEach(ensure);
+    if (tradeActivity) {
+      const counted = new Set();
+      const teamById = new Map((teams || []).map(t => [String(t.rosterId), t]));
+      tradeActivity.forEach(tx => {
+        const id = String(tx.transaction_id);
+        if (counted.has(id) || tx._ownerAttributionUncertain) return;
+        counted.add(id);
+        const participants = new Set((tx.roster_ids || []).map(String));
+        participants.forEach(rid => { const team = teamById.get(rid); if (team) ensure(team).trades++; });
+      });
+    }
     allGraded.forEach(g => {
       [
         { team: g.teamA, dVal: g.dValueAdjA, dValToday: g.dValueAdjAToday, favor: -g.fairness.overallSigned, fit: g.combinedFitA, timeline: g.timelineA, opp: g.teamB.teamName, received: g.toA, given: g.toB, dOpt: g.dOptA },
@@ -4770,7 +4792,7 @@ const Vault = {
       ].forEach(({ team, dVal, dValToday, favor, fit, timeline, opp, received, given, dOpt }) => {
         const s = ensure(team);
         if (g.tx._ownerAttributionUncertain) return; // do not ascribe an old owner's trade to a replacement
-        s.trades++;
+        if (!tradeActivity) s.trades++;
         // A trade with an unresolvable asset (a player since retired/dropped/left
         // the league, priced 0 by resolveTradeAssets' fallback) still really
         // happened — trade volume stays a true fact regardless — but every VALUE-
