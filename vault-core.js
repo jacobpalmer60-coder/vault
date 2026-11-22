@@ -1948,7 +1948,7 @@ const Vault = {
      between pages doesn't ask for the same weeks again (League Overview made 91 calls). Each
      league's weeks are their own address. Refresh clears it. Falls back to a plain fetch. */
   async sleeperJson(url, keepMinutes) {
-    const get = async () => { const r = await fetch(url); if (!r.ok) throw new Error(`Sleeper ${r.status}`); return r.text(); };
+    const get = async () => { const r = await fetch(url, keepMinutes === 0 ? { cache: 'no-store' } : undefined); if (!r.ok) throw new Error(`Sleeper ${r.status}`); return r.text(); };
     if (!keepMinutes || !globalThis.caches) return JSON.parse(await get());
     const box = await caches.open('vault-sleeper-v1'), hit = await box.match(url);
     if (hit && Date.now() - +hit.headers.get('x-saved') < keepMinutes * 60000) return hit.json();
