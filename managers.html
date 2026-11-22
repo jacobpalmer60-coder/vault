@@ -35,6 +35,7 @@
   <div class="mb-4">
     <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Managers<span class="term-i" data-term="page_managers" tabindex="0" role="note">?</span></h1><a href="how_we_grade.html#grades" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How grading works</a></div>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
+    <p id="tradeCoverage" class="text-[12px] text-zinc-400 mt-1" aria-live="polite"></p>
   </div>
 
   <div id="summary" class="hidden mb-8"></div>
@@ -253,6 +254,9 @@ function renderManagerRecord(rosterId) {
   const team = state.teams.find(t => String(t.rosterId) === String(rosterId));
   if (!team) return;
   const { groups, total, unavailable, uncertain } = managerTradeRecordGroups(state.allGraded, team.rosterId);
+  const activity = (state.tradeActivity || []).filter(tx => !tx._ownerAttributionUncertain &&
+    (tx.roster_ids || []).some(r => String(r) === String(team.rosterId)));
+  const missingGrades = activity.filter(tx => !tx.graded).length;
   const row = g => `<div class="flex items-baseline justify-between gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]"><span class="${g.tone}">${g.label}</span><span class="text-zinc-300">${g.n ? `<span class="mono text-zinc-100">${g.ahead} of ${g.n}</span> ahead on value today` : '<span class="text-zinc-500">none yet</span>'}</span></div>`;
   const options = [...state.teams].sort((a, b) => a.teamName.localeCompare(b.teamName)).map(t =>
     `<option value="${t.rosterId}" ${String(t.rosterId) === String(rosterId) ? 'selected' : ''}>${Vault.escapeHtml(t.teamName)}</option>`).join('');
@@ -263,13 +267,14 @@ function renderManagerRecord(rosterId) {
     </div>
     <p class="text-[12px] text-zinc-400 mt-1 mb-2">${Vault.escapeHtml(team.teamName)}: how their completed trades were priced at the time and whether the received assets are ahead on value today. Historical roster fit is unavailable, so this is a price comparison, not an appraisal of their decisions.</p>
     ${total ? groups.map(row).join('') : '<p class="py-2 text-[12px] text-zinc-500">No completed trades with fully available prices for this manager.</p>'}
+    ${missingGrades ? `<p class="mt-2 text-[12px] text-amber-300">${missingGrades} additional completed trade${missingGrades===1?'':'s'} recorded by Sleeper but not gradeable yet. Counted as activity, not in value comparisons.</p>` : ''}
     ${(unavailable || uncertain) ? `<p class="text-[11px] text-zinc-500 mt-2">${unavailable ? `${unavailable} trade${unavailable === 1 ? '' : 's'} could not be priced. ` : ''}${uncertain ? `${uncertain} trade${uncertain === 1 ? '' : 's'} excluded because historical manager ownership could not be verified.` : ''}</p>` : ''}
   </div>`;
   box.classList.remove('hidden');
 }
-function initManagerRecord(allGraded, teams) {
+function initManagerRecord(allGraded, teams, tradeActivity) {
   if (!teams?.length) return;
-  managerRecordState = { allGraded, teams };
+  managerRecordState = { allGraded, teams, tradeActivity };
   renderManagerRecord(Vault.myTeam(teams)?.rosterId ?? teams[0].rosterId);
 }
 
@@ -278,13 +283,19 @@ async function init() {
   try {
     const leagueId = Vault.getLeagueId();
     status.textContent = 'Loading player database and trade history…';
-    const { league, isSF, teams, allGraded } = await Vault.fetchAndGradeAllTrades(leagueId);
-    const stats = Vault.buildManagerStats(allGraded, teams);
+    const { league, isSF, teams, allGraded, tradeActivity, weekErrors } = await Vault.fetchAndGradeAllTrades(leagueId);
+    const stats = Vault.buildManagerStats(allGraded, teams, tradeActivity);
+    const activityCount = (tradeActivity || []).length;
+    const ungradedCount = (tradeActivity || []).filter(tx => !tx.graded).length;
+    const coverage = document.getElementById('tradeCoverage');
+    coverage.textContent = `${activityCount} completed Sleeper trades found · ${allGraded.length} gradeable${ungradedCount?` · ${ungradedCount} pending/unsupported valuations`:''}.` +
+      (weekErrors?.length ? ` Some transaction weeks failed to load (${weekErrors.map(s => `${s.season}: ${s.weeks.join(', ')}`).join(' · ')}); trade counts may be incomplete.` : '');
+    coverage.className = 'text-[12px] mt-1 ' + (weekErrors?.length || ungradedCount ? 'text-amber-300' : 'text-zinc-400');
 
-    status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${allGraded.length} completed trade${allGraded.length === 1 ? '' : 's'} • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
+    status.textContent = `${stats.length} manager${stats.length === 1 ? '' : 's'} • ${activityCount} completed trade${activityCount === 1 ? '' : 's'} found • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`;
     status.className = 'text-[13px] text-zinc-400 mt-1';
     render(stats, teams);
-    initManagerRecord(allGraded, teams);
+    initManagerRecord(allGraded, teams, tradeActivity);
     renderPaysUp(stats, allGraded, league);
   } catch (e) {
     console.error(e);
