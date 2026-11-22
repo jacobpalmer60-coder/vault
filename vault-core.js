@@ -4655,7 +4655,7 @@ const Vault = {
       const [seasonRosters, seasonDrafts, ...weeks] = await Promise.all([
         s.leagueId === leagueId ? Promise.resolve(rosters) : fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/rosters`).then(r => r.json()).catch(() => []),
         Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/drafts`, 4).catch(() => null),
-        ...[...Array(19)].map((_, i) => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i}`, 0).catch(() => null))
+        ...[...Array(19)].map((_, i) => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i}`, s.leagueId === leagueId ? 0 : 60).catch(() => null))
       ]);
       const ownerByOldRoster = new Map((seasonRosters || []).map(ro => [ro.roster_id, ro.owner_id]));
       const translateRoster = oldRid => currentRosterIdForOwner.get(ownerByOldRoster.get(oldRid));
