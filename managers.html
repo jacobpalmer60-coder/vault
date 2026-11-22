@@ -34,7 +34,10 @@
 <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 lg:py-6" data-league-required id="main" role="main">
   <div class="mb-4">
     <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Managers<span class="term-i" data-term="page_managers" tabindex="0" role="note">?</span></h1><a href="how_we_grade.html#grades" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How grading works</a></div>
-    <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+      <p id="status" class="text-[13px] text-zinc-400">Loading league…</p>
+      <button type="button" onclick="location.reload()" class="text-[12px] text-amber-300 underline underline-offset-2 hover:text-amber-100">Refresh Sleeper trades</button>
+    </div>
     <p id="tradeCoverage" class="text-[12px] text-zinc-400 mt-1" aria-live="polite"></p>
   </div>
 
@@ -299,7 +302,7 @@ async function init() {
     const activityCount = (tradeActivity || []).length;
     const ungradedCount = (tradeActivity || []).filter(tx => !tx.graded).length;
     const coverage = document.getElementById('tradeCoverage');
-    coverage.textContent = `${activityCount} completed Sleeper trades found · ${allGraded.length} gradeable${ungradedCount?` · ${ungradedCount} ungraded`:''}${pendingTrades?.length?` · ${pendingTrades.length} pending processing`:''}.` +
+    coverage.textContent = `Checked ${new Date().toLocaleTimeString()} · ${activityCount} completed Sleeper trades found · ${allGraded.length} gradeable${ungradedCount?` · ${ungradedCount} ungraded`:''}${pendingTrades?.length?` · ${pendingTrades.length} pending processing`:''}.` +
       (weekErrors?.length ? ` Some transaction weeks failed to load (${weekErrors.map(s => `${s.season}: ${s.weeks.join(', ')}`).join(' · ')}); trade counts may be incomplete.` : '');
     coverage.className = 'text-[12px] mt-1 ' + (weekErrors?.length || ungradedCount || pendingTrades?.length ? 'text-amber-300' : 'text-zinc-400');
 
