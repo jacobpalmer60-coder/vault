@@ -260,7 +260,7 @@ function renderManagerRecord(rosterId) {
   const activity = (state.tradeActivity || []).filter(tx => !tx._ownerAttributionUncertain &&
     (tx.roster_ids || []).some(r => String(r) === String(team.rosterId)));
   const pending = (state.pendingTrades || []).filter(tx => (tx.roster_ids||[]).some(r=>String(r)===String(team.rosterId)));
-  const ungraded = activity.filter(tx => !tx.graded).sort((a,b)=>b.created-a.created);
+  const ungraded = activity.filter(tx => !tx.priced).sort((a,b)=>b.created-a.created);
   const missingGrades = ungraded.length;
   const ungradedRows = ungraded.slice(0,8).map(tx=>{
     const partner = (tx.roster_ids||[]).map(id=>state.teams.find(t=>String(t.rosterId)===String(id)))
@@ -281,7 +281,7 @@ function renderManagerRecord(rosterId) {
     <p class="text-[12px] text-zinc-400 mt-1 mb-2">${Vault.escapeHtml(team.teamName)}: how their completed trades were priced at the time and whether the received assets are ahead on value today. Historical roster fit is unavailable, so this is a price comparison, not an appraisal of their decisions.</p>
     ${total ? groups.map(row).join('') : '<p class="py-2 text-[12px] text-zinc-500">No completed trades with fully available prices for this manager.</p>'}
     ${pending.length ? `<div class="mt-2 text-[12px] text-amber-300">${pending.length} trade${pending.length===1?'':'s'} awaiting Sleeper processing (not counted as completed).</div>` : ''}
-    ${missingGrades ? `<div class="mt-2 text-[12px] text-amber-300">${missingGrades} completed trade${missingGrades===1?'':'s'} recorded by Sleeper but not gradeable yet. Counted as activity, not in value comparisons.<div class="text-zinc-400 mt-2">${ungradedRows}</div></div>` : ''}
+    ${missingGrades ? `<div class="mt-2 text-[12px] text-amber-300">${missingGrades} completed trade${missingGrades===1?'':'s'} without fully reliable prices. Counted as activity, not in value comparisons.<div class="text-zinc-400 mt-2">${ungradedRows}</div></div>` : ''}
     ${(unavailable || uncertain) ? `<p class="text-[11px] text-zinc-500 mt-2">${unavailable ? `${unavailable} trade${unavailable === 1 ? '' : 's'} could not be priced. ` : ''}${uncertain ? `${uncertain} trade${uncertain === 1 ? '' : 's'} excluded because historical manager ownership could not be verified.` : ''}</p>` : ''}
   </div>`;
   box.classList.remove('hidden');
@@ -300,9 +300,9 @@ async function init() {
     const { league, isSF, teams, allGraded, tradeActivity, pendingTrades, weekErrors } = await Vault.fetchAndGradeAllTrades(leagueId);
     const stats = Vault.buildManagerStats(allGraded, teams, tradeActivity);
     const activityCount = (tradeActivity || []).length;
-    const ungradedCount = (tradeActivity || []).filter(tx => !tx.graded).length;
+    const ungradedCount = (tradeActivity || []).filter(tx => !tx.priced).length;
     const coverage = document.getElementById('tradeCoverage');
-    coverage.textContent = `Checked ${new Date().toLocaleTimeString()} · ${activityCount} completed Sleeper trades found · ${allGraded.length} gradeable${ungradedCount?` · ${ungradedCount} ungraded`:''}${pendingTrades?.length?` · ${pendingTrades.length} pending processing`:''}.` +
+    coverage.textContent = `Checked ${new Date().toLocaleTimeString()} · ${activityCount} completed Sleeper trades found · ${allGraded.length} displayed in Trade Grades${ungradedCount?` · ${ungradedCount} without fully reliable prices`:''}${pendingTrades?.length?` · ${pendingTrades.length} pending processing`:''}.` +
       (weekErrors?.length ? ` Some transaction weeks failed to load (${weekErrors.map(s => `${s.season}: ${s.weeks.join(', ')}`).join(' · ')}); trade counts may be incomplete.` : '');
     coverage.className = 'text-[12px] mt-1 ' + (weekErrors?.length || ungradedCount || pendingTrades?.length ? 'text-amber-300' : 'text-zinc-400');
 
