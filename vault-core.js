@@ -4742,13 +4742,15 @@ const Vault = {
 
     const allGraded = trades.map(tx => Vault.gradeTrade(tx, teamById, playersDb, valMap, pickValueByKey, teams, ppgMap, slots, replacementLevels, playerVolatility, pricer)).filter(Boolean);
     const gradeIds = new Set(allGraded.map(g => String(g.tx.transaction_id)));
+    const fullyPricedIds = new Set(allGraded.filter(g => !g.anyMissingValue).map(g => String(g.tx.transaction_id)));
     // Keep the complete Sleeper activity log separate from pricing success.
     // Price gaps should not make real completed trades disappear from Managers.
     const tradeActivity = trades.map(tx => ({
       transaction_id: tx.transaction_id, roster_ids: tx.roster_ids,
       _ownerAttributionUncertain: tx._ownerAttributionUncertain,
       season: tx.season, created: Vault.tradeCompletedAt(tx),
-      graded: gradeIds.has(String(tx.transaction_id))
+      graded: gradeIds.has(String(tx.transaction_id)),
+      priced: fullyPricedIds.has(String(tx.transaction_id))
     }));
     return { league, isSF, teams, slots, allGraded, tradeActivity, pendingTrades, weekErrors, remainingWeeks: remainingWeeks || [] };
   },
