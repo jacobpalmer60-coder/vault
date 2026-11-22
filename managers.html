@@ -256,7 +256,16 @@ function renderManagerRecord(rosterId) {
   const { groups, total, unavailable, uncertain } = managerTradeRecordGroups(state.allGraded, team.rosterId);
   const activity = (state.tradeActivity || []).filter(tx => !tx._ownerAttributionUncertain &&
     (tx.roster_ids || []).some(r => String(r) === String(team.rosterId)));
-  const missingGrades = activity.filter(tx => !tx.graded).length;
+  const ungraded = activity.filter(tx => !tx.graded).sort((a,b)=>b.created-a.created);
+  const missingGrades = ungraded.length;
+  const ungradedRows = ungraded.slice(0,8).map(tx=>{
+    const partner = (tx.roster_ids||[]).map(id=>state.teams.find(t=>String(t.rosterId)===String(id)))
+      .find(t=>t&&String(t.rosterId)!==String(team.rosterId));
+    const when = tx.created ? fmtDate(tx.created) : 'Date unavailable';
+    return `<div class="flex flex-wrap justify-between gap-x-3 gap-y-1 py-1.5 border-t border-white/5">
+      <span>${Vault.escapeHtml(when)} · vs ${Vault.escapeHtml(partner?.teamName||'Unknown manager')}</span>
+      <span class="mono text-zinc-500">Sleeper #${Vault.escapeHtml(String(tx.transaction_id))}</span></div>`;
+  }).join('');
   const row = g => `<div class="flex items-baseline justify-between gap-3 py-2 border-t border-white/5 first:border-t-0 text-[13px]"><span class="${g.tone}">${g.label}</span><span class="text-zinc-300">${g.n ? `<span class="mono text-zinc-100">${g.ahead} of ${g.n}</span> ahead on value today` : '<span class="text-zinc-500">none yet</span>'}</span></div>`;
   const options = [...state.teams].sort((a, b) => a.teamName.localeCompare(b.teamName)).map(t =>
     `<option value="${t.rosterId}" ${String(t.rosterId) === String(rosterId) ? 'selected' : ''}>${Vault.escapeHtml(t.teamName)}</option>`).join('');
@@ -267,7 +276,7 @@ function renderManagerRecord(rosterId) {
     </div>
     <p class="text-[12px] text-zinc-400 mt-1 mb-2">${Vault.escapeHtml(team.teamName)}: how their completed trades were priced at the time and whether the received assets are ahead on value today. Historical roster fit is unavailable, so this is a price comparison, not an appraisal of their decisions.</p>
     ${total ? groups.map(row).join('') : '<p class="py-2 text-[12px] text-zinc-500">No completed trades with fully available prices for this manager.</p>'}
-    ${missingGrades ? `<p class="mt-2 text-[12px] text-amber-300">${missingGrades} additional completed trade${missingGrades===1?'':'s'} recorded by Sleeper but not gradeable yet. Counted as activity, not in value comparisons.</p>` : ''}
+    ${missingGrades ? `<div class="mt-2 text-[12px] text-amber-300">${missingGrades} completed trade${missingGrades===1?'':'s'} recorded by Sleeper but not gradeable yet. Counted as activity, not in value comparisons.<div class="text-zinc-400 mt-2">${ungradedRows}</div></div>` : ''}
     ${(unavailable || uncertain) ? `<p class="text-[11px] text-zinc-500 mt-2">${unavailable ? `${unavailable} trade${unavailable === 1 ? '' : 's'} could not be priced. ` : ''}${uncertain ? `${uncertain} trade${uncertain === 1 ? '' : 's'} excluded because historical manager ownership could not be verified.` : ''}</p>` : ''}
   </div>`;
   box.classList.remove('hidden');
