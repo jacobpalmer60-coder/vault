@@ -1485,15 +1485,15 @@ function improvementReason(imp, s) {
   // good or bad (GOOD_FIT_THRESHOLD), so a small lean can't read as "works
   // against your plans" on a trade that adds points.
   const season = imp.wPts > 0 && Math.abs(pts) >= 0.3 ? { w: imp.wPts * pts, text: `it ${pts > 0 ? 'adds' : 'costs you'} ${n(pts)} points a week this season${s && r(s.after.championshipPct) !== r(s.before.championshipPct) ? ` (title odds ${pc(s.before.championshipPct)} → ${pc(s.after.championshipPct)})` : ''}` } : null;
-  const value = Math.abs(v) < 3 ? { w: 0, even: true, text: 'at about an even price' } : { w: imp.wOwn * 0.7 * v, text: v > 0 ? `you get ${capPct(Math.abs(v)).toFixed(0)}% more value than you give` : `you give ${capPct(Math.abs(v)).toFixed(0)}% more value than you get` };
+  const value = Math.abs(v) < 3 ? { w: 0, even: true, text: 'at about an even Vault package-model price' } : { w: imp.wOwn * 0.7 * v, text: v > 0 ? `you get ${capPct(Math.abs(v)).toFixed(0)}% more value than you give` : `you give ${capPct(Math.abs(v)).toFixed(0)}% more value than you get` };
   // Points this season already say it when fit points the same way.
   const fitC = (!season || (Math.abs(fit) >= VAULT_CONFIG.GOOD_FIT_THRESHOLD && Math.sign(fit) !== Math.sign(pts))) && Math.abs(fit) >= 1 ? { w: imp.wOwn * 3 * fit, text: fit > 0 ? `it fits your ${plan}` : `it works against your ${plan}` } : null;
   const ranked = [season, value.even ? null : value, fitC].filter(Boolean).sort((x, y) => Math.abs(y.w) - Math.abs(x.w));
   const cap = t => t[0].toUpperCase() + t.slice(1);
-  if (!ranked.length) return value.even ? 'Little changes either way, at about an even price.' : 'Little changes either way.';
+  if (!ranked.length) return value.even ? 'Little changes either way, at about an even Vault package-model price.' : 'Little changes either way.';
   const first = ranked[0];
   // Then the tradeoff against it if it's real ("…, but you get 10% more value"),
-  // else the next reason, else "at about an even price".
+  // else the next reason, else "at about an even Vault package-model price".
   const opp = ranked.find(c => c !== first && Math.sign(c.w) !== Math.sign(first.w) && Math.abs(c.w) >= 1);
   const second = opp || ranked.find(c => c !== first) || (value.even ? value : null);
   if (!second) return cap(first.text) + '.';
@@ -1551,12 +1551,14 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const gapWord = v => Math.abs(v || 0).toFixed(0) + '%';
   const marketBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(prices.market.signedPct), 0, 0));
   const packageBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(prices.package.signedPct), 0, 0));
+  const modelConflict = prices.materialDisagreement;
+  const bothGradeText = modelConflict ? 'Vault team grades Toss-up or better · prices disagree · acceptance unconfirmed' : 'Both sides grade Toss-up or better · acceptance unconfirmed';
   const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[740px]" aria-label="Independent additive market price, package model and manager response">
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Market-price sum</div><div class="text-[13px] font-medium text-zinc-100">${marketBucket} · ${gapWord(prices.market.signedPct)} gap</div><div class="text-[11px] text-zinc-400">Individual prices added · no package model</div></div>
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Vault package model</div><div class="text-[13px] font-medium text-zinc-100">${packageBucket} · ${gapWord(prices.package.signedPct)} gap</div><div class="text-[11px] text-zinc-400">Historical-trade consolidation curve</div></div>
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Manager response</div><div class="text-[13px] font-medium text-zinc-100">Not confirmed · Trade Coach</div><div class="text-[11px] text-zinc-400">${Vault.escapeHtml(evidence.sample)} · not a probability</div></div>
     </div>`;
-  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Both sides grade Toss-up or better · acceptance unconfirmed'}</span></div>` : ''}
+  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : modelConflict ? 'border-amber-400/30 text-amber-200' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : bothGradeText}</span></div>` : ''}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-w-[640px]">
       ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp), Vault.info('verdict'))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
