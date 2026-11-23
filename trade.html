@@ -1595,13 +1595,16 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
 }
 
 /* ---------- Even it out (user, 2026-10-20) ----------
-   One button for a trade one team would see as Leans bad or worse (it replaced
-   Balance, which only evened the price, and Make it work for both):
+   An optional, accessible adjustment search for every fully populated trade.
+   With a bad verdict it prioritizes rescuing the disadvantaged manager;
+   otherwise it looks for material improvements in price or the weaker team's
+   outcome without substantially hurting either team. Both managers'
+   predicted consent remains required. This replaced the old Balance tool:
    - bad for them: add one of your pieces (or two smaller ones), or take one of
      theirs out, until it's at least a Toss-up for them, best for you;
    - bad for you: they add a piece (or two smaller ones), or one of yours comes
      out, until it's at least a Toss-up for you and still one for them, best for them.
-   Fewer changes win ties, and a team's starters are never added.
+   Fewer changes win ties, and moving a starter carries an extra penalty.
    Up to EVEN_OPTIONS of them, best first, with Try another moving through the list
    from the trade you started with (user, 2026-11-04: it always suggested the same
    thing). A piece shows up in at most two, so the list isn't one player with different
@@ -1645,8 +1648,15 @@ function evenPlan() {
     return { A: improvementOf(an, 'A'), B: improvementOf(an, 'B') };
   };
   const contextB = negContextFor(teamB), contextA = negContextFor(teamA), now = judge(A0, B0);
-  const targets = ['B', 'A'].filter(s => now[s].level === 'bad');
-  if (!targets.length) return null;
+  const badTargets = ['B', 'A'].filter(s => now[s].level === 'bad');
+  // A manager can explicitly seek a better price or another package even
+  // when both teams already grade Toss-up or better.
+  const balanced = !badTargets.length;
+  const targets = balanced ? ['B', 'A'] : badTargets;
+  const originalPrice = Vault.tradeSideValues(A0, B0);
+  const originalGap = 200 * Math.abs(originalPrice.valueA - originalPrice.valueB) /
+    ((originalPrice.valueA + originalPrice.valueB) || 1);
+  const originalWorst = Math.min(now.A.score, now.B.score);
   const found = [];
   for (const target of targets) {
     const helpB = target === 'B';
@@ -1672,13 +1682,23 @@ function evenPlan() {
       if (gap > EVEN_MAX_GAP) continue;
       const movingStarter = c.add.filter(a => starters.has(a.key)).length;
       const complexity = c.add.length + c.drop.length - 1;
-      priced.push({ ...c, A, B, helpB, movingStarter, complexity, preScore: gap + complexity * 2 + movingStarter * 3 });
+      priced.push({ ...c, A, B, helpB, movingStarter, complexity, preGap: gap, preScore: gap + complexity * 2 + movingStarter * 3 });
     }
     priced.sort((x, y) => x.preScore - y.preScore);
     // Keep competitive add/drop/package/swap candidates, not just the cheapest 80.
     for (const c of VaultTradePolicy.evenShortlist(priced)) {
       const j = judge(c.A, c.B);
       if (j.A.score < -6 || j.B.score < -6) continue;
+      if (balanced) {
+        // A fair-looking deal must not be "improved" by quietly making a
+        // team substantially worse. Require a real price or minimum-verdict
+        // improvement, not merely a different set of pieces.
+        const priceGain = originalGap - c.preGap;
+        const lowestGain = Math.min(j.A.score, j.B.score) - originalWorst;
+        if (j.A.level === 'bad' || j.B.level === 'bad' ||
+            j.A.score < now.A.score - 3 || j.B.score < now.B.score - 3 ||
+            (priceGain < 1.5 && lowestGain < 1.5)) continue;
+      }
       found.push({ ...c, after: j, key: Math.min(j.A.score, j.B.score) * 3 + Math.max(j.A.score, j.B.score) - c.complexity * 4 - c.movingStarter * 3 });
     }
   }
