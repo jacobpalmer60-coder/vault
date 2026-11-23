@@ -43,7 +43,7 @@ function checkPlan(accept, opts={}){
   VaultTradePolicy,
   Vault:{tradeSideValues:(a,b)=>({valueA:a.reduce((n,x)=>n+x.value,0),valueB:b.reduce((n,x)=>n+x.value,0)})},
   computeTradeAnalysis:(_a,_b,_aa,_bb,vA,vB)=>({gap:200*Math.abs(vA-vB)/(vA+vB)}),
-  improvementOf:an=>({level:an.gap<=8?'tossup':'bad',score:an.gap<=8?0:-20}),
+  improvementOf:an=>opts.alwaysNeutral?{level:'tossup',score:-an.gap}:{level:an.gap<=8?'tossup':'bad',score:an.gap<=8?0:-20},
   negContextFor:t=>({team:t}),
   negJudgeFor:(_o,_og,r,_rg,c)=>{approvals.push(r.rosterId);return {accepts:accept(r.rosterId,c.team.rosterId)}},
   Math,Map,Set
@@ -71,6 +71,28 @@ assert.ok(starter.plan?.options.some(o=>o.add.some(a=>a.key==='p_starter')),'sta
 const mirrored=checkPlan(()=>true,{A:starterB,B:tripleA,selectedA:new Set(['anchorB']),selectedB:new Set(['anchorA'])});
 assert.ok(mirrored.plan?.options.some(o=>o.add.some(a=>a.key==='p_starter')),'same fix must survive swapping A and B');
 console.log('PASS three-piece repairs, optional starters, and team-side symmetry');
+
+// Even It Out is user-invoked for balanced trades too, with independent
+// assessments on both sides. The formerly unconditional "no bad side" return
+// prevented this entire class of recommendations.
+const fairA={rosterId:31,teamName:'Fair A',lineup:[],assets:[{key:'fairA100',type:'player',value:100}]};
+const fairB={rosterId:32,teamName:'Fair B',lineup:[],assets:[
+ {key:'fairB90',type:'player',value:90},{key:'fairB10',type:'player',value:10}
+]};
+const fair=checkPlan(()=>true,{A:fairA,B:fairB,selectedA:new Set(['fairA100']),
+ selectedB:new Set(['fairB90']),alwaysNeutral:true});
+assert.ok(fair.plan?.options.some(o=>o.add.some(a=>a.key==='fairB10')),
+ 'a Toss-up/Toss-up trade can suggest a better-priced bundle');
+assert.ok(fair.approvals.includes(31)&&fair.approvals.includes(32));
+const fairMirror=checkPlan(()=>true,{A:fairB,B:fairA,selectedA:new Set(['fairB90']),
+ selectedB:new Set(['fairA100']),alwaysNeutral:true});
+assert.ok(fairMirror.plan?.options.some(o=>o.add.some(a=>a.key==='fairB10')),
+ 'manual balancing must work with manager order reversed');
+assert.equal(checkPlan(id=>id!==31,{A:fairA,B:fairB,selectedA:new Set(['fairA100']),
+ selectedB:new Set(['fairB90']),alwaysNeutral:true}).plan,null);
+assert.equal(checkPlan(id=>id!==32,{A:fairA,B:fairB,selectedA:new Set(['fairA100']),
+ selectedB:new Set(['fairB90']),alwaysNeutral:true}).plan,null);
+console.log('PASS manual balancing of already-neutral offers, A/B symmetry and two-party consent');
 
 function testMatch(reverse) {
  const anchor={rosterId:21,assets:[{key:'a',value:100,pos:'WR',type:'player'}]};

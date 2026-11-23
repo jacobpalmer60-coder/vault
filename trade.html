@@ -1554,7 +1554,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Market fairness</div><div class="text-[13px] font-medium text-zinc-200">${marketBucket} · ${priceGap}% package gap</div><div class="text-[11px] text-zinc-500">${additiveGap}% before consolidation · not roster fit</div></div>
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Manager response</div><div class="text-[13px] font-medium text-zinc-200">Not confirmed · model in Trade Coach</div><div class="text-[11px] text-zinc-500">${Vault.escapeHtml(evidence.sample)} · not a probability</div></div>
     </div>`;
-  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Good grades for both · acceptance unconfirmed'}</span></div>` : ''}
+  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Both sides grade Toss-up or better · acceptance unconfirmed'}</span></div>` : ''}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-w-[640px]">
       ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp), Vault.info('verdict'))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
@@ -1576,22 +1576,43 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const why = document.getElementById('whyVerdict');
   loadTradeFacts();
   if (why) why.innerHTML = `${blendNote(imp, teamA, bAssets, aAssets)}${pieceLinesHtml(teamA, aAssets, bAssets, analysis, imp)}${agedHtml(aAssets, bAssets)}${teamB ? pieceLinesHtml(teamB, bAssets, aAssets, analysis, them, 'B') : ''}${tiltNote(imp)}`;
-  // Even it out: when either team would see it as a bad trade.
+  // Even It Out is a tool, not a badge restricted to bad trades. Keep its
+  // launch button visible even when Vault sees a close/toss-up trade.
   const wb = document.getElementById('workBoth');
   const fixFor = them && them.level === 'bad' ? 'them' : imp.level === 'bad' ? 'you' : null;
   const fix = evenFixLive() ? evenFix : null;
-  if (wb) wb.innerHTML = fix ? (fix.options.length > 1 ? `<button onclick="evenItOutNext()" title="Swap in another way to even out the trade you started with" class="mt-3 text-[13px] px-3.5 py-2 rounded-lg border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 transition-colors">Try another (${fix.at + 1} of ${fix.options.length})</button>` : '') : fixFor ? '<div id="evenLine" class="mt-3 empty:hidden"></div>' : '';
-  if (fixFor && !fix) scheduleEvenLine();
+  const cachedEven = evenLine?.key === evenSearchKey();
+  if (wb) {
+    const hint = fixFor
+      ? 'Look for a package that helps the disadvantaged team without creating a bad deal for the other manager.'
+      : 'Vault already grades both teams Toss-up or better. You can still search for a closer price or a stronger deal for both.';
+    const applied = fix ? `<div class="text-[12px] text-zinc-400">Applied an adjustment from the original offer.${fix.options.length > 1 ? ` <button onclick="evenItOutNext()" class="text-amber-200 underline underline-offset-2 hover:text-white">Try another (${fix.at + 1} of ${fix.options.length})</button>` : ''}</div>` : '';
+    const status = cachedEven ? '' : fixFor ? 'Checking possible adjustments for both teams…' : '';
+    wb.innerHTML = `<section aria-label="Even It Out" class="mt-3 max-w-[640px] rounded-xl border border-amber-400/20 bg-black/15 px-3 py-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0 flex-1"><div class="text-[13px] font-medium text-zinc-100">Even It Out</div>
+          <div class="text-[12px] text-zinc-400 mt-0.5">${hint}</div></div>
+        <button type="button" onclick="evenSearch()" class="shrink-0 text-[13px] px-3.5 py-2 rounded-lg btn-gold-solid">Find alternatives</button>
+      </div>
+      ${applied}
+      <div id="evenLine" role="status" aria-live="polite" class="mt-2 text-[12px] text-zinc-400 empty:hidden">${status}</div>
+    </section>`;
+  }
+  if (fixFor && !fix && !cachedEven) scheduleEvenLine();
+  else if (cachedEven) paintEvenLine();
 }
 
 /* ---------- Even it out (user, 2026-10-20) ----------
-   One button for a trade one team would see as Leans bad or worse (it replaced
-   Balance, which only evened the price, and Make it work for both):
+   An optional, accessible adjustment search for every fully populated trade.
+   With a bad verdict it prioritizes rescuing the disadvantaged manager;
+   otherwise it looks for material improvements in price or the weaker team's
+   outcome without substantially hurting either team. Both managers'
+   predicted consent remains required. This replaced the old Balance tool:
    - bad for them: add one of your pieces (or two smaller ones), or take one of
      theirs out, until it's at least a Toss-up for them, best for you;
    - bad for you: they add a piece (or two smaller ones), or one of yours comes
      out, until it's at least a Toss-up for you and still one for them, best for them.
-   Fewer changes win ties, and a team's starters are never added.
+   Fewer changes win ties, and moving a starter carries an extra penalty.
    Up to EVEN_OPTIONS of them, best first, with Try another moving through the list
    from the trade you started with (user, 2026-11-04: it always suggested the same
    thing). A piece shows up in at most two, so the list isn't one player with different
@@ -1635,8 +1656,15 @@ function evenPlan() {
     return { A: improvementOf(an, 'A'), B: improvementOf(an, 'B') };
   };
   const contextB = negContextFor(teamB), contextA = negContextFor(teamA), now = judge(A0, B0);
-  const targets = ['B', 'A'].filter(s => now[s].level === 'bad');
-  if (!targets.length) return null;
+  const badTargets = ['B', 'A'].filter(s => now[s].level === 'bad');
+  // A manager can explicitly seek a better price or another package even
+  // when both teams already grade Toss-up or better.
+  const balanced = !badTargets.length;
+  const targets = balanced ? ['B', 'A'] : badTargets;
+  const originalPrice = Vault.tradeSideValues(A0, B0);
+  const originalGap = 200 * Math.abs(originalPrice.valueA - originalPrice.valueB) /
+    ((originalPrice.valueA + originalPrice.valueB) || 1);
+  const originalWorst = Math.min(now.A.score, now.B.score);
   const found = [];
   for (const target of targets) {
     const helpB = target === 'B';
@@ -1662,13 +1690,23 @@ function evenPlan() {
       if (gap > EVEN_MAX_GAP) continue;
       const movingStarter = c.add.filter(a => starters.has(a.key)).length;
       const complexity = c.add.length + c.drop.length - 1;
-      priced.push({ ...c, A, B, helpB, movingStarter, complexity, preScore: gap + complexity * 2 + movingStarter * 3 });
+      priced.push({ ...c, A, B, helpB, movingStarter, complexity, preGap: gap, preScore: gap + complexity * 2 + movingStarter * 3 });
     }
     priced.sort((x, y) => x.preScore - y.preScore);
     // Keep competitive add/drop/package/swap candidates, not just the cheapest 80.
     for (const c of VaultTradePolicy.evenShortlist(priced)) {
       const j = judge(c.A, c.B);
       if (j.A.score < -6 || j.B.score < -6) continue;
+      if (balanced) {
+        // A fair-looking deal must not be "improved" by quietly making a
+        // team substantially worse. Require a real price or minimum-verdict
+        // improvement, not merely a different set of pieces.
+        const priceGain = originalGap - c.preGap;
+        const lowestGain = Math.min(j.A.score, j.B.score) - originalWorst;
+        if (j.A.level === 'bad' || j.B.level === 'bad' ||
+            j.A.score < now.A.score - 3 || j.B.score < now.B.score - 3 ||
+            (priceGain < 1.5 && lowestGain < 1.5)) continue;
+      }
       found.push({ ...c, after: j, key: Math.min(j.A.score, j.B.score) * 3 + Math.max(j.A.score, j.B.score) - c.complexity * 4 - c.movingStarter * 3 });
     }
   }
@@ -1686,29 +1724,39 @@ function evenPlan() {
 }
 // The first fix in words, worked out a moment after the trade settles, so typing a trade stays quick.
 let evenLine = null, evenLineTimer = 0;
+const evenSearchKey = () => [teamOf('A')?.rosterId, teamOf('B')?.rosterId,
+  [...selectedA].sort(), [...selectedB].sort(), JSON.stringify(Vault.planOverride || {})].join('|');
+function evenSearch() {
+  // Run only on request for already-balanced trades; automatic repair for
+  // clearly bad trades remains available without adding render latency.
+  evenLine = null;
+  const box = document.getElementById('evenLine');
+  if (box) box.textContent = 'Finding alternative packages both teams might accept…';
+  scheduleEvenLine();
+}
 function scheduleEvenLine() {
-  const key = [teamOf('A')?.rosterId, teamOf('B')?.rosterId, [...selectedA].sort(), [...selectedB].sort(), JSON.stringify(Vault.planOverride || {})].join('|');
+  const key = evenSearchKey();
   if (evenLine?.key === key) return paintEvenLine();
   clearTimeout(evenLineTimer);
   evenLineTimer = setTimeout(() => {
-    const current=[teamOf('A')?.rosterId,teamOf('B')?.rosterId,[...selectedA].sort(),[...selectedB].sort(),JSON.stringify(Vault.planOverride||{})].join('|');
-    if(current!==key)return;
-    evenLine={key,plan:evenPlan()};paintEvenLine();
-  },150);
+    if (evenSearchKey() !== key) return;
+    evenLine = { key, plan: evenPlan() };
+    paintEvenLine();
+  }, 150);
 }
 function paintEvenLine() {
   const box = document.getElementById('evenLine');
   if (!box) return;
   const f = evenLine.plan, esc = Vault.escapeHtml;
-  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-500">No suggested adjustment in this search meets the price and acceptance checks for both teams.</div>'; return; }
+  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-400">No better adjustment was found that meets the price, roster-benefit and predicted-consent checks for both managers. Your original trade remains unchanged.</div>'; return; }
   const o = f.options[0], giver = o.helpB ? f.teamA : f.teamB, names = l => l.map(a => esc(a.name)).join(' and ');
   const change = [o.add.length ? `${esc(giver.teamName)} adds <span class="text-zinc-100">${names(o.add)}</span>` : '', o.drop.length ? `<span class="text-zinc-100">${names(o.drop)}</span> comes out` : ''].filter(Boolean).join(' and ');
   // Says what the fix reaches, not that it's even: the team it's for, then the other team's read.
   const [helped, other] = o.helpB ? [[o.after.B, f.teamB], [o.after.A, f.teamA]] : [[o.after.A, f.teamA], [o.after.B, f.teamB]];
   const read = v => `<span class="${Vault.VERDICT_TIER_TEXT[v.tier]}">${v.label}</span>`;
   box.innerHTML = `<div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2.5">
-      <div class="min-w-0 flex-1 basis-[260px] text-[13px] text-zinc-300">Gets it to a ${read(helped[0])} for ${esc(helped[1].teamName)}: ${change}. ${read(other[0])} for ${esc(other[1].teamName)}.</div>
-      <button onclick="evenItOut()" class="shrink-0 text-[13px] px-3.5 py-1.5 rounded-lg btn-gold-solid">Use this</button>
+      <div class="min-w-0 flex-1 basis-[260px] text-[13px] text-zinc-300">${esc(giver.teamName)} adjustment: ${change}. Grades ${read(helped[0])} for ${esc(helped[1].teamName)} and ${read(other[0])} for ${esc(other[1].teamName)}.</div>
+      <button type="button" onclick="evenItOut()" class="shrink-0 text-[13px] px-3.5 py-1.5 rounded-lg btn-gold-solid">Apply suggestion</button>
     </div>`;
 }
 function evenItOut() {
