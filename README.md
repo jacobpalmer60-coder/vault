@@ -524,3 +524,5 @@ Draft rules are stored **only in this browser** for each league and draft class,
 `trade-evidence.js` is a pure, shared contract for Managers and Trade Grades. Actual completed Sleeper trade counts remain distinct from reliable historical valuation counts; uncertain manager attribution and missing weeks stay disclosed. The trade list uses progressive disclosure. Managers' expandable rows and sorting headers are keyboard buttons, not mouse-only table rows.
 
 Run `node scripts/check-trade-evidence.js` to test multi-manager parity, incomplete prices, duplicates and uncertain attribution. The browser smoke workflow also covers the trade views with a deterministic multi-manager fixture.
+
+Draft Center tables transform into labeled pick/manager cards on phones narrower than 640px, retaining normal multi-column tables on desktop. Chromium smoke verifies that current pick owners and playoff evidence remain visible at 320px/390px.
