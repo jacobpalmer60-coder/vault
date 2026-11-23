@@ -194,9 +194,9 @@ function negJudge(aAssets, bAssets, R, ctx) {
 // blended with only their own roster fit and timeline. A contender giving up a
 // top scorer for a pick and prospects sees a worse deal than KTC value alone
 // says, and that's what they'd decide on; how well it fits YOUR plan doesn't
-// change their answer. They also never accept an offer the calculator's own
-// read for them (heads.B, the "Decline This" verdict) says to decline, so the
-// prediction and the Trade Analysis below can't disagree.
+// change their answer. An accepted offer can still grade poorly for that
+// manager: actual trades sometimes have this shape. Flag the disagreement
+// explicitly rather than treating an advisory grade as a hard prohibition.
 function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   const { valueA, valueB } = Vault.tradeSideValues(oAssets, rAssets);
   const an = computeTradeAnalysis(teamO, teamR, oAssets, rAssets, valueA, valueB);
