@@ -28,6 +28,40 @@ The `assessment` helper emits no overall recommendation unless both
 teams have supplied roster and acceptance evidence. Even then, it returns
 the evidence for review, not a synthetic combined score.
 
+## Why we're isolating near-equal lead-player trades (Nov 22)
+
+In the live Skat Pack / TURBONUTZ case, Boston + Kiner for Kittle has
+about a **35% additive market-price gap** but only a **1.4% package gap**.
+Kiner is worth ~1,863 individually but adds only ~37 to this particular
+package's modeled ratio. The same extreme suppression appears in controlled
+synthetic two-for-one packages when the two best pieces are within 5%:
+a 4,500 piece + 1,800 piece vs. 4,275, for example, gives the
+1,800 secondary piece a modeled incremental contribution of ~32 (1.8%).
+This is a **systemic behavior of the existing fitted curve**, not an
+isolated missing-value or rounding error.
+
+The benchmark below now adds 2-for-1, **player-only**, trade-day-defined
+cohorts. It reports all 1-for-2 trades; lead pieces within 5%, 5-15%,
+or more than 15% apart; and near-equal lead packages where the smaller
+piece is at least 25% or 40% of the larger bundled piece. All cohorts
+are evaluated **twice**: pooled and separated by trade year.
+Overlapping cohorts are explicitly not independent samples.
+
+Each cohort compares current additive price, partial consolidation,
+and full Vault consolidation **against the additive KTC price direction
+365 days after the completed trade**. The ranking answers one narrow
+question: *which trade-day price direction agrees more often with the
+subsequent market price direction?* It does not answer lineup value,
+playoff chances, whether the offer was fair, or whether a manager
+would have accepted a different offer. A completed-trade-only dataset
+does not reveal rejected packages, and overlapping model-training
+trades cannot serve as a sealed holdout.
+
+The current model weights should **not** be automatically changed
+based on this diagnostic. The result can identify how much additional
+independent data and scrutiny are necessary before modifying the
+live grade.
+
 ## Historical research
 
 `benchmark-separated-trade-pricing.js` uses the same historical archive,
@@ -53,6 +87,9 @@ node scripts/check-trade-price-separation.js
 node scripts/review-trade-separation.js docs/trade-separation-example.json
 node --max-old-space-size=6144 scripts/benchmark-separated-trade-pricing.js > separated-pricing.json
 node scripts/report-separated-trade-pricing.js separated-pricing.json > separated-pricing-report.txt
+# The report now includes near-equal lead-player 2-for-1 groups, by 2024/2025.
+# Check exact classification and synthetic benchmark before a large archive run:
+node scripts/check-trade-price-separation.js
 Get-Content separated-pricing-report.txt
 ```
 
