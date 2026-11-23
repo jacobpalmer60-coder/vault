@@ -15,6 +15,7 @@ Sleeper username leads to a league, and a league id to a team. Every tool needs 
 |---|---|
 | `app.html` | League Overview. No trade content here, by design |
 | `team-analyzer.html` | One team: overview, roster, this season, contend or rebuild |
+| `draft.html` | Draft Center: every team's Sleeper Max Points For and current ownership of future picks; does not invent official draft order |
 | `trade.html` | Trade Calculator and Trade Coach, the core of the site |
 | `trade_grades.html`, `managers.html` | Completed trades in your league |
 | `trade_database.html`, `trade_lab.html` | Trades across all leagues |

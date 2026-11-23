@@ -22,4 +22,12 @@ for(const page of ['proof.html','market.html','app.html']){
   const s=get(page);
   for(const match of s.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new Function(match[1]);
 }
-console.log('PASS proof separates retired-model evidence, Market tabs are distinct, and responsive chart scripts compile');
+const draft=get('draft.html'), nav=get('vault-nav.js'), css=get('vault.css');
+assert.match(nav,/draft\.html/);
+assert.match(draft,/Max Points For/);
+assert.match(draft,/Traded pick ownership/);
+assert.match(draft,/ppts_decimal/);
+assert.match(draft,/not.*official rookie draft order/i);
+assert.match(css,/min-height: 42px/);
+for(const match of draft.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new Function(match[1]);
+console.log('PASS current/archived proof, distinct market tabs, touch charts, future-pick ownership, MPF and mobile UI syntax');
