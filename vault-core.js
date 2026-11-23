@@ -3,6 +3,11 @@
    Shared config + data pipeline for all Vault pages.
    ============================================================ */
 const VAULT_CONFIG = {
+  // Nov 22 2026: additive individual market prices drive all live trade prices,
+  // coaching and completed-trade grading. The former accepted-trade fair curve
+  // remains a historical reference only. Its old accuracy records are NOT
+  // comparable to the new price/grade rules without another holdout.
+  TRADE_PRICE_MODEL: 'additive-market-v1',
   KTC_URL: 'data/ktc-values.json',
   // Our Worker holding the Roster Audit key (worker/roster-audit-verdict.js).
   ROSTER_AUDIT_VERDICT_URL: 'https://vault-roster-audit.jacob-palmer60.workers.dev/',
@@ -14,7 +19,8 @@ const VAULT_CONFIG = {
   // What each player and pick actually trades for, per league format, built
   // daily (scripts/build-grade-values.js); the grade's values (Vault.gradeValue).
   GRADE_VALUES_URL: 'data/grade-values.json',
-  // How pieces add up (Vault.tradeValueP, Vault.tradeSideValues): Fair means
+  // LEGACY REFERENCE ONLY — old accepted-trade package model (Vault.tradeValueP,
+  // Vault.tradeSideValues), retained for research / market summaries. Fair meant
   // what managers accept (user, 2026-10-09). A side is worth (sum of
   // value^p)^(1/p); p is read from this table by the trade's best piece (rows,
   // values) and how close the best piece on the other side is to it (columns,
@@ -297,6 +303,9 @@ const VAULT_CONFIG = {
   // over-called Lopsided (38.8% of real trades, vs. the 30.3% target) and
   // under-called Fair (19.3% vs. 27.1%). 14/41 reproduces the original real-world
   // target almost exactly (27.2%/42.4%/30.4%).
+  // Provisional legacy cutoff values: the old historical calibration used the
+  // package curve, not additive market prices. We retain the familiar thresholds
+  // for continuity but do not claim they are re-fitted to the new price model.
   FAIR_PCT: 14,
   LOPSIDED_PCT: 41,
   // Fit score (see analyzeSide's res.fit / gradeTrade's combinedFit) a side needs
@@ -3419,6 +3428,10 @@ const Vault = {
   // The tier's track record for this team's timeline (VAULT_CONFIG.VERDICT_TIERS record):
   // "In real trades scored like this, 71% of contenders were still ahead on value a year later."
   verdictRecordText(imp) {
+    // Historical percentages were calibrated on the retired consolidation-
+    // based verdict and cannot be asserted for today's revised model.
+    // Do not display legacy win-rate promises until independently revalidated.
+    if (VAULT_CONFIG.TRADE_PRICE_MODEL === 'additive-market-v1') return '';
     const r = imp && imp.record && (imp.record[imp.mode] ?? imp.record.flexible);
     if (r == null) return '';
     if (imp.mode === 'contend') {
