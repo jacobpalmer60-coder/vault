@@ -459,6 +459,7 @@ async function init() {
     if (target) { teamFilter = ''; history.replaceState(null, '', location.pathname + location.search); }
     renderList();
     if (target) showGrade(shown.indexOf(target));
+    else if (linked) status.textContent += ' · Requested trade has no reliable grade; open League Activity to see the transaction.';
     // Out of the playoff race when they traded (this season's trades): needs Sleeper's
     // weekly scores, so it fills in after the list is up.
     Vault.seasonReport(leagueId).then(report => { if (Vault.markOutOfRace(allGraded, report, ctx)) renderList(); }).catch(e => console.warn('Out-of-race check unavailable', e));
