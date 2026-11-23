@@ -23,6 +23,11 @@ function report(data){
  rows.push('RESEARCH ONLY — separate price fairness from roster decisions');
  rows.push('Sample 1/'+data.sampleMod+' | priced '+data.counts.priced+
   ' | complete '+data.counts.complete+' | missing '+data.counts.missing);
+ if(data.filters){
+  rows.push('Scope: '+(data.filters.year||'2024 and 2025')+' | '+
+   (data.filters.format||'all six league formats')+' | '+
+   (data.filters.playerOnlyOneForTwo?'ONLY player-only 1-for-2':'all trade shapes'));
+ }
  append('By season',data.byYear);
  append('Player-only by season',data.playerOnlyYear);
  const filtered=Object.fromEntries(Object.entries(data.playerOnlyShape)
