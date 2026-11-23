@@ -7,11 +7,14 @@ const VaultTradePolicy = (() => {
   const sortByTarget = (pool, value) => [...pool].sort((a,b) =>
     Math.abs(n(a.value) - value) - Math.abs(n(b.value) - value));
 
-  function receiverAccepts({will, ask, drops = 0, level}) {
-    // A model's "accept" must not contradict its own receiving-team verdict.
-    // The real manager may of course choose differently in Sleeper.
-    return Number.isFinite(will) && Number.isFinite(ask) &&
-      will >= ask && drops <= 1 && level !== 'bad';
+  function receiverDecision({will, ask, drops = 0, level}) {
+    // Willingness to accept and whether the recipient benefits are different
+    // questions. Historical trades include accepted deals graded poorly for one
+    // manager, so don't manufacture false rejections just to match the grade.
+    const accepts = Number.isFinite(will) && Number.isFinite(ask) &&
+      will >= ask && drops <= 1;
+    return {accepts, gradeConflict:accepts && level === 'bad',
+      receiverLevel:level || 'unknown'};
   }
 
   function evidence(ctx) {
@@ -98,6 +101,6 @@ const VaultTradePolicy = (() => {
       unadjustedPackageA:raw.valueA, unadjustedPackageB:raw.valueB
     };
   }
-  return {receiverAccepts,evidence,evenCandidates,evenShortlist,ledger};
+  return {receiverDecision,evidence,evenCandidates,evenShortlist,ledger};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = VaultTradePolicy;
