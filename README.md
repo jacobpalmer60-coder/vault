@@ -67,6 +67,48 @@ Rules that have bitten before:
 - **Every visible change** gets a plain-language line in `patch_notes.html`, and `how_we_grade.html` has
   to stay true.
 
+## November 22: four-area Trade Calculator consistency pass
+
+The calculator now separates **market price**, **each team's benefit**, and
+**simulated manager willingness** in its trade summary. This makes the four
+distinct decisions understandable without pretending the negotiation model
+reports actual accepted-offer probabilities.
+
+- **Correctness:** `trade-policy.js` supplies shared side-neutral price reporting
+  and makes the negotiation model's possible disagreement with the receiving
+  team's advice explicit. Real trades can be accepted even when the deal scores
+  poorly for one team, so a poor advisory grade is *not* treated as proof of rejection.
+- **Search quality:** Even It Out tests add, remove, multi-piece and mixed
+  add-and-remove swaps. Its bounded, diversified shortlist preserves viable
+  swaps that an exclusively raw-price ordering would miss. Both participants
+  must still satisfy the original price, roster and projected-acceptance checks.
+- **Evidence:** negotiation responses show available league-trade history and
+  clearly label model uncertainty. No empirical acceptance percentage has
+  been invented and the willingness coefficients have **not** been recalibrated.
+- **Interface:** the trade card distinguishes team-specific grades from
+  the market-only additive/package price gap and from the separate response
+  model. The existing two-sided impact and What-if controls remain intact.
+
+Repeatable checks:
+
+```powershell
+node scripts/check-trade-decision-policy.js
+node scripts/check-calculator-deep.js
+node scripts/check-trade-reliability-pass.js
+node scripts/check-trade-stress.js
+node scripts/check-trade-stress-ui.js
+node scripts/check-trade-mobile-tabs.js
+node scripts/check-trade-price-separation.js
+node scripts/stamp-assets.js --check
+```
+
+The pure-JavaScript policy and existing deep calculator assertions were
+exercised in an isolated JavaScript runner against the branch's actual source;
+a populated-league browser test and a full local Node suite still need to be
+run before claiming a fully verified deployment. See
+`docs/TRADE_CALCULATOR_FOUR_PHASE_PASS_2026-11-22.md` for release gates and
+historical-validation limitations.
+
 ## Long-term trade-value research
 
 Run `node scripts/diagnose-value-aggregates.js` to reproduce the published
