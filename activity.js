@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id),esc=v=>Vault.escapeHtml(String(v??''));
-const href=(page,params={})=>{const u=new URL(Vault.linkTo(page),location.href);Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));return u.pathname.split('/').pop()+u.search+u.hash};
+const href=(page,params={},linkedLeagueId=leagueId)=>{const u=new URL(Vault.linkTo(page,linkedLeagueId),location.href);Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));return u.pathname.split('/').pop()+u.search+u.hash};
 let leagueId='',seasonChain=[],active=null,result=null,shown=35,currentToken=0;
 const dateOf=e=>e.when?new Date(e.when).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'Date unavailable';
 const typeLabel={trade:'Trade',waiver:'Waiver',free_agent:'Free agent',draft:'Draft',commissioner:'Commissioner',roster:'Roster move'};
@@ -15,13 +15,14 @@ function render(){
  $('events').innerHTML=displayed.length?displayed.map(e=>{
   const when=dateOf(e);
   const people=e.affected.map(a=>{
-   const tm='<a class="vault-link" href="'+href('team-analyzer.html',{team:a.id})+'">'+esc(a.name)+'</a>';
+   const known=result.teams.some(t=>String(t.rosterId)===String(a.id));
+   const tm=known?'<a class="vault-link" href="'+href('team-analyzer.html',{team:a.id},e.leagueId)+'" title="Open this team in the '+esc(e.season)+' Sleeper season">'+esc(a.name)+'</a>':'<span title="Historical roster owner unverified">'+esc(a.name)+'</span>';
    const got=a.gets.length?'<span class="vault-event-pos">Added: '+esc(a.gets.slice(0,5).join(', '))+(a.gets.length>5?' +'+(a.gets.length-5)+' more':'')+'</span>':'';
    const lost=a.loses.length?'<span class="vault-event-neg">Moved: '+esc(a.loses.slice(0,5).join(', '))+(a.loses.length>5?' +'+(a.loses.length-5)+' more':'')+'</span>':'';
    return '<div class="vault-event-side"><span class="vault-event-team">'+tm+'</span><span class="vault-event-moves">'+got+lost+'</span></div>';
   }).join('');
   const badge='<span class="vault-event-tag '+esc(e.kind)+'">'+esc(typeLabel[e.kind]||e.description)+'</span>';
-  const grade=e.linkable?'<a class="vault-link vault-event-detail" href="'+href('trade_grades.html')+'#trade-'+encodeURIComponent(e.id)+'">Graded view (if priced)</a>':'';
+  const grade=e.linkable?'<a class="vault-link vault-event-detail" href="'+href('trade_grades.html',{},leagueId)+'#trade-'+encodeURIComponent(e.id)+'">Graded view (if priced)</a>':'';
   const stamp=e.kind==='draft'&&e.sourceTimestamp==='draft-start'?' · draft start date (selection time unavailable)':'';
   return '<article class="vault-event-card"><div class="vault-event-top">'+badge+'<span class="vault-meta">'+esc(when)+(e.week>=0?' · Week '+e.week:'')+esc(stamp)+'</span></div>'+
    '<div class="vault-event-title">'+esc(e.description)+(e.status!=='complete'?' · '+esc(e.status):'')+'</div>'+
