@@ -91,13 +91,18 @@ async function main(){
       await page.goto(origin+'/draft.html?league_id=123',{waitUntil:'domcontentloaded'});
       await page.locator('#draftContent:not(.hidden)').waitFor();
       assert.equal(await page.locator('#orderRows tr').count(),6);
-      assert.equal(await page.locator('#pickRows tr').count(),12);
+      const firstPickCount=width<640?6:12;
+      assert.equal(await page.locator('#pickRows tr').count(),firstPickCount);
       if(width<640){
-        assert.equal(await page.locator('#pickRows td[data-label="Current holder"]').count(),12);
+        assert.equal(await page.locator('#pickRows td[data-label="Current holder"]').count(),firstPickCount);
         assert.equal(await page.locator('#orderRows td[data-label="Placement basis"]').count(),6);
         assert.equal(await page.locator('#pickRows tr').first().evaluate(el=>getComputedStyle(el).display),'grid','Draft rows must be mobile cards '+width);
         const field=await page.locator('#pickRows td[data-label="Current holder"]').first().boundingBox();
         assert.ok(field&&field.x+field.width<=width+2,'Current pick owner is clipped '+width);
+      }
+      if(width<640){
+        await page.locator('#morePicks').click();
+        assert.equal(await page.locator('#pickRows tr').count(),12,'Draft pick pagination at '+width);
       }
       await page.locator('#roundStyle').selectOption('3rr');
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Draft overflow '+width);
@@ -135,6 +140,8 @@ async function main(){
       assert.ok(tableRow.includes('—'),'Unpriced manager incorrectly receives a zero net '+width+': '+tableRow);
       await fourth.focus();await fourth.press('Enter');
       assert.equal(await page.locator('#manager-toggle-4').getAttribute('aria-expanded'),'true');
+      const detail=await page.locator('#manager-detail-4 > td > div').boundingBox();
+      assert.ok(detail&&detail.x+detail.width<=width+2,'Manager detail panel clipped '+width);
       assert.equal(await page.locator('#manager-toggle-4').evaluate(el=>document.activeElement===el),true,'Manager focus not restored '+width);
       await page.locator('#manager-sort-netValue').click();
       assert.equal(await page.locator('#manager-sort-netValue').evaluate(el=>document.activeElement===el),true,'Sort focus not restored '+width);
@@ -145,13 +152,14 @@ async function main(){
       await page.goto(origin+'/trade_grades.html?league_id=123',{waitUntil:'domcontentloaded'});
       await page.locator('#tradeEvidence:not(.hidden)').waitFor();
       assert.ok((await page.locator('#status').innerText()).includes('31 reliably graded of 32'));
-      assert.equal(await page.locator('#list > button').count(),30,'Trade Grades should start with 30 '+width);
+      const gradeSize=width<640?12:30;
+      assert.equal(await page.locator('#list > button').count(),gradeSize,'Trade Grades first page count '+width);
       await page.locator('#moreGrades').click();
-      assert.equal(await page.locator('#list > button').count(),31,'Show more must expose remaining grades '+width);
+      assert.equal(await page.locator('#list > button').count(),Math.min(31,gradeSize*2),'Show more must expose next page '+width);
       await page.locator('#teamFilterBar select').selectOption('4');
       assert.ok(await page.locator('#empty').isVisible(),'Unpriced manager should not receive fake grades '+width);
       await page.locator('#teamFilterBar select').selectOption('');
-      assert.equal(await page.locator('#list > button').count(),30,'Changing filter resets pagination '+width);
+      assert.equal(await page.locator('#list > button').count(),gradeSize,'Changing filter resets pagination '+width);
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Grades overflow '+width);
       await page.screenshot({path:path.join(OUT,'grades-'+width+'.png'),fullPage:true});
       assert.deepEqual(errors,[],'Browser JavaScript errors '+width);
