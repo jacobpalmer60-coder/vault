@@ -54,6 +54,11 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-22', items: [
+    { kind: 'fixed', page: 'Trade Calculator', text: "The additive market-price sum and Vault's nonlinear package-model value are now explicitly labeled separately. A Fair package score no longer appears as Fair additive-market pricing." },
+    { kind: 'improved', page: 'Trade Calculator', text: "When prices differ sharply, the trade card explains both gaps, the model-implied marginal value of the smaller second piece in a two-for-one, and the exact KTC/market/package comparison for both teams." },
+    { kind: 'improved', page: 'Testing', text: "Exact Nov 22 trade regression: Boston + Kiner for Kittle is 35.19% listed KTC, 35.02% additive market, 33.66% KTC-calculator approximation, and 1.38% Vault package. No model weights changed." }
+  ] },
+  { date: '2026-11-22', items: [
     { kind: 'fixed', page: 'Trade Calculator', text: "Even It Out no longer suggests gratuitous throw-ins to a trade it already grades nearly even. For balanced offers, a recommendation must improve the package price or a manager's grade materially, protect both teams' grade scores, and avoid widening the additive market-price gap. A no-change result is allowed." },
     { kind: 'improved', page: 'Trade Calculator', text: "Alternative packages now show the before/after Vault price gap and both managers' grade-score changes, making the claimed benefit checkable. The 80-candidate roster-simulation budget is unchanged." }
   ] },

@@ -67,6 +67,43 @@ Rules that have bitten before:
 - **Every visible change** gets a plain-language line in `patch_notes.html`, and `how_we_grade.html` has
   to stay true.
 
+## November 22: additive versus package pricing audit (real trade regression)
+
+The Trade Calculator now labels **two different price baselines**:
+**market-price sum** (KTC values adjusted by recent trade premiums, then added)
+and **Vault package model** (the existing nonlinear consolidation rule used
+by the current grades). When the two differ by 15+ percentage points, the
+trade card shows a warning and an exact four-way price reconciliation,
+including the approximated KTC-calculator read. Two-for-one deals also show
+the implied marginal contribution of the smaller piece to that specific
+package, NOT its standalone sale price.
+
+Reproduced with the **2026-11-22 SF, TE-premium** price snapshot: Skat Pack
+sends Denzel Boston (4,472) plus Corey Kiner (1,984); TURBONUTZ sends
+George Kittle (4,524). Listed KTC prices differ **35.19%**, additive
+premium-adjusted values differ **35.02%**, Vault's nonlinear package
+model reads **1.38%**, and Vault's KTC-calculator approximation reads
+**33.66%**. The fair curve attributes only **about 37 of Kiner's
+1,863 market-adjusted points (~2%)** to that particular package.
+
+This explains the screen's discrepancy, but it does **not** establish
+that 37 is what Kiner is actually worth or that Vault's curve is a better
+predictor than KTC. The curve was calibrated to *completed, accepted trades*,
+not an untouched manager-aware future holdout or rejected offers. An extra
+percentage of completed trades labeled Fair is not proof of normative fairness.
+No live valuation coefficients or roster-specific grades were reweighted in
+this display and math audit.
+
+Regression commands:
+
+```powershell
+node scripts/check-trade-pricing-reconciliation.js
+node scripts/check-calculator-deep.js
+node scripts/check-trade-decision-policy.js
+node scripts/check-trade-price-separation.js
+node scripts/stamp-assets.js --check
+```
+
 ## November 22: four-area Trade Calculator consistency pass
 
 The calculator now separates **market price**, **each team's benefit**, and

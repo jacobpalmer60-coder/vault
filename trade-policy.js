@@ -127,6 +127,55 @@ const VaultTradePolicy = (() => {
       unadjustedPackageA:raw.valueA, unadjustedPackageB:raw.valueB
     };
   }
-  return {receiverDecision,evidence,evenCandidates,evenShortlist,evenImprovement,ledger};
+  // The market baseline and the package model answer different questions.
+  // Treat both as measurements, NOT as proof that an accepted trade was fair:
+  // the fair curve was fitted to completed (selected) trades.
+  function priceAudit(Vault, sendA, sendB) {
+    const book = ledger(Vault, sendA, sendB);
+    const signed = (a,b) => a+b > 0 ? 200*(a-b)/(a+b) : null;
+    const listedA = sendA.reduce((s,a)=>s+n(a.ktcPrice ?? a.value),0);
+    const listedB = sendB.reduce((s,a)=>s+n(a.ktcPrice ?? a.value),0);
+    const ktc = typeof Vault.ktcVerdict === 'function' && sendA.length && sendB.length
+      ? Vault.ktcVerdict(sendA,sendB) : null;
+    const ktcA = ktc ? listedA + ktc.adjustA : null;
+    const ktcB = ktc ? listedB + ktc.adjustB : null;
+    const listed = {valueA:listedA,valueB:listedB,signedPct:signed(listedA,listedB)};
+    const market = {valueA:book.marketA,valueB:book.marketB,signedPct:signed(book.marketA,book.marketB)};
+    const packaged = {valueA:book.packageA,valueB:book.packageB,
+      signedPct:signed(book.packageA,book.packageB),
+      bonusA:book.packageA-book.marketA,bonusB:book.packageB-book.marketB};
+    const ktcAdjusted = ktc ? {valueA:ktcA,valueB:ktcB,
+      signedPct:signed(ktcA,ktcB),bonusA:ktc.adjustA,bonusB:ktc.adjustB} : null;
+    const delta = market.signedPct === null || packaged.signedPct === null
+      ? null : packaged.signedPct - market.signedPct;
+    // Illustrate how the curve treats the SECOND piece in a 2-for-1. Its
+    // contribution is expressed on the single-piece side's market-price scale;
+    // it is a ratio equivalent, not a sale price or a prediction of a manager.
+    let marginal = null;
+    const two = sendA.length === 2 && sendB.length === 1 ? sendA
+      : sendB.length === 2 && sendA.length === 1 ? sendB : null;
+    const one = two === sendA ? sendB : sendA;
+    if (two && one.length === 1 && typeof Vault.tradeValueRatio === 'function') {
+      const pieces = two.map(asset=>({asset,price:n(Vault.gradeValue(asset))}))
+        .sort((x,y)=>y.price-x.price);
+      const other = one.map(asset=>n(Vault.gradeValue(asset)));
+      if (other[0] > 0 && pieces.every(x=>x.price>0)) {
+        const fullRatio = Vault.tradeValueRatio(pieces.map(x=>x.price),other);
+        const leadRatio = Vault.tradeValueRatio([pieces[0].price],other);
+        const equivalent = other[0]*(fullRatio-leadRatio);
+        if (Number.isFinite(equivalent)) {
+          marginal = {sendSide:two===sendA?'A':'B',assetName:pieces[1].asset.name || 'Second piece',
+            marketPrice:pieces[1].price,equivalent,
+            retainedPct:100*equivalent/pieces[1].price};
+        }
+      }
+    }
+    return {listed,market,package:packaged,ktc:ktcAdjusted,marginal,
+      marketFeedAvailable:!!Vault._gradeMarket,
+      divergencePct:delta===null?null:Math.abs(delta),
+      // Threshold is descriptive UI guidance, not fitted statistical evidence.
+      materialDisagreement:delta!==null && Math.abs(delta)>=15};
+  }
+  return {receiverDecision,evidence,evenCandidates,evenShortlist,evenImprovement,ledger,priceAudit};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = VaultTradePolicy;
