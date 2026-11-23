@@ -1549,8 +1549,9 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const evidence = VaultTradePolicy.evidence({style:managerStyle, basis:managerStyle?.trades >= 2 ? 'history' : 'market'});
   const priceGap = Math.floor(Math.abs(priceLedger.packageGap));
   const additiveGap = Math.floor(Math.abs(priceLedger.additiveGap));
+  const marketBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(priceLedger.packageGap), 0, 0));
   const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-2 gap-2 max-w-[640px]" aria-label="Independent market and manager assessments">
-      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Market fairness</div><div class="text-[13px] font-medium text-zinc-200">${Vault.priceWord(analysis.bucket)} · ${priceGap}% package gap</div><div class="text-[11px] text-zinc-500">${additiveGap}% before consolidation · not roster fit</div></div>
+      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Market fairness</div><div class="text-[13px] font-medium text-zinc-200">${marketBucket} · ${priceGap}% package gap</div><div class="text-[11px] text-zinc-500">${additiveGap}% before consolidation · not roster fit</div></div>
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Manager response</div><div class="text-[13px] font-medium text-zinc-200">Not confirmed · model in Trade Coach</div><div class="text-[11px] text-zinc-500">${Vault.escapeHtml(evidence.sample)} · not a probability</div></div>
     </div>`;
   el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Good grades for both · acceptance unconfirmed'}</span></div>` : ''}
