@@ -24,7 +24,7 @@ function build({weeks=[],players={},rosters=[],users=[],drafts=[],season='',leag
  const transactions=[...found.values()].map(({tx,week})=>{
   const adds=Object.entries(tx.adds||{}).map(([player,owner])=>({player,owner:id(owner)}));
   const drops=Object.entries(tx.drops||{}).map(([player,owner])=>({player,owner:id(owner)}));
-  const picks=(tx.draft_picks||[]).map(p=>({season:+p.season,round:+p.round,original:id(p.roster_id),from:id(p.previous_owner_id),to:id(p.owner_id)}));
+  const picks=(tx.draft_picks||[]).map(p=>({season:+p.season,round:+p.round,original:p.roster_id==null?null:id(p.roster_id),from:p.previous_owner_id==null?null:id(p.previous_owner_id),to:p.owner_id==null?null:id(p.owner_id)}));
   const participants=uniq([...(tx.roster_ids||[]),...adds.map(a=>a.owner),...drops.map(a=>a.owner),...picks.flatMap(p=>[p.from,p.to])]);
   const affected=[];
   for(const team of participants){
@@ -35,7 +35,6 @@ function build({weeks=[],players={},rosters=[],users=[],drafts=[],season='',leag
    // Players traded away can be inferred only for an unambiguous two-party trade.
    if(tx.type==='trade'&&(tx.roster_ids||[]).length===2){
     const other=id(tx.roster_ids.find(x=>id(x)!==team));
-    gets.forEach(()=>{});
     loses.push(...adds.filter(a=>a.owner===other).map(a=>showPlayer(a.player,players)));
    }
    affected.push({id:team,name:name(team),gets,loses});
@@ -47,10 +46,10 @@ function build({weeks=[],players={},rosters=[],users=[],drafts=[],season='',leag
  const pickEvents=(drafts||[]).flatMap(d=>{
   const draft=d.draft||{},picks=Array.isArray(d.picks)?d.picks:[];
   return picks.filter(p=>p.player_id&&p.pick_no!=null).map(p=>{
-   const owner=id(p.roster_id||p.picked_by||''),who=name(owner);
+   const actual=p.roster_id??draft.slot_to_roster_id?.[p.draft_slot]??null,owner=actual==null?null:id(actual),who=owner==null?'Owner unverified':name(owner);
    return {id:'draft:'+id(draft.draft_id)+':'+p.pick_no,kind:'draft',status:'complete',
     when:Number(p.picked_at)||Number(draft.start_time)||0,week:-1,season:String(season),leagueId:id(leagueId),
-    participants:[owner],affected:[{id:owner,name:who,gets:[showPlayer(p.player_id,players)],loses:[]}],
+    participants:owner==null?[]:[owner],affected:[{id:owner??'unknown',name:who,gets:[showPlayer(p.player_id,players)],loses:[]}],
     description:'Draft selection '+(p.round||'?')+'.'+(p.draft_slot||p.pick_no||'?'),
     pickNo:+p.pick_no,sourceTimestamp:Number(p.picked_at)?'selection':'draft-start',linkable:false};
   });
