@@ -75,7 +75,7 @@ assert.match(trade,/Additive market-price gap/);
 assert.match(trade,/VaultTradePolicy\.evenImprovement\(/);
 assert.doesNotMatch(trade,/originalAdditiveGap|improvement\.packageGain/);
 assert.match(read('trade-price-audit-ui.js'),/does not determine today's price grade/);
-assert.match(read('how_we_grade.html'),/cutoffs are provisional/);
+assert.match(read('how_we_grade.html'),/cutoffs are provisional/i);
 assert.match(read('trade_database.html'),/retired package-consolidation curve/,
  'precomputed historical market charts must identify their previous price model');
 assert.match(read('trade_lab.html'),/retired nonlinear consolidation curve/,
