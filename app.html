@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=9c5b8b3f">
+<link rel="stylesheet" href="vault.css?v=8d8b6ee3">
 <link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -42,7 +42,12 @@
     <button id="refresh" class="shrink-0 btn-gold px-3 py-1.5 text-[12px] text-zinc-300">Refresh</button>
   </div>
 
-  <!-- Right now (title odds) or Dynasty (total value): which ranking the table shows. -->
+  <nav aria-label="League shortcuts" class="flex flex-wrap gap-2 mb-5">
+  <a data-vault-page="draft.html" class="vault-btn vault-btn-muted inline-flex items-center">Draft Center</a>
+  <a data-vault-page="activity.html" class="vault-btn vault-btn-muted inline-flex items-center">League Activity</a>
+  <a data-vault-page="trade_grades.html" class="vault-btn vault-btn-muted inline-flex items-center">Trade Grades</a>
+</nav>
+<!-- Right now (title odds) or Dynasty (total value): which ranking the table shows. -->
   <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
     <div id="viewToggle" class="inline-flex rounded-lg border border-white/10 overflow-hidden" role="group" aria-label="Ranking"></div>
     <span id="viewHint" class="text-[12px] text-zinc-400"></span>
@@ -131,7 +136,7 @@
 </main>
 
 <script src="vault-core.js?v=759debb7"></script>
-<script src="vault-nav.js?v=642139eb"></script>
+<script src="vault-nav.js?v=1ec7c774"></script>
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script>

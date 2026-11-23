@@ -110,7 +110,9 @@ const sandbox = {
   teamOf: side => side === 'A' ? me : other,
   selectedA, selectedB, Map, Set, Math,
   EVEN_MAX_GAP: 8, EVEN_OPTIONS: 6, EVEN_PIECE_REPEATS: 2,
-  Vault: { tradeSideValues: (A, B) => ({
+  VaultTradePolicy: require('../trade-policy.js'),
+  evenContextKey: () => 'fixture',
+  Vault: { marketSideValues: (A, B) => ({
     valueA: A.reduce((v, a) => v + a.value, 0),
     valueB: B.reduce((v, b) => v + b.value, 0)
   }) },

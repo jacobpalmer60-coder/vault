@@ -40,6 +40,6 @@ const selected = html.slice(html.indexOf('function renderManagerRecord('), html.
 assert.ok(selected.includes('state.teams.find('));
 assert.ok(selected.includes('state.teams].sort('));
 assert.ok(selected.includes('No completed trades'));
-assert.ok(html.includes('initManagerRecord(allGraded, teams)'));
+assert.ok(html.includes('initManagerRecord(allGraded, teams, tradeActivity, pendingTrades)'), 'manager record must receive all unpriced activity and pending trades');
 console.log('PASS manager dropdown and no-trade state are available');
 console.log('All manager trade-record parity checks passed.');
