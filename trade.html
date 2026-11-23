@@ -248,7 +248,8 @@
 
 <script src="vault-core.js?v=2b59eaf0"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
-<script src="trade-policy.js?v=df0687b2"></script>
+<script src="trade-policy.js?v=49cde92b"></script>
+<script src="trade-price-audit-ui.js?v=de356e39"></script>
 <script src="team-impact.js?v=6a575855"></script>
 <script src="trade-stress.js?v=726eea3d"></script>
 <script>
@@ -1544,15 +1545,16 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const theirSub = '';
   // Four distinct decisions: market price, this team's benefit, their benefit,
   // and the separate negotiation model. Never label a forecast as an acceptance probability.
-  const priceLedger = VaultTradePolicy.ledger(Vault, aAssets, bAssets);
+  const prices = VaultTradePolicy.priceAudit(Vault, aAssets, bAssets);
   const managerStyle = typeof Negotiation === 'undefined' ? null : Negotiation.styles?.get(teamB.rosterId);
   const evidence = VaultTradePolicy.evidence({style:managerStyle, basis:managerStyle?.trades >= 2 ? 'history' : 'market'});
-  const priceGap = Math.floor(Math.abs(priceLedger.packageGap));
-  const additiveGap = Math.floor(Math.abs(priceLedger.additiveGap));
-  const marketBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(priceLedger.packageGap), 0, 0));
-  const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-2 gap-2 max-w-[640px]" aria-label="Independent market and manager assessments">
-      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Market fairness</div><div class="text-[13px] font-medium text-zinc-200">${marketBucket} · ${priceGap}% package gap</div><div class="text-[11px] text-zinc-500">${additiveGap}% before consolidation · not roster fit</div></div>
-      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Manager response</div><div class="text-[13px] font-medium text-zinc-200">Not confirmed · model in Trade Coach</div><div class="text-[11px] text-zinc-500">${Vault.escapeHtml(evidence.sample)} · not a probability</div></div>
+  const gapWord = v => Math.abs(v || 0).toFixed(0) + '%';
+  const marketBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(prices.market.signedPct), 0, 0));
+  const packageBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(prices.package.signedPct), 0, 0));
+  const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[740px]" aria-label="Independent additive market price, package model and manager response">
+      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Market-price sum</div><div class="text-[13px] font-medium text-zinc-100">${marketBucket} · ${gapWord(prices.market.signedPct)} gap</div><div class="text-[11px] text-zinc-400">Individual prices added · no package model</div></div>
+      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Vault package model</div><div class="text-[13px] font-medium text-zinc-100">${packageBucket} · ${gapWord(prices.package.signedPct)} gap</div><div class="text-[11px] text-zinc-400">Historical-trade consolidation curve</div></div>
+      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Manager response</div><div class="text-[13px] font-medium text-zinc-100">Not confirmed · Trade Coach</div><div class="text-[11px] text-zinc-400">${Vault.escapeHtml(evidence.sample)} · not a probability</div></div>
     </div>`;
   el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Both sides grade Toss-up or better · acceptance unconfirmed'}</span></div>` : ''}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-w-[640px]">
@@ -1561,6 +1563,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
     </div>
     ${timelineRow}
     ${decisionLens}
+    ${VaultPriceAuditUI.html(prices, teamA, teamB, Vault.escapeHtml)}
     ${Vault.verdictRecordText(imp) ? `<div class="text-[12px] text-zinc-400 mt-2 max-w-[640px]">${Vault.verdictRecordText(imp)}${Vault.info('trackRecord')}</div>` : ''}
     <div class="text-[14px] text-zinc-200 mt-3 max-w-[640px]">${improvementReason(imp, null)}${imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : ''}${them && them.outOfRace ? ` <span class="text-zinc-400">${Vault.escapeHtml(teamB.teamName)} is out of the playoff race, so this season's points don't count in their verdict.</span>` : ''}</div>${overpayNoteHtml(imp)}`;
   const dockSide = (who, label, cls) => `<div class="min-w-0"><div class="text-[10px] uppercase tracking-wider text-zinc-500 truncate">${who}</div><div class="num text-[17px] leading-tight ${cls}">${label}</div></div>`;
