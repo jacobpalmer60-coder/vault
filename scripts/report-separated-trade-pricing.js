@@ -28,6 +28,16 @@ function report(data){
  const filtered=Object.fromEntries(Object.entries(data.playerOnlyShape)
   .filter(([,v])=>v.decisive>=1000));
  append('Player-only packages (at least 1,000 decisive cases)',filtered);
+ if(data.nearPeer){
+  rows.push('');
+  rows.push('NEAR-EQUAL LEAD PLAYER TEST — player-only 1-for-2 trades');
+  rows.push('Each cohort uses trade-day prices; overlapping cohorts are NOT independent samples.');
+  append('All 1-for-2 and lead-closeness cohorts',data.nearPeer);
+  if(data.nearPeerByYear)append('Lead-closeness cohorts by year',data.nearPeerByYear);
+  rows.push('Outcome: future additive KTC price direction 365 days after each completed trade.');
+  rows.push('A higher rate here is NOT a validated fair-offer probability or roster payoff.');
+  rows.push('Do not change weights from this result without an untouched chronological, manager-aware holdout.');
+ }
  rows.push('The 0% scenario is additive current prices. 100% uses the full Vault consolidation curve.');
  rows.push('The future label is additive KTC prices one year later; this is NOT a roster-aware trade-quality score.');
  rows.push('Research only: No weight is selected, no independent holdout is established, no live valuations were changed.');
