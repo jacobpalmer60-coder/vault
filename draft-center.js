@@ -46,17 +46,17 @@ function render(){
  const mpf=teams.map(t=>({t,value:VaultDraftOrder.mpfOf(rosters.find(r=>String(r.roster_id)===String(t.rosterId)))}))
   .sort((a,b)=>(a.value??Infinity)-(b.value??Infinity)||a.t.teamName.localeCompare(b.t.teamName));
  $('mpfCoverage').textContent=mpf.filter(x=>x.value!=null).length+' of '+teams.length+' MPF totals available; figures are from this Sleeper season and may not be final.';
- $('mpfRows').innerHTML=mpf.map(({t,value},i)=>'<tr><td>'+ (value==null?'—':i+1)+'</td><td>'+teamLink(t.rosterId,t.teamName)+'</td><td class="value">'+(value==null?'—':fmt(value))+'</td></tr>').join('');
+ $('mpfRows').innerHTML=mpf.map(({t,value},i)=>'<tr><td data-label="MPF rank">'+ (value==null?'—':i+1)+'</td><td data-label="Team">'+teamLink(t.rosterId,t.teamName)+'</td><td class="value" data-label="Sleeper MPF">'+(value==null?'—':fmt(value))+'</td></tr>').join('');
  $('orderRows').innerHTML=model.rows.map(r=>{
    const pick=picks.find(p=>p.original===r.rosterId&&p.round===1);
    const label=r.playoff===null?'Unknown':r.playoff?'Playoffs':'Non-playoff';
-   return '<tr><td class="value">'+(r.slot!=null?r.slot:r.range?'Slots '+r.range.join('–'):'TBD')+'</td><td>'+teamLink(r.rosterId,r.teamName)+'</td><td class="muted">'+label+'</td><td class="muted">'+(r.eliminatedRound?'Round '+r.eliminatedRound+' eliminated · ':'')+(srcLabel[r.source]||r.source)+'</td><td class="value">'+(pick?slotFormat(pick):'—')+'</td></tr>';
+   return '<tr><td class="value" data-label="Pick">'+(r.slot!=null?r.slot:r.range?'Slots '+r.range.join('–'):'TBD')+'</td><td data-label="Original team">'+teamLink(r.rosterId,r.teamName)+'</td><td class="muted" data-label="Playoff field">'+label+'</td><td class="muted" data-label="Placement basis">'+(r.eliminatedRound?'Round '+r.eliminatedRound+' eliminated · ':'')+(srcLabel[r.source]||r.source)+'</td><td class="value" data-label="First-round slot">'+(pick?slotFormat(pick):'—')+'</td></tr>';
  }).join('');
  const capital=teams.map(t=>({t,picks:picks.filter(p=>p.holder===String(t.rosterId))}))
   .sort((a,b)=>b.picks.reduce((s,p)=>s+(+p.value||0),0)-a.picks.reduce((s,p)=>s+(+p.value||0),0));
- $('capitalRows').innerHTML=capital.map(({t,picks:ps})=>'<tr><td>'+teamLink(t.rosterId,t.teamName)+'</td><td class="value">'+ps.filter(p=>p.round===1).length+'</td><td class="value">'+ps.length+'</td><td class="value">'+fmt(ps.reduce((s,p)=>s+(+p.value||0),0))+'</td></tr>').join('');
+ $('capitalRows').innerHTML=capital.map(({t,picks:ps})=>'<tr><td data-label="Manager">'+teamLink(t.rosterId,t.teamName)+'</td><td class="value" data-label="First-round picks">'+ps.filter(p=>p.round===1).length+'</td><td class="value" data-label="Total picks">'+ps.length+'</td><td class="value" data-label="Market value">'+fmt(ps.reduce((s,p)=>s+(+p.value||0),0))+'</td></tr>').join('');
  const filtered=picks.filter(p=>!chosen||chosen===p.original||chosen===p.holder);
- $('pickRows').innerHTML=filtered.length?filtered.map(p=>'<tr><td class="value">'+(p.roundSlot==null?year+' '+ordinal(p.round):year+' '+slotFormat(p))+'</td><td>'+teamLink(p.original)+'</td><td>'+teamLink(p.holder)+'</td><td class="value">'+fmt(p.value)+'</td><td class="muted">'+(srcLabel[p.source]||'TBD')+'</td></tr>').join(''):
+ $('pickRows').innerHTML=filtered.length?filtered.map(p=>'<tr><td class="value" data-label="Draft pick">'+(p.roundSlot==null?year+' '+ordinal(p.round):year+' '+slotFormat(p))+'</td><td data-label="Original team">'+teamLink(p.original)+'</td><td data-label="Current holder">'+teamLink(p.holder)+'</td><td class="value" data-label="Market value">'+fmt(p.value)+'</td><td class="muted" data-label="Evidence">'+(srcLabel[p.source]||'TBD')+'</td></tr>').join(''):
  '<tr><td colspan="5" class="muted">No future tradable picks match this filter.</td></tr>';
  $('manualRows').innerHTML=model.rows.map(r=>{
   const current=settings.manualSlots[r.rosterId]??'';

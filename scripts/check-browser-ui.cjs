@@ -92,6 +92,13 @@ async function main(){
       await page.locator('#draftContent:not(.hidden)').waitFor();
       assert.equal(await page.locator('#orderRows tr').count(),6);
       assert.equal(await page.locator('#pickRows tr').count(),12);
+      if(width<640){
+        assert.equal(await page.locator('#pickRows td[data-label="Current holder"]').count(),12);
+        assert.equal(await page.locator('#orderRows td[data-label="Placement basis"]').count(),6);
+        assert.equal(await page.locator('#pickRows tr').first().evaluate(el=>getComputedStyle(el).display),'grid','Draft rows must be mobile cards '+width);
+        const field=await page.locator('#pickRows td[data-label="Current holder"]').first().boundingBox();
+        assert.ok(field&&field.x+field.width<=width+2,'Current pick owner is clipped '+width);
+      }
       await page.locator('#roundStyle').selectOption('3rr');
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Draft overflow '+width);
       await page.screenshot({path:path.join(OUT,'draft-'+width+'.png'),fullPage:true});
