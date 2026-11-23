@@ -54,6 +54,12 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-22', items: [
+    { kind: 'fixed', page: 'Managers / Trade Grades', text: 'Both views now share exactly the same recorded-versus-reliably-priced trade counts. Deals with missing prices or uncertain historical owners remain recorded but cannot receive a misleading grade.' },
+    { kind: 'fixed', page: 'Managers', text: 'Managers without priceable trades no longer show a misleading zero net value. Sorting and expanding rows are now full keyboard-accessible controls with reliable focus restoration.' },
+    { kind: 'improved', page: 'Trade Grades', text: 'Shows only reliable historical price verdicts, explains what cannot be graded, and progressively displays long trade lists in sets of 30.' },
+    { kind: 'improved', page: 'Site-wide trade UI', text: 'Unified understated evidence summary, clearer mobile metrics, accessible filters and data coverage explanations.' }
+  ] },
+  { date: '2026-11-22', items: [
     { kind: 'fixed', page: 'League Activity', text: 'Historical manager links now open the original Sleeper league season, rather than showing a different roster from the current season. If one season fails to load, the season selector stays visible so you can retry or open another year.' }
   ] },
   { date: '2026-11-22', items: [
