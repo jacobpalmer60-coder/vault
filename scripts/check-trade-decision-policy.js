@@ -106,7 +106,7 @@ console.log('PASS explicit price/manager separation and negotiation uncertainty 
 const evenStart=trade.indexOf("  // Even It Out is a tool, not a badge");
 const evenEnd=trade.indexOf('/* ---------- Even it out',evenStart);
 assert.ok(evenStart>0&&evenEnd>evenStart);
-const evenUi=trade.slice(evenStart,evenEnd);
+const evenUi=trade.slice(evenStart,evenEnd).replace(/\n}\s*$/, '');
 const showEven=(mine,theirs,plan=null,cached=false)=>{
   const box={innerHTML:''};let scheduled=0,painted=0;
   const key='two|managers|original|trade';
