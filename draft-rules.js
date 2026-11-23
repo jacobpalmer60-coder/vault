@@ -58,6 +58,26 @@ function build({teams=[],rosters=[],bracket=[],league={},settings={}}={}){
    if(Number.isInteger(p)&&p>=1&&p<=playoffCount){r.placement=p;r.slot=count-p+1;r.source='sleeper-placement'}
    else r.source='playoff-pending';
   }
+  // Each completed *main* winners-bracket round can establish an elimination
+  // band before final placement games (p=1,3,5...) determine the exact slots.
+  // We expose the band, not a fabricated ordering within that pair.
+  const rounds=new Map();
+  (Array.isArray(bracket)?bracket:[]).forEach(m=>{
+   if(n(m?.p)!=null||!Number.isInteger(+m?.r)||+m.r<1)return;
+   const r=+m.r;if(!rounds.has(r))rounds.set(r,[]);
+   rounds.get(r).push(m);
+  });
+  let first=count-playoffCount+1;
+  for(const [round,games] of [...rounds].sort((a,b)=>a[0]-b[0])){
+   const last=Math.min(count,first+games.length-1);
+   for(const game of games){
+    const loser=byId.get(id(game.l));
+    if(loser?.playoff&&loser.slot==null&&game.l!=null){
+     loser.range=[first,last];loser.eliminatedRound=round;loser.source='elimination-band';
+    }
+   }
+   first=last+1;
+  }
  }
  // Manual slots displace conflicting model values; duplicates never silently shift.
  const claims=new Map();
