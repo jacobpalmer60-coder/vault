@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path');
+const get=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
+const proof=get('proof.html'), market=get('market.html'), overview=get('app.html');
+assert.match(proof,/id="vault-nav"/);
+assert.match(proof,/Archived proof of the previous verdict/);
+assert.match(proof,/untouched chronological holdout/);
+assert.match(proof,/82\.83% vs 62\.06%/);
+assert.match(proof,/86\.36% vs 63\.46%/);
+assert.match(proof,/og:url" content="[^"]*proof\.html"/);
+assert.match(market,/data-tab="movers"/);
+assert.match(market,/data-tab="highs"/);
+assert.match(market,/\['highs', 'Highs & lows'\]/);
+assert.doesNotMatch(market,/key === 'moves' \|\| key === 'highs'/);
+assert.match(market,/pointerup/);
+assert.match(overview,/pointerup/);
+assert.match(overview,/tabindex="0" role="img"/);
+assert.match(overview,/ArrowLeft.*ArrowRight/);
+for(const page of ['proof.html','market.html','app.html']){
+  const s=get(page);
+  for(const match of s.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new Function(match[1]);
+}
+console.log('PASS proof separates retired-model evidence, Market tabs are distinct, and responsive chart scripts compile');
