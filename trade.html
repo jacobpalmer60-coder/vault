@@ -248,6 +248,7 @@
 
 <script src="vault-core.js?v=192acef4"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
+<script src="trade-policy.js?v=6970b9f6"></script>
 <script src="team-impact.js?v=241575a8"></script>
 <script src="trade-stress.js?v=627bc2d0"></script>
 <script>
@@ -1541,12 +1542,25 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const timelineRow = `<div class="mt-2 text-[12px] text-zinc-400 flex flex-wrap gap-x-5 gap-y-1.5">${[teamA, teamB].map(t => { const choice = Vault.planOverride[t.rosterId] || ''; const option = (v, text) => `<option value="${v}" ${choice === v ? 'selected' : ''}>${text}</option>`; return `<label class="inline-flex flex-wrap items-center gap-x-2" title="Trade verdicts use each team's independently selected timeline.">${Vault.possessive(Vault.escapeHtml(t.teamName))} timeline <select onchange="setTeamTimeline(${t.rosterId}, this.value)" aria-label="${Vault.escapeHtml(t.teamName)} timeline" class="shrink-0 bg-black/40 border rounded px-1 py-0.5 text-[12px] outline-none ${choice ? 'border-amber-400/40 text-amber-100' : 'border-white/10 text-zinc-200'}">${option('', `${Vault.MODE_LABEL[autoTimeline(t)]} (auto)`)}${option('contend', 'Contending')}${option('rebuild', 'Rebuilding')}</select></label>`; }).join('')}</div>`;
   // Their out-of-race note reads under the tiles, with yours, instead of stretching their tile.
   const theirSub = '';
+  // Four distinct decisions: market price, this team's benefit, their benefit,
+  // and the separate negotiation model. Never label a forecast as an acceptance probability.
+  const priceLedger = VaultTradePolicy.ledger(Vault, aAssets, bAssets);
+  const managerStyle = typeof Negotiation === 'undefined' ? null : Negotiation.styles?.get(teamB.rosterId);
+  const evidence = VaultTradePolicy.evidence({style:managerStyle, basis:managerStyle?.trades >= 2 ? 'history' : 'market'});
+  const priceGap = Math.floor(Math.abs(priceLedger.packageGap));
+  const additiveGap = Math.floor(Math.abs(priceLedger.additiveGap));
+  const marketBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(priceLedger.packageGap), 0, 0));
+  const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-2 gap-2 max-w-[640px]" aria-label="Independent market and manager assessments">
+      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Market fairness</div><div class="text-[13px] font-medium text-zinc-200">${marketBucket} · ${priceGap}% package gap</div><div class="text-[11px] text-zinc-500">${additiveGap}% before consolidation · not roster fit</div></div>
+      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Manager response</div><div class="text-[13px] font-medium text-zinc-200">Not confirmed · model in Trade Coach</div><div class="text-[11px] text-zinc-500">${Vault.escapeHtml(evidence.sample)} · not a probability</div></div>
+    </div>`;
   el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Good grades for both · acceptance unconfirmed'}</span></div>` : ''}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-w-[640px]">
       ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp), Vault.info('verdict'))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
     </div>
     ${timelineRow}
+    ${decisionLens}
     ${Vault.verdictRecordText(imp) ? `<div class="text-[12px] text-zinc-400 mt-2 max-w-[640px]">${Vault.verdictRecordText(imp)}${Vault.info('trackRecord')}</div>` : ''}
     <div class="text-[14px] text-zinc-200 mt-3 max-w-[640px]">${improvementReason(imp, null)}${imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : ''}${them && them.outOfRace ? ` <span class="text-zinc-400">${Vault.escapeHtml(teamB.teamName)} is out of the playoff race, so this season's points don't count in their verdict.</span>` : ''}</div>${overpayNoteHtml(imp)}`;
   const dockSide = (who, label, cls) => `<div class="min-w-0"><div class="text-[10px] uppercase tracking-wider text-zinc-500 truncate">${who}</div><div class="num text-[17px] leading-tight ${cls}">${label}</div></div>`;
@@ -1635,15 +1649,7 @@ function evenPlan() {
       .sort((x, y) => y.value - x.value);
     const delta = Vault.tradeSideValues(A0, B0);
     const deficit = Math.abs(delta.valueA - delta.valueB);
-    const near = [...pool].sort((x, y) => Math.abs(x.value - deficit / 2) - Math.abs(y.value - deficit / 2)).slice(0, 18);
-    const pairPool = [...new Map([...near, ...pool.slice(0, 8), ...pool.slice(-6)].map(a => [a.key, a])).values()];
-    const thirdPool = [...pool].sort((x, y) => Math.abs(x.value - deficit / 3) - Math.abs(y.value - deficit / 3)).slice(0, 14);
-    const cands = pool.map(a => ({ add: [a], drop: [] }));
-    if (has.length > 1) has.forEach(a => cands.push({ add: [], drop: [a] }));
-    if (has.length > 2) has.forEach((a, i) => has.slice(i + 1).forEach(b => cands.push({ add: [], drop: [a, b] })));
-    pairPool.forEach((a, i) => pairPool.slice(i + 1).forEach(b => cands.push({ add: [a, b], drop: [] })));
-    thirdPool.forEach((a, i) => thirdPool.slice(i + 1).forEach((b, j) =>
-      thirdPool.slice(i + j + 2).forEach(c => cands.push({ add: [a, b, c], drop: [] }))));
+    const cands = VaultTradePolicy.evenCandidates(pool, has, deficit);
     // Two-sided value calculations are inexpensive; full lineup simulations
     // are not. Price-screen the whole search before analyzing the best 80.
     const priced = [];
@@ -1659,7 +1665,8 @@ function evenPlan() {
       priced.push({ ...c, A, B, helpB, movingStarter, complexity, preScore: gap + complexity * 2 + movingStarter * 3 });
     }
     priced.sort((x, y) => x.preScore - y.preScore);
-    for (const c of priced.slice(0, 80)) {
+    // Keep competitive add/drop/package/swap candidates, not just the cheapest 80.
+    for (const c of VaultTradePolicy.evenShortlist(priced)) {
       const j = judge(c.A, c.B);
       if (j.A.score < -6 || j.B.score < -6) continue;
       found.push({ ...c, after: j, key: Math.min(j.A.score, j.B.score) * 3 + Math.max(j.A.score, j.B.score) - c.complexity * 4 - c.movingStarter * 3 });
@@ -2878,7 +2885,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
 init();
 </script>
 <script src="share-image.js?v=a4003002"></script>
-<script src="negotiation.js?v=d84420e2"></script>
+<script src="negotiation.js?v=b58e8278"></script>
 <script src="market-data.js?v=9e9371ed"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script src="market.js?v=22c28c17"></script>

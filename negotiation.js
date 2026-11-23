@@ -37,7 +37,7 @@ const NEG = {
                             // the 2026-10-07 curve (~5%); on today's (fair curve, extra pieces) about 1%: median
                             // -0.6%, 1-for-2 -1.1%, 1-for-3 -1.9% on 121,971 trades since June 2026
                             // (VaultValues consolidator-premium.js, 2026-10-09).
-  SITE_NO_PENALTY: 5,       // the grade reading bad for them counts against it (no longer an automatic no)
+  SITE_NO_PENALTY: 5,       // negative receiving-team grade counts against willingness, not an automatic no
   STAR_1FOR1: [[8000, 10], [6000, 6]], // asking for a star straight up: in KTC's trade database only ~1% of
                             // trades with an 8,000+ piece (and ~5% at 6,000-8,000) were 1-for-1, vs ~50% under 4,000
   TARGET_EDGE: 4,           // their counters aim ~4% in their favor
@@ -194,9 +194,9 @@ function negJudge(aAssets, bAssets, R, ctx) {
 // blended with only their own roster fit and timeline. A contender giving up a
 // top scorer for a pick and prospects sees a worse deal than KTC value alone
 // says, and that's what they'd decide on; how well it fits YOUR plan doesn't
-// change their answer. They also never accept an offer the calculator's own
-// read for them (heads.B, the "Decline This" verdict) says to decline, so the
-// prediction and the Trade Analysis below can't disagree.
+// change their answer. An accepted offer can still grade poorly for that
+// manager: actual trades sometimes have this shape. Flag the disagreement
+// explicitly rather than treating an advisory grade as a hard prohibition.
 function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   const { valueA, valueB } = Vault.tradeSideValues(oAssets, rAssets);
   const an = computeTradeAnalysis(teamO, teamR, oAssets, rAssets, valueA, valueB);
@@ -222,14 +222,17 @@ function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
   // itself since 2026-10-09 (each piece at its market price, Vault.gradeValue), so
   // it isn't added again here.
   // The grade reading bad for their side counts against it, but isn't an automatic no.
-  const siteSaysNo = an.heads.B.tone === 'bad';
+  const receivingVerdict = improvementOf(an, 'B');
+  const siteSaysNo = receivingVerdict.level === 'bad';
   if (siteSaysNo) concerns.push({ w: -NEG.SITE_NO_PENALTY, text: 'Graded from their side, it reads as a bad trade for them.' });
   const will = own + concerns.reduce((t, c) => t + c.w, 0);
   // No trade history of their own: how far behind managers in this spot (the trade's
   // shape from their side) typically go in trades they accept.
   const ask = ctx.basis === 'market' ? -Vault.acceptTolerance(oAssets, rAssets) : ctx.ask;
-  const accepts = will >= ask && drops <= 1;
-  return { an, edge, own, will, ask, drops, stashed, concerns, accepts, siteSaysNo, fair, fit, headO: an.heads.A };
+  const evidence = VaultTradePolicy.evidence(ctx);
+  const decision = VaultTradePolicy.receiverDecision({will, ask, drops, level: receivingVerdict.level});
+  const { accepts, gradeConflict } = decision;
+  return { an, edge, own, will, ask, drops, stashed, concerns, accepts, gradeConflict, siteSaysNo, receivingVerdict, evidence, fair, fit, headO: an.heads.A };
 }
 
 // The manager's reply in their own words: what bothers them most, then what
@@ -272,9 +275,11 @@ function negReasons(j, ctx) {
   else if (tl <= -5) no.push(`It works against their${when ? ' ' + when : ''} timeline.`);
   [...j.concerns].sort((x, y) => Math.abs(y.w) - Math.abs(x.w)).forEach(c => (c.w > 0 ? yes : no).push(c.text));
   let summary;
-  if (j.accepts) summary = no.length ? 'What they gain outweighs what gives them pause.' : 'Nothing here gives them pause.';
+  if (j.gradeConflict) summary = 'The model leans toward acceptance based on price and trading behavior, but Vault grades the deal negatively for their team. A manager can accept a poor deal; neither prediction is a guarantee.';
+  else if (j.accepts) summary = no.length ? 'What they gain outweighs what gives them pause.' : 'Nothing here gives them pause.';
   else if (j.drops > 1) summary = `They'd have to cut ${j.drops} players to make room${j.stashed?.length ? ` (${j.stashed.join(', ')}, so sending ${j.stashed.length === 1 ? 'him' : 'them'} frees no roster spot)` : ''}, so they'd pass.`;
-  else if (ctx.basis === 'history' && ctx.ask > -6 && j.will < ctx.ask && j.will > ctx.ask - 6) summary = 'Their trade history says they rarely come out behind, so they want it close to even.';
+  else if (j.siteSaysNo) summary = 'The receiving team\'s Vault verdict is negative, which weighs against the projected response.';
+  else if (ctx.basis === 'history' && ctx.ask > -6 && j.will < ctx.ask && j.will > ctx.ask - 6) summary = 'Their recorded trades suggest they often seek close-to-even prices; this is not proof of their next decision.';
   else summary = 'What gives them pause outweighs what they gain.';
   const style = ctx.style && ctx.style.trades ? `Their trade history: ${Vault.escapeHtml(ctx.style.style.toLowerCase())}.` : '';
   return { yes: [...new Set(yes)].slice(0, 4), no: [...new Set(no)].slice(0, 4), summary, style };
@@ -445,7 +450,7 @@ async function negOffer(btn) {
   }
   const ctx = negContext(R);
   const j = negJudge(aAssets, bAssets, R, ctx);
-  const round = { offer: { A: negKeys(aAssets), B: negKeys(bAssets) }, O, R, edge: j.edge, reasons: negReasons(j, ctx) };
+  const round = { offer: { A: negKeys(aAssets), B: negKeys(bAssets) }, O, R, edge: j.edge, evidence: j.evidence, gradeConflict: j.gradeConflict, reasons: negReasons(j, ctx) };
   let c = null;
   if (j.accepts) { round.decision = 'accept'; round.reply = negReply(j, O === 'A' ? aAssets : bAssets, O === 'A' ? bAssets : aAssets, null, ctx); }
   else {
@@ -601,9 +606,9 @@ function negAddInterest(key) {
 }
 
 const NEG_PILL = {
-  accept: ['Would accept', 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'],
-  counter: ['Counters', 'bg-amber-500/10 text-amber-300 border-amber-500/25'],
-  decline: ['Declines', 'bg-rose-500/10 text-rose-300 border-rose-500/25'],
+  accept: ['Projected accept', 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'],
+  counter: ['Projected counter', 'bg-amber-500/10 text-amber-300 border-amber-500/25'],
+  decline: ['Projected decline', 'bg-rose-500/10 text-rose-300 border-rose-500/25'],
   deal: ['Deal reached', 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'],
   walk: ['Walked away', 'bg-white/5 text-zinc-400 border-white/10']
 };
@@ -671,7 +676,7 @@ function negRender() {
       <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Negotiating with ${who} <span class="normal-case tracking-normal text-zinc-500">· ${Vault.MODE_LABEL[Vault.teamMode(rTeam)]}${ctx.style && ctx.style.trades ? ` · ${Vault.escapeHtml(ctx.style.style)}` : ''}</span></div>
       <button onclick="negReset()" class="text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-400 hover:text-white">Start over</button>
     </div>
-    <p class="text-[12px] text-zinc-500 mb-3">Send the real offer in Sleeper.</p>
+    <p class="text-[12px] text-zinc-500 mb-3">Simulated manager response, not an actual message or a measured acceptance probability. Only a real Sleeper offer confirms what a manager will do.</p>
     <div class="space-y-3">${Negotiation.rounds.map((r, i) => {
       const [label, cls] = NEG_PILL[r.decision];
       if (r.decision === 'deal') return `<div class="p-3 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20">
@@ -686,6 +691,8 @@ function negRender() {
         <div class="flex items-center gap-2 mb-1.5"><span class="text-[12px] px-2 py-0.5 rounded-md border ${cls}">${label}</span><span class="text-[12px] text-zinc-400">${who}</span></div>
         ${r.reply ? `<div class="mb-2.5 px-3 py-2 rounded-lg rounded-tl-sm bg-white/[0.04] border border-white/10 text-[13px] text-zinc-100">"${r.reply}"</div>` : ''}
         ${negReasonsHtml(r)}
+        ${r.evidence ? `<div class="text-[11px] text-zinc-500 mb-2">Evidence: ${Vault.escapeHtml(r.evidence.note)}</div>` : ''}
+        ${r.gradeConflict ? `<div class="text-[12px] text-amber-200 border border-amber-500/20 bg-amber-500/[0.05] rounded-md px-2.5 py-2 mb-2">The response model leans accept, but the independent team-benefit grade is negative for ${who}. This is not a recommendation to that manager.</div>` : ''}
         ${r.decision === 'accept' && r.edge >= VAULT_CONFIG.FAIR_PCT ? `<div class="text-[12px] text-orange-300 mb-1.5">Heads up: ${who} would accept because ${Vault.escapeHtml(teamOf(r.O)?.teamName || 'your team')} now pays ${capPct(r.edge).toFixed(0)}% over: ${r.edge >= VAULT_CONFIG.LOPSIDED_PCT ? 'Unfair' : 'Lopsided'} against ${Vault.escapeHtml(teamOf(r.O)?.teamName || 'your team')}.${negAssets(r.O, r.offer[r.O]).length < negAssets(r.R, r.offer[r.R]).length ? ' On KTC\'s math, extra smaller pieces on your side count for less than the premium on the best player in the deal, so asking for a throw-in can make it worse for you.' : ''}</div>` : ''}
         ${r.decision === 'accept' ? `<div class="text-[12px] text-zinc-400">${who} would take this as offered. Make the offer in Sleeper.</div>` : ''}
         ${r.interests?.length ? `<div class="text-[12px] text-zinc-400 mb-1.5">On your roster, they'd be more interested in:</div>

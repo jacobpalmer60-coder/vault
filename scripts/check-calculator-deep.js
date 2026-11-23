@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const {loadVault}=require('./lib-market'),Vault=loadVault();
+const VaultTradePolicy=require('../trade-policy');
 const trade=fs.readFileSync(path.join(__dirname,'..','trade.html'),'utf8');
 const extract=(a,b)=>{const i=trade.indexOf(a),j=trade.indexOf(b,i+a.length);assert.ok(i>=0&&j>i,a);return trade.slice(i,j)};
 const pool=[{id:'r20',pos:'RB',ppg:20},{id:'w19',pos:'WR',ppg:19},{id:'r1',pos:'RB',ppg:1}];
@@ -39,6 +40,7 @@ function checkPlan(accept, opts={}){
   teamOf:s=>s==='A'?(opts.A||A):(opts.B||B),selectedA:opts.selectedA||new Set(['a1']),selectedB:opts.selectedB||new Set(['b1']),
   EVEN_MAX_GAP:8,EVEN_OPTIONS:6,EVEN_PIECE_REPEATS:2,
   evenContextKey:()=>[opts.A?.rosterId||A.rosterId,opts.B?.rosterId||B.rosterId,'{}'].join('|'),
+  VaultTradePolicy,
   Vault:{tradeSideValues:(a,b)=>({valueA:a.reduce((n,x)=>n+x.value,0),valueB:b.reduce((n,x)=>n+x.value,0)})},
   computeTradeAnalysis:(_a,_b,_aa,_bb,vA,vB)=>({gap:200*Math.abs(vA-vB)/(vA+vB)}),
   improvementOf:an=>({level:an.gap<=8?'tossup':'bad',score:an.gap<=8?0:-20}),
