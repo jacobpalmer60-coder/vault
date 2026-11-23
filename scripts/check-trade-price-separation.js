@@ -90,6 +90,26 @@ assert.equal(data.playerOnlyShape['2024|1-for-1'].weights['0'].right,
 assert.equal(data.nearPeer['Lead within 5% | second >=40% of lead'].decisive,1);
 assert.equal(data.nearPeerByYear['2024|Lead within 5% | second >=40% of lead'].decisive,1);
 assert.equal(data.nearPeer['All player-only 1-for-2'].decisive,3);
+// Opt-in focused mode: a user can start with a small, relevant subset rather
+// than blocking on the entire multi-GB archive and all six KTC price books.
+let focused,progressMessages=[];
+vm.runInNewContext(source,{
+ require:mocks,process:{env:{SAMPLE_MOD:'1',BENCHMARK_YEAR:'2024',
+   BENCHMARK_FORMAT:'sf',NEAR_PEER_ONLY:'1'},stderr:{
+   write:t=>progressMessages.push(t)
+ },memoryUsage:()=>({rss:1024,heapUsed:1024})},
+ console:{log:s=>{focused=JSON.parse(s)}},
+ Date,Map,Set,Math,Number,String,Object,Array,Error
+});
+assert.equal(focused.filters.year,'2024');
+assert.equal(focused.filters.format,'sf');
+assert.equal(focused.filters.playerOnlyOneForTwo,true);
+assert.equal(focused.counts.complete,2,'focused mode excludes 1-for-1 and other-year trades');
+assert.equal(focused.nearPeer['All player-only 1-for-2'].decisive,2);
+assert.ok(progressMessages.some(line=>line.includes('Decompressed 2024.json.gz')));
+assert.ok(progressMessages.some(line=>line.includes('Finished 2024.json.gz')));
+assert.ok(report(focused).includes('ONLY player-only 1-for-2'),
+ 'a filtered report must disclose its narrower scope');
 const sideBySide=review({sideA:raw,sideB:bundle},ratio);
 assert.ok(sideBySide.includes('Additive market price'));
 assert.ok(sideBySide.includes('NOT MEASURED'));
