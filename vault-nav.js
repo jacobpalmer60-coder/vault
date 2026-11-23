@@ -30,6 +30,7 @@
     ] },
     { label: 'League Trades', tabs: [
       { key: 'grades', short: 'Trade Grades', label: 'Trade Grades', href: 'trade_grades.html' },
+      { key: 'activity', short: 'Activity', label: 'League Activity', href: 'activity.html' },
       { key: 'managers', short: 'Managers', label: 'Managers', href: 'managers.html' }
     ] },
     { label: 'Trade Lab', tabs: [
@@ -139,6 +140,8 @@ body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}#verdictDock{bottom
       document.head.appendChild(st);
     }
 
+    // Preserve the active league when contextual links connect the tools.
+    document.querySelectorAll('a[data-vault-page]').forEach(a => { a.href = Vault.linkTo(a.dataset.vaultPage, leagueId); });
     mount.innerHTML = `
       ${main ? `<a href="#${main.id}" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-amber-400 focus:text-black focus:font-semibold">Skip to content</a>` : ''}
       <header class="z-40 border-b border-white/[0.07] bg-[#0c0d10]/95">
