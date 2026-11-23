@@ -1,84 +1,83 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Draft Center — The Vault</title>
-<meta name="description" content="Compare every team's Max Points For, draft capital and traded future-pick ownership without invented official draft slots.">
+<meta name="description" content="Live Max Points For, league-wide rookie pick ownership, playoff placement and commissioner-configured draft order.">
+<meta property="og:title" content="Rookie Draft Center — The Vault">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/draft.html">
 <link rel="icon" href="brand/vault-dial-32.png" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=9c5b8b3f"><link rel="stylesheet" href="tailwind.css?v=e1a31561">
+<link rel="stylesheet" href="vault.css?v=9c5b8b3f">
+<link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
-<body class="text-zinc-100 antialiased"><div class="vault-bg"></div><div id="vault-nav"></div>
-<main id="main" class="max-w-[1200px] mx-auto px-4 sm:px-6 py-5 lg:py-7">
-  <h1 class="display text-[30px] gold-text">Draft Center</h1>
-  <p id="status" role="status" class="text-[13px] text-zinc-400 mt-2">Loading Max Points For and future picks…</p>
-  <p id="error" class="hidden text-[13px] text-amber-200 mt-4">Sleeper roster and pick data are required. Try again or switch leagues.</p>
-  <div id="draftContent" class="hidden">
-    <div class="card rounded-xl p-4 mt-4 text-[13px] text-zinc-300"><strong class="text-zinc-100">Draft order is league-specific.</strong> Max Points For may order non-playoff picks while playoff finish decides later slots. The MPF ranking below includes every manager and is <strong>not an official rookie draft order</strong>. This page never invents playoff eliminations, final draft positions or rookie selections.</div>
-    <div class="flex flex-wrap gap-3 items-end my-5">
-      <label class="text-[13px] text-zinc-400">Draft season <select id="year" aria-label="Draft season" class="block mt-1 min-w-[130px] bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-zinc-100"></select></label>
-      <label class="text-[13px] text-zinc-400">Picks involving <select id="teamFilter" aria-label="Team filter" class="block mt-1 min-w-[210px] max-w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-zinc-100"></select></label>
-    </div>
-    <div class="grid lg:grid-cols-2 gap-4">
-      <section class="card rounded-2xl p-4 min-w-0"><h2 class="text-[19px] font-semibold">Max Points For</h2><p id="coverage" class="text-[12px] text-zinc-400 mt-1"></p>
-        <p class="text-[12px] text-zinc-400 my-2">Lowest first. Sleeper's actual regular-season potential points, not a projected final rookie draft order.</p>
-        <div class="overflow-x-auto"><table class="w-full text-[13px]"><thead class="text-zinc-400 text-[12px]"><tr><th class="text-left p-2">MPF rank</th><th class="text-left p-2">Team</th><th class="text-right p-2">MPF</th><th class="text-right p-2">Record</th></tr></thead><tbody id="mpfRows"></tbody></table></div></section>
-      <section class="card rounded-2xl p-4 min-w-0"><h2 class="text-[19px] font-semibold">Current draft capital</h2>
-        <p class="text-[12px] text-zinc-400 my-2">Selected season. Values are Vault market estimates, not confirmed pick slots.</p>
-        <div class="overflow-x-auto"><table class="w-full text-[13px]"><thead class="text-zinc-400 text-[12px]"><tr><th class="text-left p-2">Manager</th><th class="text-right p-2">1sts</th><th class="text-right p-2">Picks</th><th class="text-right p-2">Value</th></tr></thead><tbody id="capitalRows"></tbody></table></div></section>
-    </div>
-    <section class="card rounded-2xl p-4 mt-4"><h2 class="text-[19px] font-semibold">Traded pick ownership</h2>
-      <p class="text-[12px] text-zinc-400 my-2">Every future tradable pick currently returned for this league. Original team and current holder are separate. Filtering a manager shows picks they own or that originated with them.</p>
-      <div class="overflow-x-auto"><table class="w-full text-[13px]"><thead class="text-zinc-400 text-[12px]"><tr><th class="text-left p-2">Pick</th><th class="text-left p-2">Original team</th><th class="text-left p-2">Current holder</th><th class="text-right p-2">Value</th></tr></thead><tbody id="pickRows"></tbody></table></div></section>
-    <p class="text-[12px] text-zinc-400 mt-4">Future development: configurable commissioner draft-order rules and confirmed playoff elimination rounds. No league is assumed to use a universal rookie order.</p>
+<body class="text-zinc-100 antialiased">
+<div class="vault-bg"></div><div id="vault-nav"></div>
+<main id="main" class="vault-page max-w-[1240px] mx-auto px-4 sm:px-6 py-5 lg:py-8">
+<header class="vault-hero">
+  <div><div class="vault-kicker">LEAGUE INTELLIGENCE / ROOKIE PICKS</div>
+    <h1 class="display text-[30px] sm:text-[36px]">Draft Center</h1>
+    <p class="vault-lead">Who owns each pick, what the league's Max Points For says, and which draft slots can actually be established.</p>
   </div>
+  <button type="button" id="refreshDraft" class="vault-btn vault-btn-muted">Refresh data</button>
+</header>
+<p id="draftStatus" role="status" aria-live="polite" class="vault-meta mt-3">Loading Sleeper roster and bracket data…</p>
+<p id="draftError" class="vault-warning hidden mt-4">Sleeper returned incomplete data. Refresh the page or switch leagues.</p>
+<div id="draftContent" class="hidden">
+<section class="vault-panel vault-panel-accent mt-5" aria-label="Draft order model status">
+  <div class="vault-kicker">HOW TO READ THESE RESULTS</div>
+  <p class="vault-body mt-2"><strong>Max Points For is not the complete draft order.</strong> A league may use MPF for eliminated non-playoff teams, then playoff finishing position for the remaining slots. We read actual Sleeper bracket placements and keep unknown slots as TBD. Commissioner changes below apply only in this browser, not to Sleeper or other managers.</p>
+  <p id="dataState" class="vault-meta mt-3"></p>
+  <p id="draftReady" class="vault-meta mt-1"></p>
+  <div id="warnings" class="mt-2 space-y-1" role="status" aria-live="polite"></div>
+</section>
+<section class="vault-toolbar mt-5" aria-label="Draft controls">
+ <label>Draft class <select id="season" class="vault-input" aria-label="Draft class"></select></label>
+ <label>Manager <select id="teamFilter" class="vault-input" aria-label="Filter by manager"></select></label>
+ <label>Draft format <select id="roundStyle" class="vault-input" aria-label="Draft format">
+  <option value="linear">Linear</option><option value="snake">Snake</option><option value="3rr">Third-round reversal (3RR)</option>
+ </select></label>
+ <label>Playoff teams <select id="playoffCount" class="vault-input" aria-label="Playoff team count"></select></label>
+</section>
+<div class="vault-grid-2 mt-5">
+ <section class="vault-panel">
+   <div class="vault-panel-heading"><div><div class="vault-kicker">PICK ORDER</div><h2>Modeled first round</h2></div></div>
+   <p class="vault-meta mt-2">MPF for non-playoff teams; finished Sleeper winners-bracket placement games for playoff teams. Unfinished games stay TBD.</p>
+   <div class="vault-table-wrap mt-3"><table class="vault-table" aria-label="Modeled rookie draft order">
+   <thead><tr><th>Pick</th><th>Original team</th><th>Field</th><th>Basis</th><th>1st-round slot</th></tr></thead><tbody id="orderRows"></tbody></table></div>
+ </section>
+ <section class="vault-panel">
+  <div class="vault-panel-heading"><div><div class="vault-kicker">POTENTIAL POINTS</div><h2>Max Points For</h2></div></div>
+  <p class="vault-meta mt-2" id="mpfCoverage"></p>
+  <div class="vault-table-wrap mt-3"><table class="vault-table" aria-label="All teams Max Points For">
+  <thead><tr><th>MPF rank</th><th>Team</th><th class="value">Sleeper MPF</th></tr></thead><tbody id="mpfRows"></tbody></table></div>
+ </section>
+</div>
+<div class="vault-grid-2 mt-4">
+ <section class="vault-panel">
+  <div class="vault-panel-heading"><div><div class="vault-kicker">ASSETS</div><h2>Draft capital by holder</h2></div></div>
+  <p class="vault-meta mt-2">Every team is included. Values follow Vault's live pick estimates, not this draft-order model.</p>
+  <div class="vault-table-wrap mt-3"><table class="vault-table" aria-label="Draft capital by manager">
+  <thead><tr><th>Manager</th><th class="value">1sts</th><th class="value">Picks</th><th class="value">Market value</th></tr></thead><tbody id="capitalRows"></tbody></table></div>
+ </section>
+ <section class="vault-panel">
+  <div class="vault-panel-heading"><div><div class="vault-kicker">OWNERSHIP</div><h2>Traded picks</h2></div></div>
+  <p class="vault-meta mt-2">The draft slot belongs to the original team, while its current manager owns the pick. Filter above to see picks arriving or leaving.</p>
+  <div class="vault-table-wrap mt-3"><table class="vault-table" aria-label="Current and original draft pick owners">
+   <thead><tr><th>Draft pick</th><th>Original team</th><th>Current holder</th><th class="value">Value</th><th>Source</th></tr></thead><tbody id="pickRows"></tbody></table></div>
+ </section>
+</div>
+<details class="vault-panel mt-4" id="commissionerRules">
+  <summary class="vault-accordion-heading">Commissioner rules and manual placement <span class="vault-meta">Saved on this device only</span></summary>
+  <p class="vault-meta mt-3">Select exactly the playoff teams if Sleeper's bracket is not populated, or override any first-round slot to reflect your league's official tie-break or playoff finish. A conflicting slot is flagged, never silently reassigned. Linear, snake and 3RR change the slot in later rounds, not player values.</p>
+  <p id="selectedCount" class="vault-meta mt-2"></p>
+  <div id="manualRows" class="draft-rule-grid mt-3"></div>
+  <button type="button" id="resetRules" class="vault-btn vault-btn-muted mt-4">Reset this draft's overrides</button>
+</details>
+</div>
 </main>
-<script src="vault-core.js?v=759debb7"></script><script src="vault-nav.js?v=642139eb"></script>
-<script>(function draftApp(){
-  'use strict';
-  const $=id=>document.getElementById(id), e=v=>Vault.escapeHtml(String(v??''));
-  const ord=r=>String(r)+({1:'st',2:'nd',3:'rd'}[r]||'th');
-  const fmt=n=>Number(n).toLocaleString(undefined,{maximumFractionDigits:2});
-  const price=n=>Number.isFinite(+n)?Math.round(+n).toLocaleString():'—';
-  let teams=[],league=null,years=[],year=0,selected='all',mpf=new Map();
-  const name=id=>teams.find(t=>String(t.rosterId)===String(id))?.teamName||'Roster '+id;
-  const link=t=>'<a href="'+Vault.linkTo('team-analyzer.html')+'&team='+encodeURIComponent(t.rosterId)+'" class="text-zinc-100 hover:text-amber-200 underline underline-offset-2 decoration-white/20">'+e(t.teamName)+'</a>';
-  const sum=items=>items.reduce((n,p)=>n+(+p.asset.value||0),0);
-  function render(){
-    const all=teams.flatMap(holder=>(holder.picks||[]).filter(p=>+p.season===year).map(asset=>({holder,asset})));
-    const byMpf=[...teams].sort((a,b)=>(mpf.get(String(a.rosterId))??Infinity)-(mpf.get(String(b.rosterId))??Infinity)||a.teamName.localeCompare(b.teamName));
-    const coverage=byMpf.filter(t=>mpf.get(String(t.rosterId))!=null).length;
-    $('coverage').textContent=coverage+' of '+teams.length+' teams have a current MPF total from Sleeper.';
-    $('mpfRows').innerHTML=byMpf.map((t,i)=>{
-      const m=mpf.get(String(t.rosterId)),rec=t.record||{},record=Number.isFinite(rec.wins)&&Number.isFinite(rec.losses)?rec.wins+'–'+rec.losses+(rec.ties?'–'+rec.ties:''):'—';
-      return '<tr class="border-t border-white/5"><td class="p-2 text-zinc-400">'+(m==null?'—':i+1)+'</td><td class="p-2">'+link(t)+'</td><td class="p-2 text-right tabular-nums">'+(m==null?'—':fmt(m))+'</td><td class="p-2 text-right tabular-nums text-zinc-400">'+record+'</td></tr>';
-    }).join('');
-    const capital=teams.map(t=>({t,picks:all.filter(p=>String(p.holder.rosterId)===String(t.rosterId))})).sort((a,b)=>sum(b.picks)-sum(a.picks));
-    $('capitalRows').innerHTML=capital.map(({t,picks})=>'<tr class="border-t border-white/5"><td class="p-2">'+link(t)+'</td><td class="p-2 text-right tabular-nums">'+picks.filter(p=>+p.asset.round===1).length+'</td><td class="p-2 text-right tabular-nums">'+picks.length+'</td><td class="p-2 text-right tabular-nums">'+price(sum(picks))+'</td></tr>').join('');
-    const shown=all.filter(p=>selected==='all'||String(p.holder.rosterId)===selected||String(p.asset.original)===selected)
-      .sort((a,b)=>(+a.asset.round)-(+b.asset.round)||name(a.asset.original).localeCompare(name(b.asset.original)));
-    $('pickRows').innerHTML=shown.length?shown.map(({holder,asset})=>'<tr class="border-t border-white/5"><td class="p-2">'+year+' '+ord(+asset.round)+'</td><td class="p-2">'+e(name(asset.original))+'</td><td class="p-2">'+link(holder)+'</td><td class="p-2 text-right tabular-nums">'+price(asset.value)+'</td></tr>').join(''):'<tr><td colspan="4" class="p-3 text-zinc-400">No currently tradable picks found for this filter. Drafted selections are not included.</td></tr>';
-    $('status').textContent=String(league.name)+' · '+teams.length+' teams · '+year+' picks · checked '+new Date().toLocaleTimeString();
-  }
-  (async()=>{
-    try{
-      const leagueId=Vault.getLeagueId();if(!leagueId)throw Error('Select your league first.');
-      const [built,rosters]=await Promise.all([Vault.buildLeagueTeams(leagueId),Vault.sleeperJson('https://api.sleeper.app/v1/league/'+encodeURIComponent(leagueId)+'/rosters',5)]);
-      if(!Array.isArray(rosters))throw Error('Sleeper roster data missing.');
-      league=built.league;teams=built.teams;const source=new Map(rosters.map(r=>[String(r.roster_id),r]));
-      teams.forEach(t=>{
-        const s=source.get(String(t.rosterId))?.settings||{};
-        const b=Number(s.ppts),f=Number(s.ppts_decimal);
-        mpf.set(String(t.rosterId),s.ppts==null||!Number.isFinite(b)?null:b+(s.ppts_decimal!=null&&Number.isFinite(f)?f/100:0));
-      });
-      years=[...new Set(teams.flatMap(t=>(t.picks||[]).map(p=>+p.season).filter(Number.isFinite)))].sort((a,b)=>a-b);
-      if(!years.length)throw Error('Sleeper has not supplied future tradable picks.');
-      const requested=+new URLSearchParams(location.search).get('season');year=years.includes(requested)?requested:years[0];
-      $('year').innerHTML=years.map(y=>'<option value="'+y+'"'+(year===y?' selected':'')+'>'+y+'</option>').join('');
-      $('teamFilter').innerHTML='<option value="all">All teams</option>'+teams.slice().sort((a,b)=>a.teamName.localeCompare(b.teamName)).map(t=>'<option value="'+t.rosterId+'">'+e(t.teamName)+'</option>').join('');
-      $('year').onchange=ev=>{year=+ev.target.value;const url=new URL(location.href);url.searchParams.set('season',String(year));history.replaceState(null,'',url);render()};
-      $('teamFilter').onchange=ev=>{selected=ev.target.value;render()};
-      $('draftContent').classList.remove('hidden');render();
-    }catch(err){$('status').textContent='Draft Center could not load: '+err.message;$('error').classList.remove('hidden');console.error(err)}
-  })();
-})();</script>
+<script src="vault-core.js?v=759debb7"></script>
+<script src="vault-nav.js?v=642139eb"></script>
+<script src="draft-rules.js"></script>
+<script src="draft-center.js"></script>
 </body></html>
