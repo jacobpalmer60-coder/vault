@@ -54,6 +54,12 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-22', items: [
+    { kind: 'improved', page: 'Trade Calculator', text: "Major pricing redesign: additive individual market values now determine live Fair/Lopsided/Unfair pricing. The old consolidation curve can no longer make secondary players disappear in a near-equal lead-player exchange." },
+    { kind: 'improved', page: 'Trade Calculator / Trade Coach', text: "Both managers' verdicts, Even It Out, trade matching, Coach, and negotiation price checks use the same shared additive price basis. Consoliding may still help starters or hurt depth, reflected as separate lineup/timeline utility." },
+    { kind: 'improved', page: 'Trade Grades', text: "Historical and today-price trade grades use additive KTC values, rather than a fitted bonus learned only from completed deals. Every team's transactions follow the same rule." },
+    { kind: 'fixed', page: 'Price comparison', text: "The former package curve is now explicitly historical-only. Historical tier outcome percentages are withheld until revalidated, and price category cutoffs remain provisional rather than being falsely presented as recalibrated." }
+  ] },
+  { date: '2026-11-22', items: [
     { kind: 'fixed', page: 'Trade Calculator', text: "The additive market-price sum and Vault's nonlinear package-model value are now explicitly labeled separately. A Fair package score no longer appears as Fair additive-market pricing." },
     { kind: 'improved', page: 'Trade Calculator', text: "When prices differ sharply, the trade card explains both gaps, the model-implied marginal value of the smaller second piece in a two-for-one, and the exact KTC/market/package comparison for both teams." },
     { kind: 'improved', page: 'Testing', text: "Exact Nov 22 trade regression: Boston + Kiner for Kittle is 35.19% listed KTC, 35.02% additive market, 33.66% KTC-calculator approximation, and 1.38% Vault package. No model weights changed." }
