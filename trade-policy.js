@@ -70,18 +70,19 @@ const VaultTradePolicy = (() => {
     return cands;
   }
 
-  function evenShortlist(priced, limit = 112) {
+  function evenShortlist(priced, limit = 80) {
     const ordered = [...priced].sort((a,b)=>a.preScore-b.preScore);
     const keep = [], seen = new Set();
     const add = c => {
       const key = [...c.add.map(x=>'a'+x.key),...c.drop.map(x=>'d'+x.key)].sort().join('|');
       if (keep.length < limit && !seen.has(key)) {seen.add(key);keep.push(c);}
     };
-    ordered.slice(0,64).forEach(add);
+    // Keep the original full-simulation budget while reserving room for swaps.
+    ordered.slice(0,40).forEach(add);
     const type = c => c.add.length && c.drop.length ? 'swap' :
       c.drop.length ? 'drop' : c.add.length > 1 ? 'package' : 'single';
     for (const t of ['swap','drop','package','single'])
-      ordered.filter(c=>type(c)===t).slice(0,16).forEach(add);
+      ordered.filter(c=>type(c)===t).slice(0,10).forEach(add);
     ordered.forEach(add);
     return keep;
   }
