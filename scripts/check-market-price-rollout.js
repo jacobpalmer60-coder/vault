@@ -57,7 +57,8 @@ assert.equal(Vault.verdictRecordText({mode:'rebuild',record:{rebuild:0.99}}),'',
 console.log('PASS symmetry, one-for-one, picks, additive monotonicity and verdict piece accounting');
 
 const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
-for(const p of ['trade.html','coach.js','negotiation.js','trade_grades.html']){
+for(const p of ['trade.html','coach.js','negotiation.js','trade_grades.html',
+  'grade.html','market-data.js','trade_database.html']){
  const src=read(p);
  assert.match(src,/Vault\.marketSideValues\(/,p+' must use live additive market pricing');
  assert.doesNotMatch(src,/Vault\.tradeSideValues\(/,p+' must not use retired curve for advice');
@@ -75,6 +76,10 @@ assert.match(trade,/VaultTradePolicy\.evenImprovement\(/);
 assert.doesNotMatch(trade,/originalAdditiveGap|improvement\.packageGain/);
 assert.match(read('trade-price-audit-ui.js'),/does not determine today's price grade/);
 assert.match(read('how_we_grade.html'),/cutoffs are provisional/);
+assert.match(read('trade_database.html'),/retired package-consolidation curve/,
+ 'precomputed historical market charts must identify their previous price model');
+assert.match(read('trade_lab.html'),/retired nonlinear consolidation curve/,
+ 'Trade Lab historical data must not claim to be freshly re-priced');
 console.log('PASS calculator, coach, negotiation, trade grades, balancing, explanatory labels');
 
 const policy=Policy.evenImprovement({
