@@ -73,7 +73,8 @@ const VERDICT_DOT = { good: 'bg-emerald-400', tossup: 'bg-amber-300', bad: 'bg-o
 const FAIR_FILTERS = ['All', 'Fair', 'Lopsided', 'Unfair'];
 const SORTS = { recent: 'Most Recent', lopsided: 'Most Lopsided' };
 
-let allGraded = [], recordedTradeCount = 0, visibleLimit = 30;
+const gradePageSize = () => window.innerWidth < 640 ? 12 : 30;
+let allGraded = [], recordedTradeCount = 0, visibleLimit = gradePageSize();
 // For the This season lines: today's league and remaining schedule.
 let ctx = null;
 let fairFilter = 'All';
@@ -392,7 +393,7 @@ function renderFilters() {
   ).join('');
 }
 
-function setFairFilter(f) { fairFilter = f; visibleLimit = 30; renderFilters(); renderList(); }
+function setFairFilter(f) { fairFilter = f; visibleLimit = gradePageSize(); renderFilters(); renderList(); }
 
 // One team's trades only (2026-10-23): the Team picker, '' (all), 'mine' or a
 // rosterId. A ?team=<rosterId> link (the Managers page) opens on that team;
@@ -401,7 +402,7 @@ const gradeTeamStorageKey = () => 'vault_grades_team_' + (Vault.getLeagueId() ||
 let teamFilter = new URLSearchParams(location.search).get('team') || (() => { try { return localStorage.getItem(gradeTeamStorageKey()) || ''; } catch { return ''; } })();
 const teamFilterId = () => (teamFilter === 'mine' ? String(Vault.getMyTeamId(Vault.getLeagueId()) || '') : String(teamFilter || ''));
 function setTeamFilter(v) {
-  teamFilter = v; visibleLimit = 30;
+  teamFilter = v; visibleLimit = gradePageSize();
   try { localStorage.setItem(gradeTeamStorageKey(), v); } catch {}
   const u = new URL(location.href); u.searchParams.delete('team'); history.replaceState(null, '', u.toString());
   renderList();
@@ -419,9 +420,9 @@ function renderTeamPicker() {
       </select></label>`;
   box.classList.remove('hidden');
 }
-function setSort(k) { sortKey = k; visibleLimit = 30; renderFilters(); renderList(); }
+function setSort(k) { sortKey = k; visibleLimit = gradePageSize(); renderFilters(); renderList(); }
 
-function showMoreGrades() { visibleLimit += 30; renderList(); }
+function showMoreGrades() { visibleLimit += gradePageSize(); renderList(); }
 function renderList() {
   let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => Vault.priceWord(g.bucket) === fairFilter);
   const id = teamFilterId();
@@ -437,7 +438,7 @@ function renderList() {
   countEl.textContent = items.length ? 'Showing ' + listed + ' of ' + items.length + ' reliable trade grades' : 'No trade grades match the selected filters';
   const more = document.getElementById('moreGrades');
   more.classList.toggle('hidden', listed === items.length);
-  more.textContent = 'Show next ' + Math.min(30, items.length-listed) + ' trades';
+  more.textContent = 'Show next ' + Math.min(gradePageSize(), items.length-listed) + ' trades';
   if (!items.length) {
     list.innerHTML = '';
     empty.classList.remove('hidden');
