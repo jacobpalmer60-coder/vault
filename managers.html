@@ -69,6 +69,7 @@ function bestWorstLine(rec, label, tone) {
 
 // That manager's trades on Trade Grades.
 function tradesLink(rosterId) { const u = Vault.linkTo('trade_grades.html'); return u + (u.includes('?') ? '&' : '?') + 'team=' + rosterId; }
+function activityLink(rosterId) { const u = Vault.linkTo('activity.html'); return u + (u.includes('?') ? '&' : '?') + 'team=' + rosterId; }
 
 function renderCard(s) {
   const notes = Vault.managerTendencyNotes(s, window._avgTrades || 0).slice(0, 4);
@@ -77,7 +78,7 @@ function renderCard(s) {
     <div class="rounded-xl bg-black/25 border border-white/5 p-4 my-1">
       <div class="flex items-start justify-between gap-3 mb-3 flex-wrap">
         <p class="text-[13px] text-zinc-200 leading-relaxed max-w-[640px]">${p.blurb}</p>
-        ${s.trades ? `<a href="${tradesLink(s.rosterId)}" class="shrink-0 text-[12px] text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">See their trades on Trade Grades</a>` : ''}
+        ${s.trades ? `<div class="flex gap-3 flex-wrap"><a href="${tradesLink(s.rosterId)}" class="vault-link text-[12px]">Graded trades</a><a href="${activityLink(s.rosterId)}" class="vault-link text-[12px]">All activity</a></div>` : `<a href="${activityLink(s.rosterId)}" class="vault-link text-[12px]">See all activity</a>`}
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-1 text-center py-3 border-y border-white/5 mb-4">
