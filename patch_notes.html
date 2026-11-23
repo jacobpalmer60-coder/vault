@@ -54,6 +54,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-22', items: [
+    { kind: 'improved', page: 'Managers and Trade Grades', text: 'Historical transaction weeks are now fetched with bounded concurrency and one retry on failure. Loading progress is visible, and still-missing weeks remain explicitly reported instead of being counted as no trades.' }
+  ] },
+  { date: '2026-11-22', items: [
     { kind: 'new', page: 'Draft Center', text: 'A league-wide draft capital workbench now shows Sleeper Max Points For, original and current pick owners, and pick totals by manager. Official rookie order is intentionally not invented.' },
     { kind: 'improved', page: 'Mobile interface', text: 'Expanded compact text on phones and improved touch targets for tabs, disclosures, and trade controls across the site.' }
   ] },

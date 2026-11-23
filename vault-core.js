@@ -4649,9 +4649,49 @@ const Vault = {
      league today has no current roster to grade against, so it naturally drops
      out once translation can't resolve their side — gradeTrade already returns
      null for any unresolved roster_id, nothing extra to filter here. */
-  async fetchAndGradeAllTrades(leagueId) {
+  /* Bounded, retryable transaction-week loader shared by Managers and Trade Grades.
+     Historic weeks use the existing browser cache; current-season transactions
+     still bypass HTTP cache. Failed weeks remain null and are disclosed, never
+     turned into an empty list that would hide real completed trades. */
+  async fetchLeagueTradeWeeks(seasonChain, activeLeagueId, onProgress = null) {
+    const jobs = seasonChain.flatMap(s => [...Array(19)].map((_, i) =>
+      ({ leagueId: s.leagueId, week: i })));
+    const out = new Map(), total = jobs.length;
+    let next = 0, done = 0, failures = 0;
+    const worker = async () => {
+      while (next < total) {
+        const job = jobs[next++];
+        const i = job.week;
+        const key = String(job.leagueId) + ':' + i;
+        let weeks = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const result = await Vault.sleeperJson(
+              `https://api.sleeper.app/v1/league/${job.leagueId}/transactions/${i}`,
+              String(job.leagueId) === String(activeLeagueId) ? 0 : 60);
+            if (!Array.isArray(result)) throw new Error('Non-array transaction response');
+            weeks = result;
+            break;
+          } catch (e) {
+            if (attempt === 1) console.warn('Sleeper trade week unavailable', job.leagueId, i, e);
+          }
+        }
+        if (weeks === null) failures++;
+        out.set(key, weeks);
+        done++;
+        if (typeof onProgress === 'function' && (done % 8 === 0 || done === total)) {
+          try { onProgress({ done, total, failures }); } catch (e) { console.warn('Trade loading progress handler failed', e); }
+        }
+      }
+    };
+    await Promise.all([...Array(Math.min(8, total))].map(worker));
+    return out;
+  },
+  async fetchAndGradeAllTrades(leagueId, { onProgress = null } = {}) {
     const { league, isSF, teams, slots, replacementLevels, remainingWeeks } = await Vault.buildLeagueTeams(leagueId);
     const seasonChain = await Vault.fetchSeasonChain(leagueId, league);
+    // Start I/O alongside player and price histories, not after they finish.
+    const weekLoad = Vault.fetchLeagueTradeWeeks(seasonChain, leagueId, onProgress);
 
     const [playersDb, ktcData, projData, rosters, traded, playerHist, pickHist] = await Promise.all([
       Vault.fetchSleeperPlayers(),
@@ -4677,16 +4717,15 @@ const Vault = {
     const teamById = new Map(teams.map(t => [t.rosterId, t]));
     const currentRosterIdForOwner = new Map(teams.map(t => [t.ownerId, t.rosterId]));
 
-    // Every season's own rosters (for that season's roster_id -> owner_id map) and
-    // transactions, fetched in parallel across seasons — each season already fans
-    // out its own 18 weeks in parallel too, same pattern the single-season fetch
-    // used before.
+    // Each transaction week was fetched by the bounded shared scheduler above.
+    // Keep its exact week index (0–18) so missing API responses remain visible.
+    const tradeWeeks = await weekLoad;
     const seasonTrades = await Promise.all(seasonChain.map(async s => {
-      const [seasonRosters, seasonDrafts, ...weeks] = await Promise.all([
+      const [seasonRosters, seasonDrafts] = await Promise.all([
         s.leagueId === leagueId ? Promise.resolve(rosters) : fetch(`https://api.sleeper.app/v1/league/${s.leagueId}/rosters`).then(r => r.json()).catch(() => []),
-        Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/drafts`, 4).catch(() => null),
-        ...[...Array(19)].map((_, i) => Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/transactions/${i}`, s.leagueId === leagueId ? 0 : 60).catch(() => null))
+        Vault.sleeperJson(`https://api.sleeper.app/v1/league/${s.leagueId}/drafts`, 4).catch(() => null)
       ]);
+      const weeks = [...Array(19)].map((_, i) => tradeWeeks.get(String(s.leagueId) + ':' + i) ?? null);
       const ownerByOldRoster = new Map((seasonRosters || []).map(ro => [ro.roster_id, ro.owner_id]));
       const translateRoster = oldRid => currentRosterIdForOwner.get(ownerByOldRoster.get(oldRid));
       const missingWeeks = weeks.flatMap((w, i) => Array.isArray(w) ? [] : [i]);

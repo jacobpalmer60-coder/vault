@@ -297,7 +297,7 @@ async function init() {
   try {
     const leagueId = Vault.getLeagueId();
     status.textContent = 'Loading player database and trade history…';
-    const { league, isSF, teams, allGraded, tradeActivity, pendingTrades, weekErrors } = await Vault.fetchAndGradeAllTrades(leagueId);
+    const { league, isSF, teams, allGraded, tradeActivity, pendingTrades, weekErrors } = await Vault.fetchAndGradeAllTrades(leagueId, { onProgress: ({done, total, failures}) => { status.textContent = `Loading trade history… ${done} of ${total} weeks checked${failures ? ` · ${failures} missing after retry` : ''}`; } });
     const stats = Vault.buildManagerStats(allGraded, teams, tradeActivity);
     const activityCount = (tradeActivity || []).length;
     const ungradedCount = (tradeActivity || []).filter(tx => !tx.priced).length;

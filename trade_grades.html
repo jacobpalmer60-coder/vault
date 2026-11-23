@@ -442,7 +442,7 @@ async function init() {
   try {
     const leagueId = Vault.getLeagueId();
     status.textContent = 'Loading player database and trade history…';
-    const { league, isSF, teams, slots, remainingWeeks, allGraded: graded, tradeActivity, weekErrors } = await Vault.fetchAndGradeAllTrades(leagueId);
+    const { league, isSF, teams, slots, remainingWeeks, allGraded: graded, tradeActivity, weekErrors } = await Vault.fetchAndGradeAllTrades(leagueId, { onProgress: ({done, total, failures}) => { status.textContent = `Loading trade history… ${done} of ${total} weeks checked${failures ? ` · ${failures} missing after retry` : ''}`; } });
     allGraded = graded;
     ctx = { league, teams, slots, remainingWeeks };
 
