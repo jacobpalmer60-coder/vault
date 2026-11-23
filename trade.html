@@ -1693,9 +1693,16 @@ function evenPlan() {
       const v = Vault.tradeSideValues(A, B);
       const gap = 200 * Math.abs(v.valueA - v.valueB) / ((v.valueA + v.valueB) || 1);
       if (gap > EVEN_MAX_GAP) continue;
+      // Screen obviously worse price proposals before the 80 expensive
+      // roster simulations. An already-close trade must not be "fixed" by
+      // a throw-in that stretches the additive/KTC-style overpayment.
+      const additiveAfter = balanced ? additiveGap(A, B) : null;
+      if (balanced && (additiveAfter > originalAdditiveGap + 2 ||
+          gap > originalGap + 1)) continue;
       const movingStarter = c.add.filter(a => starters.has(a.key)).length;
       const complexity = c.add.length + c.drop.length - 1;
-      priced.push({ ...c, A, B, helpB, movingStarter, complexity, preGap: gap, preScore: gap + complexity * 2 + movingStarter * 3 });
+      priced.push({ ...c, A, B, helpB, movingStarter, complexity, preGap: gap,
+        additiveAfter, preScore: gap + complexity * 2 + movingStarter * 3 });
     }
     priced.sort((x, y) => x.preScore - y.preScore);
     // Keep competitive add/drop/package/swap candidates, not just the cheapest 80.
@@ -1708,7 +1715,7 @@ function evenPlan() {
           before: now, after: j,
           packageBefore: originalGap, packageAfter: c.preGap,
           additiveBefore: originalAdditiveGap,
-          additiveAfter: additiveGap(c.A, c.B)
+          additiveAfter: c.additiveAfter
         });
         if (!improvement) continue;
       }
