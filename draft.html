@@ -57,7 +57,7 @@
     const shown=all.filter(p=>selected==='all'||String(p.holder.rosterId)===selected||String(p.asset.original)===selected)
       .sort((a,b)=>(+a.asset.round)-(+b.asset.round)||name(a.asset.original).localeCompare(name(b.asset.original)));
     $('pickRows').innerHTML=shown.length?shown.map(({holder,asset})=>'<tr class="border-t border-white/5"><td class="p-2">'+year+' '+ord(+asset.round)+'</td><td class="p-2">'+e(name(asset.original))+'</td><td class="p-2">'+link(holder)+'</td><td class="p-2 text-right tabular-nums">'+price(asset.value)+'</td></tr>').join(''):'<tr><td colspan="4" class="p-3 text-zinc-400">No currently tradable picks found for this filter. Drafted selections are not included.</td></tr>';
-    $('status').textContent=e(league.name)+' · '+teams.length+' teams · '+year+' picks · checked '+new Date().toLocaleTimeString();
+    $('status').textContent=String(league.name)+' · '+teams.length+' teams · '+year+' picks · checked '+new Date().toLocaleTimeString();
   }
   (async()=>{
     try{
