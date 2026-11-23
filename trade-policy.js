@@ -87,6 +87,31 @@ const VaultTradePolicy = (() => {
     return keep;
   }
 
+  // Is this actually an improvement on a trade already rated Toss-up or
+  // better for both sides? A higher score for one team alone is not enough:
+  // a gratuitous throw-in can make a manager worse even if their headline tier
+  // stays unchanged. Treat package price, additive price and both independent
+  // roster verdicts as separate non-substitutable signals.
+  function evenImprovement({before, after, packageBefore, packageAfter, additiveBefore, additiveAfter}) {
+    const gainA = after.A.score - before.A.score;
+    const gainB = after.B.score - before.B.score;
+    const packageGain = packageBefore - packageAfter;
+    const additiveGain = additiveBefore - additiveAfter;
+    if (![gainA, gainB, packageGain, additiveGain].every(Number.isFinite)) return null;
+    // Neither manager should sacrifice a meaningful amount of benefit simply
+    // so the other side can extract another asset.
+    if (after.A.level === 'bad' || after.B.level === 'bad' ||
+        gainA < -0.5 || gainB < -0.5) return null;
+    // Package consolidation should not be used to mask a new lopsided raw
+    // price. The already-nearly-even Boston + Kiner/Kittle scenario exposed
+    // gratuitous add-ons that widened the 35% raw price gap.
+    if (additiveGain < -2 || packageGain < -1) return null;
+    const worthChanging = packageGain >= 2 ||
+      (Math.max(gainA, gainB) >= 3 && Math.min(gainA, gainB) >= -0.25);
+    if (!worthChanging) return null;
+    return {gainA, gainB, packageGain, additiveGain};
+  }
+
   function ledger(Vault, giveA, giveB) {
     const sum = (xs, fn) => xs.reduce((s,x)=>s+n(fn(x)),0);
     const market = xs => sum(xs,x=>Vault.gradeValue(x));
@@ -102,6 +127,6 @@ const VaultTradePolicy = (() => {
       unadjustedPackageA:raw.valueA, unadjustedPackageB:raw.valueB
     };
   }
-  return {receiverDecision,evidence,evenCandidates,evenShortlist,ledger};
+  return {receiverDecision,evidence,evenCandidates,evenShortlist,evenImprovement,ledger};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = VaultTradePolicy;

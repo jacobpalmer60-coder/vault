@@ -248,7 +248,7 @@
 
 <script src="vault-core.js?v=2b59eaf0"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
-<script src="trade-policy.js?v=6970b9f6"></script>
+<script src="trade-policy.js?v=df0687b2"></script>
 <script src="team-impact.js?v=6a575855"></script>
 <script src="trade-stress.js?v=726eea3d"></script>
 <script>
@@ -1664,7 +1664,12 @@ function evenPlan() {
   const originalPrice = Vault.tradeSideValues(A0, B0);
   const originalGap = 200 * Math.abs(originalPrice.valueA - originalPrice.valueB) /
     ((originalPrice.valueA + originalPrice.valueB) || 1);
-  const originalWorst = Math.min(now.A.score, now.B.score);
+  const additiveGap = (A, B) => {
+    const total = assets => assets.reduce((n, a) => n + Vault.gradeValue(a), 0);
+    const a = total(A), b = total(B);
+    return 200 * Math.abs(a - b) / ((a + b) || 1);
+  };
+  const originalAdditiveGap = balanced ? additiveGap(A0, B0) : null;
   const found = [];
   for (const target of targets) {
     const helpB = target === 'B';
@@ -1688,26 +1693,42 @@ function evenPlan() {
       const v = Vault.tradeSideValues(A, B);
       const gap = 200 * Math.abs(v.valueA - v.valueB) / ((v.valueA + v.valueB) || 1);
       if (gap > EVEN_MAX_GAP) continue;
+      // Screen obviously worse price proposals before the 80 expensive
+      // roster simulations. An already-close trade must not be "fixed" by
+      // a throw-in that stretches the additive/KTC-style overpayment.
+      const additiveAfter = balanced ? additiveGap(A, B) : null;
+      if (balanced && (additiveAfter > originalAdditiveGap + 2 ||
+          gap > originalGap + 1)) continue;
       const movingStarter = c.add.filter(a => starters.has(a.key)).length;
       const complexity = c.add.length + c.drop.length - 1;
-      priced.push({ ...c, A, B, helpB, movingStarter, complexity, preGap: gap, preScore: gap + complexity * 2 + movingStarter * 3 });
+      priced.push({ ...c, A, B, helpB, movingStarter, complexity, preGap: gap,
+        additiveAfter, preScore: gap + complexity * 2 + movingStarter * 3 });
     }
     priced.sort((x, y) => x.preScore - y.preScore);
     // Keep competitive add/drop/package/swap candidates, not just the cheapest 80.
     for (const c of VaultTradePolicy.evenShortlist(priced)) {
       const j = judge(c.A, c.B);
       if (j.A.score < -6 || j.B.score < -6) continue;
+      let improvement = null;
       if (balanced) {
-        // A fair-looking deal must not be "improved" by quietly making a
-        // team substantially worse. Require a real price or minimum-verdict
-        // improvement, not merely a different set of pieces.
-        const priceGain = originalGap - c.preGap;
-        const lowestGain = Math.min(j.A.score, j.B.score) - originalWorst;
-        if (j.A.level === 'bad' || j.B.level === 'bad' ||
-            j.A.score < now.A.score - 3 || j.B.score < now.B.score - 3 ||
-            (priceGain < 1.5 && lowestGain < 1.5)) continue;
+        improvement = VaultTradePolicy.evenImprovement({
+          before: now, after: j,
+          packageBefore: originalGap, packageAfter: c.preGap,
+          additiveBefore: originalAdditiveGap,
+          additiveAfter: c.additiveAfter
+        });
+        if (!improvement) continue;
       }
-      found.push({ ...c, after: j, key: Math.min(j.A.score, j.B.score) * 3 + Math.max(j.A.score, j.B.score) - c.complexity * 4 - c.movingStarter * 3 });
+      // On an already-balanced offer, sort by what actually IMPROVES,
+      // not the highest absolute score after giving away extra assets.
+      const key = balanced
+        ? improvement.packageGain * 2 + improvement.gainA + improvement.gainB +
+          Math.min(improvement.gainA, improvement.gainB) * 2 -
+          c.complexity * 4 - c.movingStarter * 3
+        : Math.min(j.A.score, j.B.score) * 3 + Math.max(j.A.score, j.B.score) -
+          c.complexity * 4 - c.movingStarter * 3;
+      found.push({ ...c, after: j, improvement, beforeGap: originalGap,
+        afterGap: c.preGap, key });
     }
   }
   if (!found.length) return null;
@@ -1748,14 +1769,17 @@ function paintEvenLine() {
   const box = document.getElementById('evenLine');
   if (!box) return;
   const f = evenLine.plan, esc = Vault.escapeHtml;
-  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-400">No better adjustment was found that meets the price, roster-benefit and predicted-consent checks for both managers. Your original trade remains unchanged.</div>'; return; }
+  if (!f) { box.innerHTML = '<div class="text-[12px] text-zinc-400">No meaningful improvement found under both-team grade, price and predicted-consent checks. This can be the right answer when the original offer is already close to even. Your trade was not changed.</div>'; return; }
   const o = f.options[0], giver = o.helpB ? f.teamA : f.teamB, names = l => l.map(a => esc(a.name)).join(' and ');
   const change = [o.add.length ? `${esc(giver.teamName)} adds <span class="text-zinc-100">${names(o.add)}</span>` : '', o.drop.length ? `<span class="text-zinc-100">${names(o.drop)}</span> comes out` : ''].filter(Boolean).join(' and ');
+  const progress = o.improvement
+    ? `<div class="text-[12px] text-zinc-400 mt-1">Vault package gap ${o.beforeGap.toFixed(1)}% → ${o.afterGap.toFixed(1)}%. Grade score change: ${esc(f.teamA.teamName)} ${o.improvement.gainA >= 0 ? '+' : ''}${o.improvement.gainA.toFixed(1)}, ${esc(f.teamB.teamName)} ${o.improvement.gainB >= 0 ? '+' : ''}${o.improvement.gainB.toFixed(1)} (grade points, not fantasy points).</div>`
+    : '';
   // Says what the fix reaches, not that it's even: the team it's for, then the other team's read.
   const [helped, other] = o.helpB ? [[o.after.B, f.teamB], [o.after.A, f.teamA]] : [[o.after.A, f.teamA], [o.after.B, f.teamB]];
   const read = v => `<span class="${Vault.VERDICT_TIER_TEXT[v.tier]}">${v.label}</span>`;
   box.innerHTML = `<div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2.5">
-      <div class="min-w-0 flex-1 basis-[260px] text-[13px] text-zinc-300">${esc(giver.teamName)} adjustment: ${change}. Grades ${read(helped[0])} for ${esc(helped[1].teamName)} and ${read(other[0])} for ${esc(other[1].teamName)}.</div>
+      <div class="min-w-0 flex-1 basis-[260px] text-[13px] text-zinc-300">${esc(giver.teamName)} adjustment: ${change}. Grades ${read(helped[0])} for ${esc(helped[1].teamName)} and ${read(other[0])} for ${esc(other[1].teamName)}.${progress}</div>
       <button type="button" onclick="evenItOut()" class="shrink-0 text-[13px] px-3.5 py-1.5 rounded-lg btn-gold-solid">Apply suggestion</button>
     </div>`;
 }

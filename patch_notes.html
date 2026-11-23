@@ -54,6 +54,10 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-22', items: [
+    { kind: 'fixed', page: 'Trade Calculator', text: "Even It Out no longer suggests gratuitous throw-ins to a trade it already grades nearly even. For balanced offers, a recommendation must improve the package price or a manager's grade materially, protect both teams' grade scores, and avoid widening the additive market-price gap. A no-change result is allowed." },
+    { kind: 'improved', page: 'Trade Calculator', text: "Alternative packages now show the before/after Vault price gap and both managers' grade-score changes, making the claimed benefit checkable. The 80-candidate roster-simulation budget is unchanged." }
+  ] },
+  { date: '2026-11-22', items: [
     { kind: 'improved', page: 'Trade Calculator', text: "Even It Out is now available on every fully formed trade, including Toss-up offers. Click Find alternatives to search for a materially better price or a stronger outcome for the weaker team. Trades with a bad verdict still get an automatic proposed fix when possible." },
     { kind: 'improved', page: 'Trade Calculator', text: "Already-balanced offers do not trigger expensive automatic search. Any suggested alternative must preserve both managers' minimum benefit and meet both simulated-consent and market-price checks; no adjustment is guaranteed or applied without clicking." },
     { kind: 'fixed', page: 'Trade Calculator', text: "The headline now says Toss-up or better rather than Good grades for both when one side only grades Toss-up." }

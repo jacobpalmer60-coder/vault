@@ -78,6 +78,12 @@ reports actual accepted-offer probabilities.
   and makes the negotiation model's possible disagreement with the receiving
   team's advice explicit. Real trades can be accepted even when the deal scores
   poorly for one team, so a poor advisory grade is *not* treated as proof of rejection.
+- **Live-playtest correction (Nov 22):** If the offer is already graded
+  Toss-up or better for both teams, Even It Out rejects one-sided giveaways,
+  declines changes that materially worsen the raw or package price, and requires
+  a measurable improvement. For an already 1%-apart offer, "no meaningful
+  improvement found" is better than adding an unnecessary throw-in. The
+  suggested alternative displays price and grade-score changes for both sides.
 - **Availability (Nov 22):** Even It Out is now visible and manually searchable
   on **every populated offer**, including Toss-up/Toss-up trades. No automatic
   candidate search runs for already-balanced offers; the user can request

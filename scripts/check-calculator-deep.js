@@ -41,7 +41,7 @@ function checkPlan(accept, opts={}){
   EVEN_MAX_GAP:8,EVEN_OPTIONS:6,EVEN_PIECE_REPEATS:2,
   evenContextKey:()=>[opts.A?.rosterId||A.rosterId,opts.B?.rosterId||B.rosterId,'{}'].join('|'),
   VaultTradePolicy,
-  Vault:{tradeSideValues:(a,b)=>({valueA:a.reduce((n,x)=>n+x.value,0),valueB:b.reduce((n,x)=>n+x.value,0)})},
+  Vault:{gradeValue:a=>a.value,tradeSideValues:(a,b)=>({valueA:a.reduce((n,x)=>n+x.value,0),valueB:b.reduce((n,x)=>n+x.value,0)})},
   computeTradeAnalysis:(_a,_b,_aa,_bb,vA,vB)=>({gap:200*Math.abs(vA-vB)/(vA+vB)}),
   improvementOf:an=>opts.alwaysNeutral?{level:'tossup',score:-an.gap}:{level:an.gap<=8?'tossup':'bad',score:an.gap<=8?0:-20},
   negContextFor:t=>({team:t}),
