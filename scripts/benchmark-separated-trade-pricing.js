@@ -12,7 +12,7 @@
 const {readSleeperPlayers,seasonFiles,readSeason,ktcPrices,formatOf}=require('./market-history/ktc-book');
 const {laterOutcome}=require('./market-history/outcome-values');
 const {loadVault}=require('./lib-market');
-const {WEIGHTS,priceSignals,weightedSignal}=require('./research-trade-separation');
+const {WEIGHTS,priceSignals,weightedSignal,nearPeerConsolidationCohorts}=require('./research-trade-separation');
 const Vault=loadVault(),players=readSleeperPlayers();
 const bookCache=new Map(),book=f=>bookCache.get(f)||bookCache.set(f,ktcPrices(f,players)).get(f);
 const sampleMod=Math.max(1,Number(process.env.SAMPLE_MOD)||10),horizon=365*864e5;
@@ -35,7 +35,8 @@ const shape=(a,b)=>{
 };
 const init=()=>({eligible:0,decisive:0,missing:0,zeroSignal:0,
  weights:Object.fromEntries(WEIGHTS.map(w=>[String(w),{right:0,wrong:0,tie:0}]))});
-const groups={all:init(),playerOnly:init(),byYear:{},playerOnlyYear:{},playerOnlyShape:{}};
+const groups={all:init(),playerOnly:init(),byYear:{},playerOnlyYear:{},playerOnlyShape:{},
+ nearPeer:{},nearPeerByYear:{}};
 const get=(group,key)=>(group[key]||=init());
 const record=(r,signals,winner)=>{
  r.eligible++;
@@ -74,6 +75,11 @@ for(const file of files){
    record(groups.playerOnly,signal,winner);
    record(get(groups.playerOnlyYear,year),signal,winner);
    record(get(groups.playerOnlyShape,year+'|'+shape(a.length,c.length)),signal,winner);
+   // Classify only by trade-day values; compare outcomes independently.
+   for(const cohort of nearPeerConsolidationCohorts(a,c)){
+    record(get(groups.nearPeer,cohort),signal,winner);
+    record(get(groups.nearPeerByYear,year+'|'+cohort),signal,winner);
+   }
   }
  }
 }
@@ -96,5 +102,6 @@ console.log(JSON.stringify({
  ],counts:{sampled,priced,mature,complete,missing},
  all:rates(groups.all),playerOnly:rates(groups.playerOnly),
  byYear:maps(groups.byYear),playerOnlyYear:maps(groups.playerOnlyYear),
- playerOnlyShape:maps(groups.playerOnlyShape)
+ playerOnlyShape:maps(groups.playerOnlyShape),
+ nearPeer:maps(groups.nearPeer),nearPeerByYear:maps(groups.nearPeerByYear)
 },null,2));
