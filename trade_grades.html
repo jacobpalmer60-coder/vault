@@ -397,11 +397,12 @@ function setFairFilter(f) { fairFilter = f; visibleLimit = 30; renderFilters(); 
 // One team's trades only (2026-10-23): the Team picker, '' (all), 'mine' or a
 // rosterId. A ?team=<rosterId> link (the Managers page) opens on that team;
 // otherwise the last choice in this browser.
-let teamFilter = new URLSearchParams(location.search).get('team') || (() => { try { return localStorage.getItem('vault_grades_team') || ''; } catch { return ''; } })();
+const gradeTeamStorageKey = () => 'vault_grades_team_' + (Vault.getLeagueId() || 'none');
+let teamFilter = new URLSearchParams(location.search).get('team') || (() => { try { return localStorage.getItem(gradeTeamStorageKey()) || ''; } catch { return ''; } })();
 const teamFilterId = () => (teamFilter === 'mine' ? String(Vault.getMyTeamId(Vault.getLeagueId()) || '') : String(teamFilter || ''));
 function setTeamFilter(v) {
   teamFilter = v; visibleLimit = 30;
-  try { localStorage.setItem('vault_grades_team', v); } catch {}
+  try { localStorage.setItem(gradeTeamStorageKey(), v); } catch {}
   const u = new URL(location.href); u.searchParams.delete('team'); history.replaceState(null, '', u.toString());
   renderList();
 }
@@ -460,6 +461,7 @@ async function init() {
     document.getElementById('tradeEvidence').innerHTML = VaultTradeEvidence.render(evidence, {activityHref:Vault.linkTo('activity.html')});
     document.getElementById('tradeEvidence').classList.remove('hidden');
     ctx = { league, teams, slots, remainingWeeks };
+    if(teamFilter && teamFilter !== 'mine' && !teams.some(t=>String(t.rosterId)===String(teamFilter))) teamFilter = '';
 
     status.textContent = `${evidence.graded} reliably graded of ${evidence.total} completed Sleeper trades • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`+
       (evidence.ungraded ? ` · ${evidence.ungraded} need evidence` : '')+

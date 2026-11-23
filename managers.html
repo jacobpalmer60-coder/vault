@@ -86,9 +86,9 @@ function renderCard(s) {
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-1 text-center py-3 border-y border-white/5 mb-4">
         <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[12px] text-zinc-400">Trades · ${s.pricedTrades} priced</div></div>
-        <div title="Trades they came out ahead in: at today's prices, and (below) at each trade's own"><div class="text-[14px] mono">${s.wonNow} of ${s.pricedTrades} <span class="text-[12px] text-zinc-500">won now</span></div><div class="text-[12px] text-zinc-400">${s.won} of ${s.pricedTrades} then</div></div>
+        <div title="Trades they came out ahead in: at today's prices, and (below) at each trade's own"><div class="text-[14px] mono">${s.pricedTrades ? `${s.wonNow} of ${s.pricedTrades}` : '—'} <span class="text-[12px] text-zinc-500">won now</span></div><div class="text-[12px] text-zinc-400">${s.pricedTrades ? `${s.won} of ${s.pricedTrades}` : 'No reliable prices'} then</div></div>
         <div><div class="text-[14px] mono ${s.avgFit > 0.5 ? 'text-emerald-400/80' : s.avgFit < -0.5 ? 'text-rose-400/80' : 'text-zinc-400'}">${s.fitTrades ? fmtSigned(s.avgFit, 1) : '—'}</div><div class="text-[12px] text-zinc-400">Avg Fit</div></div>
-        <div title="How many of this manager's trades graded Fair, Lopsided, and Unfair: at today's prices, and (below) on the day"><div class="text-[14px] mono"><span class="text-emerald-400">${s.fairNow}</span> · <span class="text-orange-400">${s.lopsidedNow}</span> · <span class="text-rose-400">${s.unfairNow}</span> <span class="text-[12px] text-zinc-500">now</span></div><div class="text-[12px] text-zinc-400"><span class="text-emerald-400">${s.fair}</span> · <span class="text-orange-400">${s.lopsided}</span> · <span class="text-rose-400">${s.unfair}</span> then</div><div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">Fair · Lop · Unfair</div></div>
+        <div title="How many of this manager's trades graded Fair, Lopsided, and Unfair: at today's prices, and (below) on the day"><div class="text-[14px] mono">${s.pricedTrades ? `<span class="text-emerald-400">${s.fairNow}</span> · <span class="text-orange-400">${s.lopsidedNow}</span> · <span class="text-rose-400">${s.unfairNow}</span>` : '—'} <span class="text-[12px] text-zinc-500">now</span></div><div class="text-[12px] text-zinc-400">${s.pricedTrades ? `<span class="text-emerald-400">${s.fair}</span> · <span class="text-orange-400">${s.lopsided}</span> · <span class="text-rose-400">${s.unfair}</span>` : 'No reliable prices'} then</div><div class="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">Fair · Lop · Unfair · priced only</div></div>
       </div>
 
       <div class="space-y-2 mb-4">
@@ -151,7 +151,10 @@ function renderSummaryTable(rows, teams) {
   const { key, dir } = glanceSort;
   const sorted = !key ? rows : [...rows].sort((a, b) => {
     if (key === 'teamName') return dir * a.teamName.localeCompare(b.teamName);
-    const noA = key !== 'trades' && !a.trades, noB = key !== 'trades' && !b.trades;
+    // Missing grade coverage means unknown performance, not a zero-value history.
+    const unavailable = s => key !== 'trades' && key !== 'teamName' &&
+      (key === 'avgFit' ? !s.fitTrades : !s.pricedTrades);
+    const noA = unavailable(a), noB = unavailable(b);
     if (noA !== noB) return noA ? 1 : -1;
     // W-L columns sort by trades won minus trades lost.
     const val = s => key === 'wlThen' ? s.won - s.lost : key === 'wlNow' ? s.wonNow - s.lostNow : (s[key] || 0);
