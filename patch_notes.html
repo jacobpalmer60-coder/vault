@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=a5926973">
+<link rel="stylesheet" href="vault.css?v=9c5b8b3f">
 <link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -46,13 +46,25 @@
   <div id="notes" class="space-y-5"></div>
 </div>
 
-<script src="vault-core.js?v=bfb02d93"></script>
-<script src="vault-nav.js?v=02da1afa"></script>
+<script src="vault-core.js?v=759debb7"></script>
+<script src="vault-nav.js?v=642139eb"></script>
 <script>
 /* Hand-written, manager-facing notes — not the commit log, which is full of
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-11-22', items: [
+    { kind: 'improved', page: 'Managers and Trade Grades', text: 'Historical transaction weeks are now fetched with bounded concurrency and one retry on failure. Loading progress is visible, and still-missing weeks remain explicitly reported instead of being counted as no trades.' }
+  ] },
+  { date: '2026-11-22', items: [
+    { kind: 'new', page: 'Draft Center', text: 'A league-wide draft capital workbench now shows Sleeper Max Points For, original and current pick owners, and pick totals by manager. Official rookie order is intentionally not invented.' },
+    { kind: 'improved', page: 'Mobile interface', text: 'Expanded compact text on phones and improved touch targets for tabs, disclosures, and trade controls across the site.' }
+  ] },
+  { date: '2026-11-22', items: [
+    { kind: 'fixed', page: 'Does It Work?', text: 'Separated current additive-price evidence from archived prior-model validation, and repaired the missing shared navigation.' },
+    { kind: 'fixed', page: 'Player Market', text: 'Rising and cooling and Highs and lows now have separate tabs instead of showing simultaneously under Movers.' },
+    { kind: 'improved', page: 'League Overview and Player Market', text: 'Trade and market charts now respond to touch; League Overview also supports keyboard date inspection and focusable team legend entries.' }
+  ] },
   { date: '2026-11-22', items: [
     { kind: 'improved', page: 'Trade Calculator', text: "Major pricing redesign: additive individual market values now determine live Fair/Lopsided/Unfair pricing. The old consolidation curve can no longer make secondary players disappear in a near-equal lead-player exchange." },
     { kind: 'improved', page: 'Trade Calculator / Trade Coach', text: "Both managers' verdicts, Even It Out, trade matching, Coach, and negotiation price checks use the same shared additive price basis. Consoliding may still help starters or hurt depth, reflected as separate lineup/timeline utility." },

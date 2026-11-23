@@ -15,6 +15,7 @@
       { key: 'overview', short: 'Overview', label: 'League Overview', href: 'app.html' },
       { key: 'analyzer', short: 'Teams', label: 'Team Analyzer', href: 'team-analyzer.html' },
       { key: 'playoffs', short: 'Playoff Race', label: 'Playoff Race', href: 'playoffs.html' },
+      { key: 'draft', short: 'Draft Center', label: 'Draft Center', href: 'draft.html' },
       { key: 'recap', short: 'Weekly Recap', label: 'Weekly Recap', href: 'weekly_recap.html' },
       { key: 'history', short: 'History', label: 'League History', href: 'league_history.html' }
     ] },

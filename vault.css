@@ -275,3 +275,16 @@ th[data-term], th.sortable, th.sortable [data-term], button [data-term] { cursor
 /* Small text links: the tap area runs past the words without moving anything. */
 a.underline, a[href="#legend"], #status a, footer a, #sortLast3 { position: relative; }
 a.underline::after, a[href="#legend"]::after, #status a::after, footer a::after, #sortLast3::after { content: ""; position: absolute; inset: -8px -4px; }
+
+/* Site-wide small-screen readability and touch navigation. Desktop tables remain compact. */
+@media (max-width: 639px) {
+  #main .text-\[11px\] { font-size: 12px; }
+  #main .text-\[12px\] { font-size: 13px; }
+  #main .text-\[13px\] { font-size: 14px; }
+  #main [role="tab"], #main details > summary { min-height: 42px; }
+  #chartTooltip, #chartTip { max-width: min(92vw, 360px); white-space: normal; }
+}
+@media (pointer: coarse) {
+  #builder :is(button, select, summary), #coach :is(button, select, summary) { min-height: 40px; }
+  #main [role="tab"], #main details > summary { min-height: 42px; }
+}

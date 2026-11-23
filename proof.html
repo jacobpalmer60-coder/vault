@@ -7,12 +7,12 @@
   <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Does It Work? — The Vault</title>
-<meta name="description" content="How The Vault's trade verdict did on 2026 trades it never saw, including where KTC's calculator did better.">
+<meta name="description" content="Current trade-pricing evidence, limitations, and archived historical validation.">
 <meta property="og:title" content="Does It Work? — The Vault">
 <meta property="og:description" content="How The Vault's trade verdict did on 2026 trades it never saw, including where KTC's calculator did better.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Vault">
-<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/status.html">
+<meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/proof.html">
 <meta property="og:image" content="https://jacobpalmer60-coder.github.io/vault/brand/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -23,19 +23,40 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=a5926973">
+<link rel="stylesheet" href="vault.css?v=9c5b8b3f">
 <link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
 <body class="text-zinc-100 antialiased">
-<main class="max-w-[820px] mx-auto px-4 sm:px-6 py-4 lg:py-6">
+<div id="vault-nav"></div>
+<main id="main" class="max-w-[820px] mx-auto px-4 sm:px-6 py-4 lg:py-6">
   <a id="brand" href="index.html" class="hidden items-center gap-2 mb-3 text-[13px] text-zinc-300 hover:text-white"><img src="brand/vault-dial-128.png" alt="" class="size-6"> The Vault</a>
   <h1 class="display font-semibold gold-text">Does It Work?</h1>
-  <p id="sub" class="text-[13px] text-zinc-400 mt-1">Loading the results…</p>
-  <div id="body" class="hidden"></div>
+  <p id="sub" class="text-[13px] text-zinc-400 mt-1">The current and historical pricing models require different validation.</p>
+  <section class="card rounded-vault-sm p-4 sm:p-5 mt-4" aria-label="Current model evidence">
+    <h2 class="text-[18px] font-semibold text-zinc-100">Current pricing: what we actually know</h2>
+    <p class="text-[13px] text-zinc-300 mt-2">Since November 22, 2026, Vault's live trade prices add the independently estimated market value of every asset. The previous nonlinear package-consolidation curve is archived, not a live grading input.</p>
+    <div class="grid sm:grid-cols-2 gap-3 mt-3">
+      <div class="rounded-xl border border-white/5 bg-black/25 p-3">
+        <div class="num text-[26px] text-zinc-100">82.83% vs 62.06%</div>
+        <p class="text-[12px] text-zinc-400 mt-1">2024: additive vs old curve on one-year additive KTC price direction, 4,707 decisive player-only 1-for-2 trades</p>
+      </div>
+      <div class="rounded-xl border border-white/5 bg-black/25 p-3">
+        <div class="num text-[26px] text-zinc-100">86.36% vs 63.46%</div>
+        <p class="text-[12px] text-zinc-400 mt-1">2025: the same outcome, 5,878 decisive player-only 1-for-2 trades</p>
+      </div>
+    </div>
+    <p class="text-[13px] text-amber-200 mt-3">This is retrospective price-direction research on completed trades, not an untouched chronological holdout or a measured probability of trade acceptance, winning, or roster improvement. Current Fair/Lopsided/Unfair thresholds remain provisional.</p>
+    <p class="text-[12px] text-zinc-400 mt-2">See <a href="how_we_grade.html" class="underline text-zinc-200 hover:text-white">How We Grade</a> for the current model and its limitations.</p>
+  </section>
+  <details id="legacyProof" class="mt-5 group">
+    <summary class="cursor-pointer text-[14px] text-zinc-200 font-medium rounded-xl border border-white/10 px-4 py-3">Archived proof of the previous verdict and pricing model (not the current additive price model)</summary>
+    <p class="text-[12px] text-zinc-400 mt-3">The following study and comparisons use the earlier valuation and tier definitions. They are kept for transparency and must not be presented as current-model performance.</p>
+    <div id="body" class="hidden"></div>
+  </details>
 </main>
 
-<script src="vault-core.js?v=bfb02d93"></script>
-<script src="vault-nav.js?v=02da1afa"></script>
+<script src="vault-core.js?v=759debb7"></script>
+<script src="vault-nav.js?v=642139eb"></script>
 <script>
 /* ============================================================
    DOES IT WORK? (user, 2026-11-05)
@@ -64,9 +85,10 @@ function compareRows(p) {
   }).join('');
 }
 function render(p) {
+  if (!p || !Array.isArray(p.tiers) || p.tiers.length < 2 || !Array.isArray(p.compare) || !p.compare.length || !p.accuracy) throw new Error('Archived proof data incomplete');
   const A = p.accuracy, top = p.tiers[0], low = p.tiers[p.tiers.length - 1];
   const leads = p.compare.filter(c => c.ours > c.ktc + 0.5).length, loses = p.compare.filter(c => c.ktc > c.ours + 0.5).length;
-  $('sub').textContent = `Tested on ${fmt(p.sides)} team-sides of 2026 trades. None were used to set the verdict's weights or tiers.`;
+  $('sub').textContent = `Archived verdict research: ${fmt(p.sides)} team-sides of 2026 trades; NOT an independent validation of today's additive market-price model.`;
   $('body').innerHTML = `
     <div class="grid sm:grid-cols-2 gap-3 mt-4">
       <div class="rounded-xl bg-black/25 border border-white/5 p-4"><div class="num text-[32px] text-zinc-100">${top.ahead}% vs ${low.ahead}%</div><div class="text-[13px] text-zinc-400 mt-1">Sides we called ${Vault.escapeHtml(top.tier)} against ${Vault.escapeHtml(low.tier)} that were ahead on value later</div></div>
@@ -111,7 +133,7 @@ function render(p) {
     const r = await fetch('data/market-history/proof.json');
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     render(await r.json());
-  } catch (e) { console.error(e); $('sub').textContent = "Couldn't load the results. Try again in a moment."; }
+  } catch (e) { console.error(e); $('sub').textContent = "Archived results unavailable. The current-model evidence and its limitations remain shown above."; }
 })();
 </script>
 </body>
