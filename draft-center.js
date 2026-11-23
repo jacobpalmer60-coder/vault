@@ -74,6 +74,11 @@ function attach(){
  $('roundStyle').onchange=e=>rulesChanged('roundStyle',e.target.value);
  $('playoffCount').onchange=e=>{settings.playoffCount=+e.target.value;settings.playoffIds=[];saveRules();render()};
  $('resetRules').onclick=()=>{settings=defaults();saveRules();render()};
+ $('shareRules').onclick=async()=>{
+  const u=new URL(location.href);u.searchParams.set('season',String(year));u.searchParams.set('rules',JSON.stringify(settings));
+  try{await navigator.clipboard.writeText(u.href);$('shareRules').textContent='Model link copied';}
+  catch{window.prompt('Copy your draft model link',u.href);}
+ };
  $('manualRows').onchange=e=>{
   const play=e.target.dataset.playoff,slot=e.target.dataset.slot;
   if(play){const set=new Set((settings.playoffIds||[]).map(String));e.target.checked?set.add(play):set.delete(play);settings.playoffIds=[...set];}
@@ -94,6 +99,18 @@ function attach(){
   if(!years.length)throw Error('No current tradable future picks exist for this league.');
   const requested=+new URLSearchParams(location.search).get('season');
   year=years.includes(requested)?requested:years[0];settings=loadRules();
+  const shared=new URLSearchParams(location.search).get('rules');
+  if(shared&&shared.length<4000){
+   try{
+    const parsed=JSON.parse(shared);
+    if(parsed&&typeof parsed==='object'){
+      settings={playoffCount:Number.isInteger(+parsed.playoffCount)&&+parsed.playoffCount<=teams.length?+parsed.playoffCount:settings.playoffCount,
+        roundStyle:['linear','snake','3rr'].includes(parsed.roundStyle)?parsed.roundStyle:settings.roundStyle,
+        playoffIds:Array.isArray(parsed.playoffIds)?parsed.playoffIds.map(String).filter(v=>teams.some(t=>String(t.rosterId)===v)):[],
+        manualSlots:parsed.manualSlots&&typeof parsed.manualSlots==='object'?parsed.manualSlots:{}};
+    }
+   }catch(e){console.warn('Shared draft rule link could not be read',e)}
+  }
   $('season').innerHTML=years.map(y=>'<option value="'+y+'">'+y+'</option>').join('');
   $('teamFilter').innerHTML='<option value="all">All managers</option>'+teams.slice().sort((a,b)=>a.teamName.localeCompare(b.teamName)).map(t=>'<option value="'+esc(t.rosterId)+'">'+esc(t.teamName)+'</option>').join('');
   const selectedFromUrl=new URLSearchParams(location.search).get('team');
