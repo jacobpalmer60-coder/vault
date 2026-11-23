@@ -80,6 +80,44 @@ create a sealed holdout. A high match rate to later KTC prices does **not**
 prove better roster outcomes, title odds, or actual trade utility.
 Performance metrics may have repeated players/trades across leagues.
 
+## Large-archive performance and progress
+
+The original benchmark loaded multiple historical price books and inflated
+whole archive years, then created an additional `Object.entries()` copy of
+the entire trade index and retained all trade IDs, including the 90% excluded
+by `SAMPLE_MOD=10`. On a large Windows checkout this can cause substantial
+memory pressure and a long silent wait. The benchmark now walks the index
+without duplicating it, samples IDs *before* storing them for deduplication,
+and logs file loading, format-book loading, sampled trade counts and memory
+usage to **stderr**. The JSON output redirected to stdout stays valid.
+
+**Start with a focused diagnostic, not the full archive:**
+
+```powershell
+$env:SAMPLE_MOD = "25"
+$env:BENCHMARK_YEAR = "2025"
+$env:BENCHMARK_FORMAT = "sf_tep"
+$env:NEAR_PEER_ONLY = "1"
+node --max-old-space-size=6144 scripts/benchmark-separated-trade-pricing.js > separated-pricing-focused.json
+if ($LASTEXITCODE -ne 0) { throw "Benchmark did not complete" }
+node scripts/report-separated-trade-pricing.js separated-pricing-focused.json > separated-pricing-focused-report.txt
+Get-Content separated-pricing-focused-report.txt
+```
+
+This is a *small, 2025-only Superflex/TE-premium player-only two-for-one
+sample* (roughly 4% of eligible trades). The report labels these restrictions.
+It is intended to check whether the research completes and provides plausible
+data **before** broader runs. It may not contain enough near-equal packages
+for statistically meaningful conclusions. Progress can pause during synchronous
+decompression or historical price-book construction; if the same stage shows
+zero CPU and no I/O for a prolonged period, stop and diagnose before retrying.
+After successful smaller runs, clear the filter environment variables to run
+the broader historical comparison.
+
+```powershell
+Remove-Item Env:BENCHMARK_YEAR,Env:BENCHMARK_FORMAT,Env:NEAR_PEER_ONLY -ErrorAction SilentlyContinue
+```
+
 ## Commands (run from Vault root)
 
 ```powershell
