@@ -1,0 +1,42 @@
+name: Browser UI smoke — Vault
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - draft.html
+      - draft-rules.js
+      - draft-center.js
+      - activity.html
+      - activity.js
+      - activity-model.js
+      - vault.css
+      - vault-nav.js
+      - scripts/check-browser-ui.cjs
+      - .github/workflows/browser-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Chromium test dependencies
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Test phone, tablet and desktop viewport behavior
+        run: node scripts/check-browser-ui.cjs
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vault-browser-smoke-screenshots
+          path: browser-smoke-artifacts/
+          if-no-files-found: ignore
