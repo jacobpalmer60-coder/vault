@@ -19,9 +19,12 @@
 </header>
 <div id="activityStatusText" role="status" aria-live="polite" class="vault-meta mt-4">Connecting to Sleeper…</div>
 <div id="loadError" class="vault-warning hidden mt-4"></div>
-<div id="activityBody" class="hidden">
-<section class="vault-toolbar mt-5" aria-label="League activity filters">
+<section class="vault-toolbar mt-5" aria-label="Historical season selector">
  <label>Season<select id="activitySeason" class="vault-input" aria-label="Season"></select></label>
+ <p class="vault-meta">Switch seasons even when a year's transaction feed is unavailable.</p>
+</section>
+<div id="activityBody" class="hidden">
+<section class="vault-toolbar mt-3" aria-label="League activity filters">
  <label>Manager<select id="activityTeam" class="vault-input" aria-label="Manager"><option value="all">All managers</option></select></label>
  <label>Activity type<select id="activityType" class="vault-input" aria-label="Type">
   <option value="all">All activity</option><option value="trade">Trades</option><option value="roster">Waivers + roster moves</option><option value="draft">Draft picks</option>
@@ -41,7 +44,7 @@
   <div id="events" class="vault-event-list mt-4" aria-label="League-wide transaction history"></div>
   <button type="button" id="loadMore" class="vault-btn vault-btn-muted hidden mt-4">Show more</button>
 </div>
-<p class="vault-meta mt-4">League Activity reflects the public Sleeper log for the selected season. Missing API weeks are disclosed rather than interpreted as a lack of activity. Historical teams are labeled with their names from that season, even if their owner later changed.</p>
+<p class="vault-meta mt-4">League Activity reflects the public Sleeper log for the selected season. Missing API weeks are disclosed rather than interpreted as a lack of activity. Historical teams are labeled from that season. Team links open the original season's league rather than silently selecting a different manager in the current season.</p>
 </div>
 </main>
 <script src="vault-core.js?v=759debb7"></script><script src="vault-nav.js?v=1ec7c774"></script>
