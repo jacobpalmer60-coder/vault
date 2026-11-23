@@ -5,7 +5,7 @@ const $=id=>document.getElementById(id),esc=v=>Vault.escapeHtml(String(v??''));
 const fmt=v=>Number.isFinite(+v)?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):'—';
 const ordinal=v=>v+({1:'st',2:'nd',3:'rd'}[v]||'th');
 const srcLabel={mpf:'MPF order', 'projected-mpf':'Projected playoff field', 'sleeper-placement':'Sleeper bracket',
- 'manual-slot':'Manual override','playoff-pending':'Playoff finish TBD',pending:'Awaiting data',conflict:'Conflicting slot'};
+ 'manual-slot':'Manual override','playoff-pending':'Playoff finish TBD',pending:'Awaiting data',conflict:'Conflicting slot','elimination-band':'Elimination-round range'};
 let league=null,teams=[],rosters=[],bracket=[],year=0,years=[],leagueId='',selected='all',settings={},model=null,bracketError='';
 const storageKey=()=> 'vault_draft_rules_v2_'+leagueId+'_'+year;
 const name=id=>teams.find(t=>String(t.rosterId)===String(id))?.teamName||'Roster '+id;
@@ -50,7 +50,7 @@ function render(){
  $('orderRows').innerHTML=model.rows.map(r=>{
    const pick=picks.find(p=>p.original===r.rosterId&&p.round===1);
    const label=r.playoff===null?'Unknown':r.playoff?'Playoffs':'Non-playoff';
-   return '<tr><td class="value">'+(r.slot??'TBD')+'</td><td>'+teamLink(r.rosterId,r.teamName)+'</td><td class="muted">'+label+'</td><td class="muted">'+(srcLabel[r.source]||r.source)+'</td><td class="value">'+(pick?slotFormat(pick):'—')+'</td></tr>';
+   return '<tr><td class="value">'+(r.slot!=null?r.slot:r.range?'Slots '+r.range.join('–'):'TBD')+'</td><td>'+teamLink(r.rosterId,r.teamName)+'</td><td class="muted">'+label+'</td><td class="muted">'+(r.eliminatedRound?'Round '+r.eliminatedRound+' eliminated · ':'')+(srcLabel[r.source]||r.source)+'</td><td class="value">'+(pick?slotFormat(pick):'—')+'</td></tr>';
  }).join('');
  const capital=teams.map(t=>({t,picks:picks.filter(p=>p.holder===String(t.rosterId))}))
   .sort((a,b)=>b.picks.reduce((s,p)=>s+(+p.value||0),0)-a.picks.reduce((s,p)=>s+(+p.value||0),0));
