@@ -128,7 +128,7 @@ assert.equal(Policy.evenImprovement({
 console.log('PASS regression: reject gratuitous throw-ins and preserve truly meaningful improvements');
 
 assert.match(trade,/id="tradeDecisionLens"/,'two-sided decision summary exists');
-assert.match(trade,/VaultTradePolicy\.ledger\(Vault, aAssets, bAssets\)/);
+assert.match(trade,/VaultTradePolicy\.priceAudit\(Vault, aAssets, bAssets\)/);
 assert.match(trade,/VaultTradePolicy\.evenShortlist\(priced\)/);
 assert.match(negotiation,/Simulated manager response, not an actual message/);
 console.log('PASS explicit price/manager separation and negotiation uncertainty in UI');
