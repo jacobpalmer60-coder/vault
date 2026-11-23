@@ -34,7 +34,12 @@
 <main class="max-w-[860px] mx-auto px-4 sm:px-6 py-4 lg:py-6" data-league-required>
   <h1 id="title" class="display font-semibold gold-text">Your Team Today</h1>
   <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading your team…</p>
-  <div id="sinceVisit" class="mt-4 empty:hidden"></div>
+  <div class="flex gap-2 flex-wrap mt-4">
+  <a data-vault-page="activity.html" class="vault-btn vault-btn-muted inline-flex items-center">League Activity</a>
+  <a data-vault-page="draft.html" class="vault-btn vault-btn-muted inline-flex items-center">Draft Center</a>
+  <a data-vault-page="trade_grades.html" class="vault-btn vault-btn-muted inline-flex items-center">Trade Grades</a>
+</div>
+<div id="sinceVisit" class="mt-4 empty:hidden"></div>
   <div id="body" class="hidden">
     <div id="tiles" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4"></div>
     <section id="gameBox" class="mt-6 empty:hidden"></section>
