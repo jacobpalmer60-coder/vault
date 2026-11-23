@@ -6,13 +6,15 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {chromium}=require('playwright');
 const ROOT=path.join(__dirname,'..'),OUT=path.join(ROOT,'browser-smoke-artifacts');
 const fixture=`
+let historicalRosterAttempts=0;
 const Vault={
-  getLeagueId:()=> '123',getMyTeamId:()=>1,linkTo:p=>p+'?league_id=123',
+  getLeagueId:()=> '123',getMyTeamId:()=>1,linkTo:(p,id)=>p+'?league_id='+(id||'123'),
   escapeHtml:s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'),
   buildLeagueTeams:async()=>({league:{name:'Fixture League',season:'2026',settings:{playoff_teams:4}},
     teams:Array.from({length:6},(_,i)=>({rosterId:i+1,teamName:'Team '+(i+1),record:{wins:i+1,losses:10-i},
     picks:[{season:2027,round:1,original:i+1,value:4000},{season:2027,round:2,original:i+1,value:1900}]}))}),
   sleeperJson:async u=>{
+    if(u.includes('/league/122/rosters')&&historicalRosterAttempts++===0)throw Error('Temporary historical roster outage');
     if(u.includes('/winners_bracket'))return [{r:1,t1:3,t2:4,w:3,l:4,p:3},{r:2,t1:5,t2:6,w:6,l:5,p:1}];
     if(u.includes('/rosters'))return Array.from({length:6},(_,i)=>({roster_id:i+1,owner_id:'u'+(i+1),settings:{ppts:1000+i*10,ppts_decimal:25}}));
     if(u.includes('/users'))return Array.from({length:6},(_,i)=>({user_id:'u'+(i+1),display_name:'Team '+(i+1)}));
@@ -21,11 +23,11 @@ const Vault={
     if(u.includes('/league/123'))return {league_id:'123',name:'Fixture League',season:'2026',settings:{playoff_teams:4}};
     throw Error('Unmocked Sleeper URL '+u);
   },
-  fetchSeasonChain:async()=>[{leagueId:'123',season:'2026'}],
+  fetchSeasonChain:async()=>[{leagueId:'123',season:'2026'},{leagueId:'122',season:'2025'}],
   fetchSleeperPlayers:async()=>({p1:{first_name:'First'},p2:{first_name:'Second'},p3:{first_name:'Third'}}),
   fetchLeagueTradeWeeks:async(a,id,cb)=>{
-    const m=new Map();for(let i=0;i<19;i++)m.set('123:'+i,i===8?null:[]);
-    m.set('123:0',[{transaction_id:'TRADE1',type:'trade',status:'complete',created:1700000000000,roster_ids:[2,3],adds:{p1:2,p2:3}},
+    const m=new Map(),lid=String(a[0].leagueId);for(let i=0;i<19;i++)m.set(lid+':'+i,i===8?null:[]);
+    m.set(lid+':0',[{transaction_id:'TRADE1',type:'trade',status:'complete',created:1700000000000,roster_ids:[2,3],adds:{p1:2,p2:3}},
     {transaction_id:'FREE1',type:'free_agent',status:'complete',created:1700000001000,roster_ids:[4],adds:{p3:4}}]);
     cb?.({done:19,total:19,failures:1});return m;
   }
@@ -66,10 +68,22 @@ async function main(){
       assert.equal(await page.locator('.vault-event-card').count(),1);
       await page.locator('#activityTeam').selectOption('4');
       assert.equal(await page.locator('.vault-event-card').count(),1);
+      // A failed historical season must not hide the selector needed to recover.
+      await page.locator('#activitySeason').selectOption('122');
+      await page.locator('#loadError:not(.hidden)').waitFor();
+      assert.ok(await page.locator('#activitySeason').isVisible(),'Season selector hidden during failure '+width);
+      await page.locator('#activitySeason').selectOption('123');
+      await page.locator('#activityBody:not(.hidden)').waitFor();
+      await page.locator('#activitySeason').selectOption('122');
+      await page.locator('#activityBody:not(.hidden)').waitFor();
+      const teamHref=await page.locator('.vault-event-team a').first().getAttribute('href');
+      const gradeHref=await page.locator('.vault-event-detail').first().getAttribute('href');
+      assert.ok(teamHref.includes('league_id=122'),'Historical team points at wrong season: '+teamHref);
+      assert.ok(gradeHref.includes('league_id=123'),'Historical grade should search current dynasty chain: '+gradeHref);
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Activity overflow '+width);
       await page.screenshot({path:path.join(OUT,'activity-'+width+'.png'),fullPage:true});
       assert.deepEqual(errors,[],'Browser JavaScript errors '+width);
-      await page.close();console.log('PASS Chromium at '+width+'px: draft, activity, all-team filters and no overflow');
+      await page.close();console.log('PASS Chromium at '+width+'px: draft, activity, historical owner links, retry after outage, no overflow');
     }
   }finally{await browser.close();await new Promise(r=>server.close(r))}
 }
