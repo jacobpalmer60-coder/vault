@@ -517,3 +517,12 @@ node scripts/stamp-assets.js --check
 On GitHub, the `Browser UI smoke — Vault` workflow runs Chromium at **320, 390, 768 and 1280px** and uploads screenshots as an artifact. Locally, install Playwright and Chromium to run `node scripts/check-browser-ui.cjs`.
 
 Draft rules are stored **only in this browser** for each league and draft class, but the Draft Center can copy a shareable link containing the current model settings. Commissioners do not gain edit permissions on Sleeper through Vault. Unknown results and equal-MPF ties never become confirmed picks.
+
+
+### Trade evidence and accessibility
+
+`trade-evidence.js` is a pure, shared contract for Managers and Trade Grades. Actual completed Sleeper trade counts remain distinct from reliable historical valuation counts; uncertain manager attribution and missing weeks stay disclosed. The trade list uses progressive disclosure. Managers' expandable rows and sorting headers are keyboard buttons, not mouse-only table rows.
+
+Run `node scripts/check-trade-evidence.js` to test multi-manager parity, incomplete prices, duplicates and uncertain attribution. The browser smoke workflow also covers the trade views with a deterministic multi-manager fixture.
+
+Draft Center tables transform into labeled pick/manager cards on phones narrower than 640px, retaining normal multi-column tables on desktop. Chromium smoke verifies that current pick owners and playoff evidence remain visible at 320px/390px.

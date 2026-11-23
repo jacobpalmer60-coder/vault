@@ -8,7 +8,7 @@
 <meta property="og:url" content="https://jacobpalmer60-coder.github.io/vault/draft.html">
 <link rel="icon" href="brand/vault-dial-32.png" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=8d8b6ee3">
+<link rel="stylesheet" href="vault.css?v=213e43fc">
 <link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -43,13 +43,13 @@
  <section class="vault-panel">
    <div class="vault-panel-heading"><div><div class="vault-kicker">PICK ORDER</div><h2>Modeled first round</h2></div></div>
    <p class="vault-meta mt-2">MPF for non-playoff teams; finished Sleeper winners-bracket placement games for playoff teams. Unfinished games stay TBD.</p>
-   <div class="vault-table-wrap mt-3"><table class="vault-table" aria-label="Modeled rookie draft order">
+   <div class="vault-table-wrap vault-mobile-table mt-3"><table class="vault-table" aria-label="Modeled rookie draft order">
    <thead><tr><th>Pick</th><th>Original team</th><th>Field</th><th>Basis</th><th>1st-round slot</th></tr></thead><tbody id="orderRows"></tbody></table></div>
  </section>
  <section class="vault-panel">
   <div class="vault-panel-heading"><div><div class="vault-kicker">POTENTIAL POINTS</div><h2>Max Points For</h2></div></div>
   <p class="vault-meta mt-2" id="mpfCoverage"></p>
-  <div class="vault-table-wrap mt-3"><table class="vault-table" aria-label="All teams Max Points For">
+  <div class="vault-table-wrap vault-mobile-table mt-3"><table class="vault-table" aria-label="All teams Max Points For">
   <thead><tr><th>MPF rank</th><th>Team</th><th class="value">Sleeper MPF</th></tr></thead><tbody id="mpfRows"></tbody></table></div>
  </section>
 </div>
@@ -57,14 +57,15 @@
  <section class="vault-panel">
   <div class="vault-panel-heading"><div><div class="vault-kicker">ASSETS</div><h2>Draft capital by holder</h2></div></div>
   <p class="vault-meta mt-2">Every team is included. Values follow Vault's live pick estimates, not this draft-order model.</p>
-  <div class="vault-table-wrap mt-3"><table class="vault-table" aria-label="Draft capital by manager">
+  <div class="vault-table-wrap vault-mobile-table mt-3"><table class="vault-table" aria-label="Draft capital by manager">
   <thead><tr><th>Manager</th><th class="value">1sts</th><th class="value">Picks</th><th class="value">Market value</th></tr></thead><tbody id="capitalRows"></tbody></table></div>
  </section>
  <section class="vault-panel">
   <div class="vault-panel-heading"><div><div class="vault-kicker">OWNERSHIP</div><h2>Traded picks</h2></div></div>
   <p class="vault-meta mt-2">The draft slot belongs to the original team, while its current manager owns the pick. Filter above to see picks arriving or leaving.</p>
-  <div class="vault-table-wrap mt-3"><table class="vault-table" aria-label="Current and original draft pick owners">
+  <div class="vault-table-wrap vault-mobile-table mt-3"><table class="vault-table" aria-label="Current and original draft pick owners">
    <thead><tr><th>Draft pick</th><th>Original team</th><th>Current holder</th><th class="value">Value</th><th>Source</th></tr></thead><tbody id="pickRows"></tbody></table></div>
+  <button type="button" id="morePicks" class="vault-btn vault-btn-muted hidden mt-3">Show more draft picks</button>
  </section>
 </div>
 <details class="vault-panel mt-4" id="commissionerRules">
@@ -80,5 +81,5 @@
 <script src="vault-core.js?v=759debb7"></script>
 <script src="vault-nav.js?v=1ec7c774"></script>
 <script src="draft-rules.js?v=119a576e"></script>
-<script src="draft-center.js?v=035252be"></script>
+<script src="draft-center.js?v=f9083512"></script>
 </body></html>

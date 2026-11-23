@@ -7,7 +7,7 @@
   <link rel="icon" href="brand/vault-dial-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="brand/vault-dial-180.png">
 <title>Trade Grades — The Vault</title>
-<meta name="description" content="Every completed trade in your Sleeper league, graded on value then and now.">
+<meta name="description" content="Reliable trade-date price grades for your Sleeper league, with missing evidence clearly disclosed and all transactions accessible.">
 <meta property="og:title" content="Trade Grades — The Vault">
 <meta property="og:description" content="Every completed trade in your Sleeper league, graded on value then and now.">
 <meta property="og:type" content="website">
@@ -23,19 +23,19 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=8d8b6ee3">
+<link rel="stylesheet" href="vault.css?v=213e43fc">
 <link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
 
 <div id="vault-nav"></div>
-<div class="max-w-[1100px] mx-auto px-4 sm:px-6 pt-3 text-[13px] text-zinc-400">To view unpriced or ungraded completed trades, free-agent moves and draft selections, use <a data-vault-page="activity.html" class="vault-link">League Activity</a>.</div>
-
 <div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-4 lg:py-6" data-league-required id="main" role="main">
   <div class="mb-4">
     <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Trade Grades<span class="term-i" data-term="page_grades" tabindex="0" role="note">?</span></h1><a id="methodLink" href="how_we_grade.html#grades" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How grading works</a></div>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading league…</p>
+    <p class="vault-page-intro">Only completed trades with trustworthy historical prices receive a verdict. Unpriced transactions remain visible in League Activity.</p>
+    <div id="tradeEvidence" class="vault-evidence hidden mt-4" role="status" aria-live="polite"></div>
   </div>
 
   <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
@@ -47,8 +47,10 @@
   </div>
 
   <div id="teamFilterBar" class="hidden mb-4"></div>
+  <p id="gradeListCount" class="text-[12px] text-zinc-400 mb-2" role="status" aria-live="polite"></p>
   <div id="list" class="space-y-2"></div>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
+  <button id="moreGrades" type="button" onclick="showMoreGrades()" class="vault-btn vault-btn-muted hidden mx-auto mt-4">Show more trades</button>
 </div>
 
 <script src="vault-core.js?v=759debb7"></script>
@@ -56,6 +58,7 @@
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script src="season-report.js?v=18c77b80"></script>
+<script src="trade-evidence.js?v=956d3372"></script>
 <script>
 const TONE = { good: 'text-emerald-400', bad: 'text-rose-400', neutral: 'text-zinc-300' };
 const TONE_DOT = { good: 'bg-emerald-400', bad: 'bg-rose-400', neutral: 'bg-zinc-400' };
@@ -70,7 +73,8 @@ const VERDICT_DOT = { good: 'bg-emerald-400', tossup: 'bg-amber-300', bad: 'bg-o
 const FAIR_FILTERS = ['All', 'Fair', 'Lopsided', 'Unfair'];
 const SORTS = { recent: 'Most Recent', lopsided: 'Most Lopsided' };
 
-let allGraded = [];
+const gradePageSize = () => window.innerWidth < 640 ? 12 : 30;
+let allGraded = [], recordedTradeCount = 0, visibleLimit = gradePageSize();
 // For the This season lines: today's league and remaining schedule.
 let ctx = null;
 let fairFilter = 'All';
@@ -382,23 +386,24 @@ const FAIR_FILTER_TITLE = {
 
 function renderFilters() {
   document.getElementById('posFilter').innerHTML = FAIR_FILTERS.map(f =>
-    `<button onclick="setFairFilter('${f}')" title="${FAIR_FILTER_TITLE[f]}" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${fairFilter === f ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${f}</button>`
+    `<button type="button" aria-pressed="${fairFilter === f}" onclick="setFairFilter('${f}')" title="${FAIR_FILTER_TITLE[f]}" class="vault-filter-chip text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${fairFilter === f ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${f}</button>`
   ).join('') + Vault.info('price');
   document.getElementById('sortToggle').innerHTML = Object.entries(SORTS).map(([k, label]) =>
-    `<button onclick="setSort('${k}')" class="text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${sortKey === k ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`
+    `<button type="button" aria-pressed="${sortKey === k}" onclick="setSort('${k}')" class="vault-filter-chip text-[12px] px-2.5 py-1 rounded-lg border transition-colors ${sortKey === k ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'}">${label}</button>`
   ).join('');
 }
 
-function setFairFilter(f) { fairFilter = f; renderFilters(); renderList(); }
+function setFairFilter(f) { fairFilter = f; visibleLimit = gradePageSize(); renderFilters(); renderList(); }
 
 // One team's trades only (2026-10-23): the Team picker, '' (all), 'mine' or a
 // rosterId. A ?team=<rosterId> link (the Managers page) opens on that team;
 // otherwise the last choice in this browser.
-let teamFilter = new URLSearchParams(location.search).get('team') || (() => { try { return localStorage.getItem('vault_grades_team') || ''; } catch { return ''; } })();
+const gradeTeamStorageKey = () => 'vault_grades_team_' + (Vault.getLeagueId() || 'none');
+let teamFilter = new URLSearchParams(location.search).get('team') || (() => { try { return localStorage.getItem(gradeTeamStorageKey()) || ''; } catch { return ''; } })();
 const teamFilterId = () => (teamFilter === 'mine' ? String(Vault.getMyTeamId(Vault.getLeagueId()) || '') : String(teamFilter || ''));
 function setTeamFilter(v) {
-  teamFilter = v;
-  try { localStorage.setItem('vault_grades_team', v); } catch {}
+  teamFilter = v; visibleLimit = gradePageSize();
+  try { localStorage.setItem(gradeTeamStorageKey(), v); } catch {}
   const u = new URL(location.href); u.searchParams.delete('team'); history.replaceState(null, '', u.toString());
   renderList();
 }
@@ -415,8 +420,9 @@ function renderTeamPicker() {
       </select></label>`;
   box.classList.remove('hidden');
 }
-function setSort(k) { sortKey = k; renderFilters(); renderList(); }
+function setSort(k) { sortKey = k; visibleLimit = gradePageSize(); renderFilters(); renderList(); }
 
+function showMoreGrades() { visibleLimit += gradePageSize(); renderList(); }
 function renderList() {
   let items = fairFilter === 'All' ? allGraded : allGraded.filter(g => Vault.priceWord(g.bucket) === fairFilter);
   const id = teamFilterId();
@@ -427,14 +433,20 @@ function renderList() {
   const list = document.getElementById('list');
   const empty = document.getElementById('empty');
   shown = items;
+  const listed = Math.min(visibleLimit, items.length);
+  const countEl = document.getElementById('gradeListCount');
+  countEl.textContent = items.length ? 'Showing ' + listed + ' of ' + items.length + ' reliable trade grades' : 'No trade grades match the selected filters';
+  const more = document.getElementById('moreGrades');
+  more.classList.toggle('hidden', listed === items.length);
+  more.textContent = 'Show next ' + Math.min(gradePageSize(), items.length-listed) + ' trades';
   if (!items.length) {
     list.innerHTML = '';
     empty.classList.remove('hidden');
-    empty.textContent = allGraded.length ? `No ${fairFilter === 'All' ? '' : fairFilter.toLowerCase() + ' '}trades found${id ? ' for this team' : ''}.` : 'No completed trades found for this league yet.';
+    empty.textContent = allGraded.length ? `No ${fairFilter === 'All' ? '' : fairFilter.toLowerCase() + ' '}reliable grades found${id ? ' for this team' : ''}.` : (recordedTradeCount ? 'Completed trades were recorded, but none have sufficiently reliable historical prices for a grade. See League Activity.' : 'No completed trades were returned by Sleeper.');
     return;
   }
   empty.classList.add('hidden');
-  list.innerHTML = items.map(renderRow).join('');
+  list.innerHTML = items.slice(0,visibleLimit).map(renderRow).join('');
   if (Vault.popupOpen()) showGrade(gradeAt); // the out-of-race check landing with a trade open
 }
 
@@ -444,13 +456,17 @@ async function init() {
     const leagueId = Vault.getLeagueId();
     status.textContent = 'Loading player database and trade history…';
     const { league, isSF, teams, slots, remainingWeeks, allGraded: graded, tradeActivity, weekErrors } = await Vault.fetchAndGradeAllTrades(leagueId, { onProgress: ({done, total, failures}) => { status.textContent = `Loading trade history… ${done} of ${total} weeks checked${failures ? ` · ${failures} missing after retry` : ''}`; } });
-    allGraded = graded;
+    const evidence = VaultTradeEvidence.summarize({tradeActivity,allGraded:graded,weekErrors});
+    allGraded = evidence.reliableGrades;
+    recordedTradeCount = evidence.total;
+    document.getElementById('tradeEvidence').innerHTML = VaultTradeEvidence.render(evidence, {activityHref:Vault.linkTo('activity.html')});
+    document.getElementById('tradeEvidence').classList.remove('hidden');
     ctx = { league, teams, slots, remainingWeeks };
+    if(teamFilter && teamFilter !== 'mine' && !teams.some(t=>String(t.rosterId)===String(teamFilter))) teamFilter = '';
 
-    const ungraded=(tradeActivity||[]).filter(tx=>!tx.graded).length;
-    status.textContent = `${allGraded.length} graded trades of ${(tradeActivity||[]).length} completed Sleeper trades • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`+
-      (ungraded ? ` · ${ungraded} ungraded (missing valuations or unmapped history)` : '')+
-      (weekErrors?.length ? ` · WARNING: ${weekErrors.length} season(s) have missing transaction weeks` : '');
+    status.textContent = `${evidence.graded} reliably graded of ${evidence.total} completed Sleeper trades • ${league.name} • ${isSF ? 'Superflex' : '1QB'}`+
+      (evidence.ungraded ? ` · ${evidence.ungraded} need evidence` : '')+
+      (evidence.missingWeeks ? ` · ${evidence.missingWeeks} missing transaction weeks` : '');
     status.className = 'text-[13px] text-zinc-400 mt-1';
     renderFilters();
     // A link to one trade: the whole list, with that trade open.

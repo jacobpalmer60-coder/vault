@@ -31,7 +31,39 @@ const Vault={
     {transaction_id:'FREE1',type:'free_agent',status:'complete',created:1700000001000,roster_ids:[4],adds:{p3:4}}]);
     cb?.({done:19,total:19,failures:1});return m;
   }
-};`;
+};
+
+const VAULT_CONFIG={FAIR_PCT:14,LOPSIDED_PCT:41};
+const marketOverpay=()=>new Map();
+const four=Array.from({length:4},(_,i)=>({rosterId:i+1,teamName:'Team '+(i+1),username:'manager'+(i+1),record:{wins:4+i,losses:8-i}}));
+const graded=Array.from({length:31},(_,i)=>({
+ tx:{transaction_id:'G'+i,roster_ids:[1,2]},
+ teamA:{rosterId:1,teamName:'Team 1'},teamB:{rosterId:2,teamName:'Team 2'},
+ created:1700000000000+i*500000, bucket:'fair',fairness:{overallPct:5,fitMovedIt:false},
+ toA:[{name:'Player A'}],toB:[{name:'Player B'}],pctDiff:5,
+ dValueAdjAToday:100,anyMissingValue:false
+}));
+const tradeRecords=graded.map(g=>({transaction_id:g.tx.transaction_id,roster_ids:[1,2],priced:true}))
+ .concat([{transaction_id:'UNPRICED',roster_ids:[3,4],priced:false}]);
+const reportStats=four.map((t,i)=>({
+ ...t,trades:i<2?31:1,pricedTrades:i<2?31:0,
+ won:0,wonNow:0,lost:0,lostNow:0,
+ netValue:i<2?100:0,netValueToday:i<2?120:0,avgFit:0,fitTrades:0,
+ fair:0,lopsided:0,unfair:0,fairNow:0,lopsidedNow:0,unfairNow:0,best:null,worst:null
+}));
+Object.assign(Vault,{
+ getMyTeamId:()=>1,myTeam:teams=>teams[0],info:()=>'',term:(_,label)=>label,
+ signed:(v,fn)=>v>0?'+'+fn(v):v<0?'-'+fn(-v):'0',
+ managerProfile:()=>({style:'Observing',tone:'neutral',blurb:'Not enough priced trades to claim a trading tendency.'}),
+ managerTendencyNotes:()=>[],
+ gradedImprovement:()=>({tier:'slight',level:'tossup',label:'Toss-up'}),
+ VERDICT_TIER_TEXT:{slight:'text-emerald-300'},BUCKET_STYLE:{Fair:{text:'text-amber-200'}},
+ priceWord:b=>b==='fair'?'Fair':b,fairnessBucket:()=> 'Fair',
+ popupOpen:()=>false,seasonReport:async()=>null,markOutOfRace:()=>false,
+ fetchAndGradeAllTrades:async()=>({league:{name:'Fixture League'},isSF:true,teams:four,allGraded:graded,
+   tradeActivity:tradeRecords,pendingTrades:[],weekErrors:[{season:'2025',weeks:[8]}],slots:[],remainingWeeks:[]}),
+ buildManagerStats:()=>reportStats
+});`;
 async function main(){
   fs.mkdirSync(OUT,{recursive:true});
   const server=http.createServer((req,res)=>{
@@ -52,11 +84,26 @@ async function main(){
       const errors=[];page.on('pageerror',e=>errors.push(e.message));
       await page.route('**/vault-core.js*',r=>r.fulfill({body:fixture,contentType:'text/javascript'}));
       await page.route('**/vault-nav.js*',r=>r.fulfill({body:"document.getElementById('vault-nav').textContent='The Vault';",contentType:'text/javascript'}));
+      await page.route('**/market-data.js*',r=>r.fulfill({body:'',contentType:'text/javascript'}));
+      await page.route('**/player-card.js*',r=>r.fulfill({body:'',contentType:'text/javascript'}));
+      await page.route('**/season-report.js*',r=>r.fulfill({body:'',contentType:'text/javascript'}));
       await page.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,r=>r.abort());
       await page.goto(origin+'/draft.html?league_id=123',{waitUntil:'domcontentloaded'});
       await page.locator('#draftContent:not(.hidden)').waitFor();
       assert.equal(await page.locator('#orderRows tr').count(),6);
-      assert.equal(await page.locator('#pickRows tr').count(),12);
+      const firstPickCount=width<640?6:12;
+      assert.equal(await page.locator('#pickRows tr').count(),firstPickCount);
+      if(width<640){
+        assert.equal(await page.locator('#pickRows td[data-label="Current holder"]').count(),firstPickCount);
+        assert.equal(await page.locator('#orderRows td[data-label="Placement basis"]').count(),6);
+        assert.equal(await page.locator('#pickRows tr').first().evaluate(el=>getComputedStyle(el).display),'grid','Draft rows must be mobile cards '+width);
+        const field=await page.locator('#pickRows td[data-label="Current holder"]').first().boundingBox();
+        assert.ok(field&&field.x+field.width<=width+2,'Current pick owner is clipped '+width);
+      }
+      if(width<640){
+        await page.locator('#morePicks').click();
+        assert.equal(await page.locator('#pickRows tr').count(),12,'Draft pick pagination at '+width);
+      }
       await page.locator('#roundStyle').selectOption('3rr');
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Draft overflow '+width);
       await page.screenshot({path:path.join(OUT,'draft-'+width+'.png'),fullPage:true});
@@ -82,8 +129,41 @@ async function main(){
       assert.ok(gradeHref.includes('league_id=123'),'Historical grade should search current dynasty chain: '+gradeHref);
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Activity overflow '+width);
       await page.screenshot({path:path.join(OUT,'activity-'+width+'.png'),fullPage:true});
+      // Managers must show raw and priced trades distinctly, with keyboard
+      // expand/collapse and no invented zero for unpriced manager performance.
+      await page.goto(origin+'/managers.html?league_id=123',{waitUntil:'domcontentloaded'});
+      await page.locator('#tradeEvidence:not(.hidden)').waitFor();
+      assert.ok((await page.locator('#tradeEvidence').innerText()).includes('31'),'Evidence strip hides priced trades '+width);
+      assert.equal(await page.locator('#manager-toggle-4').count(),1);
+      const fourth=page.locator('#manager-toggle-4');
+      const tableRow=await fourth.evaluate(el=>el.closest('tr').innerText);
+      assert.ok(tableRow.includes('—'),'Unpriced manager incorrectly receives a zero net '+width+': '+tableRow);
+      await fourth.focus();await fourth.press('Enter');
+      assert.equal(await page.locator('#manager-toggle-4').getAttribute('aria-expanded'),'true');
+      const detail=await page.locator('#manager-detail-4 > td > div').boundingBox();
+      assert.ok(detail&&detail.x+detail.width<=width+2,'Manager detail panel clipped '+width);
+      assert.equal(await page.locator('#manager-toggle-4').evaluate(el=>document.activeElement===el),true,'Manager focus not restored '+width);
+      await page.locator('#manager-sort-netValue').click();
+      assert.equal(await page.locator('#manager-sort-netValue').evaluate(el=>document.activeElement===el),true,'Sort focus not restored '+width);
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Managers overflow '+width);
+      await page.screenshot({path:path.join(OUT,'managers-'+width+'.png'),fullPage:true});
+      // Grades list only priceable deals, progressively revealing old trades;
+      // each manager filter receives the same complete-price rule.
+      await page.goto(origin+'/trade_grades.html?league_id=123',{waitUntil:'domcontentloaded'});
+      await page.locator('#tradeEvidence:not(.hidden)').waitFor();
+      assert.ok((await page.locator('#status').innerText()).includes('31 reliably graded of 32'));
+      const gradeSize=width<640?12:30;
+      assert.equal(await page.locator('#list > button').count(),gradeSize,'Trade Grades first page count '+width);
+      await page.locator('#moreGrades').click();
+      assert.equal(await page.locator('#list > button').count(),Math.min(31,gradeSize*2),'Show more must expose next page '+width);
+      await page.locator('#teamFilterBar select').selectOption('4');
+      assert.ok(await page.locator('#empty').isVisible(),'Unpriced manager should not receive fake grades '+width);
+      await page.locator('#teamFilterBar select').selectOption('');
+      assert.equal(await page.locator('#list > button').count(),gradeSize,'Changing filter resets pagination '+width);
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Grades overflow '+width);
+      await page.screenshot({path:path.join(OUT,'grades-'+width+'.png'),fullPage:true});
       assert.deepEqual(errors,[],'Browser JavaScript errors '+width);
-      await page.close();console.log('PASS Chromium at '+width+'px: draft, activity, historical owner links, retry after outage, no overflow');
+      await page.close();console.log('PASS Chromium at '+width+'px: draft, activity, evidence parity, keyboard managers, paginated grades and no overflow');
     }
   }finally{await browser.close();await new Promise(r=>server.close(r))}
 }

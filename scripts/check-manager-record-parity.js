@@ -42,4 +42,8 @@ assert.ok(selected.includes('state.teams].sort('));
 assert.ok(selected.includes('No completed trades'));
 assert.ok(html.includes('initManagerRecord(allGraded, teams, tradeActivity, pendingTrades)'), 'manager record must receive all unpriced activity and pending trades');
 console.log('PASS manager dropdown and no-trade state are available');
+assert.ok(html.includes('vault-manager-toggle'), 'manager row is a keyboard-accessible button');
+assert.ok(html.includes('manager-sort-'), 'sorting controls are buttons');
+assert.ok(html.includes('const unavailable = s =>'), 'unknown performance sorts below priceable trades');
+assert.ok(html.includes('s.pricedTrades ? signedCell(s.netValue)'), 'unpriced trades must not display fake zero net value');
 console.log('All manager trade-record parity checks passed.');
