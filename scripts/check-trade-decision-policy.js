@@ -101,32 +101,49 @@ assert.match(trade,/VaultTradePolicy\.evenShortlist\(priced\)/);
 assert.match(negotiation,/Simulated manager response, not an actual message/);
 console.log('PASS explicit price/manager separation and negotiation uncertainty in UI');
 
-// The Even It Out entry remains discoverable regardless of whether a trade
-// currently needs an adjustment; the forecast is only computed for bad grades.
-const evenStart=trade.indexOf("  const wb = document.getElementById('workBoth');");
+// Every trade shows an actionable Even It Out button; balanced grades must
+// not launch the costly candidate search until the user asks for alternatives.
+const evenStart=trade.indexOf("  // Even It Out is a tool, not a badge");
 const evenEnd=trade.indexOf('/* ---------- Even it out',evenStart);
 assert.ok(evenStart>0&&evenEnd>evenStart);
 const evenUi=trade.slice(evenStart,evenEnd);
-const showEven=(mine,theirs,plan=null)=>{
-  const box={innerHTML:''};let scheduled=0;
+const showEven=(mine,theirs,plan=null,cached=false)=>{
+  const box={innerHTML:''};let scheduled=0,painted=0;
+  const key='two|managers|original|trade';
   vm.runInNewContext(evenUi,{
     document:{getElementById:id=>id==='workBoth'?box:null},
     imp:{level:mine},them:{level:theirs},
     evenFix:plan,evenFixLive:()=>!!plan,
-    scheduleEvenLine:()=>{scheduled++;}
+    evenLine:cached?{key,plan:null}:null,evenSearchKey:()=>key,
+    scheduleEvenLine:()=>{scheduled++;},paintEvenLine:()=>{painted++;}
   });
-  return {html:box.innerHTML,scheduled};
+  return {html:box.innerHTML,scheduled,painted};
 };
 const fairUi=showEven('good','tossup');
 assert.match(fairUi.html,/Even It Out/);
-assert.match(fairUi.html,/Already balanced by Vault/);
-assert.equal(fairUi.scheduled,0,'already-balanced trades should not run the expensive search');
+assert.match(fairUi.html,/onclick="evenSearch\(\)"/);
+assert.match(fairUi.html,/You can still search for a closer price/);
+assert.equal(fairUi.scheduled,0,'balanced trades never auto-run lineup simulations');
 const badUi=showEven('good','bad');
 assert.match(badUi.html,/Even It Out/);
 assert.match(badUi.html,/id="evenLine"/);
-assert.equal(badUi.scheduled,1,'a disadvantaged side still starts the search');
+assert.equal(badUi.scheduled,1,'poor-grade trades still auto-search');
+const oldUi=showEven('good','tossup',null,true);
+assert.equal(oldUi.painted,1,'cached result is restored after redraw');
 const appliedUi=showEven('good','tossup',{options:[{},{}],at:0});
 assert.match(appliedUi.html,/Try another \(1 of 2\)/);
+const evenSearchStart=trade.indexOf('function evenSearch() {');
+const evenSearchEnd=trade.indexOf('function scheduleEvenLine()',evenSearchStart);
+assert.ok(evenSearchStart>0&&evenSearchEnd>evenSearchStart);
+const searchBlock=trade.slice(evenSearchStart,evenSearchEnd);
+const searchLine={textContent:''};let searches=0;
+const searchCtx={evenLine:{old:true},
+ document:{getElementById:id=>id==='evenLine'?searchLine:null},
+ scheduleEvenLine:()=>{searches++;}};
+vm.runInNewContext(searchBlock+'\nevenSearch();',searchCtx);
+assert.equal(searchCtx.evenLine,null,'explicit search invalidates the prior offer');
+assert.equal(searches,1,'explicit search starts the computation');
+assert.match(searchLine.textContent,/Finding alternative packages/);
 assert.match(trade,/Both sides grade Toss-up or better · acceptance unconfirmed/);
-console.log('PASS Even It Out is visible for balanced and bad trades, without extra searches');
+console.log('PASS Even It Out can be launched manually on any trade and auto-repairs bad offers');
 
