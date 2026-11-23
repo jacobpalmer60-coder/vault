@@ -15,7 +15,8 @@ Sleeper username leads to a league, and a league id to a team. Every tool needs 
 |---|---|
 | `app.html` | League Overview. No trade content here, by design |
 | `team-analyzer.html` | One team: overview, roster, this season, contend or rebuild |
-| `draft.html` | Draft Center: every team's Sleeper Max Points For and current ownership of future picks; does not invent official draft order |
+| `draft.html` | Draft Center: league-wide MPF, actual pick ownership, playoff elimination bands and commissioner-configured draft slots (linear, snake, 3RR) |
+| `activity.html` | League Activity: complete transactions across Sleeper seasons, all teams, draft selections and missing-week disclosure |
 | `trade.html` | Trade Calculator and Trade Coach, the core of the site |
 | `trade_grades.html`, `managers.html` | Completed trades in your league |
 | `trade_database.html`, `trade_lab.html` | Trades across all leagues |
@@ -33,6 +34,8 @@ Sleeper username leads to a league, and a league id to a team. Every tool needs 
 | `player-card.js` | Player and team pop-ups from any name |
 | `season-report.js`, `timeline.js` | This season, and contend or rebuild |
 | `vault-nav.js` | Navigation, your team, notices |
+| `draft-rules.js`, `draft-center.js` | Read-only commissioner-configurable draft order with distinguishable evidence, projections and overrides |
+| `activity-model.js`, `activity.js` | Read-only historical transaction events and all-manager timeline; missing weeks remain unknown |
 
 **Data jobs** (`.github/workflows`).
 
@@ -497,3 +500,20 @@ local-browser execution must happen where the website is accessible. Consult
 `docs/TRADE_CALCULATOR_NEXT_PASS_2026-11-18.md` for scope and limitations.
 
 To check every page before pushing, see the top of `scripts/smoke.js`.
+
+
+## Site-wide acceptance
+
+The new experience includes deterministic code tests and a **real headless Chromium** smoke suite with fixture Sleeper records. Those do not replace physical iOS/Android checks or independent verification against your particular league.
+
+```sh
+node scripts/check-draft-activity.js
+node scripts/check-sitewide-quality.js
+node scripts/check-leaguewide-parity.js
+node scripts/check-html-scripts.js
+node scripts/stamp-assets.js --check
+```
+
+On GitHub, the `Browser UI smoke — Vault` workflow runs Chromium at **320, 390, 768 and 1280px** and uploads screenshots as an artifact. Locally, install Playwright and Chromium to run `node scripts/check-browser-ui.cjs`.
+
+Draft rules are stored **only in this browser** for each league and draft class; commissioners do not gain edit permissions on Sleeper through Vault. Unknown results and equal-MPF ties never become confirmed picks.
