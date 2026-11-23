@@ -95,6 +95,38 @@ const keys=c=>[...c.add.map(x=>'a'+x.key),...c.drop.map(x=>'d'+x.key)].sort().jo
 assert.equal(new Set(candidates.map(keys)).size,candidates.length);
 console.log('PASS bounded, diverse, deduplicated add/drop/swap search');
 
+// Real playtest regression: a 1% package-price gap and a 35% additive gap
+// must NOT be "fixed" by adding another player, leaving the displayed
+// grades unchanged while increasing the additive overpayment.
+const before={A:{level:'good',score:3},B:{level:'tossup',score:0}};
+const afterAddon={A:{level:'good',score:1.3},B:{level:'tossup',score:3.5}};
+const context={before,after:afterAddon,packageBefore:1,packageAfter:0.4,
+  additiveBefore:35,additiveAfter:55};
+assert.equal(Policy.evenImprovement(context),null,
+  'the Dallas Goedert throw-in pattern is not a genuine improvement');
+assert.equal(Policy.evenImprovement({...context,
+  after:{A:{level:'good',score:2.9},B:{level:'tossup',score:3.5}}}),null,
+  'even a small roster sacrifice cannot justify dramatically worse additive price');
+assert.equal(Policy.evenImprovement({
+  before,after:{A:{level:'good',score:2},B:{level:'good',score:4}},
+  packageBefore:6,packageAfter:1,additiveBefore:12,additiveAfter:9
+}),null,'one manager may not lose a grade point for a smaller price gap');
+const material=Policy.evenImprovement({
+  before,after:{A:{level:'good',score:3.2},B:{level:'good',score:4}},
+  packageBefore:6,packageAfter:1,additiveBefore:12,additiveAfter:9
+});
+assert.ok(material&&material.packageGain===5,'a genuinely fairer price passes');
+const bothBetter=Policy.evenImprovement({
+  before,after:{A:{level:'good',score:6},B:{level:'good',score:3}},
+  packageBefore:1,packageAfter:1,additiveBefore:35,additiveAfter:34
+});
+assert.ok(bothBetter,'both-roster improvements work even when price was already close');
+assert.equal(Policy.evenImprovement({
+  before,after:before,packageBefore:1,packageAfter:0.5,
+  additiveBefore:35,additiveAfter:35
+}),null,'trivial 1% → 0.5% improvement does not justify package churn');
+console.log('PASS regression: reject gratuitous throw-ins and preserve truly meaningful improvements');
+
 assert.match(trade,/id="tradeDecisionLens"/,'two-sided decision summary exists');
 assert.match(trade,/VaultTradePolicy\.ledger\(Vault, aAssets, bAssets\)/);
 assert.match(trade,/VaultTradePolicy\.evenShortlist\(priced\)/);
