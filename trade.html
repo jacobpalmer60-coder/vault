@@ -1655,12 +1655,6 @@ function evenPlan() {
   const originalPrice = Vault.marketSideValues(A0, B0);
   const originalGap = 200 * Math.abs(originalPrice.valueA - originalPrice.valueB) /
     ((originalPrice.valueA + originalPrice.valueB) || 1);
-  const additiveGap = (A, B) => {
-    const total = assets => assets.reduce((n, a) => n + Vault.gradeValue(a), 0);
-    const a = total(A), b = total(B);
-    return 200 * Math.abs(a - b) / ((a + b) || 1);
-  };
-  const originalAdditiveGap = balanced ? additiveGap(A0, B0) : null;
   const found = [];
   for (const target of targets) {
     const helpB = target === 'B';
@@ -1684,16 +1678,13 @@ function evenPlan() {
       const v = Vault.marketSideValues(A, B);
       const gap = 200 * Math.abs(v.valueA - v.valueB) / ((v.valueA + v.valueB) || 1);
       if (gap > EVEN_MAX_GAP) continue;
-      // Screen obviously worse price proposals before the 80 expensive
-      // roster simulations. An already-close trade must not be "fixed" by
-      // a throw-in that stretches the additive/KTC-style overpayment.
-      const additiveAfter = balanced ? additiveGap(A, B) : null;
-      if (balanced && (additiveAfter > originalAdditiveGap + 2 ||
-          gap > originalGap + 1)) continue;
+      // A price-improving alternative must not worsen the current additive
+      // gap. This check runs BEFORE the expensive roster simulation.
+      if (balanced && gap > originalGap + 1) continue;
       const movingStarter = c.add.filter(a => starters.has(a.key)).length;
       const complexity = c.add.length + c.drop.length - 1;
       priced.push({ ...c, A, B, helpB, movingStarter, complexity, preGap: gap,
-        additiveAfter, preScore: gap + complexity * 2 + movingStarter * 3 });
+        preScore: gap + complexity * 2 + movingStarter * 3 });
     }
     priced.sort((x, y) => x.preScore - y.preScore);
     // Keep competitive add/drop/package/swap candidates, not just the cheapest 80.
@@ -1704,16 +1695,14 @@ function evenPlan() {
       if (balanced) {
         improvement = VaultTradePolicy.evenImprovement({
           before: now, after: j,
-          packageBefore: originalGap, packageAfter: c.preGap,
-          additiveBefore: originalAdditiveGap,
-          additiveAfter: c.additiveAfter
+          priceBefore: originalGap, priceAfter: c.preGap
         });
         if (!improvement) continue;
       }
       // On an already-balanced offer, sort by what actually IMPROVES,
       // not the highest absolute score after giving away extra assets.
       const key = balanced
-        ? improvement.packageGain * 2 + improvement.gainA + improvement.gainB +
+        ? improvement.priceGain * 2 + improvement.gainA + improvement.gainB +
           Math.min(improvement.gainA, improvement.gainB) * 2 -
           c.complexity * 4 - c.movingStarter * 3
         : Math.min(j.A.score, j.B.score) * 3 + Math.max(j.A.score, j.B.score) -
@@ -1764,7 +1753,7 @@ function paintEvenLine() {
   const o = f.options[0], giver = o.helpB ? f.teamA : f.teamB, names = l => l.map(a => esc(a.name)).join(' and ');
   const change = [o.add.length ? `${esc(giver.teamName)} adds <span class="text-zinc-100">${names(o.add)}</span>` : '', o.drop.length ? `<span class="text-zinc-100">${names(o.drop)}</span> comes out` : ''].filter(Boolean).join(' and ');
   const progress = o.improvement
-    ? `<div class="text-[12px] text-zinc-400 mt-1">Vault package gap ${o.beforeGap.toFixed(1)}% → ${o.afterGap.toFixed(1)}%. Grade score change: ${esc(f.teamA.teamName)} ${o.improvement.gainA >= 0 ? '+' : ''}${o.improvement.gainA.toFixed(1)}, ${esc(f.teamB.teamName)} ${o.improvement.gainB >= 0 ? '+' : ''}${o.improvement.gainB.toFixed(1)} (grade points, not fantasy points).</div>`
+    ? `<div class="text-[12px] text-zinc-400 mt-1">Additive market-price gap ${o.beforeGap.toFixed(1)}% → ${o.afterGap.toFixed(1)}%. Grade score change: ${esc(f.teamA.teamName)} ${o.improvement.gainA >= 0 ? '+' : ''}${o.improvement.gainA.toFixed(1)}, ${esc(f.teamB.teamName)} ${o.improvement.gainB >= 0 ? '+' : ''}${o.improvement.gainB.toFixed(1)} (grade points, not fantasy points).</div>`
     : '';
   // Says what the fix reaches, not that it's even: the team it's for, then the other team's read.
   const [helped, other] = o.helpB ? [[o.after.B, f.teamB], [o.after.A, f.teamA]] : [[o.after.A, f.teamA], [o.after.B, f.teamB]];
