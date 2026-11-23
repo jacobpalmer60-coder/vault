@@ -42,7 +42,12 @@
     <button id="refresh" class="shrink-0 btn-gold px-3 py-1.5 text-[12px] text-zinc-300">Refresh</button>
   </div>
 
-  <!-- Right now (title odds) or Dynasty (total value): which ranking the table shows. -->
+  <nav aria-label="League shortcuts" class="flex flex-wrap gap-2 mb-5">
+  <a data-vault-page="draft.html" class="vault-btn vault-btn-muted inline-flex items-center">Draft Center</a>
+  <a data-vault-page="activity.html" class="vault-btn vault-btn-muted inline-flex items-center">League Activity</a>
+  <a data-vault-page="trade_grades.html" class="vault-btn vault-btn-muted inline-flex items-center">Trade Grades</a>
+</nav>
+<!-- Right now (title odds) or Dynasty (total value): which ranking the table shows. -->
   <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
     <div id="viewToggle" class="inline-flex rounded-lg border border-white/10 overflow-hidden" role="group" aria-label="Ranking"></div>
     <span id="viewHint" class="text-[12px] text-zinc-400"></span>
