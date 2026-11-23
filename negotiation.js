@@ -198,7 +198,7 @@ function negJudge(aAssets, bAssets, R, ctx) {
 // manager: actual trades sometimes have this shape. Flag the disagreement
 // explicitly rather than treating an advisory grade as a hard prohibition.
 function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {
-  const { valueA, valueB } = Vault.tradeSideValues(oAssets, rAssets);
+  const { valueA, valueB } = Vault.marketSideValues(oAssets, rAssets);
   const an = computeTradeAnalysis(teamO, teamR, oAssets, rAssets, valueA, valueB);
   const fair = an.fairness; // positive favors the receiving team (side B here)
   const edge = fair.overallSigned;
