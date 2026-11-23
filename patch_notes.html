@@ -53,6 +53,12 @@
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-11-22', items: [
+    { kind: 'improved', page: 'Trade Calculator', text: "The trade card now separates market-only price fairness, each team's independent verdict, and Trade Coach's unconfirmed manager-response model. The displayed market gap explicitly distinguishes additive prices from package consolidation." },
+    { kind: 'improved', page: 'Trade Calculator', text: "Even It Out can now search mixed swaps (add one asset while taking another out), alongside additions, removals and multi-piece adjustments. Candidate selection preserves diverse repairs while still checking both managers and the same 8% price ceiling." },
+    { kind: 'fixed', page: 'Trade Coach', text: "Manager-response simulations now show the amount of relevant league trade-history evidence and explicitly flag when a projected acceptance conflicts with a negative team-benefit grade. These remain forecasts, not real Sleeper responses." },
+    { kind: 'improved', page: 'Testing', text: "Added regression checks for price/side symmetry, acceptance-versus-benefit disagreements, deduplicated swap search, and model uncertainty. The live market-pricing weights and grade coefficients were not changed." }
+  ] },
   { date: '2026-11-18', items: [
     { kind: 'new', page: 'Trade Calculator', text: "Trade Stress Test: the new What-if tab explores a traded player's hypothetical market-value decline and missed games, plus early/mid/late pick-price tiers where Vault has current price spreads. Both teams are measured with and without the trade under the same assumptions." },
     { kind: 'improved', page: 'Trade Calculator', text: "The Stress Test's numbers are explicitly hypothetical, include roster value, draft capital and an illustrative 17-game replacement-lineup average, and never alter official grades, values or Trade Coach." },
