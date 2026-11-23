@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Fixed trades with the answers the site gives today, so a change to the math shows exactly what
+/* Fixed primary additive market prices, historical package reference, and team verdicts. Intentional changes must update this snapshot, so a change to the math shows exactly what
    moved, on purpose or not. The pieces are made up and held still: this tests the math, not the
    week's prices, so daily data can't turn it red. The market table stays off for the same reason.
 
@@ -34,8 +34,9 @@ const round = v => (Number.isFinite(v) ? Math.round(v * 100) / 100 : v);
 function snapshot() {
   const out = { trades: {}, verdicts: {}, buckets: {} };
   for (const [name, [a, b]] of Object.entries(TRADES)) {
-    const s = Vault.tradeSideValues(a, b, { market: false });
-    out.trades[name] = { valueA: round(s.valueA), valueB: round(s.valueB), bucket: Vault.fairnessBucket(Math.abs(200 * (s.valueA - s.valueB) / (s.valueA + s.valueB)), 0, 0), verdictPctA: round(Vault.verdictValuePct(b, a)), tiltContend: round(Vault.verdictValueTilt(b, a, 'contend')), tiltRebuild: round(Vault.verdictValueTilt(b, a, 'rebuild')) };
+    const s = Vault.marketSideValues(a, b, { market: false });
+    const old = Vault.tradeSideValues(a, b, { market: false });
+    out.trades[name] = { valueA: round(s.valueA), valueB: round(s.valueB), legacyA: round(old.valueA), legacyB: round(old.valueB), bucket: Vault.fairnessBucket(Math.abs(200 * (s.valueA - s.valueB) / (s.valueA + s.valueB)), 0, 0), verdictPctA: round(Vault.verdictValuePct(b, a)), tiltContend: round(Vault.verdictValueTilt(b, a, 'contend')), tiltRebuild: round(Vault.verdictValueTilt(b, a, 'rebuild')) };
   }
   for (const mode of ['contend', 'flexible', 'rebuild']) {
     for (const [valuePct, ptsPerWeek] of [[-30, -2], [-12, 0], [-4, 1], [0, 0], [4, -1], [12, 0], [12, 2], [30, 3]]) {
