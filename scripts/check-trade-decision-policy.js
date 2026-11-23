@@ -59,6 +59,7 @@ const negCtx = {
   computeTradeAnalysis:()=>({fairness:{overallSigned:0,value:0},
     heads:{A:{tone:'good'},B:{tone:'good'}}, rosterFit:{B:0},timelineFit:{B:0}}),
   improvementOf:()=>({level:'bad'}),
+  VAULT_CONFIG:{ROSTER_FIT_SCALE:1,TIMELINE_FIT_SCALE:1},
   rosterCap:40,projectedRosterCount:()=>10,negConcerns:()=>[],
   NEG:{CONSOLIDATION_BONUS:1,SITE_NO_PENALTY:5,STAR_1FOR1:[]},
   Math,Set,Number
