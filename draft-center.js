@@ -6,7 +6,8 @@ const fmt=v=>Number.isFinite(+v)?(+v).toLocaleString(undefined,{maximumFractionD
 const ordinal=v=>v+({1:'st',2:'nd',3:'rd'}[v]||'th');
 const srcLabel={mpf:'MPF order', 'projected-mpf':'Projected playoff field', 'sleeper-placement':'Sleeper bracket',
  'manual-slot':'Manual override','playoff-pending':'Playoff finish TBD',pending:'Awaiting data',conflict:'Conflicting slot','elimination-band':'Elimination-round range'};
-let league=null,teams=[],rosters=[],bracket=[],year=0,years=[],leagueId='',selected='all',settings={},model=null,bracketError='';
+let league=null,teams=[],rosters=[],bracket=[],year=0,years=[],leagueId='',selected='all',settings={},model=null,bracketError='',shownPicks=0;
+const pickPageSize=()=>window.innerWidth < 640 ? 6 : 24;
 const storageKey=()=> 'vault_draft_rules_v2_'+leagueId+'_'+year;
 const name=id=>teams.find(t=>String(t.rosterId)===String(id))?.teamName||'Roster '+id;
 const href=(page,params={})=>{const u=new URL(Vault.linkTo(page),location.href);Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));return u.pathname.split('/').pop()+u.search;};
@@ -56,8 +57,11 @@ function render(){
   .sort((a,b)=>b.picks.reduce((s,p)=>s+(+p.value||0),0)-a.picks.reduce((s,p)=>s+(+p.value||0),0));
  $('capitalRows').innerHTML=capital.map(({t,picks:ps})=>'<tr><td data-label="Manager">'+teamLink(t.rosterId,t.teamName)+'</td><td class="value" data-label="First-round picks">'+ps.filter(p=>p.round===1).length+'</td><td class="value" data-label="Total picks">'+ps.length+'</td><td class="value" data-label="Market value">'+fmt(ps.reduce((s,p)=>s+(+p.value||0),0))+'</td></tr>').join('');
  const filtered=picks.filter(p=>!chosen||chosen===p.original||chosen===p.holder);
- $('pickRows').innerHTML=filtered.length?filtered.map(p=>'<tr><td class="value" data-label="Draft pick">'+(p.roundSlot==null?year+' '+ordinal(p.round):year+' '+slotFormat(p))+'</td><td data-label="Original team">'+teamLink(p.original)+'</td><td data-label="Current holder">'+teamLink(p.holder)+'</td><td class="value" data-label="Market value">'+fmt(p.value)+'</td><td class="muted" data-label="Evidence">'+(srcLabel[p.source]||'TBD')+'</td></tr>').join(''):
+ $('pickRows').innerHTML=filtered.length?filtered.slice(0,shownPicks||pickPageSize()).map(p=>'<tr><td class="value" data-label="Draft pick">'+(p.roundSlot==null?year+' '+ordinal(p.round):year+' '+slotFormat(p))+'</td><td data-label="Original team">'+teamLink(p.original)+'</td><td data-label="Current holder">'+teamLink(p.holder)+'</td><td class="value" data-label="Market value">'+fmt(p.value)+'</td><td class="muted" data-label="Evidence">'+(srcLabel[p.source]||'TBD')+'</td></tr>').join(''):
  '<tr><td colspan="5" class="muted">No future tradable picks match this filter.</td></tr>';
+ const visible=Math.min(filtered.length,shownPicks||pickPageSize());
+ $('morePicks').classList.toggle('hidden',visible>=filtered.length);
+ $('morePicks').textContent='Show next '+Math.min(pickPageSize(),filtered.length-visible)+' picks · '+visible+' of '+filtered.length+' shown';
  $('manualRows').innerHTML=model.rows.map(r=>{
   const current=settings.manualSlots[r.rosterId]??'';
   const opts=['<option value="">Use source data</option>',...Array.from({length:teams.length},(_,i)=>'<option value="'+(i+1)+'" '+(String(current)===String(i+1)?'selected':'')+'>'+(i+1)+'</option>')].join('');
@@ -69,11 +73,12 @@ function render(){
  $('draftContent').classList.remove('hidden');
 }
 function attach(){
- $('season').onchange=e=>{year=+e.target.value;settings=loadRules();selected='all';render()};
- $('teamFilter').onchange=e=>{selected=e.target.value;render()};
+ $('season').onchange=e=>{year=+e.target.value;settings=loadRules();selected='all';shownPicks=0;render()};
+ $('teamFilter').onchange=e=>{selected=e.target.value;shownPicks=0;render()};
  $('roundStyle').onchange=e=>rulesChanged('roundStyle',e.target.value);
  $('playoffCount').onchange=e=>{settings.playoffCount=+e.target.value;settings.playoffIds=[];saveRules();render()};
  $('resetRules').onclick=()=>{settings=defaults();saveRules();render()};
+ $('morePicks').onclick=()=>{shownPicks=(shownPicks||pickPageSize())+pickPageSize();render()};
  $('shareRules').onclick=async()=>{
   const u=new URL(location.href);u.searchParams.set('season',String(year));u.searchParams.set('rules',JSON.stringify(settings));
   try{await navigator.clipboard.writeText(u.href);$('shareRules').textContent='Model link copied';}
