@@ -85,7 +85,7 @@ const COACH_UPGRADE_THEIR_MIN = -15;
 // other team's verdict it let through 18% of trades managers actually made. This rule
 // lets through 40% (2026-10-24, user's choice; VaultValues acceptance-check.js).
 const coachKtcPct = (give, get) => { const k = Vault.ktcSideValues(give, get); return (k.valueB - k.valueA) / (((k.valueA + k.valueB) / 2) || 1) * 100; };
-const coachTvPct = (give, get) => { const v = Vault.tradeSideValues(give, get); return (v.valueB - v.valueA) / (((v.valueA + v.valueB) / 2) || 1) * 100; };
+const coachTvPct = (give, get) => { const v = Vault.marketSideValues(give, get); return (v.valueB - v.valueA) / (((v.valueA + v.valueB) / 2) || 1) * 100; };
 const coachPriceFair = (give, get, option) => {
   const within = (p, lim) => p < lim && (option === 'contend' || p > -lim);
   return within(coachTvPct(give, get), VAULT_CONFIG.FAIR_PCT) && within(coachKtcPct(give, get), VAULT_CONFIG.LOPSIDED_PCT);
@@ -97,7 +97,7 @@ const coachPriceFair = (give, get, option) => {
 const coachAsksCornerstone = (partner, get) => get.some(a => Vault.cornerstone(partner, a));
 // Options that are about the price: these keep Toss-ups too.
 const COACH_PRICE_PLAYS = new Set(['shop', 'sellhigh', 'buylow']);
-const coachValuePct = o => { const tv = Vault.tradeSideValues(o.give, o.get); return (tv.valueB - tv.valueA) / (((tv.valueA + tv.valueB) / 2) || 1) * 100; };
+const coachValuePct = o => { const tv = Vault.marketSideValues(o.give, o.get); return (tv.valueB - tv.valueA) / (((tv.valueA + tv.valueB) / 2) || 1) * 100; };
 // Get a player and Fix a position may pay a little over value for the player or the
 // help you're after (user, 2026-10-24: "if you're wanting to fix aren't you expecting
 // to pay over a little?"); the card shows how much.
@@ -185,7 +185,7 @@ function coachOffers(me, partner, get, { protect = new Set(), ceiling = VAULT_CO
   // only graded below if they could be among the closest overpays to balance
   // back (2026-10-23, faster first search: same offers, far fewer gradings).
   const valueEdge = give => {
-    const { valueA, valueB } = Vault.tradeSideValues(give, get), avg = (valueA + valueB) / 2 || 1;
+    const { valueA, valueB } = Vault.marketSideValues(give, get), avg = (valueA + valueB) / 2 || 1;
     return Math.sign((valueA - valueB) || 1) * (Math.abs(valueA - valueB) / avg * 100);
   };
   const deferred = [];
@@ -482,7 +482,7 @@ async function coachWorkTweaks() {
   // twice at most, so it isn't one player's list.
   const two = [];
   if (!base.yes && !top('yes').some(c => coachLevelRank(c.r) === 0)) {
-    const tv = Vault.tradeSideValues(w.give, w.get), needVal = Math.max(-base.room, base.you - VAULT_CONFIG.FAIR_PCT + 0.5) / 100 * (tv.valueA + tv.valueB) / 2;
+    const tv = Vault.marketSideValues(w.give, w.get), needVal = Math.max(-base.room, base.you - VAULT_CONFIG.FAIR_PCT + 0.5) / 100 * (tv.valueA + tv.valueB) / 2;
     // A piece that gets a yes alone doesn't need a partner: that's just paying more.
     const alone = new Set(out.filter(c => c.add).map(c => c.give[c.give.length - 1].key));
     const aim = needVal * 2.5, near = mine.filter(a => a.value >= 300 && !coachStarterKeys(me).has(a.key) && !alone.has(a.key)).sort((x, y) => Math.abs(x.value - aim) - Math.abs(y.value - aim)).slice(0, COACH_TWO_LOOK);
@@ -1304,7 +1304,7 @@ function coachHintsHtml(me, w, r = null) {
   const n = v => Math.round(v).toLocaleString();
   let gap = sumValue(w.get) - sumValue(w.give);
   if (w.give.length && w.get.length) {
-    const tv = Vault.tradeSideValues(w.give, w.get), avg = (tv.valueA + tv.valueB) / 2;
+    const tv = Vault.marketSideValues(w.give, w.get), avg = (tv.valueA + tv.valueB) / 2;
     gap = tv.valueB - tv.valueA;
     if (r && !r.yes) gap = Math.max(gap, Math.max(-r.room, r.you - VAULT_CONFIG.FAIR_PCT + 0.5) / 100 * avg);
   }
