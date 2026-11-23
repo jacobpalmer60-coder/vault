@@ -100,3 +100,33 @@ assert.match(trade,/VaultTradePolicy\.ledger\(Vault, aAssets, bAssets\)/);
 assert.match(trade,/VaultTradePolicy\.evenShortlist\(priced\)/);
 assert.match(negotiation,/Simulated manager response, not an actual message/);
 console.log('PASS explicit price/manager separation and negotiation uncertainty in UI');
+
+// The Even It Out entry remains discoverable regardless of whether a trade
+// currently needs an adjustment; the forecast is only computed for bad grades.
+const evenStart=trade.indexOf("  const wb = document.getElementById('workBoth');");
+const evenEnd=trade.indexOf('/* ---------- Even it out',evenStart);
+assert.ok(evenStart>0&&evenEnd>evenStart);
+const evenUi=trade.slice(evenStart,evenEnd);
+const showEven=(mine,theirs,plan=null)=>{
+  const box={innerHTML:''};let scheduled=0;
+  vm.runInNewContext(evenUi,{
+    document:{getElementById:id=>id==='workBoth'?box:null},
+    imp:{level:mine},them:{level:theirs},
+    evenFix:plan,evenFixLive:()=>!!plan,
+    scheduleEvenLine:()=>{scheduled++;}
+  });
+  return {html:box.innerHTML,scheduled};
+};
+const fairUi=showEven('good','tossup');
+assert.match(fairUi.html,/Even It Out/);
+assert.match(fairUi.html,/Already balanced by Vault/);
+assert.equal(fairUi.scheduled,0,'already-balanced trades should not run the expensive search');
+const badUi=showEven('good','bad');
+assert.match(badUi.html,/Even It Out/);
+assert.match(badUi.html,/id="evenLine"/);
+assert.equal(badUi.scheduled,1,'a disadvantaged side still starts the search');
+const appliedUi=showEven('good','tossup',{options:[{},{}],at:0});
+assert.match(appliedUi.html,/Try another \(1 of 2\)/);
+assert.match(trade,/Both sides grade Toss-up or better · acceptance unconfirmed/);
+console.log('PASS Even It Out is visible for balanced and bad trades, without extra searches');
+
