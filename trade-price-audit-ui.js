@@ -1,5 +1,5 @@
 /* Reconciliation UI shared by browser and deterministic Node checks.
- * A package price is a model prediction, not additive market cash value. */
+ * The additive market sum determines today's trade price grade; the older accepted-trade consolidation curve is shown only as historical research context. */
 const VaultPriceAuditUI = (() => {
   function html(prices, teamA, teamB, esc = x => String(x)) {
     if (!prices || prices.market.signedPct == null || prices.package.signedPct == null) return '';
@@ -23,12 +23,14 @@ const VaultPriceAuditUI = (() => {
     const note = prices.materialDisagreement ? `
       <div class="mt-2 pl-3 border-l-2 border-amber-400/60 text-[12px] leading-relaxed text-zinc-300" role="note">
         <strong class="text-amber-200">Large pricing-model disagreement (${prices.divergencePct.toFixed(0)} percentage points).</strong>
-        The additive market-price sum ${favors(prices.market.signedPct)} by ${pct(prices.market.signedPct)};
-        Vault's consolidation-adjusted model ${favors(prices.package.signedPct)}
-        by ${pct(prices.package.signedPct)}.
-        The adjustment was fitted to completed trades, which does not independently prove
-        what a trade is worth to either manager.${marginalText}
-        <span class="text-zinc-400">Treat a low package gap as model-dependent, not proof the deal is fair.</span>
+        <strong>Today's price grades use the additive market sum</strong>,
+        which ${favors(prices.market.signedPct)} by ${pct(prices.market.signedPct)}.
+        The old accepted-trade package curve ${favors(prices.package.signedPct)}
+        by ${pct(prices.package.signedPct)}, but <strong>does not determine today's price grade</strong>.
+        A model trained to make accepted trades look even cannot prove future market value.
+        ${marginalText}
+        <span class="text-zinc-400">Consolidation benefits are instead evaluated from
+        both teams' starters, depth and timelines—not by erasing the price of an included player.</span>
       </div>` : '';
     return `<div id="priceReconciliation" class="max-w-[740px]">
       ${note}
@@ -44,16 +46,16 @@ const VaultPriceAuditUI = (() => {
             <tbody>
               ${row('KTC listed values', prices.listed)}
               ${row('Market prices added', prices.market)}
-              ${row('Vault package model', prices.package)}
+              ${row('Legacy package curve (reference)', prices.package)}
               ${prices.ktc ? row('KTC-calculator approximation', prices.ktc) : ''}
             </tbody>
           </table>
         </div>
         <p class="mt-2 leading-relaxed text-zinc-500">Recent trade premiums adjust individual KTC
-          prices. Vault then applies its own nonlinear consolidation curve, while KTC's
-          calculator uses another rule (including small adjustments it may not show).
-          These are competing assumptions on overlapping underlying data, not four
-          independent price surveys. Neither adjustment is guaranteed future value.</p>
+          prices. The market-price sum (no consolidation) is the live grading baseline.
+          Vault's retired nonlinear consolidation curve and KTC's separate adjustment
+          are displayed only for comparison. These are overlapping-model estimates,
+          not four independent price surveys. Roster impact is measured separately.</p>
       </details>
     </div>`;
   }
