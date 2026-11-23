@@ -126,7 +126,7 @@ function assetChips(ids, playerMap, pickMap) {
   }).join('');
 }
 
-// The same trade-value fairness read the Trade Calculator gives (Vault.tradeSideValues:
+// The same additive market-price read the Trade Calculator uses (Vault.marketSideValues:
 // % off, same Fair/Lopsided/Unfair cutoffs) — so a manager can see what
 // real leagues like theirs actually accept, in the same terms as our own verdict.
 // Priced at today's KTC values; null when any piece has no price.
@@ -134,7 +134,7 @@ function marketRead(t, playerMap, pickMap) {
   const side = ids => ids.map(id => assetLabel(id, playerMap, pickMap));
   const got1 = side(t.t1), got2 = side(t.t2);
   if (!got1.length || !got2.length || [...got1, ...got2].some(a => !(a.value > 0))) return null;
-  const { valueA: gave1, valueB: gave2 } = Vault.tradeSideValues(got2, got1); // team 1 gave what team 2 got
+  const { valueA: gave1, valueB: gave2 } = Vault.marketSideValues(got2, got1); // team 1 gave what team 2 got
   const avg = (gave1 + gave2) / 2 || 1;
   const pct = Math.abs(gave1 - gave2) / avg * 100;
   return { pct, signed: (gave1 - gave2) / avg * 100, bucket: Vault.fairnessBucket(pct, 0, 0) };
@@ -210,7 +210,7 @@ function findMatches(trades, sig) {
    values for this league) and, for the RECENT_DAYS before that feed starts,
    completed trades from Sleeper dynasty leagues (scripts/summarize-sleeper-trades.js,
    each priced at KTC values from its own day in its own league's format).
-   All with the Trade Calculator's own math: % off on trade value, the same Fair / Lopsided / Unfair
+   All current rows with the Trade Calculator's math: % off on additive market price, the same Fair / Lopsided / Unfair
    cutoffs. "Paid over KTC" (against KTC's own consolidation adjustment) is from the side getting fewer pieces (or the
    best piece): what they sent minus what they got, as a % of the two sides'
    average. Your league's trades (Trade Grades, KTC at the time of each
@@ -235,10 +235,10 @@ const mkShare = (n, of) => of ? n / of * 100 : 0;
 
 // One trade's row. s1 / s2 = what each team received: [{ value, pos }] (pos null for picks).
 function marketRow(s1, s2) {
-    // Graded on trade value, like every grade on the site (so it lines up with your
+    // Graded on additive market prices, like all live Vault grades (so it lines up with your
     // league's trades below); what the consolidator "paid" stays against KTC's own
     // adjustment, so the premium still reads as over or under KTC.
-    const g = Vault.tradeSideValues(s1, s2), pct = Math.abs(g.valueA - g.valueB) / (((g.valueA + g.valueB) / 2) || 1) * 100;
+    const g = Vault.marketSideValues(s1, s2), pct = Math.abs(g.valueA - g.valueB) / (((g.valueA + g.valueB) / 2) || 1) * 100;
     const { valueA: v1, valueB: v2 } = Vault.ktcSideValues(s1, s2); // what team 1 / team 2 received, KTC's view
     const avg = (v1 + v2) / 2 || 1;
     const best1 = Math.max(...s1.map(a => a.value)), best2 = Math.max(...s2.map(a => a.value));
@@ -319,7 +319,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
       <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">${sub}</div>
     </div>`;
   const tiles = `<div class="grid sm:grid-cols-3 gap-3">
-      ${tile('Typical trade', `${mkPct(med)} off`, `Half of completed trades are further off than this on trade value (average ${mkPct(mean)}).`)}
+      ${tile('Typical trade', `${mkPct(med)} off`, `Half of the recent, re-priced trades are further off than this on additive market value (average ${mkPct(mean)}).`)}
       <div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
         <div class="text-[11px] uppercase tracking-wider text-zinc-400">How they grade</div>
         <div class="mt-3">${mkSplitBar(rows)}</div>
@@ -350,7 +350,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
         ${lg ? `<div class="relative h-3 mt-1" aria-label="Your league's trades">${lg.map(r => `<span class="absolute top-0 w-px h-3 bg-zinc-100" style="left:${xOf(r.pct).toFixed(2)}%" title="${Vault.escapeHtml(r.label)}: ${mkPct(r.pct)} off"></span>`).join('')}</div>` : ''}
         <div class="relative h-4 mt-1 text-[10px] text-zinc-500">${[0, 20, 40, 60, 80].map(v => `<span class="absolute -translate-x-1/2" style="left:${xOf(v)}%">${v}%${v === MK_TOP ? '+' : ''}</span>`).join('')}</div>
       </div>
-      <div class="text-[12px] text-zinc-400 mt-1">% off on trade value. Fair is under ${VAULT_CONFIG.FAIR_PCT}%, Unfair is ${VAULT_CONFIG.LOPSIDED_PCT}% or more: the same lines the Trade Calculator and Trade Grades use.</div>
+      <div class="text-[12px] text-zinc-400 mt-1">% off on additive market value. Fair is provisionally under ${VAULT_CONFIG.FAIR_PCT}%, Unfair is ${VAULT_CONFIG.LOPSIDED_PCT}% or more: the same lines the Trade Calculator and Trade Grades use.</div>
     </div>`;
 
   // By shape: median % off, and what the side getting fewer pieces paid over KTC.
@@ -487,7 +487,7 @@ async function renderHistory(field) {
   dbOff.delete('history');
   showTab(dbWant);
   const fmt = FORMAT_NAME[field] || field;
-  document.getElementById('historySub').textContent = `${fmt} trades in Sleeper dynasty leagues, year by year, each priced at KTC values from the day it happened`;
+  document.getElementById('historySub').textContent = `${fmt} historical Sleeper trades. These archived charts were built on the RETIRED package-consolidation curve and are NOT directly comparable to current additive market grades; we are keeping them as an explicitly labeled research reference until rebuilt.`;
   // Year by year: each year summarized whole by the pricing step, so its numbers are exact.
   const yearRows = Object.entries(doc.years || {}).filter(([, s]) => s.n >= HIST_MIN).sort(([a], [b]) => b.localeCompare(a));
   const years = !yearRows.length ? '' : `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
@@ -585,7 +585,7 @@ async function init() {
           <div class="text-[12px] text-zinc-400 mt-1">${sig.teams}-team, ${isSF ? 'Superflex' : '1QB'}, ${pprLabel(sig.ppr)}, ${tepLabel(sig.tep)}${tier === 'full' ? '' : ` · ${TIER_LABEL[tier]}`}</div>
         </div>
       </div>
-      ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded with the Trade Calculator's own value math: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-orange-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(of the ${priced.length.toLocaleString()} KTC fully prices)</span></div>` : ''}`;
+      ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded on additive market prices: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-orange-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(of the ${priced.length.toLocaleString()} KTC fully prices)</span></div>` : ''}`;
 
     // The market at a glance: completed trades from leagues like this one. Steps down
     // Vault.tradeFormatTiers (exact settings -> any team count -> QB + TE premium
@@ -606,20 +606,19 @@ async function init() {
     };
     redraw();
     const qbFile = isSF ? 'sf' : 'oneQB';
-    fetch(`data/market-history/glance-${qbFile}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null).then(g => {
-      if (g && g.rows && g.rows.length) {
-        sRows = glanceRows(g, sig.qbs);
-        sleeperDays = Math.round((new Date(g.to) - new Date(g.from)) / 864e5) + 1;
-        return redraw();
-      }
-      return fetch(`data/market-history/recent-${qbFile}.json`).then(r => (r.ok ? r.json() : null)).then(recent => {
+    // Glance files were precomputed using the retired package curve.
+    // Never mix those old percent-off bins with today's additive market
+    // grades (or with this league's independently recalculated trades).
+    // Use raw-asset recent Sleeper records that can be repriced correctly.
+    fetch(`data/market-history/recent-${qbFile}.json`)
+      .then(r => r.ok ? r.json() : null).then(recent => {
         if (!recent) return;
         sRows = sleeperRows(recent, ktcFrom, sig.qbs);
         if (!sRows.length) return;
-        sleeperDays = Math.round((new Date(ktcFrom) - new Date(sRows.map(r => r.date).sort()[0])) / 864e5);
+        sleeperDays = Math.round((new Date(ktcFrom) -
+          new Date(sRows.map(r => r.date).sort()[0])) / 864e5);
         redraw();
-      });
-    }).catch(() => {});
+      }).catch(() => {});
     renderHistory(valueField);
     document.getElementById('labLink').href = Vault.linkTo('trade_lab.html');
     document.getElementById('marketLink').href = Vault.linkTo('market.html');
