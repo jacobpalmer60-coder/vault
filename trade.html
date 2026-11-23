@@ -1411,12 +1411,12 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
       <span class="text-[14px] text-zinc-400">${n(ktc.valueA)}</span>
       <span class="text-[14px] text-zinc-400">${n(ktc.valueB)}</span>
       <span class="text-[14px] font-medium">${d(ktc.valueB - ktc.valueA)}</span>` : ''}
-      ${!showAdj ? '' : `<span class="text-[12px] text-zinc-400 text-left" title="The same trade after positional need, each starting lineup's change, and each team's rebuild/contend timeline — weighted ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline, the same blend as the grade.">Adjusted</span>
+      ${!showAdj ? '' : `<span class="text-[12px] text-zinc-400 text-left" title="The primary market-price comparison with independent roster-fit and timeline assessments — weighted ${VAULT_CONFIG.FAIRNESS_WEIGHTS.value}% trade value, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.roster}% roster fit, ${VAULT_CONFIG.FAIRNESS_WEIGHTS.timeline}% timeline, the same blend as the grade.">Adjusted</span>
       <span class="text-[14px] text-zinc-100">${n(adjGive)}</span>
       <span class="text-[14px] text-zinc-100">${n(adjGet)}</span>
       <span class="text-[14px] font-medium">${d(adjGet - adjGive)}</span>`}
     </div>
-    <details class="mt-1 text-right"><summary class="py-1 text-[12px] text-zinc-400 hover:text-zinc-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">About these numbers ▾</summary><div class="text-[12px] text-zinc-400 mt-1">${listedGive === null || listedGet === null ? '' : 'Listed prices = simple sums before consolidation and completed-trade price adjustments; they are not a recommendation. · '}${bonusGive >= 1 || bonusGet >= 1 ? `Trade value adds +${n(Math.max(bonusGive, bonusGet))} to the side with the bigger pieces (${Vault.escapeHtml(bonusGive >= bonusGet ? me.teamName : partner.teamName)} sends them), the premium real trades pay to consolidate` : 'No consolidation premium (no side has bigger single pieces)'}${ktc && (ktc.bonusA >= 1 || ktc.bonusB >= 1) ? ` · KTC's calculator adds +${n(Math.max(ktc.bonusA, ktc.bonusB))} instead` : ''}${priced}${showAdj ? ' · Adjusted = need, fit, and timeline' : ''}${held ? ` · fit favors ${Vault.escapeHtml(favored)}, but grades never read closer to even than trade value` : ''}</div></details>`;
+    <details class="mt-1 text-right"><summary class="py-1 text-[12px] text-zinc-400 hover:text-zinc-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">About these numbers ▾</summary><div class="text-[12px] text-zinc-400 mt-1">${listedGive === null || listedGet === null ? '' : 'Listed prices = simple sums before consolidation and completed-trade price adjustments; they are not a recommendation. · '}Primary market value adds every asset at its individually estimated price, without a package bonus. ${ktc && (ktc.bonusA >= 1 || ktc.bonusB >= 1) ? ` · KTC's calculator adds +${n(Math.max(ktc.bonusA, ktc.bonusB))} instead` : ''}${priced}${showAdj ? ' · Adjusted = need, fit, and timeline' : ''}${held ? ` · fit favors ${Vault.escapeHtml(favored)}, but grades never read closer to even than trade value` : ''}</div></details>`;
 }
 
 /* ---------- This season: playoff and title odds, before → after ----------
@@ -2624,13 +2624,13 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
 
   const { before, after, pool } = Vault.simulateTrade(teams, slots, teamA.rosterId, teamB.rosterId, giveA, giveB);
   const avgSideAdj = (aValAdj + bValAdj) / 2 || 1;
-  // Value delta with KTC's consolidation adjustment applied (Vault.tradeSideValues)
-  // — same basis as the trade bar, not a plain per-asset sum.
+  // Market-price delta, independent of the historic package curve
+  // — same additive-price basis as the trade bar.
   const dValueAdjA = bValAdj - aValAdj;
   const dValueAdjB = aValAdj - bValAdj;
 
-  // Fair/Lopsided/Unfair is gated on raw sticker value (Vault.tradeSideValues,
-  // KTC's own consolidation math) alone — the one number a manager can check
+  // Fair/Lopsided/Unfair is gated on the additive market-price sum (Vault.marketSideValues,
+  // without package consolidation) alone — the one number a manager can check
   // against KTC's own calculator. What each pile is actually worth to the team
   // RECEIVING it (Vault.needAdjustedTradeValues) is kept as pctDiffNeed, an
   // informational "here's how need-weighting reads it instead" detail, never the
@@ -2685,7 +2685,7 @@ function computeTradeAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj) 
     wins[side] = win;
   });
 
-  // Overall fairness = KTC value blended with roster fit and timeline, but never
+  // Overall fairness = additive market value blended with roster fit and timeline, but never
   // closer to even than value alone (see Vault.blendedFairness). overallPct is
   // what gates the badge, verdict, and bar from here on; pctDiff stays the raw
   // KTC number for the "KTC says X%" readouts.
