@@ -90,7 +90,7 @@ assert.ok(candidates.some(c=>c.add.length===2&&c.drop.length===1));
 const priced=candidates.map((c,i)=>({...c,preScore:c.drop.length ? 500+i : i}));
 const shortlist=Policy.evenShortlist(priced);
 assert.ok(shortlist.some(c=>c.add.length&&c.drop.length),'swaps survive the shortlist');
-assert.ok(shortlist.length<=112);
+assert.ok(shortlist.length<=80,'full-simulation candidate budget stays bounded');
 const keys=c=>[...c.add.map(x=>'a'+x.key),...c.drop.map(x=>'d'+x.key)].sort().join('|');
 assert.equal(new Set(candidates.map(keys)).size,candidates.length);
 console.log('PASS bounded, diverse, deduplicated add/drop/swap search');
