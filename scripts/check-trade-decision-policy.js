@@ -53,7 +53,7 @@ const nsrc = block(negotiation,'function negJudgeFor(teamO, oAssets, teamR, rAss
 const negCtx = {
   VaultTradePolicy:Policy,
   Vault:{
-    tradeSideValues:(x,y)=>({valueA:x.reduce((s,p)=>s+p.value,0),valueB:y.reduce((s,p)=>s+p.value,0)}),
+    marketSideValues:(x,y)=>({valueA:x.reduce((s,p)=>s+p.value,0),valueB:y.reduce((s,p)=>s+p.value,0)}),
     ownTradeRead:()=>0, acceptTolerance:()=>12, escapeHtml:x=>x
   },
   computeTradeAnalysis:()=>({fairness:{overallSigned:0,value:0},
@@ -95,37 +95,35 @@ const keys=c=>[...c.add.map(x=>'a'+x.key),...c.drop.map(x=>'d'+x.key)].sort().jo
 assert.equal(new Set(candidates.map(keys)).size,candidates.length);
 console.log('PASS bounded, diverse, deduplicated add/drop/swap search');
 
-// Real playtest regression: a 1% package-price gap and a 35% additive gap
-// must NOT be "fixed" by adding another player, leaving the displayed
-// grades unchanged while increasing the additive overpayment.
+// A previously 1% historical-package gap cannot cause the engine to give away
+// extra players: additive market-price parity is the only price target.
 const before={A:{level:'good',score:3},B:{level:'tossup',score:0}};
 const afterAddon={A:{level:'good',score:1.3},B:{level:'tossup',score:3.5}};
-const context={before,after:afterAddon,packageBefore:1,packageAfter:0.4,
-  additiveBefore:35,additiveAfter:55};
-assert.equal(Policy.evenImprovement(context),null,
-  'the Dallas Goedert throw-in pattern is not a genuine improvement');
-assert.equal(Policy.evenImprovement({...context,
-  after:{A:{level:'good',score:2.9},B:{level:'tossup',score:3.5}}}),null,
-  'even a small roster sacrifice cannot justify dramatically worse additive price');
 assert.equal(Policy.evenImprovement({
-  before,after:{A:{level:'good',score:2},B:{level:'good',score:4}},
-  packageBefore:6,packageAfter:1,additiveBefore:12,additiveAfter:9
-}),null,'one manager may not lose a grade point for a smaller price gap');
+ before,after:afterAddon,priceBefore:35,priceAfter:55
+}),null,'gratuitous Goedert throw-in cannot worsen either benefit or market price');
+assert.equal(Policy.evenImprovement({
+ before,after:{A:{level:'good',score:2.9},B:{level:'tossup',score:3.5}},
+ priceBefore:35,priceAfter:55
+}),null,'smaller roster sacrifice cannot justify a larger market overpayment');
+assert.equal(Policy.evenImprovement({
+ before,after:{A:{level:'good',score:2},B:{level:'good',score:4}},
+ priceBefore:6,priceAfter:1
+}),null,'no manager may lose a full grade point');
 const material=Policy.evenImprovement({
-  before,after:{A:{level:'good',score:3.2},B:{level:'good',score:4}},
-  packageBefore:6,packageAfter:1,additiveBefore:12,additiveAfter:9
+ before,after:{A:{level:'good',score:3.2},B:{level:'good',score:4}},
+ priceBefore:6,priceAfter:1
 });
-assert.ok(material&&material.packageGain===5,'a genuinely fairer price passes');
+assert.ok(material&&material.priceGain===5,'real market-price gap improvement passes');
 const bothBetter=Policy.evenImprovement({
-  before,after:{A:{level:'good',score:6},B:{level:'good',score:3}},
-  packageBefore:1,packageAfter:1,additiveBefore:35,additiveAfter:34
+ before,after:{A:{level:'good',score:6},B:{level:'good',score:3}},
+ priceBefore:1,priceAfter:1
 });
-assert.ok(bothBetter,'both-roster improvements work even when price was already close');
+assert.ok(bothBetter,'both-roster improvements work when price already matches');
 assert.equal(Policy.evenImprovement({
-  before,after:before,packageBefore:1,packageAfter:0.5,
-  additiveBefore:35,additiveAfter:35
-}),null,'trivial 1% → 0.5% improvement does not justify package churn');
-console.log('PASS regression: reject gratuitous throw-ins and preserve truly meaningful improvements');
+ before,after:before,priceBefore:1,priceAfter:0.5
+}),null,'trivial gap improvement must not churn assets');
+console.log('PASS additive price improvement: reject gratuitous assets, preserve both team grades');
 
 assert.match(trade,/id="tradeDecisionLens"/,'two-sided decision summary exists');
 assert.match(trade,/VaultTradePolicy\.priceAudit\(Vault, aAssets, bAssets\)/);

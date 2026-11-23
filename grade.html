@@ -61,9 +61,9 @@
   <p id="status" class="text-[12px] text-zinc-500 mt-3"></p>
 </main>
 
-<script src="vault-core.js?v=2b59eaf0"></script>
+<script src="vault-core.js?v=bfb02d93"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
-<script src="market-data.js?v=9e9371ed"></script>
+<script src="market-data.js?v=bdfadff2"></script>
 <script>
 /* ============================================================
    GRADE A TRADE (user, 2026-11-05)
@@ -132,13 +132,13 @@ function paint() {
   if (!send.length || !get.length) { box.classList.add('hidden'); return; }
   Vault._gradeMarket = new Map(Object.entries(gradeData?.formats?.[field()] || {}));
   box.classList.remove('hidden');
-  const v = Vault.tradeSideValues(send, get), k = Vault.ktcSideValues(send, get), edge = edgeOf(v.valueA, v.valueB), ktcEdge = edgeOf(k.valueA, k.valueB);
+  const v = Vault.marketSideValues(send, get), k = Vault.ktcSideValues(send, get), edge = edgeOf(v.valueA, v.valueB), ktcEdge = edgeOf(k.valueA, k.valueB);
   const word = Vault.priceWord(Vault.fairnessBucket(Math.abs(edge), 0, 0));
   const who = Math.abs(edge) < 3 ? 'About an even price' : edge > 0 ? 'The price favors you' : 'The price favors them';
   box.innerHTML = `<div class="text-[12px] text-zinc-400">${who}${Vault.info('quickGrade')}</div>
     <div class="num text-[34px] leading-tight ${WORD_TONE[word]}">${word}</div>
     <div class="grid grid-cols-2 gap-3 mt-3">
-      <div><div class="num text-[22px] text-zinc-100">${priceText(edge)}</div><div class="text-[12px] text-zinc-400">you pay · trade value</div></div>
+      <div><div class="num text-[22px] text-zinc-100">${priceText(edge)}</div><div class="text-[12px] text-zinc-400">you pay · additive market price</div></div>
       <div><div class="num text-[22px] text-zinc-100">${priceText(ktcEdge)}</div><div class="text-[12px] text-zinc-400">KTC's calculator</div></div>
     </div>
     <div id="gapLine" class="text-[12px] text-zinc-400 mt-3 empty:hidden"></div>`;

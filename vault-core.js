@@ -3,6 +3,11 @@
    Shared config + data pipeline for all Vault pages.
    ============================================================ */
 const VAULT_CONFIG = {
+  // Nov 22 2026: additive individual market prices drive all live trade prices,
+  // coaching and completed-trade grading. The former accepted-trade fair curve
+  // remains a historical reference only. Its old accuracy records are NOT
+  // comparable to the new price/grade rules without another holdout.
+  TRADE_PRICE_MODEL: 'additive-market-v1',
   KTC_URL: 'data/ktc-values.json',
   // Our Worker holding the Roster Audit key (worker/roster-audit-verdict.js).
   ROSTER_AUDIT_VERDICT_URL: 'https://vault-roster-audit.jacob-palmer60.workers.dev/',
@@ -14,7 +19,8 @@ const VAULT_CONFIG = {
   // What each player and pick actually trades for, per league format, built
   // daily (scripts/build-grade-values.js); the grade's values (Vault.gradeValue).
   GRADE_VALUES_URL: 'data/grade-values.json',
-  // How pieces add up (Vault.tradeValueP, Vault.tradeSideValues): Fair means
+  // LEGACY REFERENCE ONLY — old accepted-trade package model (Vault.tradeValueP,
+  // Vault.tradeSideValues), retained for research / market summaries. Fair meant
   // what managers accept (user, 2026-10-09). A side is worth (sum of
   // value^p)^(1/p); p is read from this table by the trade's best piece (rows,
   // values) and how close the best piece on the other side is to it (columns,
@@ -297,6 +303,9 @@ const VAULT_CONFIG = {
   // over-called Lopsided (38.8% of real trades, vs. the 30.3% target) and
   // under-called Fair (19.3% vs. 27.1%). 14/41 reproduces the original real-world
   // target almost exactly (27.2%/42.4%/30.4%).
+  // Provisional legacy cutoff values: the old historical calibration used the
+  // package curve, not additive market prices. We retain the familiar thresholds
+  // for continuity but do not claim they are re-fitted to the new price model.
   FAIR_PCT: 14,
   LOPSIDED_PCT: 41,
   // Fit score (see analyzeSide's res.fit / gradeTrade's combinedFit) a side needs
@@ -3151,6 +3160,22 @@ const Vault = {
     return `Rarely accepted: fewer than 1 in ${a.share < 0.01 ? 100 : 20} accepted trades like it are this lopsided.`;
   },
 
+  // Primary price basis for NEW live trades and regraded historical deals.
+  // Historical outcome research: in 2024 and 2025 player-only 1-for-2 trades,
+  // additive trade-day values agreed with the year-later additive market-value
+  // winner 82.83% / 86.36%, versus 62.06% / 63.46% with the old fair curve.
+  // This is NOT a manager-specific acceptability model or a title projection.
+  // A piece retains its full independently priced market value in any package.
+  // The separate old tradeSideValues() is retained as a historical accepted-
+  // trade shape diagnostic, never as a secret discount in the live price.
+  marketSideValues(assetsA, assetsB, { market = true } = {}) {
+    const table = market === true ? Vault._gradeMarket : market || null;
+    const price = asset => table ? Vault.gradeValue(asset, table) : asset.value;
+    const rawA = assetsA.reduce((n, asset) => n + (Number(price(asset)) || 0), 0);
+    const rawB = assetsB.reduce((n, asset) => n + (Number(price(asset)) || 0), 0);
+    return { rawA, rawB, valueA: rawA, valueB: rawB, bonusA: 0, bonusB: 0,
+      display: false, basis: 'additive-market' };
+  },
   // { market: false }: KTC values (the market data measuring prices; marketEdge,
   // which applies its own). { market: Map }: that week's prices (past trades).
   // { neverLess: false }: skip the never-less check (tradeValueRatio), for
@@ -3208,7 +3233,7 @@ const Vault = {
      weighting, so a pile heavy at a position the recipient is already deep at is
      still worth less to them than the same real dollars spread across a need. */
   needAdjustedTradeValues(teamA, teamB, allTeams, aAssets, bAssets) {
-    const { valueA: consolAdjA, valueB: consolAdjB } = Vault.tradeSideValues(aAssets, bAssets);
+    const { valueA: consolAdjA, valueB: consolAdjB } = Vault.marketSideValues(aAssets, bAssets);
     const profileB = Vault.positionalProfile(teamB, allTeams); // judges aAssets (B receives)
     const profileA = Vault.positionalProfile(teamA, allTeams); // judges bAssets (A receives)
     const distA = Vault.distributeAdjustedValue(aAssets, consolAdjA);
@@ -3351,8 +3376,9 @@ const Vault = {
   // The verdict's value %, for the side that gets `got`, on verdict piece values; null for an empty side.
   verdictValuePct(got, gave) {
     if (!got || !gave || !got.length || !gave.length) return null;
-    const R = Vault.tradeValueRatio(got.map(Vault.verdictPieceValue), gave.map(Vault.verdictPieceValue));
-    return Number.isFinite(R) ? 200 * (R - 1) / (R + 1) : null;
+    const a = got.reduce((n, x) => n + Vault.verdictPieceValue(x), 0);
+    const b = gave.reduce((n, x) => n + Vault.verdictPieceValue(x), 0);
+    return a + b > 0 ? 200 * (a - b) / (a + b) : null;
   },
   // mode: the side's timeline; the age cliff counts double for teams not contending (AGE_CLIFF_PCT_LONG).
   verdictValueTilt(got, gave, mode = 'contend') {
@@ -3402,6 +3428,10 @@ const Vault = {
   // The tier's track record for this team's timeline (VAULT_CONFIG.VERDICT_TIERS record):
   // "In real trades scored like this, 71% of contenders were still ahead on value a year later."
   verdictRecordText(imp) {
+    // Historical percentages were calibrated on the retired consolidation-
+    // based verdict and cannot be asserted for today's revised model.
+    // Do not display legacy win-rate promises until independently revalidated.
+    if (VAULT_CONFIG.TRADE_PRICE_MODEL === 'additive-market-v1') return '';
     const r = imp && imp.record && (imp.record[imp.mode] ?? imp.record.flexible);
     if (r == null) return '';
     if (imp.mode === 'contend') {
@@ -4482,8 +4512,8 @@ const Vault = {
     // Applying today's roster fit to that old transaction invents an impact that wasn't measured.
     // Until point-in-time rosters AND projections are available, grade price only.
     const gradeMarket = false;
-    const then = Vault.tradeSideValues(toB, toA, { market: gradeMarket });
-    const today = Vault.tradeSideValues(toBTodayPrices, toATodayPrices, { market: false });
+    const then = Vault.marketSideValues(toB, toA, { market: gradeMarket });
+    const today = Vault.marketSideValues(toBTodayPrices, toATodayPrices, { market: false });
     const avgAdj = (then.valueA + then.valueB) / 2 || 1;
     const signedPctDiff = (then.valueA - then.valueB) / avgAdj * 100;
     const pctDiff = Math.abs(signedPctDiff);
@@ -4495,7 +4525,7 @@ const Vault = {
     const fairness = Vault.blendedFairness(signedPctDiff, 0, 0, 0, 0);
     const bucket = Vault.fairnessBucket(pctDiff, 0, 0);
     const favored = signedPctDiff > 0 ? teamB : teamA;
-    const label = bucket === 'Unfair' || bucket === 'Lopsided' ? `${bucket} — Favored ${favored.teamName}` : 'Fair on trade value';
+    const label = bucket === 'Unfair' || bucket === 'Lopsided' ? `${bucket} — Favored ${favored.teamName}` : 'Fair on additive trade value';
     const names = list => list.map(a => Vault.escapeHtml(a.name)).join(', ') || 'no listed assets';
     const text = `${Vault.escapeHtml(teamA.teamName)} received ${names(toA)}; ${Vault.escapeHtml(teamB.teamName)} received ${names(toB)}.`;
     const verdict = { tone: bucket === 'Unfair' ? 'bad' : 'neutral', label, text };

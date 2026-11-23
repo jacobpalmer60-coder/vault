@@ -50,9 +50,9 @@
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
-<script src="vault-core.js?v=2b59eaf0"></script>
+<script src="vault-core.js?v=bfb02d93"></script>
 <script src="vault-nav.js?v=02da1afa"></script>
-<script src="market-data.js?v=9e9371ed"></script>
+<script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script src="season-report.js?v=18c77b80"></script>
 <script>
@@ -87,7 +87,7 @@ const todayGrade = g => Vault.todayGrade(g);
 // value, say what trade value alone reads ("trade value alone: 3% over").
 function valueAloneText(g) {
   if (!g.fairness.fitMovedIt) return '';
-  const t = Vault.tradeSideValues(g.toB, g.toA, { market: false }), v = (t.valueB - t.valueA) / (((t.valueA + t.valueB) / 2) || 1) * 100; // + = team A got more
+  const t = Vault.marketSideValues(g.toB, g.toA, { market: false }), v = (t.valueB - t.valueA) / (((t.valueA + t.valueB) / 2) || 1) * 100; // + = team A got more
   if (Math.abs(Math.abs(v) - g.fairness.overallPct) < 2) return ''; // barely moved: not worth a line
   const said = Math.abs(v) < 1 ? 'even' : `${capPct(Math.abs(v)).toFixed(0)}% ${v > 0 ? 'under' : 'over'}`;
   return `<div class="text-[11px] text-zinc-500 mt-1.5">Roster fit and timeline included; trade value alone: ${said}.</div>`;

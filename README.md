@@ -67,6 +67,55 @@ Rules that have bitten before:
 - **Every visible change** gets a plain-language line in `patch_notes.html`, and `how_we_grade.html` has
   to stay true.
 
+## November 22: additive market-first trade engine (implemented)
+
+Based on the completed November 22 outcome study (sample 1/10, 306,578
+fully priced mature trades), **the primary trade price is now the additive
+sum of independently estimated player and pick market values**.
+The retired package-consolidation curve is retained only for research and
+price comparisons; its previously accepted-trade-calibrated premium can no
+longer make a valuable secondary player nearly disappear from live pricing.
+
+The evidence: for player-only one-for-two trades, trade-day additive
+prices selected the higher additive market-value side one year later
+**82.83%** (2024, 4,707 decisive) and **86.36%** (2025, 5,878)
+of the time versus **62.06%** and **63.46%** for the former full
+package curve. The results favor additive pricing by 20.77 and 22.90
+percentage points on this particular outcome target. For the 1,245
+near-equal-lead 1-for-2 cases the corresponding rates are 92.21%
+versus 83.21%. These measure *future additive KTC market-price direction
+in completed trades*, NOT playoff outcomes, manager acceptance, or actual
+roster value. Model overlap means they are not a sealed holdout.
+
+**Affected surfaces:** calculator price bar, both teams' grade inputs,
+verdict-piece comparison, Even It Out and trade-matching screens,
+Coach pricing and trade offers, manager negotiation price checks, and
+historical/current Trade Grades are now consistent with `Vault.marketSideValues`.
+`Vault.tradeSideValues` remains solely the archived curve for market-analysis
+pipelines and a separate historical price comparison. Consolidation remains
+meaningful through actual projected lineup shifts, depth, team timeline,
+and documented, smaller future-return tilts; it is not an automatic dollar
+premium.
+
+**Important calibration warning:** the existing 14% Fair / 41% Unfair
+breakpoints were originally set against the old package-price distribution
+and are now provisional. Prior verdict tier success rates are hidden rather
+than shown as if they were calibrated on the new formula. Individual
+prediction/acceptance models and roster projections retain their documented
+limitations and must be validated independently before new confidence
+claims. No new statistical probabilities were invented.
+
+Regression suite:
+
+```powershell
+node scripts/check-market-price-rollout.js
+node scripts/check-calculator-deep.js
+node scripts/check-trade-decision-policy.js
+node scripts/check-trade-pricing-reconciliation.js
+node scripts/check-math.js
+node scripts/stamp-assets.js --check
+```
+
 ## November 22: additive versus package pricing audit (real trade regression)
 
 The Trade Calculator now labels **two different price baselines**:

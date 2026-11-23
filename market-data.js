@@ -87,7 +87,7 @@ function marketLoad(league) {
   return Market.loading;
 }
 
-// Trade value of a completed trade's two sides, on KTC values, computed once per
+// Additive KTC price of a completed trade's two sides, computed once per
 // side pair: every trade appears under each of its pieces (178,000 entries for
 // about 60,000 trades), and the "similar players" baseline reads them all, which
 // took 15 seconds on the first Trade Coach search before (2026-10-09).
@@ -96,11 +96,11 @@ function marketSides(pSide, oSide) {
   let m = marketSideCache.get(pSide);
   if (!m) marketSideCache.set(pSide, (m = new WeakMap()));
   let v = m.get(oSide);
-  if (!v) m.set(oSide, (v = Vault.tradeSideValues(pSide, oSide, { market: false })));
+  if (!v) m.set(oSide, (v = Vault.marketSideValues(pSide, oSide, { market: false })));
   return v;
 }
 // % the side getting `pSide` paid over KTC: what they sent minus what they got,
-// consolidation-adjusted, as a % of the two sides' average.
+// using additive KTC prices, as a % of the two sides' average.
 function marketPaid(pSide, oSide) {
   const { valueA: vp, valueB: vo } = marketSides(pSide, oSide);
   const avg = (vp + vo) / 2 || 1;
@@ -338,11 +338,11 @@ function marketPeerAdj(league, a) {
 // has gone for (the market reads pages show) stays the full read.
 const MARKET_CARRYOVER = 0.6;
 function marketEdge(league, give, get) {
-  // KTC's consolidation adjustment stays as the grade computes it; each side is
-  // then scaled by its own pieces' market prices. Re-running the adjustment on
-  // market prices could flip which side holds the best piece and swing the
-  // bonus from one side to the other, which is KTC's math, not the market.
-  const { valueA, valueB } = Vault.tradeSideValues(give, get, { market: false });
+  // The primary additive KTC price remains the baseline; each side is
+  // then scaled by its own pieces' market prices. Applying the retired curve on
+  // market prices could hide an extra player's independent value and swing the
+  // old bonus from one side to the other, which no longer belongs in live pricing.
+  const { valueA, valueB } = Vault.marketSideValues(give, get, { market: false });
   const sum = list => list.reduce((t, a) => t + a.value, 0);
   const mkt = list => list.reduce((t, a) => t + a.value * (1 + MARKET_CARRYOVER * marketAdj(league, a) / 100), 0);
   const vG = valueA * (sum(give) ? mkt(give) / sum(give) : 1), vR = valueB * (sum(get) ? mkt(get) / sum(get) : 1);
@@ -418,7 +418,7 @@ function marketPriceRangeCalc(league, a, pSide, oSide) {
 // while the market hasn't loaded.
 function marketAcceptable(league, send, get) {
   if (!send.length || !get.length) return null;
-  const { valueA: S, valueB: G } = Vault.tradeSideValues(send, get, { market: false });
+  const { valueA: S, valueB: G } = Vault.marketSideValues(send, get, { market: false });
   const f = r => 200 * (r - 1) / (r + 1), s = f(S / G);
   if (!Market.data || Market.data.failed) {
     const a = Vault.acceptability(send, get, Math.abs(s));
@@ -528,7 +528,7 @@ function marketGaps() {
     if (seen.has(t)) return;
     seen.add(t);
     if (seen.size % 8) return;
-    const { valueA, valueB } = Vault.tradeSideValues(t.s1, t.s2, { market: false });
+    const { valueA, valueB } = Vault.marketSideValues(t.s1, t.s2, { market: false });
     if (valueA > 0 && valueB > 0) out.push(200 * Math.abs(valueA - valueB) / (valueA + valueB));
   }));
   d.gaps = Float64Array.from(out).sort();
@@ -539,7 +539,7 @@ function marketGaps() {
 function marketGapShare(send, get) {
   const gaps = marketGaps();
   if (!gaps || gaps.length < 500) return null;
-  const { valueA, valueB } = Vault.tradeSideValues(send, get, { market: false }), gap = 200 * Math.abs(valueA - valueB) / ((valueA + valueB) || 1);
+  const { valueA, valueB } = Vault.marketSideValues(send, get, { market: false }), gap = 200 * Math.abs(valueA - valueB) / ((valueA + valueB) || 1);
   let lo = 0, hi = gaps.length;
   while (lo < hi) { const mid = (lo + hi) >> 1; if (gaps[mid] < gap) lo = mid + 1; else hi = mid; }
   return { share: (gaps.length - lo) / gaps.length, n: Market.data.gapTrades };

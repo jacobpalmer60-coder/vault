@@ -3,6 +3,8 @@
   "even 1 for 1": {
    "valueA": 7000,
    "valueB": 7000,
+   "legacyA": 7000,
+   "legacyB": 7000,
    "bucket": "Fair",
    "verdictPctA": 0,
    "tiltContend": {
@@ -31,6 +33,8 @@
   "small gap 1 for 1": {
    "valueA": 7000,
    "valueB": 6500,
+   "legacyA": 7000,
+   "legacyB": 6500,
    "bucket": "Fair",
    "verdictPctA": -9.26,
    "tiltContend": {
@@ -59,6 +63,8 @@
   "big gap 1 for 1": {
    "valueA": 8000,
    "valueB": 5000,
+   "legacyA": 8000,
+   "legacyB": 5000,
    "bucket": "Unfair",
    "verdictPctA": -57.12,
    "tiltContend": {
@@ -85,10 +91,12 @@
    }
   },
   "star for two starters": {
-   "valueA": 11766.76,
+   "valueA": 9000,
    "valueB": 9500,
-   "bucket": "Lopsided",
-   "verdictPctA": -34.17,
+   "legacyA": 11766.76,
+   "legacyB": 9500,
+   "bucket": "Fair",
+   "verdictPctA": -10.52,
    "tiltContend": {
     "pct": 0.3755317588381986,
     "why": "cheap",
@@ -113,10 +121,12 @@
    }
   },
   "star for a pile": {
-   "valueA": 17815.36,
+   "valueA": 9000,
    "valueB": 13000,
+   "legacyA": 17815.36,
+   "legacyB": 13000,
    "bucket": "Lopsided",
-   "verdictPctA": -59.52,
+   "verdictPctA": 4.37,
    "tiltContend": {
     "pct": -2.6244682411618014,
     "why": "wr",
@@ -142,9 +152,11 @@
   },
   "2 for 1 close pieces": {
    "valueA": 11800,
-   "valueB": 11700.18,
-   "bucket": "Fair",
-   "verdictPctA": 5.94,
+   "valueB": 8500,
+   "legacyA": 11800,
+   "legacyB": 11700.18,
+   "bucket": "Lopsided",
+   "verdictPctA": -23.57,
    "tiltContend": {
     "pct": -0.4674891858885833,
     "why": "cheap",
@@ -169,10 +181,12 @@
    }
   },
   "player for picks": {
-   "valueA": 7085.71,
+   "valueA": 6000,
    "valueB": 6500,
+   "legacyA": 7085.71,
+   "legacyB": 6500,
    "bucket": "Fair",
-   "verdictPctA": -24.5,
+   "verdictPctA": -17.98,
    "tiltContend": {
     "pct": 11.649484536082474,
     "why": "picks",
@@ -198,9 +212,11 @@
   },
   "picks only": {
    "valueA": 5500,
-   "valueB": 6371.65,
-   "bucket": "Lopsided",
-   "verdictPctA": 21.58,
+   "valueB": 5000,
+   "legacyA": 5500,
+   "legacyB": 6371.65,
+   "bucket": "Fair",
+   "verdictPctA": 2.16,
    "tiltContend": {
     "pct": -2.905788876276958,
     "why": "cheap",
@@ -227,6 +243,8 @@
   "old RB for young WR": {
    "valueA": 5500,
    "valueB": 5500,
+   "legacyA": 5500,
+   "legacyB": 5500,
    "bucket": "Fair",
    "verdictPctA": -8,
    "tiltContend": {
@@ -255,6 +273,8 @@
   "TE for QB": {
    "valueA": 4500,
    "valueB": 4800,
+   "legacyA": 4500,
+   "legacyB": 4800,
    "bucket": "Fair",
    "verdictPctA": 23.56,
    "tiltContend": {
@@ -282,9 +302,11 @@
   },
   "four for three": {
    "valueA": 14000,
-   "valueB": 16042.8,
+   "valueB": 14000,
+   "legacyA": 14000,
+   "legacyB": 16042.8,
    "bucket": "Fair",
-   "verdictPctA": 19.16,
+   "verdictPctA": 6.73,
    "tiltContend": {
     "pct": -1.6494845360824741,
     "why": "cheap",
