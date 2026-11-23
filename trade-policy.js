@@ -171,6 +171,7 @@ const VaultTradePolicy = (() => {
       }
     }
     return {listed,market,package:packaged,ktc:ktcAdjusted,marginal,
+      marketFeedAvailable:!!Vault._gradeMarket,
       divergencePct:delta===null?null:Math.abs(delta),
       // Threshold is descriptive UI guidance, not fitted statistical evidence.
       materialDisagreement:delta!==null && Math.abs(delta)>=15};
