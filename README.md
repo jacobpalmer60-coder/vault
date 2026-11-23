@@ -516,4 +516,4 @@ node scripts/stamp-assets.js --check
 
 On GitHub, the `Browser UI smoke — Vault` workflow runs Chromium at **320, 390, 768 and 1280px** and uploads screenshots as an artifact. Locally, install Playwright and Chromium to run `node scripts/check-browser-ui.cjs`.
 
-Draft rules are stored **only in this browser** for each league and draft class; commissioners do not gain edit permissions on Sleeper through Vault. Unknown results and equal-MPF ties never become confirmed picks.
+Draft rules are stored **only in this browser** for each league and draft class, but the Draft Center can copy a shareable link containing the current model settings. Commissioners do not gain edit permissions on Sleeper through Vault. Unknown results and equal-MPF ties never become confirmed picks.
