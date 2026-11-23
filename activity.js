@@ -21,7 +21,7 @@ function render(){
    return '<div class="vault-event-side"><span class="vault-event-team">'+tm+'</span><span class="vault-event-moves">'+got+lost+'</span></div>';
   }).join('');
   const badge='<span class="vault-event-tag '+esc(e.kind)+'">'+esc(typeLabel[e.kind]||e.description)+'</span>';
-  const grade=e.linkable?'<a class="vault-link vault-event-detail" href="'+href('trade_grades.html')+'#trade-'+encodeURIComponent(e.id)+'">Trade Grades</a>':'';
+  const grade=e.linkable?'<a class="vault-link vault-event-detail" href="'+href('trade_grades.html')+'#trade-'+encodeURIComponent(e.id)+'">Graded view (if priced)</a>':'';
   const stamp=e.kind==='draft'&&e.sourceTimestamp==='draft-start'?' · draft start date (selection time unavailable)':'';
   return '<article class="vault-event-card"><div class="vault-event-top">'+badge+'<span class="vault-meta">'+esc(when)+(e.week>=0?' · Week '+e.week:'')+esc(stamp)+'</span></div>'+
    '<div class="vault-event-title">'+esc(e.description)+(e.status!=='complete'?' · '+esc(e.status):'')+'</div>'+
