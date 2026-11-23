@@ -76,4 +76,7 @@ assert.ok(trade.includes('Market-price sum'));
 assert.ok(trade.includes('Vault package model'));
 assert.ok(trade.includes('trade-price-audit-ui.js'));
 assert.ok(!trade.includes('Market fairness</div>'),'do not relabel model price as additive market fairness');
+assert.ok(!trade.includes('marketBucket'),'do not apply package-derived Fair cutoffs to additive prices');
+assert.ok(trade.includes('marketFeedAvailable'),'identify KTC fallback if trade-premium feed is missing');
+assert.ok(trade.includes('even Vault package-model price'),'price summary must qualify the word even');
 console.log('PASS calculator wiring and model labeling');
