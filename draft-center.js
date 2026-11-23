@@ -96,6 +96,8 @@ function attach(){
   year=years.includes(requested)?requested:years[0];settings=loadRules();
   $('season').innerHTML=years.map(y=>'<option value="'+y+'">'+y+'</option>').join('');
   $('teamFilter').innerHTML='<option value="all">All managers</option>'+teams.slice().sort((a,b)=>a.teamName.localeCompare(b.teamName)).map(t=>'<option value="'+esc(t.rosterId)+'">'+esc(t.teamName)+'</option>').join('');
+  const selectedFromUrl=new URLSearchParams(location.search).get('team');
+  if(teams.some(t=>String(t.rosterId)===String(selectedFromUrl)))selected=String(selectedFromUrl);
   $('playoffCount').innerHTML=Array.from({length:teams.length+1},(_,n)=>'<option value="'+n+'">'+n+'</option>').join('');
   attach();render();
  }catch(e){$('draftStatus').textContent='Could not load Draft Center: '+e.message;$('draftError').classList.remove('hidden');console.error(e)}
