@@ -1554,7 +1554,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Market fairness</div><div class="text-[13px] font-medium text-zinc-200">${marketBucket} · ${priceGap}% package gap</div><div class="text-[11px] text-zinc-500">${additiveGap}% before consolidation · not roster fit</div></div>
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-500">Manager response</div><div class="text-[13px] font-medium text-zinc-200">Not confirmed · model in Trade Coach</div><div class="text-[11px] text-zinc-500">${Vault.escapeHtml(evidence.sample)} · not a probability</div></div>
     </div>`;
-  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Good grades for both · acceptance unconfirmed'}</span></div>` : ''}
+  el.innerHTML = `${oneSided || both ? `<div class="mb-2"><span class="text-[11px] px-2 py-0.5 rounded border ${oneSided ? 'border-orange-400/40 text-orange-300' : 'border-emerald-400/30 text-emerald-300'}">${oneSided ? oneSidedText : 'Both sides grade Toss-up or better · acceptance unconfirmed'}</span></div>` : ''}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-w-[640px]">
       ${tile(`For ${Vault.escapeHtml(teamA.teamName)}`, yourLabel, Vault.VERDICT_TIER_TEXT[imp.tier], yourSub, closeCallHtml(imp), Vault.info('verdict'))}
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
@@ -1580,7 +1580,17 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const wb = document.getElementById('workBoth');
   const fixFor = them && them.level === 'bad' ? 'them' : imp.level === 'bad' ? 'you' : null;
   const fix = evenFixLive() ? evenFix : null;
-  if (wb) wb.innerHTML = fix ? (fix.options.length > 1 ? `<button onclick="evenItOutNext()" title="Swap in another way to even out the trade you started with" class="mt-3 text-[13px] px-3.5 py-2 rounded-lg border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 transition-colors">Try another (${fix.at + 1} of ${fix.options.length})</button>` : '') : fixFor ? '<div id="evenLine" class="mt-3 empty:hidden"></div>' : '';
+  // Keep this tool discoverable for EVERY populated trade. Previously the
+  // entire area vanished for Toss-up/positive offers, making it look broken.
+  if (wb) {
+    const heading = '<div class="text-[12px] font-medium text-amber-200 mb-1">Even It Out</div>';
+    const body = fix
+      ? `<div class="text-[12px] text-zinc-400">Applied a mutually acceptable adjustment from the original offer.</div>${fix.options.length > 1 ? `<button onclick="evenItOutNext()" title="Swap in another way to even out the trade you started with" class="mt-2 text-[13px] px-3.5 py-2 rounded-lg border border-amber-400/40 text-amber-100 hover:bg-amber-400/10 transition-colors">Try another (${fix.at + 1} of ${fix.options.length})</button>` : ''}`
+      : fixFor
+        ? '<div id="evenLine" role="status" aria-live="polite" class="text-[12px] text-zinc-400">Finding an adjustment both teams might accept…</div>'
+        : '<div class="text-[12px] text-zinc-400">Already balanced by Vault’s team verdicts: both teams grade Toss-up or better. No changes needed. A large difference from another calculator does not by itself trigger this team-fit tool.</div>';
+    wb.innerHTML = `<section aria-label="Even It Out" class="mt-3 max-w-[640px] rounded-xl border border-amber-400/15 bg-black/15 px-3 py-2.5">${heading}${body}</section>`;
+  }
   if (fixFor && !fix) scheduleEvenLine();
 }
 
