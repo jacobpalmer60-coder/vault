@@ -31,19 +31,21 @@ console.log('PASS additive vs consolidation reads are separate and mirror teams'
 
 // Recommendation is the same one used by the recipient verdict, not an
 // independent "would accept" that contradicts the displayed advice.
-assert.equal(Policy.receiverAccepts({will:12,ask:-12,drops:0,level:'bad'}),false);
-assert.equal(Policy.receiverAccepts({will:0,ask:-12,drops:0,level:'tossup'}),true);
-assert.equal(Policy.receiverAccepts({will:0,ask:-12,drops:0,level:'good'}),true);
-assert.equal(Policy.receiverAccepts({will:0,ask:-12,drops:2,level:'good'}),false);
-assert.equal(Policy.receiverAccepts({will:-13,ask:-12,drops:0,level:'good'}),false);
-assert.equal(Policy.receiverAccepts({will:NaN,ask:-12,drops:0,level:'good'}),false);
+const warning = Policy.receiverDecision({will:12,ask:-12,drops:0,level:'bad'});
+assert.equal(warning.accepts,true,'behavior can differ from advisory grade');
+assert.equal(warning.gradeConflict,true,'the difference must not be hidden');
+assert.deepEqual(Policy.receiverDecision({will:0,ask:-12,drops:0,level:'tossup'}).accepts,true);
+assert.equal(Policy.receiverDecision({will:0,ask:-12,drops:0,level:'good'}).gradeConflict,false);
+assert.equal(Policy.receiverDecision({will:0,ask:-12,drops:2,level:'good'}).accepts,false);
+assert.equal(Policy.receiverDecision({will:-13,ask:-12,drops:0,level:'good'}).accepts,false);
+assert.equal(Policy.receiverDecision({will:NaN,ask:-12,drops:0,level:'good'}).accepts,false);
 for(const [trades,basis] of [[0,'market'],[2,'history'],[8,'history'],[30,'history']]){
   const e=Policy.evidence({basis,style:{trades}});
   assert.equal(e.count,trades);
   assert.match(e.note,/not a measured acceptance probability|no dependable manager-specific acceptance estimate/);
   if(trades<4)assert.notEqual(e.sample,'Meaningful league sample');
 }
-console.log('PASS veto, roster-cap and evidence labeling');
+console.log('PASS independent recommendation, roster-cap, and evidence labeling');
 
 // Exercise the exact negotiation implementation, not a re-created formula.
 const nsrc = block(negotiation,'function negJudgeFor(teamO, oAssets, teamR, rAssets, ctx) {',
@@ -67,12 +69,14 @@ const get = [{key:'b',value:3000,type:'player',name:'B'}];
 const judge = vm.runInNewContext(nsrc + '\nnegJudgeFor;',negCtx);
 const negative = judge({rosterId:1},give,manager,get,{basis:'market',needs:[],surpluses:[]});
 assert.equal(negative.siteSaysNo,true);
-assert.equal(negative.accepts,false,'Coach cannot contradict a receiving-team bad verdict');
+assert.equal(negative.accepts,true,'acceptance remains distinct from team benefit');
+assert.equal(negative.gradeConflict,true,'the conflict must be explicit');
 negCtx.improvementOf = ()=>({level:'tossup'});
 const neutral = judge({rosterId:1},give,manager,get,{basis:'market',needs:[],surpluses:[]});
 assert.equal(neutral.accepts,true);
+assert.equal(neutral.gradeConflict,false);
 assert.ok(neutral.evidence?.note);
-console.log('PASS live negotiation logic uses same receiving-team veto');
+console.log('PASS negotiation flags acceptance-versus-benefit conflicts');
 
 // A restricted search must include real swaps, not only straightforward adds.
 // Diversification keeps a competitive swap even when the raw price ordering
