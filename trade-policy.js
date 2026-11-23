@@ -105,7 +105,7 @@ const VaultTradePolicy = (() => {
     // Package consolidation should not be used to mask a new lopsided raw
     // price. The already-nearly-even Boston + Kiner/Kittle scenario exposed
     // gratuitous add-ons that widened the 35% raw price gap.
-    if (additiveGain < -2) return null;
+    if (additiveGain < -2 || packageGain < -1) return null;
     const worthChanging = packageGain >= 2 ||
       (Math.max(gainA, gainB) >= 3 && Math.min(gainA, gainB) >= -0.25);
     if (!worthChanging) return null;
