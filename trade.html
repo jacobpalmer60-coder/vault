@@ -1549,12 +1549,11 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const managerStyle = typeof Negotiation === 'undefined' ? null : Negotiation.styles?.get(teamB.rosterId);
   const evidence = VaultTradePolicy.evidence({style:managerStyle, basis:managerStyle?.trades >= 2 ? 'history' : 'market'});
   const gapWord = v => Math.abs(v || 0).toFixed(0) + '%';
-  const marketBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(prices.market.signedPct), 0, 0));
   const packageBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(prices.package.signedPct), 0, 0));
   const modelConflict = prices.materialDisagreement;
   const bothGradeText = modelConflict ? 'Vault team grades Toss-up or better · prices disagree · acceptance unconfirmed' : 'Both sides grade Toss-up or better · acceptance unconfirmed';
   const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[740px]" aria-label="Independent additive market price, package model and manager response">
-      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Market-price sum</div><div class="text-[13px] font-medium text-zinc-100">${marketBucket} · ${gapWord(prices.market.signedPct)} gap</div><div class="text-[11px] text-zinc-400">Individual prices added · no package model</div></div>
+      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Market-price sum</div><div class="text-[13px] font-medium text-zinc-100">${gapWord(prices.market.signedPct)} apart</div><div class="text-[11px] text-zinc-400">No consolidation · descriptive gap only</div></div>
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Vault package model</div><div class="text-[13px] font-medium text-zinc-100">${packageBucket} · ${gapWord(prices.package.signedPct)} gap</div><div class="text-[11px] text-zinc-400">Historical-trade consolidation curve</div></div>
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Manager response</div><div class="text-[13px] font-medium text-zinc-100">Not confirmed · Trade Coach</div><div class="text-[11px] text-zinc-400">${Vault.escapeHtml(evidence.sample)} · not a probability</div></div>
     </div>`;
