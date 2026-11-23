@@ -92,30 +92,25 @@ const VaultTradePolicy = (() => {
   // a gratuitous throw-in can make a manager worse even if their headline tier
   // stays unchanged. Treat package price, additive price and both independent
   // roster verdicts as separate non-substitutable signals.
-  function evenImprovement({before, after, packageBefore, packageAfter, additiveBefore, additiveAfter}) {
-    const gainA = after.A.score - before.A.score;
-    const gainB = after.B.score - before.B.score;
-    const packageGain = packageBefore - packageAfter;
-    const additiveGain = additiveBefore - additiveAfter;
-    if (![gainA, gainB, packageGain, additiveGain].every(Number.isFinite)) return null;
-    // Neither manager should sacrifice a meaningful amount of benefit simply
-    // so the other side can extract another asset.
+  // A request for alternative packages on an already-passable trade should
+  // improve the ONLY price used by Vault's decision engine: summed market value.
+  // A better historical package curve number is never a reason to give a
+  // valuable player away. Both sides' independent roster verdicts must survive.
+  function evenImprovement({before, after, priceBefore, priceAfter}) {
+    const gainA = after.A.score - before.A.score, gainB = after.B.score - before.B.score;
+    const priceGain = priceBefore - priceAfter;
+    if (![gainA, gainB, priceGain].every(Number.isFinite)) return null;
     if (after.A.level === 'bad' || after.B.level === 'bad' ||
-        gainA < -0.5 || gainB < -0.5) return null;
-    // Package consolidation should not be used to mask a new lopsided raw
-    // price. The already-nearly-even Boston + Kiner/Kittle scenario exposed
-    // gratuitous add-ons that widened the 35% raw price gap.
-    if (additiveGain < -2 || packageGain < -1) return null;
-    const worthChanging = packageGain >= 2 ||
-      (Math.max(gainA, gainB) >= 3 && Math.min(gainA, gainB) >= -0.25);
-    if (!worthChanging) return null;
-    return {gainA, gainB, packageGain, additiveGain};
+        gainA < -0.5 || gainB < -0.5 || priceGain < -1) return null;
+    if (!(priceGain >= 2 ||
+      (Math.max(gainA,gainB) >= 3 && Math.min(gainA,gainB) >= -0.25))) return null;
+    return {gainA, gainB, priceGain};
   }
 
   function ledger(Vault, giveA, giveB) {
     const sum = (xs, fn) => xs.reduce((s,x)=>s+n(fn(x)),0);
     const market = xs => sum(xs,x=>Vault.gradeValue(x));
-    const priced = Vault.tradeSideValues(giveA,giveB);
+    const priced = Vault.tradeSideValues(giveA,giveB); // retired historical curve, reference only
     const raw = Vault.tradeSideValues(giveA,giveB,{market:false});
     const average = (a,b) => (a+b)/2 || 1;
     return {
@@ -172,6 +167,7 @@ const VaultTradePolicy = (() => {
     }
     return {listed,market,package:packaged,ktc:ktcAdjusted,marginal,
       marketFeedAvailable:!!Vault._gradeMarket,
+      primaryBasis:'additive-market',historicalCurveOnly:true,
       divergencePct:delta===null?null:Math.abs(delta),
       // Threshold is descriptive UI guidance, not fitted statistical evidence.
       materialDisagreement:delta!==null && Math.abs(delta)>=15};
