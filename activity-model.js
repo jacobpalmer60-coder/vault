@@ -61,7 +61,7 @@ function build({weeks=[],players={},rosters=[],users=[],drafts=[],season='',leag
 function filter(events,{team='all',kind='all',status='complete',q=''}={}){
  const needle=String(q).toLowerCase().trim(),wanted=id(team);
  return events.filter(e=>(team==='all'||e.participants.includes(wanted))&&
-  (kind==='all'||kind==='roster'?kind==='roster'?['waiver','free_agent','commissioner'].includes(e.kind):true:e.kind===kind)&&
+  (kind==='all'||(kind==='roster'?['waiver','free_agent','commissioner'].includes(e.kind):e.kind===kind))&&
   (status==='all'||e.status===status)&&(!needle||JSON.stringify([e.description,...e.affected.flatMap(a=>[a.name,...a.gets,...a.loses])]).toLowerCase().includes(needle)));
 }
 const api=Object.freeze({build,filter,showPlayer});
