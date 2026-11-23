@@ -13,9 +13,37 @@ const {readSleeperPlayers,seasonFiles,readSeason,ktcPrices,formatOf}=require('./
 const {laterOutcome}=require('./market-history/outcome-values');
 const {loadVault}=require('./lib-market');
 const {WEIGHTS,priceSignals,weightedSignal,nearPeerConsolidationCohorts}=require('./research-trade-separation');
-const Vault=loadVault(),players=readSleeperPlayers();
-const bookCache=new Map(),book=f=>bookCache.get(f)||bookCache.set(f,ktcPrices(f,players)).get(f);
 const sampleMod=Math.max(1,Number(process.env.SAMPLE_MOD)||10),horizon=365*864e5;
+const formatFilter=String(process.env.BENCHMARK_FORMAT||'').trim();
+const yearFilter=String(process.env.BENCHMARK_YEAR||'').trim();
+const nearPeerOnly=process.env.NEAR_PEER_ONLY==='1';
+if(formatFilter && !['sf','sf_tep','sf_tepp','oneQB','oneQB_tep','oneQB_tepp'].includes(formatFilter))
+  throw Error('BENCHMARK_FORMAT must be sf, sf_tep, sf_tepp, oneQB, oneQB_tep, or oneQB_tepp');
+if(yearFilter && !/^202[45]$/.test(yearFilter))throw Error('BENCHMARK_YEAR must be 2024 or 2025');
+// All diagnostics go to stderr, keeping stdout valid JSON when redirected.
+// An archive file or historical price book can be slow to inflate; identifying
+// the step is more useful than a silent command with no progress.
+const progress=text=>{
+ if(process.stderr?.write)process.stderr.write('[price-benchmark] '+text+'\n');
+};
+const ram=()=>{
+ const m=process.memoryUsage?.();
+ return m ? ' rss='+Math.round(m.rss/1048576)+'MB heap='+Math.round(m.heapUsed/1048576)+'MB' : '';
+};
+progress('Startup: sample 1/'+sampleMod+(formatFilter?' format '+formatFilter:' all formats')+
+ (yearFilter?' year '+yearFilter:' 2024–2025')+(nearPeerOnly?' player-only 1-for-2 only':''));
+const Vault=loadVault();
+progress('Loading Sleeper player metadata…');
+const players=readSleeperPlayers();
+progress('Player metadata ready'+ram());
+const bookCache=new Map(),book=f=>{
+ if(bookCache.has(f))return bookCache.get(f);
+ progress('Loading historical price book '+f+'…'+ram());
+ const result=ktcPrices(f,players);
+ bookCache.set(f,result);
+ progress('Historical price book ready '+f+ram());
+ return result;
+};
 const hash=s=>{let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0};
 const SKIP=new Set(['K','DEF']);
 const side=(keys,b,date)=>{
@@ -50,17 +78,38 @@ const record=(r,signals,winner)=>{
   else entry.wrong++;
  }
 };
-const seen=new Set(),files=seasonFiles(2024).filter(f=>+f.slice(0,4)<=2025);
-if(!files.length)throw Error('Missing historical data/sleeper-trades archive');
-let sampled=0,priced=0,mature=0,complete=0,missing=0;
+const seen=new Set(),files=seasonFiles(2024).filter(f=>+f.slice(0,4)<=2025&&(!yearFilter||f.startsWith(yearFilter)));
+if(!files.length)throw Error('Missing historical data/sleeper-trades archive for selected years');
+let sampled=0,priced=0,mature=0,complete=0,missing=0,scanned=0,lastProgress=Date.now();
 for(const file of files){
+ progress('Reading and decompressing '+file+'…'+ram());
  const doc=readSeason(file);
- for(const [id,t] of Object.entries(doc.trades)){
+ progress('Decompressed '+file+'; scanning trade entries…'+ram());
+ // Object.entries() duplicates huge 2024/2025 trade indexes. Iterate the
+ // existing dictionary directly and deduplicate only the sampled 1/N subset.
+ for(const id in doc.trades){
+  if(!Object.prototype.hasOwnProperty.call(doc.trades,id))continue;
+  scanned++;
+  if(scanned%10000===0&&Date.now()-lastProgress>15000){
+    lastProgress=Date.now();
+    progress('scanned='+scanned+' sampled='+sampled+' priced='+priced+
+      ' complete='+complete+ram());
+  }
+  if(hash(id)%sampleMod!==0)continue;
   if(seen.has(id))continue;seen.add(id);
-  if(hash(id)%sampleMod!==0)continue;sampled++;
+  const t=doc.trades[id];
   const [date,leagueKey,aKeys,bKeys]=t;
   if(!date||!doc.leagues[leagueKey]||!aKeys||!bKeys)continue;
-  const b=book(formatOf(doc.leagues[leagueKey])),a=side(aKeys,b,date),c=side(bKeys,b,date);
+  // Optional targeted mode skips most costly lookups before price books load:
+  // identify the trade shape and participant format from the trade-day record.
+  if(nearPeerOnly){
+    if(!((aKeys.length===1&&bKeys.length===2)||(aKeys.length===2&&bKeys.length===1)))continue;
+    if([...aKeys,...bKeys].some(k=>k[0]==='p'||SKIP.has(players[k]?.position)))continue;
+  }
+  const format=formatOf(doc.leagues[leagueKey]);
+  if(formatFilter&&format!==formatFilter)continue;
+  sampled++;
+  const b=book(format),a=side(aKeys,b,date),c=side(bKeys,b,date);
   if(!a||!c)continue;priced++;
   const later=new Date(Date.parse(date)+horizon).toISOString().slice(0,10);
   if(later>b.latestDate)continue;mature++;
@@ -82,7 +131,10 @@ for(const file of files){
    }
   }
  }
+ progress('Finished '+file+': scanned='+scanned+' sampled='+sampled+
+   ' complete='+complete+ram());
 }
+progress('Finished trade pass; writing JSON report…'+ram());
 const rates=r=>({
  eligible:r.eligible,decisive:r.decisive,zeroSignal:r.zeroSignal,
  weights:Object.fromEntries(Object.entries(r.weights).map(([w,v])=>[w,{
@@ -92,6 +144,7 @@ const rates=r=>({
 const maps=m=>Object.fromEntries(Object.entries(m).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>[k,rates(v)]));
 console.log(JSON.stringify({
  schemaVersion:1,kind:'research-price-separation',sampleMod,
+ filters:{year:yearFilter||null,format:formatFilter||null,playerOnlyOneForTwo:nearPeerOnly},
  dateGenerated:new Date().toISOString().slice(0,10),horizonDays:365,
  caveats:[
   'Future label is the one-year change in additive KTC market prices, not roster value, wins, titles, or manager acceptance.',
