@@ -176,16 +176,18 @@ async function trades() {
 }
 
 async function research() {
-  const [lab, insights, findings, history] = await Promise.all([
+  const [lab, insights, findings, history, current] = await Promise.all([
     getJson('data/market-history/trade-lab.json'),
     getJson('data/market-history/insights.json'),
     getJson('data/market-history/findings.json'),
-    getJson('data/market-history/player-history.json')
+    getJson('data/market-history/player-history.json'),
+    getJson('data/market-history/trade-lab-current.json')
   ]);
   const row = (label, d, desc) => tile(label, d?.updated || 'Unavailable',
     (d?.updated ? 'Archive dated ' + esc(d.updated) : 'The archive could not be loaded') + ' · ' + desc,
     !!d?.updated && fresh(d.updated, 7 * 24));
   document.getElementById('research').innerHTML = [
+    tile('Current trade collection', n(current?.priced), `${n(current?.crawled)} total crawled · oldest format updated ${esc(current?.sourceUpdated || 'not yet published')}`, fresh(current?.sourceUpdated, 24)),
     row('Trade Lab', lab, 'rebuilt from separate research, not the daily KTC job'),
     row('Research insights', insights, 'historical studies; not live prices'),
     row('Trade findings', findings, 'research snapshot'),
