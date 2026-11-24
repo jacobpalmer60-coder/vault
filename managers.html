@@ -199,7 +199,7 @@ function renderSummaryTable(rows, teams) {
                 <td class="px-3 py-3 text-right" title="Net value from ${s.pricedTrades} of ${s.trades} recorded trades with reliable prices">${s.pricedTrades ? signedCell(s.netValue) : '—'}</td>
                 <td class="px-3 py-3 text-right" title="Current net value from ${s.pricedTrades} of ${s.trades} recorded trades with reliable prices">${s.pricedTrades ? signedCell(s.netValueToday) : '—'}</td>
                 <td class="hidden sm:table-cell px-4 py-3 text-right mono ${s.avgFit > 0.5 ? 'text-emerald-400' : s.avgFit < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.fitTrades ? (s.avgFit >= 0 ? '+' : '−') + Math.abs(s.avgFit).toFixed(1) : '—'}</td>
-              </tr>${open ? `<tr id="manager-detail-${s.rosterId}"><td colspan="8" class="px-3 pb-3"><div style="width:680px;max-width:calc(100vw - 80px)">${renderCard(s)}</div></td></tr>` : ''}`;
+              </tr>${open ? `<tr id="manager-detail-${s.rosterId}"><td colspan="8" class="px-3 pb-3"><div style="width:680px;max-width:calc(100vw - 80px)">${renderCard(s)}${renderRecentManagerTrades(s.rosterId)}</div></td></tr>` : ''}`;
             }).join('')}
           </tbody>
         </table>
@@ -260,6 +260,36 @@ function managerTradeRecordGroups(allGraded, rosterId) {
   return { groups, total: groups.reduce((sum, g) => sum + g.n, 0), unavailable, uncertain };
 }
 let managerRecordState = null;
+// Raw recent completed transactions belong to EVERY manager, even when
+// historical KTC prices are missing. Grades alone do not prove trade coverage.
+function renderRecentManagerTrades(rosterId) {
+  const state = managerRecordState;
+  if (!state) return '';
+  const trades = (state.tradeActivity || []).filter(tx => !tx._ownerAttributionUncertain &&
+    (tx.roster_ids || []).some(r => String(r) === String(rosterId)))
+    .sort((a,b) => Number(b.created || b.status_updated || 0) - Number(a.created || a.status_updated || 0));
+  const rows = trades.slice(0,10).map(tx => {
+    const partner = (tx.roster_ids || []).map(id =>
+      state.teams.find(t => String(t.rosterId) === String(id)))
+      .find(t => t && String(t.rosterId) !== String(rosterId));
+    const date = Number(tx.created || tx.status_updated || 0);
+    const id = String(tx.transaction_id);
+    const link = tx.priced
+      ? Vault.linkTo('trade_grades.html') + '#trade-' + encodeURIComponent(id)
+      : activityLink(rosterId);
+    return `<li class="border-t border-white/5 py-2 text-[12px] flex gap-2 flex-wrap items-baseline justify-between">
+      <span class="text-zinc-300">${date ? Vault.escapeHtml(fmtDate(date)) : 'Date unavailable'} · vs ${Vault.escapeHtml(partner?.teamName || 'Unknown manager')}</span>
+      <span class="flex gap-2 items-center flex-wrap"><span class="${tx.priced ? 'text-emerald-300' : 'text-amber-300'}">${tx.priced ? 'Graded' : 'Recorded · no reliable grade'}</span>
+      <a class="vault-link mono break-all" href="${Vault.escapeHtml(link)}">Sleeper #${Vault.escapeHtml(id)}</a></span>
+    </li>`;
+  }).join('');
+  return `<section aria-label="Recent completed trades" class="rounded-xl border border-white/5 bg-black/20 p-3 mt-3">
+    <div class="flex justify-between gap-2 flex-wrap"><div class="text-[13px] font-semibold text-zinc-200">Recent completed trades</div>
+    <a class="vault-link text-[12px]" href="${Vault.escapeHtml(activityLink(rosterId))}">View all activity</a></div>
+    ${rows ? `<ul class="mt-2">${rows}</ul><p class="text-[11px] text-zinc-500 mt-1">Showing ${Math.min(trades.length,10)} of ${trades.length} recorded trades; unpriced trades remain part of activity.</p>` :
+      '<p class="text-[12px] text-zinc-500 mt-2">No attributable completed trades yet.</p>'}
+  </section>`;
+}
 function renderManagerRecord(rosterId) {
   const state = managerRecordState, box = document.getElementById('yourRecord');
   if (!state || !box) return;

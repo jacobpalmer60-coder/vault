@@ -40,4 +40,31 @@ assert.ok(managers.includes('Sleeper #${Vault.escapeHtml(String(tx.transaction_i
 assert.ok(managers.includes('awaiting Sleeper processing'),'pending activity clearly labeled');
 assert.ok(managers.includes('trade counts may be incomplete'),'missing-week warning clear');
 assert.ok(grades.includes('reliably graded of'),'Trade Grades explains reliable grading coverage');
+// Expanded manager cards must expose the *same* raw trade on BOTH sides,
+// even when grading is unavailable. This catches a real November 2026
+// production case where stats counted the trade but UI hid the transaction.
+const from=managers.indexOf('function renderRecentManagerTrades(');
+const until=managers.indexOf('function renderManagerRecord(',from);
+assert.ok(from>0&&until>from,'recent completed trade renderer exists');
+const recFn=new Function('Vault','fmtDate','activityLink','managerRecordState',
+  managers.slice(from,until)+';return renderRecentManagerTrades;')(
+  {escapeHtml:s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'),
+   linkTo:p=>p+'?league_id=123'},()=>'Nov 21, 2026',
+  r=>'activity.html?league_id=123&team='+r,
+  {tradeActivity:[
+    {transaction_id:'priced123',roster_ids:[10,2],created:1800000000000,priced:true},
+    {transaction_id:'raw456',roster_ids:[10,2],created:1800000001000,priced:false},
+    {transaction_id:'other',roster_ids:[2,3],created:1800000002000,priced:true}
+   ],teams:[{rosterId:10,teamName:'TURBONUTZ'}, {rosterId:2,teamName:'The Gambler'},
+      {rosterId:3,teamName:'Other'}]});
+for (const id of [10,2]) {
+  const html=recFn(id);
+  assert.ok(html.includes('priced123')&&html.includes('raw456'),
+    'Each participant must see both priced and unpriced completed trade IDs');
+  assert.ok(html.includes('trade_grades.html?league_id=123#trade-priced123'),
+    'Priced completed trade links to trustworthy grade');
+  assert.ok(html.includes('Recorded · no reliable grade'),'Missing prices disclosed');
+}
+assert.ok(!recFn(3).includes('raw456'),'Other teams must not inherit trades');
+console.log('PASS actual completed transaction IDs are displayed symmetrically, with reliable-grade links or missing-price warnings');
 console.log('PASS complete unpriced trades counted on both teams, duplicates excluded, uncertain owner excluded, pending kept separate, week-0/current fetch and coverage warnings');

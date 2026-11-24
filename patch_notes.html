@@ -54,6 +54,9 @@
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
   { date: '2026-11-24', items: [
+    { kind: 'fixed', page: 'Managers', text: 'Every manager can now expand their summary to see recent completed trade IDs and links, whether fully graded or awaiting historical price evidence. A completed trade appears for both participating managers, never only one.' }
+  ] },
+  { date: '2026-11-24', items: [
     { kind: 'fixed', page: 'Data Status', text: 'The jobs list now names Unified Sleeper ingestion instead of the retired standalone crawler. A visible warning appears when published trade-crawl statistics are over six hours old, even if KTC values refreshed today.' },
     { kind: 'improved', page: 'Data Status / Trade Lab', text: 'Historical research files now expose their own snapshot dates. Trade Lab no longer suggests its manually rebuilt analysis updates with each Sleeper collection cycle.' }
   ] },
