@@ -128,11 +128,12 @@ function seal(plain, pubPem) {
     const traded = new Set(Object.values(trades).map(t => t[1]));
     // A league the crawl knows but this pull has never read in full goes last, once: the 2026-11-04 loss
     // took the earlier trades of about 30,000 leagues, and the crawl only revisits their new weeks.
-    // Revisit excludes leagues after their trade deadline. Include the crawler's
-    // queued, never-snapshotted leagues, but not every historical seen league:
-    // those IDs span past seasons and would cause enormous redundant requests.
+    // Revisit excludes leagues after their trade deadline. Include known current
+    // season leagues and never-snapshotted queued leagues, but not every seen ID
+    // across historical seasons (that would cause enormous redundant requests).
     const all = [...new Set([
       ...Object.keys(crawl.revisit || {}),
+      ...Object.keys(crawl.currentLeagues || {}).filter(id => !known.has(hash(id))),
       ...(crawl.leagues || []).filter(id => !known.has(hash(id)))
     ])];
     ids = [
