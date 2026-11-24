@@ -7,7 +7,7 @@ const {chromium}=require('playwright');
 const leagueId=process.env.VAULT_LIVE_LEAGUE_ID,rosterId=process.env.VAULT_LIVE_ROSTER_ID||'10';
 const target=process.env.VAULT_EXPECT_TRADE_ID;
 assert.match(leagueId||'',/^\d+$/);assert.match(target||'',/^\d+$/);
-const ROOT=path.resolve(__dirname,'..'),OUT=path.join(ROOT,'browser-smoke-artifacts');
+const ROOT=path.resolve(__dirname,'..');
 const mime={'.html':'text/html','.js':'text/javascript','.json':'application/json','.css':'text/css','.png':'image/png'};
 (async()=>{
  const server=http.createServer((req,res)=>{
@@ -44,14 +44,11 @@ const mime={'.html':'text/html','.js':'text/javascript','.json':'application/jso
   assert.equal(await toggle.getAttribute('aria-expanded'),'true');
   const panel=await page.locator('#manager-detail-'+rosterId).innerText();
   assert.ok(panel.includes(target),'Recent completed trade '+target+' missing from Manager history');
-  fs.mkdirSync(OUT,{recursive:true});
-  await page.screenshot({path:path.join(OUT,'live-managers-390.png'),fullPage:true});
   // These views intentionally hide *grades* lacking historical prices.
   // Their raw count must still be displayed; not every trade should get a
   // fabricated grade just to make the UI look complete.
   await load('trade_grades.html','#tradeEvidence:not(.hidden)');
   assert.ok((await page.locator('#status').innerText()).includes('reliably graded of'));
-  await page.screenshot({path:path.join(OUT,'live-trade-grades-390.png'),fullPage:true});
   assert.deepEqual(errors,[],'Unhandled browser errors during real manager/grade pages');
   await context.close();
   console.log('PASS real league: manager trade ID, grades evidence, small-screen layout and no JS errors');
