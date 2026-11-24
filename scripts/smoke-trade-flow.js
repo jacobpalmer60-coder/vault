@@ -22,7 +22,7 @@ if(!leagueId||!browserPath){console.error('Usage: node scripts/smoke-trade-flow.
 const sizes=[['desktop',1280,900],['phone',375,812],['small-phone',320,700]];
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
- const browser=await puppeteer.launch({executablePath:browserPath,headless:true});
+ const browser=await puppeteer.launch({executablePath:browserPath,headless:true,args:['--no-sandbox','--disable-setuid-sandbox']});
  let failures=0;
  try{
   for(const [name,width,height] of sizes){
