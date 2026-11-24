@@ -34,7 +34,7 @@
 <main id="main" class="max-w-[1100px] mx-auto px-4 sm:px-6 py-4 lg:py-6">
   <div class="mb-2">
     <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Trade Lab<span class="term-i" data-term="page_lab" tabindex="0" role="note">?</span></h1><a href="how_we_grade.html#facts" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How we use it</a></div>
-    <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading 2.15 million trades…</p>
+    <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading archived trade research…</p>
     <p class="mt-2 text-[12px] text-zinc-400 max-w-[850px] leading-relaxed">Historical research note: older completed-trade package-price gaps in this archive were computed with Vault's retired nonlinear consolidation curve. The live Trade Calculator and Trade Grades now use additive market prices instead. Do not compare old chart fairness percentages directly with new grades until the archive is rebuilt.</p>
   </div>
   <p class="text-[12px] text-zinc-500 max-w-[720px] mb-4 leading-relaxed"><span id="crawled"></span></p>
@@ -612,7 +612,7 @@ async function init() {
       const total = f.crawled.reduce((t, s) => t + s.trades, 0), first = f.crawled[0].season, last = f.crawled[f.crawled.length - 1].season;
       document.getElementById('crawled').textContent = `Our crawl holds ${fmtInt(total)} trades from ${first} to ${last}; the ${yrs(d.seasons)} ones here are those we could judge (${last} is still being played, so how trades turned out uses ${yrs(d.outcomeSeasons || d.seasons)}).`;
     }
-    status.textContent = `${fmtInt(d.trades)} trades · ${fmtInt(d.leagues)} leagues · ${yrs(d.seasons)} · updated ${d.updated}, refreshed after each full pull of leagues`;
+    status.textContent = `${fmtInt(d.trades)} trades · ${fmtInt(d.leagues)} leagues · ${yrs(d.seasons)} · historical research snapshot ${d.updated} (rebuilt separately, not live)`;
     document.getElementById('tiles').innerHTML = [
       tile(`${(d.trades / 1e6).toFixed(2)}M`, 'Trades', `${fmtInt(d.sides)} team-sides`),
       tile(fmtInt(d.leagues), 'Leagues', `${yrs(d.seasons)} seasons`),

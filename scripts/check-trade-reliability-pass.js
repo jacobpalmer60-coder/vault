@@ -10,7 +10,8 @@ const part=(source,a,b)=>{
 };
 assert.ok(trade.includes('evenFix.contextKey===evenContextKey()'),'Even It Out must validate both-team and timeline identity');
 assert.ok(trade.includes('evenLine.plan.contextKey!==evenContextKey()'),'outdated suggestions cannot be applied');
-assert.ok(trade.includes('if(current!==key)return;'),'deferred suggestion must check selected assets before commit');
+assert.ok(trade.includes('if (evenSearchKey() !== key) return;'),'deferred suggestion must recheck manager, selected assets and timeline before computing');
+assert.ok(trade.includes('!evenSame(selectedA,evenLine.plan.baseA) || !evenSame(selectedB,evenLine.plan.baseB)'), 'applying a delayed suggestion must recheck both original packages');
 // Exercise the protection, not just the presence of the source text.
 const evenCode=part(trade,'const evenContextKey = () =>','function evenPlan()');
 const sideA={rosterId:1},sideB={rosterId:2};

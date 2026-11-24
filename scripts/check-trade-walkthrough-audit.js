@@ -34,13 +34,13 @@ assert.ok(text.includes('>120</span>')&&text.includes('>140</span>'),'display tr
 const mirror=get(140,120,150,100);
 assert.ok(mirror.includes('Listed prices (sum)'),'both orientations show raw asset pricing');
 assert.ok(html.includes('valueTableHtml(aValAdj, bValAdj, fairness, teamA, teamB, bonusA, bonusB, ktcView, [...aAssets, ...bAssets], aVal, bVal)'));
-assert.ok(html.includes('Good grades for both · acceptance unconfirmed'),'positive grades must not falsely promise acceptance');
+assert.ok(html.includes('Both sides grade Toss-up or better · acceptance unconfirmed'),'positive grades must not falsely promise acceptance');
 assert.ok(html.includes('teamImpactLedgerHtml(impactBySide[side])'),'both teams receive same roster impact metrics');
 assert.ok(html.includes('negJudgeFor(teamA, o.A, teamB, o.B, contextB).accepts'));
 assert.ok(html.includes('negJudgeFor(teamB, o.B, teamA, o.A, contextA).accepts'));
 assert.ok(coach.includes('const j = coachJudged(coachMe(), o.partner, o.give, o.get)'));
 assert.ok(coach.includes('return j.accepts && coachTheirScore(o) >= theirMin'),'Coach must consider counterpart manager acceptance');
-assert.ok(negotiation.includes('const accepts = will >= ask && drops <= 1'),'acceptance uses more than price parity');
+assert.ok(negotiation.includes('VaultTradePolicy.receiverDecision({will, ask, drops, level: receivingVerdict.level})'), 'receiver acceptance must use the central decision policy, including roster cuts and receiving-team verdict');
 assert.ok(html.includes('Official grading, Even It Out and Trade Coach are unaffected.'),'What-if discloses isolation');
 assert.ok(smoke.includes("output.includes('Official grading, Even It Out and Trade Coach are unaffected')"),'browser smoke checks current copy');
 assert.ok(smoke.includes("['teams','stress','season','details','verdict']"),'all phone sections exercised');

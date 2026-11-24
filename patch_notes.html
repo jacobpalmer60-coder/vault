@@ -53,6 +53,10 @@
    internal detail and daily data refreshes. Add an entry here with every
    change people will notice. kind: new | improved | fixed | changed | removed. */
 const NOTES = [
+  { date: '2026-11-24', items: [
+    { kind: 'fixed', page: 'Data Status', text: 'The jobs list now names Unified Sleeper ingestion instead of the retired standalone crawler. A visible warning appears when published trade-crawl statistics are over six hours old, even if KTC values refreshed today.' },
+    { kind: 'improved', page: 'Data Status / Trade Lab', text: 'Historical research files now expose their own snapshot dates. Trade Lab no longer suggests its manually rebuilt analysis updates with each Sleeper collection cycle.' }
+  ] },
   { date: '2026-11-22', items: [
     { kind: 'improved', page: 'Managers / Trade Grades / Draft Center', text: 'Expanded manager details fit phone screens instead of clipping. Mobile Trade Grades initially shows 12 trades, and Draft Center starts with six pick cards, each with an explicit Show More control.' }
   ] },

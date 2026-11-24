@@ -52,6 +52,12 @@
     <div id="trades" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
   </section>
 
+  <section class="mb-6">
+    <h2 class="text-[13px] uppercase tracking-wider text-zinc-400 mb-2">Historical research snapshots</h2>
+    <p class="text-[12px] text-zinc-400 mb-3">These archives are not all updated by the daily feed. Their dates describe the actual data, not today's website deployment.</p>
+    <div id="research" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+  </section>
+
   <section class="mb-6 card rounded-vault-sm p-5">
     <div class="flex items-baseline justify-between gap-3 flex-wrap">
       <h2 class="text-[16px] font-semibold text-zinc-100">Sleeper trade crawl</h2>
@@ -120,7 +126,7 @@ async function jobs() {
         <div class="flex gap-1 mt-2" aria-label="Last runs, oldest first">${strip}</div>
       </div>`;
   };
-  box.innerHTML = (await Promise.all([job('update-data.yml', 'Update data', 'daily', 30), job('crawl-sleeper.yml', 'Crawl Sleeper trades', 'hourly', 3), job('refresh-projections.yml', 'Refresh projections', 'about hourly', 7)])).join('');
+  box.innerHTML = (await Promise.all([job('update-data.yml', 'Update data', 'daily', 30), job('crawl-sleeper.yml', 'Unified Sleeper ingestion', 'sequential trade and league pull', 4), job('refresh-projections.yml', 'Refresh projections', 'about hourly', 7)])).join('');
 }
 
 async function values() {
@@ -169,6 +175,24 @@ async function trades() {
   ].join('');
 }
 
+async function research() {
+  const [lab, insights, findings, history] = await Promise.all([
+    getJson('data/market-history/trade-lab.json'),
+    getJson('data/market-history/insights.json'),
+    getJson('data/market-history/findings.json'),
+    getJson('data/market-history/player-history.json')
+  ]);
+  const row = (label, d, desc) => tile(label, d?.updated || 'Unavailable',
+    (d?.updated ? 'Archive dated ' + esc(d.updated) : 'The archive could not be loaded') + ' · ' + desc,
+    !!d?.updated && fresh(d.updated, 7 * 24));
+  document.getElementById('research').innerHTML = [
+    row('Trade Lab', lab, 'rebuilt from separate research, not the daily KTC job'),
+    row('Research insights', insights, 'historical studies; not live prices'),
+    row('Trade findings', findings, 'research snapshot'),
+    row('Player history', history, 'rebuilt by the weekly Market history workflow')
+  ].join('');
+}
+
 async function crawl() {
   const [stats, release] = await Promise.all([getJson('data/market-history/crawl-stats.json'), getJson(`https://api.github.com/repos/${REPO}/releases/tags/sleeper-trades`)]);
   const box = document.getElementById('crawl');
@@ -178,13 +202,16 @@ async function crawl() {
     box.innerHTML = `<div class="text-[13px] text-zinc-400">Crawl stats appear after the next hourly run. Raw trades saved so far: ${size} across ${assets.length} season file${assets.length === 1 ? '' : 's'}.</div>`;
     return;
   }
-  document.getElementById('crawlWhen').textContent = `Updated ${ago(stats.updated)} · ${stats.settings.callsPerMinute} calls a minute, ${stats.settings.runMinutes} minutes an hour`;
+  document.getElementById('crawlWhen').textContent = `Last published ${ago(stats.updated)} · ${stats.settings.callsPerMinute} calls/min in that recorded run`;
   const t = stats.totals, q = stats.queue;
   const runs = stats.runs || [], maxNew = Math.max(1, ...runs.map(r => r.newTrades));
   const last24 = runs.filter(r => Date.now() - new Date(r.at).getTime() < 864e5);
   const bars = runs.slice(0, 48).reverse().map(r => `<div class="flex-1 h-full flex items-end" title="${esc(new Date(r.at).toLocaleString())}: ${n(r.newTrades)} new trades, ${n(r.calls)} calls${r.retries ? `, ${r.retries} retr${r.retries === 1 ? "y" : "ies"} after a Sleeper error` : ""}${r.stopped ? ' (stopped: ' + esc(r.stopped) + ')' : ''}"><div class="w-full rounded-t-[2px] ${r.stopped ? 'bg-rose-400/70' : 'bg-sky-400/70'}" style="height:${Math.max(2, r.newTrades / maxNew * 100).toFixed(1)}%"></div></div>`).join('');
   const seasons = Object.entries(stats.seasons || {}).sort(([a], [b]) => b.localeCompare(a));
-  box.innerHTML = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+  const staleWarning = !fresh(stats.updated, 6)
+    ? '<div role="status" class="text-[12px] text-amber-300 mb-3">Trade-crawl summaries have not refreshed within 6 hours. Market research, recent transaction prices and coverage may be stale even when KTC values are fresh. See the unified ingestion job above.</div>'
+    : '';
+  box.innerHTML = staleWarning + `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
       ${tile('Trades collected', n(t.trades), `completed two-team trades in ${n(t.leagueSeasons)} league-seasons`, fresh(stats.updated, 3))}
       ${tile('Leagues seen', n(t.leaguesSeen), `${n(t.managersSeen)} managers found along the way`)}
       ${tile('Still to crawl', n(q.leagues), `leagues queued, plus ${n(q.managers)} managers to look up and ${n(q.revisits)} leagues to revisit weekly`)}
@@ -226,7 +253,7 @@ async function formats() {
 
 (async () => {
   const status = document.getElementById('status');
-  await Promise.allSettled([jobs(), values(), trades(), crawl(), formats()]);
+  await Promise.allSettled([jobs(), values(), trades(), research(), crawl(), formats()]);
   status.textContent = `Checked ${new Date().toLocaleString()}`;
 })();
 </script>
