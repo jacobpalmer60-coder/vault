@@ -94,7 +94,7 @@ async function main() {
       if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * (+process.env.KTC_RETRY_DELAY_MS || 5000)));
     }
   }
-  if (!all) {
+  if (!Array.isArray(all) || all.length < 320) {
     if (lastPageInfo) console.warn('KTC page shape (sanitized):', JSON.stringify(lastPageInfo));
     throw new Error(`KTC rankings unavailable after 3 attempts; keeping existing values: ${lastError?.message}`);
   }
