@@ -61,12 +61,4 @@ jobs:
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           export CHROME=$(node -e "console.log(require('playwright').chromium.executablePath())")
           export BASE=http://127.0.0.1:5191
-          export SHOTS=browser-smoke-artifacts
           node scripts/smoke-trade-flow.js "$VAULT_LIVE_LEAGUE_ID"
-      - name: Save browser evidence (pass or failure)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: vault-live-sleeper-ui
-          path: browser-smoke-artifacts/
-          if-no-files-found: ignore
