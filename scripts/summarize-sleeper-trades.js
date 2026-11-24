@@ -38,7 +38,7 @@
    and data/market-history/glance-<sf|oneQB>.json: EVERY priced trade of those
    days (not a sample; user, 2026-10-09: "why can't we use all the trades?"),
    reduced to what the Trade Database's "market at a glance" needs, graded the
-   way the pages grade (Vault.tradeSideValues at the grade's market prices for
+   way the pages grade (Vault.marketSideValues at the grade's market prices for
    the trade's format, data/grade-values.json), about 25 bytes a trade:
      { updated, from, to, shapes, pos, fmts: [[teams, ppr code, tep code]],
        rows: [[% off x10, shape, 1-for-1 (0/1), best piece's KTC value, its
@@ -361,7 +361,7 @@ function writeGlance(Vault, qb, list, sleeper) {
     const s1 = named(t.s1), s2 = named(t.s2);
     const [rec, bonus, teams] = t.f || [];
     const table = tables.get((qb === 'sf' ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonus)) || false;
-    const g = Vault.tradeSideValues(s1, s2, { market: table }), pct = Math.abs(g.valueA - g.valueB) / (((g.valueA + g.valueB) / 2) || 1) * 100;
+    const g = Vault.marketSideValues(s1, s2, { market: table }), pct = Math.abs(g.valueA - g.valueB) / (((g.valueA + g.valueB) / 2) || 1) * 100;
     const { valueA: v1, valueB: v2 } = Vault.ktcSideValues(s1, s2), avg = (v1 + v2) / 2 || 1;
     const best1 = Math.max(...s1.map(a => a.value)), best2 = Math.max(...s2.map(a => a.value));
     const topIn1 = best1 >= best2, top = (topIn1 ? s1 : s2).find(a => a.value === (topIn1 ? best1 : best2));
