@@ -62,6 +62,7 @@ async function main() {
   // response, while validation below prevents publishing an empty price book.
   let all;
   let lastError;
+  let lastPageInfo;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetch(PAGE_URL, {
@@ -73,8 +74,44 @@ async function main() {
       });
       if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
       const html = await res.text();
+      // Safe debugging metadata only: never print raw HTML, cookies, or identities.
+      lastPageInfo = {
+        status: res.status,
+        bytes: html.length,
+        title: (html.match(/<title[^>]*>([^<]{0,120})<\/title>/i) || [])[1] || null,
+        hasDataIsland: html.includes('ktc-players'),
+        hasLegacyArray: html.includes('playersArray'),
+        hasBlendValueKeys: html.includes('blendValue'),
+        hasOneQBValueKeys: html.includes('oneQBValues'),
+        hasRenderedRanks: html.includes('rankings-page-rankings'),
+        legacyExcerpt: html.includes('playersArray') ? html.slice(Math.max(0, html.indexOf('playersArray') - 60), html.indexOf('playersArray') + 130).replace(/\s+/g, ' ') : null,
+        hasChallengeText: /cloudflare|captcha|just a moment|access denied/i.test(html),
+        scriptIds: [...html.matchAll(/<script[^>]*\bid=["']([^"']+)["']/gi)].slice(0, 10).map(m => m[1])
+      };
       all = extractRankings(html);
-      if (!Array.isArray(all)) throw new Error('KTC players data is not an array');
+      if (!Array.isArray(all) || all.length < 320) {
+        // The ranking page now initializes playersArray=[] and asynchronously
+        // loads its complete values from its first-party versioned endpoint.
+        const version = /\b(?:var|let|const)\s+playersVersion\s*=\s*['"]([a-zA-Z0-9-]{1,128})['"]/.exec(html)?.[1];
+        if (!version) throw new Error('KTC page has no valid player-pool version');
+        const poolUrl = new URL('/dynasty-rankings/player-pool', PAGE_URL);
+        poolUrl.searchParams.set('v', version);
+        poolUrl.searchParams.set('sr', '2');
+        const poolResponse = await fetch(poolUrl, {
+          headers: {
+            Accept: 'application/json',
+            Referer: PAGE_URL,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+          },
+          signal: AbortSignal.timeout(30000)
+        });
+        if (!poolResponse.ok) throw new Error('KTC player pool fetch failed: ' + poolResponse.status);
+        const stampedVersion = poolResponse.headers.get('x-ktc-players-version');
+        if (stampedVersion && stampedVersion !== version) throw new Error('KTC player pool changed during fetch; retrying');
+        all = await poolResponse.json();
+        console.log('KTC versioned player pool fetched', { count: all?.length, version });
+      }
+      if (!Array.isArray(all) || all.length < 320) throw new Error('Insufficient KTC player-pool rows: ' + (all?.length ?? 0));
       break;
     } catch (error) {
       lastError = error;
@@ -82,7 +119,10 @@ async function main() {
       if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * (+process.env.KTC_RETRY_DELAY_MS || 5000)));
     }
   }
-  if (!all) throw new Error(`KTC rankings unavailable after 3 attempts; keeping existing values: ${lastError?.message}`);
+  if (!Array.isArray(all) || all.length < 320) {
+    if (lastPageInfo) console.warn('KTC page shape (sanitized):', JSON.stringify(lastPageInfo));
+    throw new Error(`KTC rankings unavailable after 3 attempts; keeping existing values: ${lastError?.message}`);
+  }
 
   // KTC now lists BOTH a generic per-tier pick ("2027 Early 1st") and, for the
   // current season specifically, one entry per exact draft slot ("2026 Pick
