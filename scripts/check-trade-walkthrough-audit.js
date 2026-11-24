@@ -40,7 +40,7 @@ assert.ok(html.includes('negJudgeFor(teamA, o.A, teamB, o.B, contextB).accepts')
 assert.ok(html.includes('negJudgeFor(teamB, o.B, teamA, o.A, contextA).accepts'));
 assert.ok(coach.includes('const j = coachJudged(coachMe(), o.partner, o.give, o.get)'));
 assert.ok(coach.includes('return j.accepts && coachTheirScore(o) >= theirMin'),'Coach must consider counterpart manager acceptance');
-assert.ok(negotiation.includes('const accepts = will >= ask && drops <= 1'),'acceptance uses more than price parity');
+assert.ok(negotiation.includes('VaultTradePolicy.receiverDecision({will, ask, drops, level: receivingVerdict.level})'), 'receiver acceptance must use the central decision policy, including roster cuts and receiving-team verdict');
 assert.ok(html.includes('Official grading, Even It Out and Trade Coach are unaffected.'),'What-if discloses isolation');
 assert.ok(smoke.includes("output.includes('Official grading, Even It Out and Trade Coach are unaffected')"),'browser smoke checks current copy');
 assert.ok(smoke.includes("['teams','stress','season','details','verdict']"),'all phone sections exercised');
