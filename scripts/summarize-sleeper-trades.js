@@ -199,6 +199,9 @@ function main() {
   const recent = { sf: [], oneQB: [] };
   const premiums = { sf: new Map(), oneQB: new Map() }; // name -> [[date, premium %]]
   for (const format of formats) {
+    // The previous iteration's trades have left scope; reclaim them before
+    // loading the next format on a memory-constrained hosted runner.
+    if (global.gc) global.gc();
     // Only one price format's trades occupy the heap at a time.
     const trades = [];
     for (const file of files) {
@@ -247,7 +250,6 @@ function main() {
     [...weeks.keys()].sort().forEach(w => { Vault._globalMaxValue = prices.maxAt(w) || undefined; weekOut[w] = summarize(Vault, weeks.get(w), { players: false }); });
     fs.writeFileSync(path.join(OUT, `${format}.json`), JSON.stringify({ format, updated: new Date().toISOString(), leagues: leagues.get(format).size, trades: { crawled: trades.length, priced }, weeks: weekOut, years: yearOut }));
     console.log(`${format}: ${trades.length} trades from ${leagues.get(format).size} leagues, ${priced} priced, ${weeks.size} weeks`);
-    if (global.gc) global.gc();
   }
 
   // Each player's market points. The last DAILY_KEEP_DAYS day by day (every day
