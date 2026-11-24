@@ -27,7 +27,12 @@ jobs:
         with:
           node-version: '20'
 
-      - run: node scripts/fetch-ktc.js
+      # A third-party feed failure must not block projections, injuries and weekly stats.
+      # Do not replace existing values when extraction fails.
+      - name: Refresh KTC values
+        id: ktc
+        continue-on-error: true
+        run: node scripts/fetch-ktc.js
       - run: node scripts/fetch-projections.js
       - run: node scripts/fetch-dynasty-daddy.js
       - run: node scripts/fetch-ktc-trades.js
@@ -51,7 +56,9 @@ jobs:
           fi
           node -e "console.log('snapshots', require('./data/player-value-history.json').snapshots.length)" | tee "$RUNNER_TEMP/value-count.txt"
       - run: node scripts/snapshot-value-history.js
+        if: steps.ktc.outcome == 'success'
       - name: Save the full value history
+        if: steps.ktc.outcome == 'success'
         run: |
           before=$(cut -d' ' -f2 "$RUNNER_TEMP/value-count.txt")
           after=$(node -e "console.log(require('./data/player-value-history.json').snapshots.length)")
@@ -83,8 +90,16 @@ jobs:
       # the twice-monthly history past trades are graded with (see the script
       # header) - after the trade data above.
       - run: node scripts/build-grade-values.js
+        if: steps.ktc.outcome == 'success'
       # What similar players go for, so pages don't work it out on load (see the script).
       - run: node scripts/build-peer-baseline.js
+
+      - name: Report upstream valuation staleness
+        if: steps.ktc.outcome != 'success'
+        run: |
+          echo "::warning::KTC price feed failed; retained last known values and skipped fresh-value snapshots. Other daily data refreshes continue."
+          echo "### Upstream valuation warning" >> "$GITHUB_STEP_SUMMARY"
+          echo "KTC values could not be refreshed. Existing values were preserved and valuation snapshots were skipped." >> "$GITHUB_STEP_SUMMARY"
 
       - run: |
           git config user.name "github-actions[bot]"
