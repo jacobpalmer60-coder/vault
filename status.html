@@ -39,7 +39,7 @@
 
   <section class="mb-6">
     <h2 class="text-[13px] uppercase tracking-wider text-zinc-400 mb-2">Background jobs</h2>
-    <div id="jobs" class="grid md:grid-cols-3 gap-3"></div>
+    <div id="jobs" class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3"></div>
   </section>
 
   <section class="mb-6">
@@ -126,7 +126,7 @@ async function jobs() {
         <div class="flex gap-1 mt-2" aria-label="Last runs, oldest first">${strip}</div>
       </div>`;
   };
-  box.innerHTML = (await Promise.all([job('update-data.yml', 'Update data', 'daily', 30), job('crawl-sleeper.yml', 'Unified Sleeper ingestion', 'sequential trade and league pull', 4), job('refresh-projections.yml', 'Refresh projections', 'about hourly', 7)])).join('');
+  box.innerHTML = (await Promise.all([job('update-data.yml', 'Update data', 'daily', 30), job('crawl-sleeper.yml', 'Unified Sleeper ingestion', 'trade + sealed league', 4), job('reprice-market.yml', 'Sleeper market pricing', 'every 6 hours', 10), job('refresh-projections.yml', 'Refresh projections', 'about hourly', 7)])).join('');
 }
 
 async function values() {
