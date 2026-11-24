@@ -124,6 +124,10 @@ async function buildSleeperPlayers() {
 }
 
 (async () => {
-  await buildHistory();
-  await buildSleeperPlayers();
+  // Sleeper player metadata is a separate daily input from KTC history.
+  // A KTC outage must not prevent fresh Sleeper names and injury statuses.
+  const mode = process.argv[2] || 'all';
+  if (!['all', '--history-only', '--players-only'].includes(mode)) throw Error('Unknown build-slim-data mode: ' + mode);
+  if (mode !== '--players-only') await buildHistory();
+  if (mode !== '--history-only') await buildSleeperPlayers();
 })().catch(e => { console.error(e); process.exit(1); });
