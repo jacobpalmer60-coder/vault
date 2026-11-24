@@ -163,7 +163,7 @@ jobs:
           message="Crawl stats"
           # 5 hours 50 minutes, so a run landing just short of 6 doesn't wait another hour.
           if [ "$age" -ge 21000 ]; then
-            node --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
+            node --expose-gc --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
             message="Price Sleeper trades"
           fi
           git add data/market-history/
