@@ -164,7 +164,8 @@ jobs:
           # 5 hours 50 minutes, so a run landing just short of 6 doesn't wait another hour.
           if [ "$age" -ge 21000 ]; then
             node --expose-gc --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
-            message="Price Sleeper trades"
+            node scripts/build-trade-lab-current.js
+            message="Price Sleeper trades and refresh Trade Lab"
           fi
           git add data/market-history/
           git diff --cached --quiet && exit 0
