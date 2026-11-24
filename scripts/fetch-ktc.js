@@ -32,6 +32,30 @@ function extractJsonScriptTag(html, id) {
   return JSON.parse(html.slice(start, end));
 }
 
+// Support both known KTC embeddings: the newer JSON data island and the
+// earlier JS literal. Do not scrape incomplete visible rankings as a substitute:
+// missing rows would corrupt every downstream value/grade snapshot.
+function extractRankings(html) {
+  try { return extractJsonScriptTag(html, 'ktc-players'); }
+  catch (error) {
+    const assign = /\\b(?:var|let|const)\\s+playersArray\\s*=\\s*(\\[)/.exec(html);
+    if (!assign) throw error;
+    const start = assign.index + assign[0].lastIndexOf('[');
+    let depth = 0, quote = '', escape = false;
+    for (let i = start; i < html.length; i++) {
+      const ch = html[i];
+      if (quote) {
+        if (escape) escape = false;
+        else if (ch === '\\\\') escape = true;
+        else if (ch === quote) quote = '';
+      } else if (ch === '"' || ch === "'") quote = ch;
+      else if (ch === '[') depth++;
+      else if (ch === ']' && --depth === 0) return JSON.parse(html.slice(start, i + 1));
+    }
+    throw Error('KTC playersArray assignment was truncated');
+  }
+}
+
 async function main() {
   // KTC sometimes returns an incomplete/interstitial HTML page. Retrying a
   // missing data island avoids losing the entire daily refresh to a transient
@@ -49,7 +73,7 @@ async function main() {
       });
       if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
       const html = await res.text();
-      all = extractJsonScriptTag(html, 'ktc-players');
+      all = extractRankings(html);
       if (!Array.isArray(all)) throw new Error('KTC players data is not an array');
       break;
     } catch (error) {
