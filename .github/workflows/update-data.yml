@@ -2,15 +2,20 @@ name: Update data
 
 on:
   schedule:
-    # Midnight Mountain Time, US — cron is UTC-only and doesn't shift for DST, so two
-    # entries cover both offsets (MDT UTC-6 ~mid-Mar to early Nov, MST UTC-7 the rest
-    # of the year). Whichever one isn't "real" midnight that time of year still lands
-    # within the same UTC calendar day (Mountain is behind UTC, so no date wraparound)
-    # and snapshot-value-history.js's same-day dedup means the second run just
-    # overwrites the first with ~an hour-newer data instead of creating a duplicate.
-    - cron: '0 6 * * *'  # midnight MDT (UTC-6)
-    - cron: '0 7 * * *'  # midnight MST (UTC-7)
+    # One update a day. 07:00 UTC is midnight MST / 01:00 MDT; unlike the
+    # old two-cron approach this keeps Sleeper's players/nfl call once daily.
+    - cron: '0 7 * * *'
   workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - scripts/fetch-ktc.js
+      - scripts/build-slim-data.js
+      - .github/workflows/update-data.yml
+
+concurrency:
+  group: vault-daily-data
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -33,19 +38,31 @@ jobs:
         id: ktc
         continue-on-error: true
         run: node scripts/fetch-ktc.js
-      - run: node scripts/fetch-projections.js
-      - run: node scripts/fetch-dynasty-daddy.js
-      - run: node scripts/fetch-ktc-trades.js
+      - name: Refresh projections
+        id: projections
+        continue-on-error: true
+        run: node scripts/fetch-projections.js
+      - name: Refresh Dynasty Daddy values
+        id: daddy
+        continue-on-error: true
+        run: node scripts/fetch-dynasty-daddy.js
+      - name: Refresh KTC trade feed
+        id: ktc_trades
+        continue-on-error: true
+        run: node scripts/fetch-ktc-trades.js
       # One compact file per QB format, which is what the pages load (see the script header).
       - run: node scripts/slim-ktc-trades.js
+        if: steps.ktc_trades.outcome == 'success'
       # Daily summary of the real trades above before they roll off KTC's
       # ~25,000-trade window (data/market/; see the script header).
       - run: node scripts/snapshot-market.js
+        if: steps.ktc.outcome == 'success' && steps.projections.outcome == 'success' && steps.ktc_trades.outcome == 'success'
       # The full price history is 46 MB and was saved to git every day, so it lives on a release
       # (no history kept there, and pages read the small files in data/history). The first run
       # finds no asset and starts from the copy still in git; after that a missing asset stops the
       # job, so the history can't restart from nothing.
       - name: Get the full value history
+        if: steps.ktc.outcome == 'success' && steps.projections.outcome == 'success'
         run: |
           gh release view data-history >/dev/null 2>&1 || gh release create data-history --title "Value history (data)" --notes "The full KTC value history, rebuilt daily by update-data.yml." --latest=false
           if gh release view data-history --json assets --jq '.assets[].name' | grep -q '^player-value-history.json.gz$'; then
@@ -64,16 +81,27 @@ jobs:
           after=$(node -e "console.log(require('./data/player-value-history.json').snapshots.length)")
           if [ "$after" -lt "$before" ]; then echo "Value history fell from $before to $after; not saving"; exit 1; fi
           gzip -9 -c data/player-value-history.json > "$RUNNER_TEMP/player-value-history.json.gz"
-          gzip -9 -c data/ktc-trades.json > "$RUNNER_TEMP/ktc-trades.json.gz"
+          if [ "${{ steps.ktc_trades.outcome }}" = success ]; then
+            gzip -9 -c data/ktc-trades.json > "$RUNNER_TEMP/ktc-trades.json.gz"
+          fi
           # This is the only copy: a replaced file is deleted before its new one goes up, so a dropped
           # upload could lose it. A copy per weekday goes up first (seven days to fall back on).
           # ktc-trades.json is read by VaultValues' daily site snapshot.
           cp "$RUNNER_TEMP/player-value-history.json.gz" "$RUNNER_TEMP/player-value-history-$(date +%a).json.gz"
           gh release upload data-history "$RUNNER_TEMP/player-value-history-$(date +%a).json.gz" --clobber
-          gh release upload data-history "$RUNNER_TEMP/player-value-history.json.gz" "$RUNNER_TEMP/ktc-trades.json.gz" --clobber
+          gh release upload data-history "$RUNNER_TEMP/player-value-history.json.gz" --clobber
+          if [ -f "$RUNNER_TEMP/ktc-trades.json.gz" ]; then
+            gh release upload data-history "$RUNNER_TEMP/ktc-trades.json.gz" --clobber
+          fi
       # Small per-format history files + trimmed Sleeper player list the pages
       # actually load (see the script header) — must run after the snapshot.
-      - run: node scripts/build-slim-data.js
+      - name: Prepare daily history files
+        if: steps.ktc.outcome == 'success' && steps.projections.outcome == 'success'
+        run: node scripts/build-slim-data.js --history-only
+      - name: Refresh Sleeper players independently
+        id: sleeper_players
+        continue-on-error: true
+        run: node scripts/build-slim-data.js --players-only
       # Today's injury statuses into data/history/injuries-<season>.jsonl, so a
       # news adjustment for Vault values can be tested later (see the script).
       - run: node scripts/snapshot-injuries.js
@@ -94,12 +122,13 @@ jobs:
       # What similar players go for, so pages don't work it out on load (see the script).
       - run: node scripts/build-peer-baseline.js
 
-      - name: Report upstream valuation staleness
-        if: steps.ktc.outcome != 'success'
+      - name: Report upstream data staleness
+        if: steps.ktc.outcome != 'success' || steps.projections.outcome != 'success' || steps.ktc_trades.outcome != 'success' || steps.daddy.outcome != 'success' || steps.sleeper_players.outcome != 'success'
         run: |
-          echo "::warning::KTC price feed failed; retained last known values and skipped fresh-value snapshots. Other daily data refreshes continue."
-          echo "### Upstream valuation warning" >> "$GITHUB_STEP_SUMMARY"
-          echo "KTC values could not be refreshed. Existing values were preserved and valuation snapshots were skipped." >> "$GITHUB_STEP_SUMMARY"
+          echo "### Some upstream data could not refresh" >> "$GITHUB_STEP_SUMMARY"
+          echo "Last known-good copies were preserved. Price-history snapshots run only with fresh KTC values and projections." >> "$GITHUB_STEP_SUMMARY"
+          echo "KTC values: ${{ steps.ktc.outcome }}; projections: ${{ steps.projections.outcome }}; KTC trades: ${{ steps.ktc_trades.outcome }}; Dynasty Daddy: ${{ steps.daddy.outcome }}; Sleeper players: ${{ steps.sleeper_players.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::One or more upstream feeds failed. Check daily workflow summary for stale sources."
 
       - run: |
           git config user.name "github-actions[bot]"
