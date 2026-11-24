@@ -94,5 +94,7 @@ jobs:
             echo "::endgroup::"
           done
           if [ "$failures" -gt 0 ]; then echo "$failures regression(s) failed"; exit 1; fi
+      - name: Market summarizer sharded end-to-end fixture
+        run: node scripts/check-summarizer-sharding.js
       - name: Every script parses
         run: for f in vault-core.js vault-nav.js trade-evidence.js market-data.js draft-center.js draft-rules.js activity.js activity-model.js scripts/*.js scripts/*.cjs scripts/market-history/*.js; do node --check "$f" || exit 1; done
