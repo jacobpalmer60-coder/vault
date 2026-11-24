@@ -1,0 +1,52 @@
+name: Price Sleeper market history — Vault
+
+# Independent ANALYSIS job over released trades. The sole Sleeper API
+# collector remains unified (trade crawl then sealed whole-league pull).
+# No Sleeper API calls are made here: this reads completed release archives.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '20 */6 * * *'
+  push:
+    branches: [main]
+    paths:
+      - scripts/summarize-sleeper-trades.js
+      - scripts/build-trade-lab-current.js
+      - .github/workflows/reprice-market.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vault-market-reprice
+  cancel-in-progress: false
+
+jobs:
+  reprice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retrieve complete safeguarded Sleeper trade archive
+        run: |
+          mkdir -p data/sleeper-trades
+          gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber
+          node scripts/crawl-guard.js check
+      - name: Price trades in isolated season/format shards
+        run: node --expose-gc --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
+      - name: Build current Trade Lab summary (not historical predictions)
+        run: node scripts/build-trade-lab-current.js
+      - name: Publish checked public market facts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/market-history/
+          git diff --cached --quiet && exit 0
+          git commit -m "Refresh Sleeper market prices and current Trade Lab"
+          git pull --rebase --autostash
+          git push
