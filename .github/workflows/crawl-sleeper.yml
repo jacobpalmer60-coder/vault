@@ -27,7 +27,9 @@ permissions:
   actions: write   # to start the next run
 
 concurrency:
-  group: unified-sleeper-ingestion
+  # Preserve the old crawler concurrency lock through cutover; do not overlap
+  # an already-running legacy crawler with this unified workflow.
+  group: crawl-sleeper
   cancel-in-progress: false
 
 jobs:
