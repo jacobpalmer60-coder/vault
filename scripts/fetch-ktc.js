@@ -86,6 +86,7 @@ async function main() {
       };
       all = extractRankings(html);
       if (!Array.isArray(all)) throw new Error('KTC players data is not an array');
+      if (all.length < 320) throw new Error(`KTC data island returned only ${all.length} rows`);
       break;
     } catch (error) {
       lastError = error;
