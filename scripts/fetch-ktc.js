@@ -38,7 +38,7 @@ function extractJsonScriptTag(html, id) {
 function extractRankings(html) {
   try { return extractJsonScriptTag(html, 'ktc-players'); }
   catch (error) {
-    const assign = /\\b(?:var|let|const)\\s+playersArray\\s*=\\s*(\\[)/.exec(html);
+    const assign = /\b(?:var|let|const)\s+playersArray\s*=\s*(\[)/.exec(html);
     if (!assign) throw error;
     const start = assign.index + assign[0].lastIndexOf('[');
     let depth = 0, quote = '', escape = false;
@@ -46,7 +46,7 @@ function extractRankings(html) {
       const ch = html[i];
       if (quote) {
         if (escape) escape = false;
-        else if (ch === '\\\\') escape = true;
+        else if (ch === '\\') escape = true;
         else if (ch === quote) quote = '';
       } else if (ch === '"' || ch === "'") quote = ch;
       else if (ch === '[') depth++;
