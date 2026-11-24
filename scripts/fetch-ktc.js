@@ -78,11 +78,11 @@ async function main() {
       lastPageInfo = {
         status: res.status,
         bytes: html.length,
-        title: (html.match(/<title[^>]*>([^<]{0,120})<\\/title>/i) || [])[1] || null,
+        title: (html.match(/<title[^>]*>([^<]{0,120})<\/title>/i) || [])[1] || null,
         hasDataIsland: html.includes('ktc-players'),
         hasLegacyArray: html.includes('playersArray'),
         hasChallengeText: /cloudflare|captcha|just a moment|access denied/i.test(html),
-        scriptIds: [...html.matchAll(/<script[^>]*\\bid=["']([^"']+)["']/gi)].slice(0, 10).map(m => m[1])
+        scriptIds: [...html.matchAll(/<script[^>]*\bid=["']([^"']+)["']/gi)].slice(0, 10).map(m => m[1])
       };
       all = extractRankings(html);
       if (!Array.isArray(all)) throw new Error('KTC players data is not an array');
