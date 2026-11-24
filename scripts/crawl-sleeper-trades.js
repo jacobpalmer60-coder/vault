@@ -95,10 +95,38 @@ async function get(p, retry = true) {
 function loadJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } }
 // Season files are gzipped: mostly repeated ids and dates, so they shrink several times over.
 function loadGz(file, fallback) { try { return JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString('utf8')); } catch { return fallback; } }
+// Never retain every season's multi-million-trade JSON in the same V8 heap.
+// Oldest seasons are flushed to disk before opening a new one.
 const seasonFiles = new Map();
+const MAX_OPEN_SEASONS = 2;
+function writeSeason(season, doc) {
+  fs.mkdirSync(OUT, { recursive: true });
+  const file = path.join(OUT, `${season}.json.gz`);
+  const temp = file + '.tmp';
+  try {
+    fs.writeFileSync(temp, zlib.gzipSync(JSON.stringify(doc), { level: 6 }));
+    fs.renameSync(temp, file); // avoid half-written published seasons
+  } finally {
+    if (fs.existsSync(temp)) fs.rmSync(temp);
+  }
+}
 function seasonDoc(season) {
-  if (!seasonFiles.has(season)) seasonFiles.set(season, loadGz(path.join(OUT, `${season}.json.gz`), { season, leagues: {}, trades: {} }));
-  return seasonFiles.get(season);
+  if (seasonFiles.has(season)) {
+    const doc = seasonFiles.get(season);
+    seasonFiles.delete(season);
+    seasonFiles.set(season, doc); // LRU
+    return doc;
+  }
+  if (seasonFiles.size >= MAX_OPEN_SEASONS) {
+    const [oldSeason, oldDoc] = seasonFiles.entries().next().value;
+    writeSeason(oldSeason, oldDoc);
+    seasonFiles.delete(oldSeason);
+  }
+  const file = path.join(OUT, `${season}.json.gz`);
+  const doc = fs.existsSync(file) ? loadGz(file, null) : { season, leagues: {}, trades: {} };
+  if (!doc) throw new Error(`Could not decode existing season ${season}; refusing to replace it`);
+  seasonFiles.set(season, doc);
+  return doc;
 }
 
 function format(league) {
@@ -124,7 +152,8 @@ async function crawlLeague(state, id, nfl) {
   const league = await get(`/league/${id}`);
   if (!league) { if (stopped || budgetSpent()) delete state.seenLeagues[id]; return; }
   const season = +league.season;
-  if (league.settings?.type !== 2 || season < MIN_SEASON) return; // dynasty leagues only
+  if (league.settings?.type !== 2 || season < MIN_SEASON) return;
+  if (season === nfl.season) (state.currentLeagues ||= {})[id] = 1; // dynasty leagues only
   // Previous seasons of the same league go next, so each league's history fills in.
   if (league.previous_league_id && league.previous_league_id !== '0' && !state.seenLeagues[league.previous_league_id]) state.leagues.unshift(league.previous_league_id);
   // This season's managers lead to their other dynasty leagues.
@@ -202,10 +231,13 @@ async function expandUser(state, uid, nfl) {
 }
 
 function save(state) {
+  // Flush trade documents first: a crash must never mark progress complete
+  // while the trades it represents are missing.
+  seasonFiles.forEach((doc, season) => writeSeason(season, doc));
   fs.mkdirSync(path.dirname(STATE), { recursive: true });
-  fs.writeFileSync(STATE, JSON.stringify(state));
-  fs.mkdirSync(OUT, { recursive: true });
-  seasonFiles.forEach((doc, season) => fs.writeFileSync(path.join(OUT, `${season}.json.gz`), zlib.gzipSync(JSON.stringify(doc), { level: 6 })));
+  const temp = STATE + '.tmp';
+  fs.writeFileSync(temp, JSON.stringify(state));
+  fs.renameSync(temp, STATE);
 }
 
 // Once a day: the Sleeper leagues behind this week's trades in KTC's feed go to the front.
