@@ -62,6 +62,7 @@ async function main() {
   // response, while validation below prevents publishing an empty price book.
   let all;
   let lastError;
+  let lastPageInfo;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const res = await fetch(PAGE_URL, {
@@ -73,6 +74,16 @@ async function main() {
       });
       if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
       const html = await res.text();
+      // Safe debugging metadata only: never print raw HTML, cookies, or identities.
+      lastPageInfo = {
+        status: res.status,
+        bytes: html.length,
+        title: (html.match(/<title[^>]*>([^<]{0,120})<\\/title>/i) || [])[1] || null,
+        hasDataIsland: html.includes('ktc-players'),
+        hasLegacyArray: html.includes('playersArray'),
+        hasChallengeText: /cloudflare|captcha|just a moment|access denied/i.test(html),
+        scriptIds: [...html.matchAll(/<script[^>]*\\bid=["']([^"']+)["']/gi)].slice(0, 10).map(m => m[1])
+      };
       all = extractRankings(html);
       if (!Array.isArray(all)) throw new Error('KTC players data is not an array');
       break;
@@ -82,7 +93,10 @@ async function main() {
       if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * (+process.env.KTC_RETRY_DELAY_MS || 5000)));
     }
   }
-  if (!all) throw new Error(`KTC rankings unavailable after 3 attempts; keeping existing values: ${lastError?.message}`);
+  if (!all) {
+    if (lastPageInfo) console.warn('KTC page shape (sanitized):', JSON.stringify(lastPageInfo));
+    throw new Error(`KTC rankings unavailable after 3 attempts; keeping existing values: ${lastError?.message}`);
+  }
 
   // KTC now lists BOTH a generic per-tier pick ("2027 Early 1st") and, for the
   // current season specifically, one entry per exact draft slot ("2026 Pick
