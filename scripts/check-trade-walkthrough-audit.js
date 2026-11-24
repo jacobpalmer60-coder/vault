@@ -34,7 +34,7 @@ assert.ok(text.includes('>120</span>')&&text.includes('>140</span>'),'display tr
 const mirror=get(140,120,150,100);
 assert.ok(mirror.includes('Listed prices (sum)'),'both orientations show raw asset pricing');
 assert.ok(html.includes('valueTableHtml(aValAdj, bValAdj, fairness, teamA, teamB, bonusA, bonusB, ktcView, [...aAssets, ...bAssets], aVal, bVal)'));
-assert.ok(html.includes('Good grades for both · acceptance unconfirmed'),'positive grades must not falsely promise acceptance');
+assert.ok(html.includes('Both sides grade Toss-up or better · acceptance unconfirmed'),'positive grades must not falsely promise acceptance');
 assert.ok(html.includes('teamImpactLedgerHtml(impactBySide[side])'),'both teams receive same roster impact metrics');
 assert.ok(html.includes('negJudgeFor(teamA, o.A, teamB, o.B, contextB).accepts'));
 assert.ok(html.includes('negJudgeFor(teamB, o.B, teamA, o.A, contextA).accepts'));
