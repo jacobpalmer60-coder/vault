@@ -90,7 +90,11 @@ jobs:
 
       - run: node scripts/crawl-guard.js mark "$RUNNER_TEMP/crawl-counts.json"
 
-      - run: node scripts/crawl-sleeper-trades.js
+      # The multi-million-trade dataset surpassed V8's default ~4 GB heap
+      # (2026-11-24). Keep the limit below hosted runner RAM and leave headroom
+      # for gzip buffers/OS; a failure still preserves the last published data.
+      - name: Crawl Sleeper trades
+        run: node --max-old-space-size=6144 scripts/crawl-sleeper-trades.js
 
       - name: Save them back to the release
         run: |
