@@ -38,7 +38,7 @@
    and data/market-history/glance-<sf|oneQB>.json: EVERY priced trade of those
    days (not a sample; user, 2026-10-09: "why can't we use all the trades?"),
    reduced to what the Trade Database's "market at a glance" needs, graded the
-   way the pages grade (Vault.tradeSideValues at the grade's market prices for
+   way the pages grade (Vault.marketSideValues at the grade's market prices for
    the trade's format, data/grade-values.json), about 25 bytes a trade:
      { updated, from, to, shapes, pos, fmts: [[teams, ppr code, tep code]],
        rows: [[% off x10, shape, 1-for-1 (0/1), best piece's KTC value, its
@@ -161,25 +161,56 @@ function main() {
   // Pieces with ~no trade value: left out of the value, not a reason to drop the trade.
   const negligible = id => (id[0] === 'p' ? +id.split('-')[1] >= 5 : ['K', 'DEF'].includes(sleeper[id]?.position));
 
-  // Every crawled trade, grouped by its league's price format.
-  const byFormat = new Map(), leagues = new Map(), docs = [];
-  files.forEach(f => {
-    const doc = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(IN, f))).toString('utf8'));
-    docs.push(doc);
-    Object.values(doc.trades).forEach(([date, lh, a, b]) => {
-      const fmt = doc.leagues[lh];
-      if (!fmt) return;
-      const format = (fmt[0] === 2 ? 'sf' : 'oneQB') + tepSuffix(fmt[1]);
-      (byFormat.get(format) || byFormat.set(format, []).get(format)).push({ date, a, b, f: [fmt[2], fmt[1], fmt[3]] });
-      (leagues.get(format) || leagues.set(format, new Set()).get(format)).add(lh);
+  // Partition by season and format on disk. Previously we retained every
+  // decompressed season document AND a second global array of 6M+ trades,
+  // then kept each priced trade twice (by week and year). On Actions that
+  // exceeded the 6GB V8 heap after processing just the first QB format.
+  // A shard is private runner scratch space and is never published.
+  const os = require('os');
+  const shardDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-market-'));
+  const formats = new Set(), leagues = new Map();
+  const shardPath = (file, format) => path.join(shardDir, file.replace(/\.json\.gz$/, '') + '-' + format + '.json.gz');
+  const draftPath = file => path.join(shardDir, file.replace(/\.json\.gz$/, '') + '-drafts.json.gz');
+  try {
+    files.forEach(file => {
+      const doc = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(IN, file))).toString('utf8'));
+      const groups = new Map();
+      for (const [date, lh, a, b] of Object.values(doc.trades || {})) {
+        const fmt = doc.leagues[lh];
+        if (!fmt) continue;
+        const format = (fmt[0] === 2 ? 'sf' : 'oneQB') + tepSuffix(fmt[1]);
+        (groups.get(format) || groups.set(format, []).get(format)).push([date, a, b, [fmt[2], fmt[1], fmt[3]]]);
+        (leagues.get(format) || leagues.set(format, new Set()).get(format)).add(lh);
+        formats.add(format);
+      }
+      for (const [format, rows] of groups) {
+        fs.writeFileSync(shardPath(file, format), zlib.gzipSync(JSON.stringify(rows), { level: 1 }));
+      }
+      // Drafts are needed for rookie reports but must not keep transactions
+      // alive throughout the heavyweight price summaries.
+      fs.writeFileSync(draftPath(file), zlib.gzipSync(JSON.stringify({
+        season: doc.season, leagues: doc.leagues, drafts: doc.drafts || {}
+      }), { level: 1 }));
+      console.log('sharded', file, [...groups].map(([fmt, rows]) => fmt + ':' + rows.length).join(' '));
     });
-  });
 
   fs.mkdirSync(OUT, { recursive: true });
   const recentFrom = new Date(Date.now() - RECENT_DAYS * 864e5).toISOString().slice(0, 10);
   const recent = { sf: [], oneQB: [] };
   const premiums = { sf: new Map(), oneQB: new Map() }; // name -> [[date, premium %]]
-  byFormat.forEach((trades, format) => {
+  for (const format of formats) {
+    // The previous iteration's trades have left scope; reclaim them before
+    // loading the next format on a memory-constrained hosted runner.
+    if (global.gc) global.gc();
+    // Only one price format's trades occupy the heap at a time.
+    const trades = [];
+    for (const file of files) {
+      const shard = shardPath(file, format);
+      if (!fs.existsSync(shard)) continue;
+      for (const [date, a, b, f] of JSON.parse(zlib.gunzipSync(fs.readFileSync(shard)).toString('utf8'))) {
+        trades.push({ date, a, b, f });
+      }
+    }
     const prices = playerPrices(format);
     const asset = (id, d) => {
       if (id[0] === 'p') {
@@ -219,7 +250,7 @@ function main() {
     [...weeks.keys()].sort().forEach(w => { Vault._globalMaxValue = prices.maxAt(w) || undefined; weekOut[w] = summarize(Vault, weeks.get(w), { players: false }); });
     fs.writeFileSync(path.join(OUT, `${format}.json`), JSON.stringify({ format, updated: new Date().toISOString(), leagues: leagues.get(format).size, trades: { crawled: trades.length, priced }, weeks: weekOut, years: yearOut }));
     console.log(`${format}: ${trades.length} trades from ${leagues.get(format).size} leagues, ${priced} priced, ${weeks.size} weeks`);
-  });
+  }
 
   // Each player's market points. The last DAILY_KEEP_DAYS day by day (every day
   // with a trade, that day's median premium); everything older by month, in
@@ -253,7 +284,9 @@ function main() {
   const now = new Date(), nflSeason = now.getUTCMonth() >= 2 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
   const rookieOf = (pid, season) => { const y = sleeper[pid]?.years_exp; return y == null ? null : nflSeason - y === +season; };
   let skippedDrafts = 0;
-  docs.forEach(doc => Object.values(doc.drafts || {}).forEach(([date, lh, teams, picks]) => {
+  files.forEach(file => {
+    const doc = JSON.parse(zlib.gunzipSync(fs.readFileSync(draftPath(file))).toString('utf8'));
+    Object.values(doc.drafts || {}).forEach(([date, lh, teams, picks]) => {
     const fmt = doc.leagues[lh];
     if (!fmt || !teams) return;
     // The crawl keeps drafts of 6 rounds or fewer, which still lets in some
@@ -275,7 +308,9 @@ function main() {
       const said = round <= 4 && pickTierAt(season, round, tier, format, date);
       if (said) (S.ktc.get(`${round}-${tier}`) || S.ktc.set(`${round}-${tier}`, []).get(`${round}-${tier}`)).push(said);
     });
-  }));
+    });
+    if (global.gc) global.gc();
+  });
   console.log(`rookie drafts: skipped ${skippedDrafts} that weren't mostly rookies`);
   Object.entries(rookies).forEach(([qb, bySeason]) => {
     const seasons = {};
@@ -305,6 +340,9 @@ function main() {
     console.log(`recent-${qb}: ${keep.length} of ${list.length} trades over ${days.size} days since ${recentFrom}`);
     writeGlance(Vault, qb, list, sleeper);
   });
+  } finally {
+    fs.rmSync(shardDir, { recursive: true, force: true });
+  }
 }
 
 // Every recent trade, as the Trade Database's "market at a glance" reads it
@@ -323,7 +361,7 @@ function writeGlance(Vault, qb, list, sleeper) {
     const s1 = named(t.s1), s2 = named(t.s2);
     const [rec, bonus, teams] = t.f || [];
     const table = tables.get((qb === 'sf' ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonus)) || false;
-    const g = Vault.tradeSideValues(s1, s2, { market: table }), pct = Math.abs(g.valueA - g.valueB) / (((g.valueA + g.valueB) / 2) || 1) * 100;
+    const g = Vault.marketSideValues(s1, s2, { market: table }), pct = Math.abs(g.valueA - g.valueB) / (((g.valueA + g.valueB) / 2) || 1) * 100;
     const { valueA: v1, valueB: v2 } = Vault.ktcSideValues(s1, s2), avg = (v1 + v2) / 2 || 1;
     const best1 = Math.max(...s1.map(a => a.value)), best2 = Math.max(...s2.map(a => a.value));
     const topIn1 = best1 >= best2, top = (topIn1 ? s1 : s2).find(a => a.value === (topIn1 ? best1 : best2));

@@ -38,6 +38,10 @@
     <p class="mt-2 text-[12px] text-zinc-400 max-w-[850px] leading-relaxed">Historical research note: older completed-trade package-price gaps in this archive were computed with Vault's retired nonlinear consolidation curve. The live Trade Calculator and Trade Grades now use additive market prices instead. Do not compare old chart fairness percentages directly with new grades until the archive is rebuilt.</p>
   </div>
   <p class="text-[12px] text-zinc-500 max-w-[720px] mb-4 leading-relaxed"><span id="crawled"></span></p>
+  <section id="currentCollection" class="card rounded-vault-sm p-4 mb-5" role="status" aria-live="polite">
+    <h2 class="text-[15px] font-semibold text-zinc-100">Current trade collection</h2>
+    <p class="text-[12px] text-zinc-400 mt-1">Checking the latest independently refreshed Sleeper market summary. Historical outcome research below has its own snapshot date.</p>
+  </section>
 
   <div id="tiles" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
 
@@ -635,6 +639,29 @@ async function init() {
     status.className = 'text-[13px] text-rose-400 mt-1';
   }
 }
+async function loadCurrentCollection() {
+  const box=document.getElementById('currentCollection');
+  if(!box)return;
+  try {
+    const res=await fetch('data/market-history/trade-lab-current.json',{cache:'no-store'});
+    if(!res.ok)throw new Error('No automated collection summary published yet');
+    const d=await res.json();
+    if(d.schemaVersion!==1 || !Number.isFinite(d.priced) || !d.sourceUpdated)throw new Error('Incomplete automated collection summary');
+    const date=new Date(d.sourceUpdated), days=(Date.now()-date.getTime())/864e5, stale=!Number.isFinite(days)||days>1;
+    const f=n=>Number(n||0).toLocaleString();
+    const fmt=Object.entries(d.formats||{}).map(([key,v])=>key+': '+f(v.priced)+' priced').join(' · ');
+    box.innerHTML='<div class="flex items-start justify-between gap-3 flex-wrap"><h2 class="text-[15px] font-semibold text-zinc-100">Current trade collection</h2>'+
+      '<span class="text-[12px] '+(stale?'text-amber-300':'text-emerald-300')+'">'+(stale?'Source refresh overdue':'Source refreshed')+'</span></div>'+
+      '<p class="text-[13px] text-zinc-200 mt-2"><strong>'+f(d.priced)+'</strong> fully priced of <strong>'+f(d.crawled)+'</strong> collected trades, across every supported format</p>'+
+      '<p class="text-[12px] text-zinc-400 mt-1">Oldest included market summary: '+Vault.escapeHtml(d.sourceUpdated)+'; figures are cumulative counts, not manager acceptance predictions.</p>'+
+      '<p class="text-[11px] text-zinc-500 mt-2">'+Vault.escapeHtml(fmt)+'</p>'+
+      '<p class="text-[11px] text-zinc-400 mt-2">These are automatically rebuilt collection facts. The separate historical performance and outcomes research below remains dated to its own archival snapshot.</p>';
+  } catch(e){
+    box.innerHTML='<h2 class="text-[15px] font-semibold text-zinc-100">Current trade collection</h2>'+
+      '<p class="text-[12px] text-amber-300 mt-1">Automated market summaries are not yet available. The historical research below can be older than the latest KTC rankings; check Data Status for the last successful crawl.</p>';
+  }
+}
+loadCurrentCollection();
 init();
 </script>
 </body>

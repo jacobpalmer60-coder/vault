@@ -1,0 +1,64 @@
+name: Live Sleeper league acceptance — Vault
+
+# Read-only populated-league acceptance in addition to fixture CI.
+on:
+  workflow_dispatch:
+    inputs:
+      league_id:
+        description: 'Sleeper league ID to test (defaults to established test league)'
+        required: false
+        type: string
+  schedule:
+    - cron: '25 11 * * *'
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/live-league-smoke.yml
+      - scripts/check-live-trade-parity.js
+      - scripts/check-live-manager-browser.cjs
+      - scripts/smoke-trade-flow.js
+      - trade.html
+      - trade-policy.js
+      - coach.js
+      - negotiation.js
+      - managers.html
+      - trade_grades.html
+      - vault-core.js
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vault-live-league-${{ github.event.pull_request.number || 'daily' }}
+  cancel-in-progress: true
+
+jobs:
+  real-league:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Public Sleeper data; override in manual dispatch.
+      VAULT_LIVE_LEAGUE_ID: ${{ inputs.league_id || '1313454100225990656' }}
+      VAULT_EXPECT_TRADE_ID: '1427820274018971648'
+      VAULT_LIVE_ROSTER_ID: '10'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify real completed trade is counted for both managers
+        run: node scripts/check-live-trade-parity.js
+      - name: Install Chromium and browser drivers
+        run: |
+          npm install --no-save playwright puppeteer-core
+          npx playwright install --with-deps chromium
+      - name: Real league Managers and Trade Grades (390px)
+        run: node scripts/check-live-manager-browser.cjs
+      - name: Real Trade Calculator and What-if (1280 / 375 / 320px)
+        run: |
+          python3 -m http.server 5191 --bind 127.0.0.1 >/tmp/vault-http.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          export CHROME=$(node -e "console.log(require('playwright').chromium.executablePath())")
+          export BASE=http://127.0.0.1:5191
+          node scripts/smoke-trade-flow.js "$VAULT_LIVE_LEAGUE_ID"

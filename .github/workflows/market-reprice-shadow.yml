@@ -1,0 +1,67 @@
+name: Market repricing full-archive shadow — Vault
+
+# Run the memory-sensitive production summarizer on real release assets.
+# This check NEVER commits, publishes or uploads raw dynasty trades.
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [chatgpt/vault-market-pipeline-recovery-20261124]
+    paths:
+      - .github/workflows/market-reprice-shadow.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-full-shadow
+  cancel-in-progress: true
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download complete safeguarded trade archive
+        run: |
+          mkdir -p data/sleeper-trades
+          gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber
+          node scripts/crawl-guard.js check
+      - name: Full six-format sharded pricing under hosted runner RAM
+        run: node --expose-gc --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
+      - name: Rebuild current Trade Lab aggregate
+        run: node scripts/build-trade-lab-current.js
+      - name: Validate real market result without publishing
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const lab=JSON.parse(fs.readFileSync('data/market-history/trade-lab-current.json'));
+          const formats=['sf','sf_tep','sf_tepp','oneQB','oneQB_tep','oneQB_tepp'];
+          for(const fmt of formats){
+            const doc=JSON.parse(fs.readFileSync('data/market-history/'+fmt+'.json'));
+            if(doc.format!==fmt || !doc.updated || !(doc.trades.priced>=1))
+              throw Error('Missing/invalid market format '+fmt);
+            console.log(fmt,doc.trades.priced,'priced',doc.trades.crawled,'crawled');
+          }
+          if(lab.priced<1000000 || lab.priced>lab.crawled || Object.keys(lab.formats).length!==6)
+            throw Error('Unexpected full archive coverage; NOT publishing');
+          for(const qb of ['sf','oneQB']){
+            for(const prefix of ['daily','monthly','recent','glance','rookies']){
+              const filename='data/market-history/'+prefix+'-'+qb+'.json';
+              const d=JSON.parse(fs.readFileSync(filename));
+              if(!d || typeof d!=='object') throw Error('Invalid market dataset '+filename);
+            }
+          }
+          console.log('PASS full-archive source coverage and schema; this shadow job did not publish anything');
+          NODE
+      - name: Retain non-sensitive summary proof
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-reprice-shadow-summary
+          path: data/market-history/trade-lab-current.json
