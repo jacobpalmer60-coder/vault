@@ -38,6 +38,7 @@ assert.deepEqual([...versions].filter(([, x]) => x.size > 1).map(([f, x]) => f +
 const status = fs.readFileSync(path.join(ROOT, 'status.html'), 'utf8');
 const lab = fs.readFileSync(path.join(ROOT, 'trade_lab.html'), 'utf8');
 assert.match(status, /Unified Sleeper ingestion/, 'Status must name active collector');
+assert.match(status, /Sleeper market pricing/, 'Status must expose independently monitored repricing health');
 assert.match(status, /Trade-crawl summaries have not refreshed within 6 hours/i, 'Warn when market history is stale');
 assert.match(status, /Historical research snapshots/, 'Show research freshness independently');
 assert.doesNotMatch(lab, /refreshed after each full pull of leagues/, 'Historical research does not refresh with each crawl');
