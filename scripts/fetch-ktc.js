@@ -89,8 +89,29 @@ async function main() {
         scriptIds: [...html.matchAll(/<script[^>]*\bid=["']([^"']+)["']/gi)].slice(0, 10).map(m => m[1])
       };
       all = extractRankings(html);
-      if (!Array.isArray(all)) throw new Error('KTC players data is not an array');
-      if (all.length < 320) throw new Error(`KTC data island returned only ${all.length} rows`);
+      if (!Array.isArray(all) || all.length < 320) {
+        // The ranking page now initializes playersArray=[] and asynchronously
+        // loads its complete values from its first-party versioned endpoint.
+        const version = /\b(?:var|let|const)\s+playersVersion\s*=\s*['"]([a-zA-Z0-9-]{1,128})['"]/.exec(html)?.[1];
+        if (!version) throw new Error('KTC page has no valid player-pool version');
+        const poolUrl = new URL('/dynasty-rankings/player-pool', PAGE_URL);
+        poolUrl.searchParams.set('v', version);
+        poolUrl.searchParams.set('sr', '2');
+        const poolResponse = await fetch(poolUrl, {
+          headers: {
+            Accept: 'application/json',
+            Referer: PAGE_URL,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+          },
+          signal: AbortSignal.timeout(30000)
+        });
+        if (!poolResponse.ok) throw new Error('KTC player pool fetch failed: ' + poolResponse.status);
+        const stampedVersion = poolResponse.headers.get('x-ktc-players-version');
+        if (stampedVersion && stampedVersion !== version) throw new Error('KTC player pool changed during fetch; retrying');
+        all = await poolResponse.json();
+        console.log('KTC versioned player pool fetched', { count: all?.length, version });
+      }
+      if (!Array.isArray(all) || all.length < 320) throw new Error('Insufficient KTC player-pool rows: ' + (all?.length ?? 0));
       break;
     } catch (error) {
       lastError = error;
