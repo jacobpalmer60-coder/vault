@@ -19,14 +19,19 @@ for (const year of [2027,2028,2029,2030])
     for (const slot of ['Early','Mid','Late'])
       players.push({playerID:players.length+1,playerName:year+' '+slot+' '+round+(round===1?'st':'nd'),
         position:'RDP',oneQBValues:value(2000),superflexValues:value(2500)});
-global.fetch = async () => ({
-  ok:true,status:200,
-  text:async () => process.env.KTC_CASE === 'missing'
-    ? '<html><body>Incomplete rankings</body></html>'
-    : process.env.KTC_CASE === 'legacy'
-      ? '<script>var playersArray = '+JSON.stringify(players)+';</script>'
-      : '<script type="application/json" data-test="1" id="ktc-players">'+JSON.stringify(players)+'</script>'
-});
+global.fetch = async url => {
+  if (String(url).includes('/player-pool'))
+    return {ok:true,status:200,headers:{get:()=>null},json:async()=>players};
+  return {ok:true,status:200,
+    text:async () => process.env.KTC_CASE === 'missing'
+      ? '<html><body>Incomplete rankings</body></html>'
+      : process.env.KTC_CASE === 'versioned'
+        ? '<script>var playersVersion = "abc-123"; var playersArray = [];</script>'
+      : process.env.KTC_CASE === 'legacy'
+        ? '<script>var playersArray = '+JSON.stringify(players)+';</script>'
+        : '<script type="application/json" data-test="1" id="ktc-players">'+JSON.stringify(players)+'</script>'
+  };
+};
 `;
 fs.writeFileSync(path.join(tmp,'mock.cjs'),mock);
 const file = path.join(tmp,'data/ktc-values.json');
@@ -35,7 +40,7 @@ const run = which => cp.spawnSync(process.execPath,['--require',path.join(tmp,'m
   env:{...process.env,KTC_CASE:which,KTC_RETRY_DELAY_MS:'1'}
 });
 try {
-  for (const scenario of ['island','legacy']) {
+  for (const scenario of ['island','legacy','versioned']) {
     const r=run(scenario);
     assert.equal(r.status,0,scenario+': '+r.stderr);
     const d=JSON.parse(fs.readFileSync(file,'utf8'));
