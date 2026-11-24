@@ -81,6 +81,10 @@ async function main() {
         title: (html.match(/<title[^>]*>([^<]{0,120})<\/title>/i) || [])[1] || null,
         hasDataIsland: html.includes('ktc-players'),
         hasLegacyArray: html.includes('playersArray'),
+        hasBlendValueKeys: html.includes('blendValue'),
+        hasOneQBValueKeys: html.includes('oneQBValues'),
+        hasRenderedRanks: html.includes('rankings-page-rankings'),
+        legacyExcerpt: html.includes('playersArray') ? html.slice(Math.max(0, html.indexOf('playersArray') - 60), html.indexOf('playersArray') + 130).replace(/\\s+/g, ' ') : null,
         hasChallengeText: /cloudflare|captcha|just a moment|access denied/i.test(html),
         scriptIds: [...html.matchAll(/<script[^>]*\bid=["']([^"']+)["']/gi)].slice(0, 10).map(m => m[1])
       };
