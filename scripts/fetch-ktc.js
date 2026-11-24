@@ -79,7 +79,7 @@ async function main() {
     } catch (error) {
       lastError = error;
       console.warn(`KTC rankings attempt ${attempt}/3 failed: ${error.message}`);
-      if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 5000));
+      if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * (+process.env.KTC_RETRY_DELAY_MS || 5000)));
     }
   }
   if (!all) throw new Error(`KTC rankings unavailable after 3 attempts; keeping existing values: ${lastError?.message}`);
