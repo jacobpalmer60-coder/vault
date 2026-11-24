@@ -47,7 +47,7 @@ Sleeper username leads to a league, and a league id to a team. Every tool needs 
 | Market history | Mondays | Updates long-run player trade-history and seasonal timing archives. |
 | Check site code / Browser UI smoke | on code changes | Regression checks plus Chromium fixture tests for draft, activity, managers, and grades. The fixture suite is not full production-league acceptance. |
 
-**Research data is not all live:** `trade-lab.json` and historical findings are rebuilt separately in the private research environment, not by the daily refresh or the unified collector. Their actual snapshot dates are shown on Data Status. Recent trades and market history can also lag if ingestion has not successfully finished publishing; do not infer their freshness from today's KTC `updated` timestamp alone.
+**Research refresh boundaries:** `trade-lab-current.json` is automatically regenerated after the unified collector successfully reprices all six formats; it shows factual collected/priced totals and never invents predictive accuracy. Historical outcomes, `trade-lab.json` and findings still come from separate private VaultValues research and are clearly dated. The live-league acceptance workflow checks actual Sleeper transaction parity and populated Chromium pages daily. The private research repo's nightly shadow study does not automatically publish recalibrated historical Trade Lab to this public site. Recent trades and market history can also lag if ingestion has not successfully finished publishing; do not infer their freshness from today's KTC `updated` timestamp alone.
 
 **Research** lives next door in `../VaultValues`: local only, and only aggregates reach the site, through
 scripts like `build-trade-lab.js`. Readable team data stays on the computer.
