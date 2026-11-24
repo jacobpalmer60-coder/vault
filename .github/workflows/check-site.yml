@@ -62,5 +62,36 @@ jobs:
         run: node scripts/check-ktc-refresh.js
       - name: Unified Sleeper ingestion integration test (mocked API)
         run: node scripts/check-unified-sleeper.js
+      - name: Audit every static page and research freshness labels
+        run: node scripts/check-site-assets.js
+      - name: Trade calculator, manager, draft and model regressions
+        run: |
+          set -e
+          for test in \
+            check-manager-trade-freshness \
+            check-market-price-rollout \
+            check-trade-reliability-pass \
+            check-trade-decision-policy \
+            check-trade-pricing-reconciliation \
+            check-trade-price-separation \
+            check-trade-mobile-tabs \
+            check-trade-stress \
+            check-trade-stress-ui \
+            check-team-impact \
+            check-trade-walkthrough-audit \
+            check-trade-accuracy-diagnostics \
+            check-historical-outcomes \
+            check-trade-outcome-independence \
+            check-rebuild-forecast-chronology \
+            check-rookie-pick-outcomes \
+            check-rookie-slot \
+            check-rookie-slot-benchmark \
+            check-rookie-slot-weighting \
+            check-rookie-summary
+          do
+            echo "::group::$test"
+            node "scripts/$test.js"
+            echo "::endgroup::"
+          done
       - name: Every script parses
         run: for f in vault-core.js vault-nav.js trade-evidence.js market-data.js draft-center.js draft-rules.js activity.js activity-model.js scripts/*.js scripts/*.cjs scripts/market-history/*.js; do node --check "$f" || exit 1; done
