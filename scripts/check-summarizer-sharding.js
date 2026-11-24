@@ -16,6 +16,7 @@ try {
     "const ROOT=require('node:path').resolve(__dirname,'..');",
     "const Vault={ktcTepSuffix:x=>x>=.75?'_tepp':x>=.25?'_tep':'',ktcPprCode:()=>1,ktcTepCode:()=>0,",
     "tradeSideValues:(a,b)=>({valueA:a.reduce((s,x)=>s+x.value,0),valueB:b.reduce((s,x)=>s+x.value,0)}),",
+    "marketSideValues:(a,b)=>({valueA:a.reduce((s,x)=>s+x.value,0),valueB:b.reduce((s,x)=>s+x.value,0)}),",
     "ktcSideValues:(a,b)=>({valueA:a.reduce((s,x)=>s+x.value,0),valueB:b.reduce((s,x)=>s+x.value,0)}),",
     "fairnessBucket:x=>x<14?'Fair':x<41?'Lopsided':'Unfair'};",
     "module.exports={ROOT,loadVault:()=>Vault,summarize:(_,ts)=>({n:ts.length})};"
@@ -51,6 +52,7 @@ try {
   const output=execFileSync(process.execPath,['--expose-gc',path.join(root,'scripts/summarize-sleeper-trades.js')],{
     cwd:root,encoding:'utf8',timeout:30000,env:{...process.env}
   });
+  assert.match(fs.readFileSync(source,'utf8'),/const g = Vault\.marketSideValues\(s1, s2, \{ market: table \}\)/,'Glance prices must be additive like live Trade Search');
   assert.match(output,/sharded 2025\.json\.gz/);
   assert.match(output,/sharded 2026\.json\.gz/);
   for(const [format,want] of [['sf',1],['sf_tep',1],['oneQB',2]]){
