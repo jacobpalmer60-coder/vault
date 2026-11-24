@@ -24,7 +24,7 @@ const PAGE_URL = 'https://keeptradecut.com/dynasty-rankings';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function extractJsonScriptTag(html, id) {
-  const openTag = html.match(new RegExp(`<script[^>]*id=["']${id}["'][^>]*>`));
+  const openTag = html.match(new RegExp(`<script\\b(?=[^>]*\\bid\\s*=\\s*["']${id}["'])[^>]*>`, 'i'));
   if (!openTag) throw new Error(`Could not find <script id="${id}"> in page HTML`);
   const start = openTag.index + openTag[0].length;
   const end = html.indexOf('</script>', start);
@@ -32,15 +32,57 @@ function extractJsonScriptTag(html, id) {
   return JSON.parse(html.slice(start, end));
 }
 
-async function main() {
-  const res = await fetch(PAGE_URL, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+// Support both known KTC embeddings: the newer JSON data island and the
+// earlier JS literal. Do not scrape incomplete visible rankings as a substitute:
+// missing rows would corrupt every downstream value/grade snapshot.
+function extractRankings(html) {
+  try { return extractJsonScriptTag(html, 'ktc-players'); }
+  catch (error) {
+    const assign = /\b(?:var|let|const)\s+playersArray\s*=\s*(\[)/.exec(html);
+    if (!assign) throw error;
+    const start = assign.index + assign[0].lastIndexOf('[');
+    let depth = 0, quote = '', escape = false;
+    for (let i = start; i < html.length; i++) {
+      const ch = html[i];
+      if (quote) {
+        if (escape) escape = false;
+        else if (ch === '\\') escape = true;
+        else if (ch === quote) quote = '';
+      } else if (ch === '"' || ch === "'") quote = ch;
+      else if (ch === '[') depth++;
+      else if (ch === ']' && --depth === 0) return JSON.parse(html.slice(start, i + 1));
     }
-  });
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
-  const html = await res.text();
-  const all = extractJsonScriptTag(html, 'ktc-players');
+    throw Error('KTC playersArray assignment was truncated');
+  }
+}
+
+async function main() {
+  // KTC sometimes returns an incomplete/interstitial HTML page. Retrying a
+  // missing data island avoids losing the entire daily refresh to a transient
+  // response, while validation below prevents publishing an empty price book.
+  let all;
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(PAGE_URL, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+          Accept: 'text/html'
+        },
+        signal: AbortSignal.timeout(30000)
+      });
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+      const html = await res.text();
+      all = extractRankings(html);
+      if (!Array.isArray(all)) throw new Error('KTC players data is not an array');
+      break;
+    } catch (error) {
+      lastError = error;
+      console.warn(`KTC rankings attempt ${attempt}/3 failed: ${error.message}`);
+      if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * (+process.env.KTC_RETRY_DELAY_MS || 5000)));
+    }
+  }
+  if (!all) throw new Error(`KTC rankings unavailable after 3 attempts; keeping existing values: ${lastError?.message}`);
 
   // KTC now lists BOTH a generic per-tier pick ("2027 Early 1st") and, for the
   // current season specifically, one entry per exact draft slot ("2026 Pick

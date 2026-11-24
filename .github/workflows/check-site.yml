@@ -58,5 +58,9 @@ jobs:
       - run: node scripts/check-sitewide-quality.js
       - run: node scripts/check-draft-activity.js
       - run: node scripts/stamp-assets.js --check
+      - name: KTC refresh parser regression (mocked page)
+        run: node scripts/check-ktc-refresh.js
+      - name: Unified Sleeper ingestion integration test (mocked API)
+        run: node scripts/check-unified-sleeper.js
       - name: Every script parses
         run: for f in vault-core.js vault-nav.js trade-evidence.js market-data.js draft-center.js draft-rules.js activity.js activity-model.js scripts/*.js scripts/*.cjs scripts/market-history/*.js; do node --check "$f" || exit 1; done
