@@ -39,5 +39,5 @@ assert.ok(managers.includes('const stats = Vault.buildManagerStats(allGraded, te
 assert.ok(managers.includes('Sleeper #${Vault.escapeHtml(String(tx.transaction_id))}'),'ungraded trades visible in manager record');
 assert.ok(managers.includes('awaiting Sleeper processing'),'pending activity clearly labeled');
 assert.ok(managers.includes('trade counts may be incomplete'),'missing-week warning clear');
-assert.ok(grades.includes('graded trades of'),'Trade Grades explains grading coverage');
+assert.ok(grades.includes('reliably graded of'),'Trade Grades explains reliable grading coverage');
 console.log('PASS complete unpriced trades counted on both teams, duplicates excluded, uncertain owner excluded, pending kept separate, week-0/current fetch and coverage warnings');
