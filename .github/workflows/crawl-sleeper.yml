@@ -1,14 +1,11 @@
-name: Crawl Sleeper trades
+name: Unified Sleeper ingestion
 
-# Builds a long-run history of real dynasty trades from Sleeper (see
-# scripts/crawl-sleeper-trades.js). A run starts every hour and crawls for
-# ~42 minutes at up to 500 calls a minute (Sleeper asks for under 1000 a minute).
-# Each successful run then starts the next one (workflow_dispatch), so it
-# crawls around the clock without waiting on GitHub's schedule, which is
-# only a backup, and often hours late. One run at a time (concurrency). A failed run
-# tries once more by itself (2026-11-05: a crash stopped the crawl with the schedule hours
-# behind); a second failure in a row waits for the schedule, so a real problem can't loop.
-#
+# One coordinated ingestion job collects both historical trades and encrypted
+# whole-league context. Its two sequential phases SHARE the same runner and API
+# quota (400 requests/minute total; never concurrent). This replaces the separate
+# league-pull.yml schedule. No change to the existing public trade assets or the
+# private, RSA-sealed league pull format.
+# A successful run starts the next; schedule is a backup, not a second worker.
 # The raw trades (gzipped) live as assets on the "sleeper-trades"
 # GitHub Release, not in git, so the repo doesn't grow with them. The
 # crawl's to-do list (Sleeper ids) is kept in the Actions cache, never
@@ -22,6 +19,7 @@ on:
     branches: [main]
     paths:
       - scripts/crawl-sleeper-trades.js
+      - scripts/pull-league-deltas.js
       - .github/workflows/crawl-sleeper.yml
 
 permissions:
@@ -29,7 +27,7 @@ permissions:
   actions: write   # to start the next run
 
 concurrency:
-  group: crawl-sleeper
+  group: unified-sleeper-ingestion
   cancel-in-progress: false
 
 jobs:
@@ -43,8 +41,8 @@ jobs:
       # 42 leaves room to save, price and publish inside the job's limit
       # (pricing every season takes 5-10 minutes now; at 48 most runs timed out
       # mid-publish, 2026-10-20).
-      RUN_MINUTES: '42'
-      CALLS_PER_MIN: '500'   # half of Sleeper's 1000-a-minute guidance; stops on any 429
+      RUN_MINUTES: '29'
+      CALLS_PER_MIN: '400'   # one sequential worker; under Sleeper's 1000/min guidance
     steps:
       - uses: actions/checkout@v4
 
@@ -94,7 +92,7 @@ jobs:
       # (2026-11-24). Keep the limit below hosted runner RAM and leave headroom
       # for gzip buffers/OS; a failure still preserves the last published data.
       - name: Crawl Sleeper trades
-        run: node --max-old-space-size=6144 scripts/crawl-sleeper-trades.js
+        run: node --max-old-space-size=5632 scripts/crawl-sleeper-trades.js
 
       - name: Save them back to the release
         run: |
@@ -106,6 +104,38 @@ jobs:
         with:
           path: .crawl
           key: sleeper-crawl-${{ github.run_id }}
+
+      # The old standalone league-pull action is retired. We restore its private
+      # progress, gather only changed weeks after the trade phase, then seal full
+      # league payloads with the existing research-machine public key.
+      - uses: actions/cache/restore@v4
+        with:
+          path: .league-pull
+          key: unified-league-pull-${{ github.run_id }}
+          restore-keys: |
+            unified-league-pull-
+            league-pull-
+
+      - name: Collect whole-league context
+        id: league
+        env:
+          RUN_MINUTES: '16'
+          CALLS_PER_MIN: '400'
+        run: node scripts/pull-league-deltas.js
+
+      - name: Publish encrypted league context
+        if: steps.league.outputs.file != ''
+        run: |
+          gh release view league-pull >/dev/null 2>&1 || gh release create league-pull --title "League pull (sealed)" --notes "Encrypted to the private key held only on the research computer." --latest=false
+          name="pull-${{ steps.league.outputs.cycle }}-${{ github.run_id }}.bin"
+          mv "${{ steps.league.outputs.file }}" "$RUNNER_TEMP/$name"
+          gh release upload league-pull "$RUNNER_TEMP/$name" --clobber
+
+      # Save only after uploading, so failed uploads cannot mark leagues complete.
+      - uses: actions/cache/save@v4
+        with:
+          path: .league-pull
+          key: unified-league-pull-${{ github.run_id }}
 
       # Price everything at each trade's own date and publish the small summaries
       # the site reads (data/market-history/) about every 6 hours. Those files are a third of the
@@ -147,7 +177,7 @@ jobs:
         run: gh workflow run refresh-projections.yml --ref main
 
       # Keep it going: start the next run (queued behind this one until it ends).
-      - name: Start the next run
+      - name: Start the next unified run
         if: success()
         run: gh workflow run crawl-sleeper.yml --ref main
 
