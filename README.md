@@ -41,13 +41,13 @@ Sleeper username leads to a league, and a league id to a team. Every tool needs 
 
 | Job | When | Does |
 |---|---|---|
-| Update data, full value history | daily | `player-value-history.json` lives on the `data-history` release, not in git; pages read `data/history/` |
-| Crawl Sleeper trades | hourly, prices saved about every 6 hours | New completed trades, priced at KTC values of their own day |
-| Refresh projections | every 3 hours | Sleeper projections, and injury details on game days |
-| Update data | nightly | KTC values, value history, grade prices, slim files, season totals on Tuesdays |
-| Market history | Mondays | Long-run market files |
-| League pull | every 6 hours | Encrypted league data for research |
-| Check site code | on push | `vault-core.js` still runs in Node, and the math hasn't moved |
+| Update data | daily at 07:00 UTC | Refreshes KTC's versioned public player pool, projections, injuries, prices, historical values, grades and player metadata. Independent upstream failures retain the last-good file and report a warning. Full history is stored on the `data-history` release; pages read compact files in `data/history/`. |
+| Unified Sleeper ingestion | scheduled hourly as backup, with sequential self-chain | Crawls completed trades, then collects encrypted full-league context; each phase is limited to 400 Sleeper API requests/minute. The public trade history is on the `sleeper-trades` release; private sealed snapshots are on the `league-pull` release. The standalone league-pull workflow is retired. |
+| Refresh projections | scheduled every three hours and triggered by successful ingestion | Updates projections between daily KTC refreshes. |
+| Market history | Mondays | Updates long-run player trade-history and seasonal timing archives. |
+| Check site code / Browser UI smoke | on code changes | Regression checks plus Chromium fixture tests for draft, activity, managers, and grades. The fixture suite is not full production-league acceptance. |
+
+**Research data is not all live:** `trade-lab.json` and historical findings are rebuilt separately in the private research environment, not by the daily refresh or the unified collector. Their actual snapshot dates are shown on Data Status. Recent trades and market history can also lag if ingestion has not successfully finished publishing; do not infer their freshness from today's KTC `updated` timestamp alone.
 
 **Research** lives next door in `../VaultValues`: local only, and only aggregates reach the site, through
 scripts like `build-trade-lab.js`. Readable team data stays on the computer.
