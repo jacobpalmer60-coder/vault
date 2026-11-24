@@ -139,39 +139,33 @@ jobs:
           path: .league-pull
           key: unified-league-pull-${{ github.run_id }}
 
-      # Price everything at each trade's own date and publish the small summaries
-      # the site reads (data/market-history/) about every 6 hours. Those files are a third of the
-      # repo's history and prices move on 45-day medians, so hourly saves showed nothing.
-      # crawl-stats.json still goes every run: the crawl guard reads it.
-      # The only job that writes these files, apart from player-history.json and
-      # seasonal.json (market-history.yml, weekly).
-      - name: Price and publish
+      # Heavy market repricing has its own 90-minute budget, retries and
+      # six-hour schedule. A pricing OOM must never mark a completed trade
+      # crawl and sealed league pull as failed.
+      - name: Publish collection stats
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # The crawl just rewrote crawl-stats.json, which is tracked: set it aside,
-          # pull main clean (today's price history, any newer publish), then put
-          # this run's stats back. (An autostash here can't commit without the
-          # identity above, and would conflict with the last run's stats anyway.)
           cp data/market-history/crawl-stats.json "$RUNNER_TEMP/crawl-stats.json"
-          rm data/market-history/crawl-stats.json
           git checkout -- data/market-history/
           git pull --rebase --quiet
           cp "$RUNNER_TEMP/crawl-stats.json" data/market-history/crawl-stats.json
-          last=$(gh api "repos/$GITHUB_REPOSITORY/commits?path=data/market-history/glance-sf.json&per_page=1" --jq '.[0].commit.committer.date' || echo)
-          age=$(( $(date +%s) - $(date -d "${last:-1970-01-01}" +%s) ))
-          message="Crawl stats"
-          # 5 hours 50 minutes, so a run landing just short of 6 doesn't wait another hour.
-          if [ "$age" -ge 21000 ]; then
-            node --expose-gc --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
-            node scripts/build-trade-lab-current.js
-            message="Price Sleeper trades and refresh Trade Lab"
-          fi
-          git add data/market-history/
+          git add data/market-history/crawl-stats.json
           git diff --cached --quiet && exit 0
-          git commit -m "$message"
+          git commit -m "Crawl stats"
           git pull --rebase --autostash
           git push
+
+      - name: Request market repricing if overdue
+        if: success()
+        run: |
+          last=$(gh api "repos/$GITHUB_REPOSITORY/commits?path=data/market-history/glance-sf.json&per_page=1" --jq '.[0].commit.committer.date' || echo)
+          age=$(( $(date +%s) - $(date -d "${last:-1970-01-01}" +%s) ))
+          if [ "$age" -ge 21000 ]; then
+            gh workflow run reprice-market.yml --ref main
+          else
+            echo "Market snapshot less than six hours old"
+          fi
 
       # GitHub runs scheduled jobs hours late (projections every 4-11 hours on a 3-hour schedule),
       # so each crawl starts them too: injury news reaches lineups and odds within the hour.
