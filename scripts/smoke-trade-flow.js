@@ -179,6 +179,14 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
           unchanged:JSON.stringify({A:[...selectedA],B:[...selectedB]})}));
         if(discovery.partners!==discovery.expected||!discovery.pass||!discovery.text.includes('not confirmed')||discovery.unchanged!==beforeDiscover)
           errors.push('Coach Discover coverage, two-team checks, disclosure or builder isolation failed');
+        const offer=await page.$('#coachBody .coach-discover-card');
+        if(offer){
+          const initial=await page.evaluate(()=>({open:document.querySelector('.coach-offer-details').open,text:document.querySelector('.coach-discover-card').innerText}));
+          if(initial.open||!initial.text.includes('You receive')||!initial.text.includes('You send')||!initial.text.includes('Review trade'))errors.push('Discover card default hierarchy failed');
+          await page.click('#coachBody .coach-offer-details > summary');
+          const detail=await page.evaluate(()=>({open:document.querySelector('.coach-offer-details').open,text:document.querySelector('.coach-offer-details').innerText,unchanged:JSON.stringify({A:[...selectedA],B:[...selectedB]})}));
+          if(!detail.open||!detail.text.includes('KTC adjusted')||detail.unchanged!==beforeDiscover)errors.push('Discover evidence disclosure mutated or hid the offer');
+        }
       }
       await page.evaluate(()=>setView('builder'));
       if(process.env.SHOTS){
