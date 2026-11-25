@@ -17,3 +17,15 @@ const rows=Array(100).fill(x),m=fit(rows);assert.ok(m.beta>0);assert.equal(fit(A
 const r=evaluate([x,y],m.beta);assert.equal(r.n,2);assert.ok(r.trendGrowthMAE<r.baselineGrowthMAE);assert.equal(r.pairedGrowthBetter,2);
 assert.equal(evaluate([],0).baselineGrowthMAE,null);
 console.log('PASS chronological and league-key holdout, strict as-of prices, relative growth, orientation symmetry and matched baseline');
+
+const premium=require('./market-history/premium-validation');
+const hist={dates:['2025-01-01','2025-01-16'],tables:[{'n:a':50},{'n:a':99}]};
+assert.equal(premium.snapshot(hist,'2025-01-16'),null);
+assert.equal(premium.snapshot(hist,'2025-01-17')['n:a'],50);
+assert.equal(premium.snapshot(hist,'2025-02-01')['n:a'],99);
+const aa=[{name:'a',now:100}],bb=[{name:'b',now:150}];
+const pr=premium.priceRow(aa,bb,hist.tables[0]),rev=premium.priceRow(bb,aa,hist.tables[0]);
+assert.equal(pr.gaps.at(-1),0);assert.ok(pr.gaps.every((v,i)=>Math.abs(v+rev.gaps[i])<1e-9));
+assert.equal(premium.priceRow(aa,bb,{'n:a':-100}),null);
+const ps=premium.summarize([pr,rev]);assert.equal(ps.weights['1'].fairUnder14,2);assert.equal(ps.weights['0'].fairUnder14,0);assert.equal(ps.weights['1'].closerToEven,2);
+console.log('PASS lagged premium snapshot, zero/partial/full adjustment and paired completed-trade price agreement');

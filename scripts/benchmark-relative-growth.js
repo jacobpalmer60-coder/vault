@@ -14,6 +14,9 @@ for(const [id,p] of Object.entries(players)){
  const name=normalizeName((p.first_name||'')+' '+(p.last_name||''));
  if(name){names.set(id,name);nameCounts.set(name,(nameCounts.get(name)||0)+1);}
 }
+const premium=require('./market-history/premium-validation');
+const history=JSON.parse(fs.readFileSync(path.join(DATA,'grade-values-history',format+'.json'),'utf8'));
+const priceRows=[],priceCounts={eligible:0,noSnapshotOrInvalid:0,complete:0};
 const stats=()=>({sampled:0,eligiblePlayerPackages:0,mature:0,missingBase:0,missingTrail:0,missingFuture:0,complete:0});
 const counts={train:stats(),test:stats()},rows={train:[],test:[]},seen=new Set();
 for(const file of files){
@@ -30,8 +33,16 @@ for(const file of files){
   // than pretend a round-average rookie or name collision is an observation.
   if(new Set(keys).size!==keys.length||keys.some(k=>!names.has(k)||nameCounts.get(names.get(k))!==1))continue;
   c.eligiblePlayerPackages++;
-  const future=datePlus(d,HORIZON);if(future>book.latest)continue;c.mature++;
+  // Price agreement is measured on all held-out player packages with base
+  // prices, irrespective of whether a future outcome or trailing price exists.
   const now=keys.map(k=>book.at(names.get(k),d));
+  if(split==='test'&&now.every(v=>v>0)){
+   priceCounts.eligible++;
+   const assets=keys.map((k,i)=>({name:names.get(k),now:now[i]}));
+   const pr=premium.priceRow(assets.slice(0,a.length),assets.slice(a.length),premium.snapshot(history,d));
+   if(pr){priceRows.push(pr);priceCounts.complete++;}else priceCounts.noSnapshotOrInvalid++;
+  }
+  const future=datePlus(d,HORIZON);if(future>book.latest)continue;c.mature++;
   if(now.some(v=>!(v>0))){c.missingBase++;continue;}
   const before=keys.map(k=>book.at(names.get(k),datePlus(d,-TRAIL)));
   if(before.some(v=>!(v>0))){c.missingTrail++;continue;}
@@ -48,7 +59,7 @@ const model=fit(rows.train),test=rows.test;
 const groups={};
 for(const r of test)(groups[r.shape]||=[]).push(r);
 const report={schemaVersion:1,kind:'relative-growth-research',format,sampleMod:mod,generated:new Date().toISOString(),cutoff:CUTOFF,horizonDays:HORIZON,trailDays:TRAIL,
- counts,model,results:evaluate(test,model.beta),byShape:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,evaluate(v,model.beta)])),
+ counts,model,marketPremiumDiagnostic:{counts:priceCounts,snapshotLagDays:16,all:premium.summarize(priceRows),adjustedOnly:premium.summarize(priceRows.filter(r=>r.adjusted)),caveat:'Reconstructed historical tables may overlap calibration trades. Completed-trade price agreement is descriptive, not acceptance accuracy or proof of fair value. No weight selected.'},results:evaluate(test,model.beta),byShape:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,evaluate(v,model.beta)])),
  interpretation:model.n>=100&&test.length>=100?'retrospective held-out league-season keys and dates; evaluate uncertainty before rollout':'insufficient samples for a meaningful comparison',
  caveats:['Training labels mature before cutoff; test origins start at cutoff, and hashed league keys are disjoint. League-season keys are not guaranteed to identify the same manager or franchise across seasons.','No roster outcomes, acceptance data or rejected offers; relative price growth is not fantasy utility. Same KTC source for labels and inputs; not an independent provider.','Completed trades only; same players can appear across partitions. No independent prospective test. Excludes draft picks and ambiguous current metadata, so coverage and survivorship bias matter.','All models evaluated on the identical complete cases with positive trade-day and trailing prices; observed future zero is retained. No future-data imputation.','Trend model and unchanged-price baseline are fixed before test; no automatic live deployment.']};
 console.log(JSON.stringify(report,null,2));
