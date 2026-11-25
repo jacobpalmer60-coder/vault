@@ -1,0 +1,85 @@
+name: Prospective price research — Vault
+on:
+  workflow_dispatch:
+    inputs:
+      evaluate:
+        description: Evaluate recent completed trade prices instead of capturing
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/prospective-prices.yml
+      - scripts/capture-prospective-prices.js
+      - scripts/market-history/prospective-prices.js
+  schedule:
+    - cron: '15 12 * * *'
+    - cron: '15 14 * * 1'
+concurrency:
+  group: vault-prospective-prices
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  capture:
+    if: github.event.schedule != '15 14 * * 1' && inputs.evaluate != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Publish new daily snapshot without replacing any prior snapshot
+        run: |
+          set -euo pipefail
+          tag=vault-price-snapshots
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Prospective Vault price research" --notes "Append-only dated research snapshots; no user or league IDs." --latest=false
+          file="prices-$(date -u +%F).json.gz"
+          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq "$file"; then
+            echo "Existing snapshot preserved" >> "$GITHUB_STEP_SUMMARY"; exit 0
+          fi
+          node scripts/capture-prospective-prices.js "$(git rev-parse HEAD)" "$RUNNER_TEMP/snapshots"
+          gh release upload "$tag" "$RUNNER_TEMP/snapshots/$file"
+          echo "Published $file from $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+  evaluate:
+    if: github.event.schedule == '15 14 * * 1' || inputs.evaluate == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SAMPLE_MOD: '20'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retrieve published evidence and recent trade archive
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/snapshots" data/sleeper-trades reports
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/vault-price-snapshots" --jq .id)
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" | jq 'add' > "$RUNNER_TEMP/snapshots/assets.json"
+          cutoff=$(date -u -d '32 days ago' +%F)
+          jq -r --arg cutoff "$cutoff" '.[] | select(.created_at >= $cutoff and (.name | test("^prices-20[0-9]{2}-[0-9]{2}-[0-9]{2}\\.json\\.gz$"))) | .name' "$RUNNER_TEMP/snapshots/assets.json" | while read -r file; do
+            gh release download vault-price-snapshots --pattern "$file" --dir "$RUNNER_TEMP/snapshots"
+          done
+          for year in $(printf '%s\n' "$(date -u -d '28 days ago' +%Y)" "$(date -u +%Y)" | sort -u); do
+            gh release download sleeper-trades --pattern "$year.json.gz" --dir data/sleeper-trades
+          done
+      - name: Evaluate prespecified scenarios on identical completed trades
+        run: |
+          node --max-old-space-size=5632 scripts/benchmark-prospective-prices.js "$RUNNER_TEMP/snapshots" > reports/prospective-prices.json
+          node -e "const r=require('./reports/prospective-prices.json'); console.log('Eligible days:',r.daysWithEligibleSnapshot,'of',r.daysChecked); console.log(JSON.stringify(r.coverage))" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prospective-prices
+          path: reports/prospective-prices.json
+          retention-days: 30
+          if-no-files-found: error
