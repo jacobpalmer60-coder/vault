@@ -513,6 +513,7 @@ async function init() {
     const coachParam = { market: 'sellhigh' }[new URLSearchParams(location.search).get('coach')] || new URLSearchParams(location.search).get('coach'); // 'market' was the combined option
     const withParam = new URLSearchParams(location.search).get('with');
     const playerParam = new URLSearchParams(location.search).get('player');
+    const coachFor = new URLSearchParams(location.search).get('coach_for');
     renderCompare(); // trades pinned on an earlier visit
     if (!applyTradeFromUrl()) {
       const coachFromLink = () => {
@@ -530,7 +531,11 @@ async function init() {
         openCoach(coachParam === 'discover' ? 'discover' : 'coach');
       };
       const btn = document.getElementById('loadRostersBtn');
-      if (Vault.myTeam(teams)) { btn.onclick(); coachFromLink(); }
+      if (Vault.myTeam(teams)) {
+        // Explore any roster without changing the user's saved team selection.
+        if (coachParam === 'discover' && coachFor && teams.some(t => String(t.rosterId) === coachFor)) setupA.value = coachFor;
+        btn.onclick(); coachFromLink();
+      }
       else {
         document.getElementById('setup').classList.remove('hidden');
         // First visit: the link's Trade Coach option opens once they pick their team.
