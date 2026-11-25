@@ -42,7 +42,7 @@ jobs:
           tag=vault-price-snapshots
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Prospective Vault price research" --notes "Append-only dated research snapshots; no user or league IDs." --latest=false
           file="prices-$(date -u +%F).json.gz"
-          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq "$file"; then
+          if gh release view "$tag" --json assets | jq -e --arg file "$file" 'any(.assets[]; .name == $file)' >/dev/null; then
             echo "Existing snapshot preserved" >> "$GITHUB_STEP_SUMMARY"; exit 0
           fi
           node scripts/capture-prospective-prices.js "$(git rev-parse HEAD)" "$RUNNER_TEMP/snapshots"

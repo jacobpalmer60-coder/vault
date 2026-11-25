@@ -29,17 +29,19 @@ function capture(ktc,grade,sha,now=new Date().toISOString()){
 }
 // Require GitHub release asset creation metadata. Capture date alone is not
 // enough. A snapshot must have been published BEFORE the trade UTC date.
-// A modified asset cannot serve as prospective evidence.
+// Use the later of creation and update timestamps as the earliest
+// verifiable availability; a post-trade update cannot validate that trade.
 function eligible(snapshot,asset,tradeDate){
  const cap=Date.parse(snapshot?.capturedAt),published=Date.parse(asset?.created_at),updated=Date.parse(asset?.updated_at);
  const d=Date.parse(tradeDate+'T00:00:00Z');
  if(snapshot?.kind!=='prospective-price-snapshot'||!Number.isFinite(cap)||!Number.isFinite(published)||!Number.isFinite(updated)||!Number.isFinite(d))return false;
- if(updated!==published||cap>published||published>=d||d-published>3*DAY||d-cap>3*DAY)return false;
+ const available=Math.max(published,updated);
+ if(updated<published||cap>published||available>=d||d-available>3*DAY||d-cap>3*DAY)return false;
  if(asset.name!=='prices-'+snapshot.capturedAt.slice(0,10)+'.json.gz')return false;
  return true;
 }
 function snapshotFor(items,date){
- return items.filter(x=>eligible(x.snapshot,x.asset,date)).sort((a,b)=>Date.parse(b.asset.created_at)-Date.parse(a.asset.created_at))[0]?.snapshot||null;
+ return items.filter(x=>eligible(x.snapshot,x.asset,date)).sort((a,b)=>Date.parse(b.snapshot.capturedAt)-Date.parse(a.snapshot.capturedAt))[0]?.snapshot||null;
 }
 function tradeRow(snap,format,a,b,metadata,league,date){
  const f=snap?.formats?.[format];if(!f)return null;

@@ -8,7 +8,8 @@ const now='2026-11-24T12:00:00.000Z',source={updated:'2026-11-24T10:00:00.000Z'}
 const snap=capture({...source,players,picks:[{season:2027,round:1,slot:'mid',...values}]},{...source,formats:grades},'a'.repeat(40),now);
 const asset={name:'prices-2026-11-24.json.gz',created_at:'2026-11-24T12:01:00Z',updated_at:'2026-11-24T12:01:00Z'};
 assert.equal(eligible(snap,asset,'2026-11-24'),false);assert.equal(eligible(snap,asset,'2026-11-25'),true);assert.equal(eligible(snap,asset,'2026-11-28'),false);
-assert.equal(eligible(snap,{...asset,updated_at:'2026-11-25T01:00:00Z'},'2026-11-26'),false);
+assert.equal(eligible(snap,{...asset,updated_at:'2026-11-25T01:00:00Z'},'2026-11-25'),false);
+assert.equal(eligible(snap,{...asset,updated_at:'2026-11-24T12:01:02Z'},'2026-11-25'),true);
 assert.equal(eligible({...snap,capturedAt:'2026-11-25T01:00:00Z'},asset,'2026-11-26'),false);
 assert.equal(snapshotFor([{snapshot:snap,asset}],'2026-11-25'),snap);
 assert.throws(()=>capture({...source,updated:'2026-11-20T00:00:00Z',players},{...source,formats:grades},'a'.repeat(40),now),/stale/);
@@ -19,4 +20,4 @@ assert.equal(tradeRow(snap,'sf',['1'],['p2028-1'],metadata,'l','2026-11-25'),nul
 assert.equal(tradeRow(snap,'sf',['1'],['1'],metadata,'l','2026-11-25'),null);
 assert.ok(tradeRow(snap,'sf',['1'],['p2027-1','p2027-1'],metadata,'l','2026-11-25'));
 assert.equal(summarize([r]).all.n,1);
-console.log('PASS prospective capture freshness, publication chronology, no modified snapshots, exact pick year, symmetric scenario evidence');
+console.log('PASS prospective capture freshness, publication chronology, no post-trade publication, exact pick year, symmetric scenario evidence');
