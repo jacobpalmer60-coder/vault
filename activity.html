@@ -13,7 +13,7 @@
 <header class="vault-hero">
   <div><div class="vault-kicker">LEAGUE INTELLIGENCE / TRANSACTIONS</div>
     <h1 class="display text-[30px] sm:text-[36px]">League Activity</h1>
-    <p class="vault-lead">A complete view of what managers actually did, not just trades we could price. All teams are included.</p>
+    <p class="vault-lead">Follow the moves your league makes, from trades and waivers to rookie draft selections. All teams are included.</p>
   </div>
   <button type="button" id="retryActivity" class="vault-btn vault-btn-muted">Refresh feed</button>
 </header>
@@ -24,23 +24,22 @@
  <p class="vault-meta">Switch seasons even when a year's transaction feed is unavailable.</p>
 </section>
 <div id="activityBody" class="hidden">
+<section id="activitySummary" class="vault-panel mt-4" aria-label="Activity summary and quick filters"></section>
 <section class="vault-toolbar mt-3" aria-label="League activity filters">
  <label>Manager<select id="activityTeam" class="vault-input" aria-label="Manager"><option value="all">All managers</option></select></label>
  <label>Activity type<select id="activityType" class="vault-input" aria-label="Type">
   <option value="all">All activity</option><option value="trade">Trades</option><option value="roster">Waivers + roster moves</option><option value="draft">Draft picks</option>
  </select></label>
- <label>Status<select id="activityStatus" class="vault-input" aria-label="Status">
-  <option value="complete">Completed only</option><option value="all">All recorded statuses</option>
- </select></label>
  <label>Search<input id="activitySearch" class="vault-input" type="search" placeholder="Team or player" aria-label="Search league activity"></label>
 </section>
+<details class="vault-panel mt-3"><summary class="cursor-pointer text-[14px] font-medium py-2">More filters and source information</summary><label class="block mt-2 text-[13px]">Transaction status<select id="activityStatus" class="vault-input block mt-1" aria-label="Status"><option value="complete">Completed only</option><option value="all">All recorded statuses</option></select></label><p class="vault-meta mt-3">Records are deduplicated by transaction ID. Draft selection dates may use the draft start date if individual selection times are unavailable.</p></details>
 <div id="coverage" class="mt-4" role="status" aria-live="polite"></div>
 <div class="vault-panel mt-5">
   <div class="vault-panel-heading">
     <div><div class="vault-kicker">AUDITABLE HISTORY</div><h2>Transaction timeline</h2></div>
     <div id="count" class="vault-meta"></div>
   </div>
-  <p class="vault-meta mt-2">A transaction is counted once, even if Sleeper returns duplicates. Only completed transactions contribute to the default list. Draft picks are actual Sleeper selections; if their individual timestamps are missing, we use the draft start date and label it.</p>
+  <p class="vault-meta mt-2">Newest recorded moves first. Open source details for individual transaction IDs.</p>
   <div id="events" class="vault-event-list mt-4" aria-label="League-wide transaction history"></div>
   <button type="button" id="loadMore" class="vault-btn vault-btn-muted hidden mt-4">Show more</button>
 </div>
@@ -48,5 +47,5 @@
 </div>
 </main>
 <script src="vault-core.js?v=759debb7"></script><script src="vault-nav.js?v=b1f8289e"></script>
-<script src="activity-model.js?v=3111a51d"></script><script src="activity.js?v=1634128c"></script>
+<script src="activity-model.js?v=3111a51d"></script><script src="activity.js?v=cc43667c"></script>
 </body></html>

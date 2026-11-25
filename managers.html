@@ -25,6 +25,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vault.css?v=af54b007">
 <link rel="stylesheet" href="tailwind.css?v=e1a31561">
+<style>
+#summary[data-columns="basic"] #managerSummaryTable > :is(thead,tbody) > tr:not([id^="manager-detail-"]) > :is(th,td):is(:nth-child(4),:nth-child(5),:nth-child(6),:nth-child(8)){display:none}
+#summary[data-columns="expanded"] #managerSummaryTable{min-width:760px}
+#summary[data-columns="expanded"] #managerSummaryTable > :is(thead,tbody) > tr:not([id^="manager-detail-"]) > :is(th,td){display:table-cell}
+#managerMarketDetails:has(#paysUp.hidden){display:none}
+@media(max-width:639px){#summary[data-columns="expanded"] #managerSummaryTable > tbody > tr > td:first-child > .sm\:hidden{display:none}}
+</style>
 </head>
 <body class="text-zinc-100 antialiased">
 <div class="vault-bg"></div>
@@ -38,7 +45,7 @@
       <p id="status" class="text-[13px] text-zinc-400">Loading league…</p>
       <button type="button" onclick="location.reload()" class="text-[12px] text-amber-300 underline underline-offset-2 hover:text-amber-100">Refresh Sleeper trades</button>
     </div>
-    <p class="vault-page-intro">Every manager is included. Trade volume is a Sleeper fact; a price verdict is only shown when the evidence supports it.</p>
+    <p class="vault-page-intro">See how often each manager trades, what they tend to do, and how their past deals have aged. Open any manager for more detail. All teams are included.</p>
     <div id="tradeEvidence" class="vault-evidence hidden mt-4" role="status" aria-live="polite"></div>
     <p id="tradeCoverage" class="text-[12px] text-zinc-400 mt-2" aria-live="polite"></p>
   </div>
@@ -46,7 +53,7 @@
   <div id="summary" class="hidden mb-8"></div>
   <!-- Who pays up: what each manager has paid over (or under) KTC value, by the position of what they got. -->
   <div id="yourRecord" class="hidden mb-8"></div>
-  <div id="paysUp" class="hidden mb-8"></div>
+  <details id="managerMarketDetails" class="card rounded-vault p-4 mb-8"><summary class="cursor-pointer text-[16px] font-semibold py-2">More market history by position</summary><div id="paysUp" class="hidden mt-3"></div></details>
   <div id="empty" class="hidden text-center text-[13px] text-zinc-400 py-16"></div>
 </div>
 
@@ -135,7 +142,14 @@ const signedCell = n => `<span class="mono ${n > 0 ? 'text-emerald-400' : n < 0 
 // then anyone who hasn't traded).
 // Click a header to sort (highest first; click again to flip). Managers with
 // no trades stay at the bottom of the Net columns either way.
-let glanceSort = { key: null, dir: -1 }, glanceData = null;
+let glanceSort = { key: null, dir: -1 }, glanceData = null, managerColumnsExpanded = false;
+function toggleManagerColumns(){
+  managerColumnsExpanded=!managerColumnsExpanded;
+  if(!managerColumnsExpanded&&['wlThen','wlNow','netValue','avgFit'].includes(glanceSort.key))glanceSort={key:'netValueToday',dir:-1};
+  renderSummaryTable(glanceData.rows,glanceData.teams);
+  document.getElementById('managerColumnsToggle')?.focus({preventScroll:true});
+}
+matchMedia('(min-width:640px)').addEventListener('change',()=>{if(glanceData)renderSummaryTable(glanceData.rows,glanceData.teams);});
 function sortGlance(key) {
   glanceSort = glanceSort.key === key ? { key, dir: -glanceSort.dir } : { key, dir: key === 'teamName' ? 1 : -1 };
   renderSummaryTable(glanceData.rows, glanceData.teams);
@@ -167,11 +181,13 @@ function renderSummaryTable(rows, teams) {
   const nameOf = new Map((teams || []).map(t => [t.rosterId, t.username]));
   const mine = Vault.myTeam(teams || []);
   box.classList.remove('hidden');
+  box.dataset.columns=managerColumnsExpanded?'expanded':'basic';
   box.innerHTML = `
-    <div class="text-[12px] text-zinc-400 mb-2">Every manager${Vault.info('everyManager')} · Net values include <strong>priced trades only</strong>; check each manager’s priced count before comparing. <span class="sm:hidden block mt-1 text-amber-200/80">Swipe sideways for more price columns.</span></div>
+    <div class="flex items-center flex-wrap justify-between gap-2 mb-3"><h2 class="text-[17px] font-semibold">Managers at a glance</h2><button type="button" id="managerColumnsToggle" aria-expanded="${managerColumnsExpanded}" aria-controls="managerSummaryTable" onclick="toggleManagerColumns()" class="vault-btn vault-btn-muted">${managerColumnsExpanded?'Fewer columns':'More trade stats'}</button></div>
+    <div class="text-[12px] text-zinc-400 mb-2">Every manager${Vault.info('everyManager')} · Net values include <strong>priced trades only</strong>; check each manager’s priced count before comparing. ${managerColumnsExpanded?'<span class="sm:hidden block mt-1 text-amber-200/80">Swipe sideways to see all trade statistics.</span>':''}</div>
     <div class="card rounded-vault-sm overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full text-[13px] sm:min-w-[720px]">
+        <table id="managerSummaryTable" class="w-full text-[13px]">
           <thead class="bg-black/40 border-b border-white/5">
             <tr class="text-[11px] uppercase tracking-wider text-zinc-400">
               ${th('Manager', 'teamName', 'text-left', '', 'px-4')}
@@ -202,7 +218,7 @@ function renderSummaryTable(rows, teams) {
                 <td class="px-3 py-3 text-right" title="Net value from ${s.pricedTrades} of ${s.trades} recorded trades with reliable prices">${s.pricedTrades ? signedCell(s.netValue) : '—'}</td>
                 <td class="px-3 py-3 text-right" title="Current net value from ${s.pricedTrades} of ${s.trades} recorded trades with reliable prices">${s.pricedTrades ? signedCell(s.netValueToday) : '—'}</td>
                 <td class="hidden sm:table-cell px-4 py-3 text-right mono ${s.avgFit > 0.5 ? 'text-emerald-400' : s.avgFit < -0.5 ? 'text-rose-400' : 'text-zinc-400'}">${s.fitTrades ? (s.avgFit >= 0 ? '+' : '−') + Math.abs(s.avgFit).toFixed(1) : '—'}</td>
-              </tr>${open ? `<tr id="manager-detail-${s.rosterId}"><td colspan="8" class="px-3 pb-3"><div style="width:680px;max-width:calc(100vw - 80px)">${renderCard(s)}${renderRecentManagerTrades(s.rosterId)}</div></td></tr>` : ''}`;
+              </tr>${open ? `<tr id="manager-detail-${s.rosterId}"><td colspan="${managerColumnsExpanded?8:(matchMedia('(min-width:640px)').matches?4:3)}" class="px-3 pb-3"><div style="width:680px;max-width:calc(100vw - 80px)">${renderCard(s)}${renderRecentManagerTrades(s.rosterId)}</div></td></tr>` : ''}`;
             }).join('')}
           </tbody>
         </table>
@@ -228,7 +244,7 @@ function renderPaysUp(stats, allGraded, league) {
   };
   box.innerHTML = `<div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Who pays up${Vault.info('whoPaysUp')}</div>
     <div class="card rounded-vault-sm overflow-hidden">
-      <div class="px-4 pt-3 text-[12px] text-zinc-400 leading-relaxed">What each manager paid <span class="text-orange-300">over</span> KTC value or got <span class="text-sky-300">under</span> it (a bargain) in this league's trades (trade value, as Trade Grades grades them), by the position of the best piece they got. Managers who pay up are who to sell to: Trade Coach's Sell high puts them first.</div>
+      <div class="px-4 pt-3 text-[12px] text-zinc-400 leading-relaxed">What each manager paid <span class="text-orange-300">over</span> KTC value or got <span class="text-sky-300">under</span> it (a bargain) in this league's trades (trade value, as Trade Grades grades them), by the position of the best piece they got. These are observations from completed trades, not evidence that a manager will pay the same price again.</div>
       <div class="overflow-x-auto"><table class="w-full text-[12px] sm:text-[13px]">
         <thead><tr class="text-[11px] uppercase tracking-wider text-zinc-400"><th class="text-left pl-3 sm:pl-4 pr-2 py-2.5">Manager</th>${PAYS_POS.map(p => `<th class="text-right px-1.5 sm:px-3 py-2.5">${p === 'Pick' ? 'Picks' : p}</th>`).join('')}</tr></thead>
         <tbody class="divide-y divide-white/5">${rows.map(s => `<tr><td class="pl-3 sm:pl-4 pr-2 py-2.5 text-zinc-100">${Vault.escapeHtml(s.teamName)}</td>${PAYS_POS.map(p => `<td class="px-1.5 sm:px-3 py-2.5 text-right whitespace-nowrap">${cell(pays.get(s.rosterId)[p])}</td>`).join('')}</tr>`).join('')}</tbody>

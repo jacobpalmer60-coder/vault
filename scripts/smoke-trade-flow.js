@@ -189,6 +189,14 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
         }
       }
       await page.evaluate(()=>setView('builder'));
+      if(width>=600){
+        const other=await page.evaluate(()=>({id:String(teams.find(t=>String(t.rosterId)!==String(Vault.getMyTeamId(Vault.getLeagueId()))).rosterId),saved:String(Vault.getMyTeamId(Vault.getLeagueId()))}));
+        await page.goto(base+'/trade.html?league_id='+encodeURIComponent(leagueId)+'&coach=discover&coach_for='+encodeURIComponent(other.id),{waitUntil:'domcontentloaded',timeout:60000});
+        await page.waitForFunction(()=>typeof teams!=='undefined'&&teams.length>1&&typeof coachOpen==='function'&&coachOpen(),{timeout:60000});
+        const subject=await page.evaluate(()=>({id:String(teamOf('A').rosterId),saved:String(Vault.getMyTeamId(Vault.getLeagueId()))}));
+        if(subject.id!==other.id||subject.saved!==other.saved)errors.push('other-team Discover link did not preserve the saved team');
+        await page.evaluate(()=>setView('builder'));
+      }
       if(process.env.SHOTS){
        fs.mkdirSync(process.env.SHOTS,{recursive:true});
        await page.screenshot({path:path.join(process.env.SHOTS,'trade-'+name+'.png'),fullPage:true});

@@ -25,3 +25,11 @@ assert.ok(trade.includes("basis:'market'"),'no unsupported individual willingnes
 assert.ok(nav.includes("League:'Home'")&&nav.includes("Vault.linkTo('today.html',leagueId)"));
 assert.ok(css.includes('prefers-reduced-motion')&&css.includes('min-height:44px'));
 console.log('PASS modern shared visual assets, task-led navigation and progressive trade evidence');
+
+const analyzer=read('team-analyzer.html'),managers=read('managers.html'),rankings=read('player_rankings.html');
+assert.ok(analyzer.includes('More roster statistics')&&analyzer.includes('Data and projection coverage'));
+assert.ok(analyzer.includes('&coach=discover&coach_for=')&&trade.includes("setupA.value = coachFor"));
+assert.ok(managers.includes('More trade stats')&&managers.includes('managerColumnsExpanded'));
+assert.ok(managers.includes('managerSummaryTable')&&managers.includes('managerMarketDetails'));
+assert.ok(rankings.includes('More player stats')&&rankings.includes('rankingTable')&&rankings.includes('data-columns="basic"'));
+console.log('PASS all-roster Discover access, progressive roster statistics, manager columns and player ranking evidence');
