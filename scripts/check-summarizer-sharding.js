@@ -42,7 +42,11 @@ try {
   },trades:{
     b:['2026-11-21','sf',['1'],['2']],
     c:['2026-11-21','sftep',['3'],['2']],
-    d:['2026-11-21','oneqb',['2'],['3']]
+    d:['2026-11-21','oneqb',['2'],['3']],
+    e:['2026-11-21','sf',['999'],['2']],
+    f:['2026-11-21','sf',['p2027-1'],['2']],
+    g:['2026-11-21','sf',['p2027-5'],['2']],
+    h:['2026-11-21','sf',['999'],['p2027-1']]
   },drafts:{}};
   for (const [year,doc] of [['2025',doc2025],['2026',doc2026]]) {
     const f=path.join(root,'data/sleeper-trades',year+'.json.gz');
@@ -57,7 +61,12 @@ try {
   assert.match(output,/sharded 2026\.json\.gz/);
   for(const [format,want] of [['sf',1],['sf_tep',1],['oneQB',2]]){
     const d=pick('data/market-history/'+format+'.json');
-    assert.equal(d.trades.crawled,want,format+' raw trade count');
+    assert.equal(d.trades.crawled,want+(format==='sf'?4:0),format+' raw trade count');
+    if(format==='sf') {
+      assert.deepEqual(d.coverage.byReason,{missing_player_metadata:1,missing_pick_price:1,empty_non_negligible_side:1,'missing_pick_price+missing_player_metadata':1});
+      assert.equal(d.coverage.byYear['2026'].crawled,5);
+      assert.equal(d.coverage.byYear['2026'].priced,1);
+    } else assert.deepEqual(d.coverage.byReason,{});
     assert.equal(d.trades.priced,want,format+' priced trade count');
     assert.ok(Object.keys(d.weeks).length,format+' weekly pricing');
   }

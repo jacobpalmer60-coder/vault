@@ -18,6 +18,21 @@ try {
   assert.equal(a.shapes['1-for-1'],96);
   assert.equal(a.sourceUpdated,'2026-11-19T00:00:00Z','stale format must not get current timestamp');
   assert.equal(Object.keys(a.formats).length,6);
+  assert.equal(a.pricingCoverage.status,'not_measured');
+  for(const format of formats){
+    const file=path.join(DIR,format+'.json'),d=JSON.parse(fs.readFileSync(file));
+    d.coverage={byReason:{missing_player_price:10},byYear:{'2025':{crawled:14,priced:4,byReason:{missing_player_price:10}},'2026':{crawled:16,priced:16,byReason:{}}}};
+    fs.writeFileSync(file,JSON.stringify(d));
+  }
+  const b=build();
+  assert.equal(b.pricingCoverage.status,'complete');
+  assert.equal(b.pricingCoverage.byReason.missing_player_price,60);
+  assert.equal(b.pricingCoverage.byYear['2025'].crawled,84);
+  const invalid=path.join(DIR,'sf.json'), good=fs.readFileSync(invalid,'utf8'), bad=JSON.parse(good);
+  bad.coverage.byReason.missing_player_price=9;
+  fs.writeFileSync(invalid,JSON.stringify(bad));
+  assert.throws(build,/reconcile/);
+  fs.writeFileSync(invalid,good);
   const previous=fs.readFileSync(path.join(DIR,'trade-lab-current.json'),'utf8');
   fs.unlinkSync(path.join(DIR,'oneQB_tepp.json'));
   assert.throws(build,/Missing pricing format/);
