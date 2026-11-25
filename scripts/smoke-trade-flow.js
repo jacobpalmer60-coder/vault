@@ -149,7 +149,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
         visible:!!document.getElementById('tradeDecisionLens')?.getClientRects().length,
         answer:document.getElementById('forYou').innerText.includes('Why it matters:')
       }));
-      if(initialAdvanced.open||initialAdvanced.visible||!initialAdvanced.answer)errors.push('simple-first verdict is not the default');
+      if(initialAdvanced.open||initialAdvanced.visible||!initialAdvanced.answer)errors.push('simple-first verdict is not the default: '+JSON.stringify(initialAdvanced));
       const packageBefore=await page.evaluate(()=>JSON.stringify({A:[...selectedA],B:[...selectedB]}));
       await page.click('#advancedVerdict > summary');
       const expanded=await page.evaluate(()=>({
