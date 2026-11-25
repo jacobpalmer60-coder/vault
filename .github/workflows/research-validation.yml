@@ -1,6 +1,13 @@
 name: Retrospective price research — Vault
 on:
   workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/research-validation.yml
+      - scripts/benchmark-relative-growth.js
+      - scripts/market-history/relative-growth.js
+      - scripts/market-history/premium-validation.js
   schedule:
     - cron: '35 7 * * 1'
 permissions:
@@ -16,7 +23,7 @@ jobs:
       matrix:
         format: [sf, sf_tep, sf_tepp, oneQB, oneQB_tep, oneQB_tepp]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
       BENCHMARK_FORMAT: ${{ matrix.format }}
@@ -36,9 +43,13 @@ jobs:
         run: |
           node --max-old-space-size=5632 scripts/benchmark-separated-trade-pricing.js > reports/price-research.json
           node scripts/check-research-report.js reports/price-research.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Held-out relative growth vs unchanged price (research only)
+        run: |
+          node --max-old-space-size=5632 scripts/benchmark-relative-growth.js > reports/relative-growth.json
+          node -e "const r=require('./reports/relative-growth.json'); console.log('Relative growth:',r.interpretation, JSON.stringify(r.counts),JSON.stringify(r.results)); console.log('Player premium:',JSON.stringify(r.marketPremiumDiagnostic)); console.log('Pick premium:',JSON.stringify(r.pickPremiumDiagnostic))" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: retrospective-price-${{ matrix.format }}
-          path: reports/price-research.json
+          path: reports/*.json
           retention-days: 14
           if-no-files-found: error
