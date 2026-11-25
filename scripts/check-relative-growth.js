@@ -38,3 +38,15 @@ const mixed=premium.priceRow([pick],[{name:'b',now:2000,type:'player'}],{'k:2027
 assert.deepEqual(premium.pickGroups([pick],[{name:'b',now:2000,type:'player'}]),['mixed-player-pick','first-round-included','two-plus-draft-years-out']);
 assert.equal(premium.priceRow([pick,pick],[{name:'b',now:4000}],{'k:2027-1':-50}).gaps.at(-1),0);
 console.log('PASS exact-year round pick prices, no future/fallback prices, duplicate pick quantities and mixed cohort premiums');
+
+const cal=require('./market-history/premium-calibration');
+const c1=cal.row([{name:'a',now:100,type:'player'}],[{name:'pick',premiumKey:'k:2027-1',type:'pick',now:150}],{'n:a':50,'k:2027-1':50},'l1','2024-07-01');
+const c2=cal.row([{name:'pick',premiumKey:'k:2027-1',type:'pick',now:150}],[{name:'a',now:100,type:'player'}],{'n:a':50,'k:2027-1':50},'l1','2024-07-01');
+assert.equal(c1.kind,'mixed');assert.deepEqual(c1.gaps,c2.gaps);assert.equal(c1.gaps[cal.GRID.findIndex(w=>w.player===1&&w.pick===0)],0);
+const training=Array.from({length:200},(_,i)=>({...c1,league:'train'+i}));
+const candidate=cal.select(training);assert.equal(cal.GRID[candidate.index].player,1);assert.equal(cal.GRID[candidate.index].pick,0);
+const validation=Array.from({length:40},(_,i)=>({...c1,league:'test'+i,month:'2025-08'}));
+const calibrated=cal.report(training,validation);assert.equal(calibrated.test.versusRaw.closer,40);assert.equal(calibrated.test.versusRaw.approximate95CI.length,2);
+assert.equal(cal.report(training.slice(0,20),validation).candidate,null);assert.equal(cal.report(training,[]).test.versusRaw,null);
+assert.deepEqual(cal.report(training,validation.map(r=>({...r,gaps:r.gaps.map(v=>200-v)}))).candidate,calibrated.candidate);
+console.log('PASS separate player/pick weight selection, training-only model choice, sample gates, mirrored prices and paired league-cluster intervals');

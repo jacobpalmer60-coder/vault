@@ -15,6 +15,7 @@ for(const [id,p] of Object.entries(players)){
  if(name){names.set(id,name);nameCounts.set(name,(nameCounts.get(name)||0)+1);}
 }
 const premium=require('./market-history/premium-validation');
+const calibration=require('./market-history/premium-calibration'),calibrationRows={train:[],test:[]};
 const history=JSON.parse(fs.readFileSync(path.join(DATA,'grade-values-history',format+'.json'),'utf8'));
 const priceRows=[],priceCounts={eligible:0,noSnapshotOrInvalid:0,complete:0};
 const pickSnaps=JSON.parse(fs.readFileSync(path.join(DATA,'pick-value-history.json'),'utf8')).snapshots||[];
@@ -31,14 +32,18 @@ for(const file of files){
   const split=cohort(d,league);if(!split)continue;
   seen.add(id);const c=counts[split];c.sampled++;
   const keys=[...a,...b].map(String);
-  if(split==='test'&&keys.some(k=>/^p/.test(k))){
-   pickCounts.sampled++;
+  if(keys.some(k=>/^p/.test(k))){
+   if(split==='test')pickCounts.sampled++;
    const playerKeys=keys.filter(k=>!/^p/.test(k));
    const assets=keys.map(k=>/^p/.test(k)?premium.pickAt(pickSnaps,k,d,format):names.has(k)&&nameCounts.get(names.get(k))===1?{name:names.get(k),now:book.at(names.get(k),d),type:'player'}:null);
-   if(new Set(playerKeys).size!==playerKeys.length||assets.some(x=>!x||!(x.now>0))){pickCounts.missingOrUnsupported++;}
+   if(new Set(playerKeys).size!==playerKeys.length||assets.some(x=>!x||!(x.now>0))){if(split==='test')pickCounts.missingOrUnsupported++;}
    else {
-    const pr=premium.priceRow(assets.slice(0,a.length),assets.slice(a.length),premium.snapshot(history,d));
-    if(!pr)pickCounts.invalidPremium++;else {pickCounts.complete++;pickRows.push({...pr,groups:premium.pickGroups(assets.slice(0,a.length),assets.slice(a.length))});}
+    const left=assets.slice(0,a.length),right=assets.slice(a.length),table=premium.snapshot(history,d);
+    const cr=calibration.row(left,right,table,league,d);if(cr)calibrationRows[split].push(cr);
+    if(split==='test'){
+     const pr=premium.priceRow(left,right,table);
+     if(!pr)pickCounts.invalidPremium++;else {pickCounts.complete++;pickRows.push({...pr,groups:premium.pickGroups(left,right)});}
+    }
    }
   }
   // Exclude picks, IDP, and ambiguous or missing player identities rather
@@ -48,11 +53,13 @@ for(const file of files){
   // Price agreement is measured on all held-out player packages with base
   // prices, irrespective of whether a future outcome or trailing price exists.
   const now=keys.map(k=>book.at(names.get(k),d));
-  if(split==='test'&&now.every(v=>v>0)){
-   priceCounts.eligible++;
-   const assets=keys.map((k,i)=>({name:names.get(k),now:now[i]}));
-   const pr=premium.priceRow(assets.slice(0,a.length),assets.slice(a.length),premium.snapshot(history,d));
-   if(pr){priceRows.push(pr);priceCounts.complete++;}else priceCounts.noSnapshotOrInvalid++;
+  if(now.every(v=>v>0)){
+   const assets=keys.map((k,i)=>({name:names.get(k),now:now[i]})),left=assets.slice(0,a.length),right=assets.slice(a.length),table=premium.snapshot(history,d);
+   const cr=calibration.row(left,right,table,league,d);if(cr)calibrationRows[split].push(cr);
+   if(split==='test'){
+    priceCounts.eligible++;const pr=premium.priceRow(left,right,table);
+    if(pr){priceRows.push(pr);priceCounts.complete++;}else priceCounts.noSnapshotOrInvalid++;
+   }
   }
   const future=datePlus(d,HORIZON);if(future>book.latest)continue;c.mature++;
   if(now.some(v=>!(v>0))){c.missingBase++;continue;}
@@ -71,8 +78,8 @@ const model=fit(rows.train),test=rows.test;
 const groups={};
 for(const r of test)(groups[r.shape]||=[]).push(r);
 const pickGroupNames=[...new Set(pickRows.flatMap(r=>r.groups))].sort();
-const report={schemaVersion:2,kind:'relative-growth-research',format,sampleMod:mod,generated:new Date().toISOString(),cutoff:CUTOFF,horizonDays:HORIZON,trailDays:TRAIL,
- counts,model,marketPremiumDiagnostic:{counts:priceCounts,snapshotLagDays:16,all:premium.summarize(priceRows),adjustedOnly:premium.summarize(priceRows.filter(r=>r.adjusted)),caveat:'Reconstructed historical tables may overlap calibration trades. Completed-trade price agreement is descriptive, not acceptance accuracy or proof of fair value. No weight selected.'},pickPremiumDiagnostic:{counts:pickCounts,snapshotLagDays:16,pickPriceMaxAgeDays:7,all:premium.summarize(pickRows),adjustedOnly:premium.summarize(pickRows.filter(r=>r.adjusted)),byCohort:Object.fromEntries(pickGroupNames.map(k=>[k,premium.summarize(pickRows.filter(r=>r.groups.includes(k)))])),caveat:'Same-year/round mid-pick price proxy, no known original slot or actual rookie outcome. Completed-trade parity only; cohorts overlap. Reconstructed premium tables may overlap calibration. No weight selected.'},results:evaluate(test,model.beta),byShape:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,evaluate(v,model.beta)])),
+const report={schemaVersion:3,kind:'relative-growth-research',format,sampleMod:mod,generated:new Date().toISOString(),cutoff:CUTOFF,horizonDays:HORIZON,trailDays:TRAIL,
+ counts,model,independentPremiumCalibration:calibration.report(calibrationRows.train,calibrationRows.test),marketPremiumDiagnostic:{counts:priceCounts,snapshotLagDays:16,all:premium.summarize(priceRows),adjustedOnly:premium.summarize(priceRows.filter(r=>r.adjusted)),caveat:'Reconstructed historical tables may overlap calibration trades. Completed-trade price agreement is descriptive, not acceptance accuracy or proof of fair value. No weight selected.'},pickPremiumDiagnostic:{counts:pickCounts,snapshotLagDays:16,pickPriceMaxAgeDays:7,all:premium.summarize(pickRows),adjustedOnly:premium.summarize(pickRows.filter(r=>r.adjusted)),byCohort:Object.fromEntries(pickGroupNames.map(k=>[k,premium.summarize(pickRows.filter(r=>r.groups.includes(k)))])),caveat:'Same-year/round mid-pick price proxy, no known original slot or actual rookie outcome. Completed-trade parity only; cohorts overlap. Reconstructed premium tables may overlap calibration. No weight selected.'},results:evaluate(test,model.beta),byShape:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,evaluate(v,model.beta)])),
  interpretation:model.n>=100&&test.length>=100?'retrospective held-out league-season keys and dates; evaluate uncertainty before rollout':'insufficient samples for a meaningful comparison',
  caveats:['Training labels mature before cutoff; test origins start at cutoff, and hashed league keys are disjoint. League-season keys are not guaranteed to identify the same manager or franchise across seasons.','No roster outcomes, acceptance data or rejected offers; relative price growth is not fantasy utility. Same KTC source for labels and inputs; not an independent provider.','Completed trades only; same players can appear across partitions. No independent prospective test. Excludes draft picks and ambiguous current metadata, so coverage and survivorship bias matter.','All models evaluated on the identical complete cases with positive trade-day and trailing prices; observed future zero is retained. No future-data imputation.','Trend model and unchanged-price baseline are fixed before test; no automatic live deployment.']};
 console.log(JSON.stringify(report,null,2));
