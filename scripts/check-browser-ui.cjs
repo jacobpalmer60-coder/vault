@@ -143,8 +143,15 @@ async function main(){
       const detail=await page.locator('#manager-detail-4 > td > div').boundingBox();
       assert.ok(detail&&detail.x+detail.width<=width+2,'Manager detail panel clipped '+width);
       assert.equal(await page.locator('#manager-toggle-4').evaluate(el=>document.activeElement===el),true,'Manager focus not restored '+width);
+      assert.equal(await page.locator('#manager-sort-netValue').isVisible(),false,'Advanced manager columns initially hidden');
+      await page.locator('#managerColumnsToggle').click();
+      assert.equal(await page.locator('#managerColumnsToggle').getAttribute('aria-expanded'),'true');
       await page.locator('#manager-sort-netValue').click();
       assert.equal(await page.locator('#manager-sort-netValue').evaluate(el=>document.activeElement===el),true,'Sort focus not restored '+width);
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Expanded managers overflow '+width);
+      await page.locator('#managerColumnsToggle').click();
+      assert.equal(await page.locator('#manager-sort-netValue').isVisible(),false);
+      assert.equal(await page.locator('#manager-sort-netValueToday').evaluate(el=>el.closest('th').getAttribute('aria-sort')),'descending');
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Managers overflow '+width);
       await page.screenshot({path:path.join(OUT,'managers-'+width+'.png'),fullPage:true});
       // Grades list only priceable deals, progressively revealing old trades;

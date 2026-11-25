@@ -145,6 +145,7 @@ const signedCell = n => `<span class="mono ${n > 0 ? 'text-emerald-400' : n < 0 
 let glanceSort = { key: null, dir: -1 }, glanceData = null, managerColumnsExpanded = false;
 function toggleManagerColumns(){
   managerColumnsExpanded=!managerColumnsExpanded;
+  if(!managerColumnsExpanded&&['wlThen','wlNow','netValue','avgFit'].includes(glanceSort.key))glanceSort={key:'netValueToday',dir:-1};
   renderSummaryTable(glanceData.rows,glanceData.teams);
   document.getElementById('managerColumnsToggle')?.focus({preventScroll:true});
 }

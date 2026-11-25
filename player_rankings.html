@@ -421,6 +421,11 @@
   $('#rankDetailsToggle').addEventListener('click',()=>{
     const table=$('#rankingTable'),btn=$('#rankDetailsToggle'),expanded=table.dataset.columns!=='expanded';
     table.dataset.columns=expanded?'expanded':'basic';btn.setAttribute('aria-expanded',String(expanded));btn.textContent=expanded?'Fewer player stats':'More player stats';
+    if(!expanded&&sortKeys.some(s=>['trendDelta','vorp'].includes(s.key)||(innerWidth<640&&s.key==='age'))){
+      sortKeys=sortKeys.filter(s=>!['trendDelta','vorp'].includes(s.key)&&!(innerWidth<640&&s.key==='age'));
+      if(!sortKeys.length){sortKeys=SORT_DEFAULT();sortPicked=false;}
+      applyFiltersAndRender();
+    }
   });
   $('#rangeToggle').addEventListener('click', () => { $('#rangePanel').classList.toggle('hidden'); renderRangeToggle(); });
 
