@@ -141,6 +141,29 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
         if(state.wide>1)errors.push('horizontal overflow in mobile tab '+tab);
        }
       }
+      // The simplified verdict must retain all deeper price evidence.
+      await page.evaluate(()=>{if(innerWidth<768)tradeTab('verdict')});
+      await page.waitForSelector('#advancedVerdict > summary',{visible:true,timeout:10000});
+      const initialAdvanced=await page.evaluate(()=>({
+        open:document.getElementById('advancedVerdict').open,
+        visible:!!document.getElementById('tradeDecisionLens')?.getClientRects().length,
+        answer:document.getElementById('forYou').innerText.includes('Why it matters:')
+      }));
+      if(initialAdvanced.open||initialAdvanced.visible||!initialAdvanced.answer)errors.push('simple-first verdict is not the default');
+      const packageBefore=await page.evaluate(()=>JSON.stringify({A:[...selectedA],B:[...selectedB]}));
+      await page.click('#advancedVerdict > summary');
+      const expanded=await page.evaluate(()=>({
+        open:document.getElementById('advancedVerdict').open,
+        visible:!!document.getElementById('tradeDecisionLens')?.getClientRects().length,
+        unchanged:JSON.stringify({A:[...selectedA],B:[...selectedB]}),
+        wide:document.documentElement.scrollWidth-innerWidth
+      }));
+      if(!expanded.open||!expanded.visible||expanded.unchanged!==packageBefore||expanded.wide>1)errors.push('advanced pricing disclosure failed or mutated trade');
+      await page.click('#advancedVerdict > summary');
+      await page.evaluate(()=>{if(innerWidth<768)tradeTab('details');else document.getElementById('tradeDetails').open=true;});
+      const compareVisible=await page.evaluate(()=>!!document.getElementById('siteStatus')?.getClientRects().length);
+      if(!compareVisible)errors.push('other calculator results not accessible in details');
+      await page.evaluate(()=>{if(innerWidth<768)tradeTab('verdict');else document.getElementById('tradeDetails').open=false;});
       // On every viewport check the new entry and disclosure. On desktop also
       // run the real bounded league-wide search, without editing the builder.
       const beforeDiscover=await page.evaluate(()=>JSON.stringify({A:[...selectedA],B:[...selectedB]}));
