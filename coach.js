@@ -1063,8 +1063,20 @@ async function coachAimRun(k) {
   const me = coachMe(), others = teams.filter(t => t !== me), run = { key: k, list: null, done: 0, of: 0 };
   coachFlow().aimRun = run;
   if (k === 'discover') run.epoch = coachCacheFor(me).judged;
-  const stale = () => coachFlow().aimRun !== run || (k === 'discover' && run.epoch !== coachCacheFor(coachMe()).judged);
-  const show = () => { if (coachOpen() && coachFlow().step === 'pick') renderCoach(); };
+  const current = () => coachFlow().aimRun === run && coachFlow().step === 'pick';
+  const show = () => { if (current() && coachOpen()) renderCoach(); };
+  const stale = () => {
+    if (!current()) return true;
+    if (k === 'discover' && run.epoch !== coachCacheFor(coachMe()).judged) {
+      // Background manager history or a plan can arrive while awaiting a tick.
+      // Invalidate the active run AND schedule a new render. Returning without
+      // this left the user on Finding trades forever until another interaction.
+      coachFlow().aimRun = null;
+      if (coachOpen()) renderCoach();
+      return true;
+    }
+    return false;
+  };
   await coachTick();
   if (stale()) return;
   // Cornerstones stay in and the row tags them, as in Best fits (user, 2026-11-04).
@@ -1214,7 +1226,17 @@ function coachAimHtml(me) {
   const blurb = f.aim === 'timing' ? `${coachTimingText()} usually gain on other positions over the next three months, so these are worth buying now.`
     : f.aim === 'strength' && run?.deep ? `Your ${run.deep.join(' and ')} for their ${run.want.join(' and ')}.` : aim.blurb;
   const head = coachAsk(aim.ask, blurb);
-  if (!run || run.key !== f.aim || (f.aim === 'discover' && run.epoch !== coachCacheFor(me).judged)) { coachAimRun(f.aim); return head + '<div class="text-[12px] text-zinc-400 py-2">Finding trades…</div>'; }
+  if (!run || run.key !== f.aim || (f.aim === 'discover' && run.epoch !== coachCacheFor(me).judged)) {
+    const pending=coachAimRun(f.aim), active=f.aimRun;
+    pending.catch(error=>{
+      console.error('Trade Coach search failed',error);
+      if(coachFlow().aimRun!==active)return;
+      active.error=true;
+      if(coachOpen()&&coachFlow().step==='pick')renderCoach();
+    });
+    return head + '<div class="text-[12px] text-zinc-400 py-2">Finding trades…</div>';
+  }
+  if (run.error) return head + '<p class="text-[13px] text-amber-300">Search could not finish. No offers have been verified.</p><button onclick="coachFlow().aimRun=null;renderCoach()" class="mt-3 px-3 py-2 rounded-lg border border-white/10">Retry search</button>';
   if (!run.list) return `${head}<div class="text-[12px] text-zinc-400 py-2">${run.phase || 'Finding trades'}${run.of ? `: ${run.done} of ${run.of}` : '…'}</div>`;
   if (!run.list.length) {
     const none = f.aim === 'future' && !me.assets.some(a => a.type === 'player' && a.value >= 1000 && a.age >= COACH_AIM_AGE[a.pos]) ? 'Your roster has no older players worth selling.'

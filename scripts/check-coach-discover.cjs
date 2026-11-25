@@ -20,3 +20,14 @@ const row=(t,g,score)=>({t,give:[player(g,'WR',12)],get:[player('r','RB',14)],mu
 const rows=[row(others[0],'g',10),row(others[0],'h',9),row(others[1],'g',5),row(others[0],'g',10)];
 const list=coachDiscoveryShortlist(rows,3);assert.equal(list.length,3);assert.equal(list[1].t.rosterId,3);
 console.log('PASS bounded partner-diverse discovery, symmetrical practical benefits, unknown/cut/price/acceptance gates and deduplication');
+
+// Execute the real async search with a cache epoch changing during the first yield.
+// No actual team analysis is needed because the stale run must exit before search.
+(async()=>{
+ const start=code.indexOf('async function coachAimRun('),end=code.indexOf('function coachAimBuild(',start);
+ const flow={step:'pick'},oldEpoch=new Map(),newEpoch=new Map();let epoch=oldEpoch,renders=0;
+ const me={rosterId:1};const sandbox={coachMe:()=>me,teams:[me],coachFlow:()=>flow,coachCacheFor:()=>({judged:epoch}),coachOpen:()=>true,renderCoach:()=>{renders++},coachTick:async()=>{epoch=newEpoch;}};
+ const run=vm.runInNewContext(code.slice(start,end)+'\ncoachAimRun;',sandbox);
+ await run('discover');assert.equal(flow.aimRun,null);assert.equal(renders,1,'cache invalidation restarts active search');
+ console.log('PASS async Discover cache epoch changes cannot strand the loading screen');
+})().catch(e=>{console.error(e);process.exitCode=1;});
