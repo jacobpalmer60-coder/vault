@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="vault.css?v=213e43fc">
+<link rel="stylesheet" href="vault.css?v=af54b007">
 <link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
 <body class="text-zinc-100 antialiased">
@@ -31,18 +31,18 @@
 
 <div id="vault-nav"></div>
 
-<main class="max-w-[860px] mx-auto px-4 sm:px-6 py-4 lg:py-6" data-league-required>
+<main class="vault-dashboard max-w-[1060px] mx-auto px-4 sm:px-6 py-5 lg:py-8" data-league-required>
   <h1 id="title" class="display font-semibold gold-text">Your Team Today</h1>
   <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading your team…</p>
   <div id="body" class="hidden">
     <section id="teamOutlook" class="mt-4 card rounded-vault-sm p-4 sm:p-5" aria-label="Your team at a glance"></section>
-    <section id="actionBox" class="mt-5" aria-label="Recommended next steps"></section>
-    <section class="mt-5" aria-label="Quick actions">
-      <h2 class="text-[15px] font-semibold mb-2">What do you want to do?</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <a id="discoverLink" class="card rounded-vault-sm p-4 block hover:border-amber-400/40" href="trade.html?coach=discover"><span class="block text-amber-200 font-medium text-[15px]">Find a trade</span><span class="block text-[13px] text-zinc-400 mt-1">Explore offers that could help both teams.</span></a>
-        <a data-vault-page="trade.html" class="card rounded-vault-sm p-4 block hover:border-amber-400/40"><span class="block text-zinc-100 font-medium text-[15px]">Check a trade</span><span class="block text-[13px] text-zinc-400 mt-1">See the price and impact before making an offer.</span></a>
-        <a data-vault-page="team-analyzer.html" class="card rounded-vault-sm p-4 block hover:border-amber-400/40"><span class="block text-zinc-100 font-medium text-[15px]">Review my roster</span><span class="block text-[13px] text-zinc-400 mt-1">See strengths, needs and your long-term outlook.</span></a>
+    <section id="actionBox" class="mt-6" aria-label="Recommended next steps"></section>
+    <section class="mt-6" aria-label="Quick actions">
+      <h2 class="dash-section-title">What do you want to do?</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <a id="discoverLink" href="trade.html?coach=discover" class="card dash-action dash-action-primary"><svg  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h15m-4-4 4 4-4 4M20 16H5m4-4-4 4 4 4"/></svg><svg class="dash-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><strong>Find a trade</strong><p>Explore offers that could help both teams.</p></a>
+        <a data-vault-page="trade.html" class="card dash-action"><svg  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6m-8 0v6"/></svg><svg class="dash-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><strong>Check a trade</strong><p>See what each team gains before making an offer.</p></a>
+        <a data-vault-page="team-analyzer.html" class="card dash-action"><svg  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19h18M6 15v-4m6 4V5m6 10V8"/></svg><svg class="dash-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><strong>Review my roster</strong><p>Understand your strengths, needs and future.</p></a>
       </div>
     </section>
     <div id="sinceVisit" class="mt-5 empty:hidden"></div>
@@ -56,7 +56,7 @@
       <p class="mt-3 text-[12px] text-zinc-400">Values and projected outcomes are estimates, not guarantees.</p>
     </details>
     <section class="mt-5" aria-label="Explore league">
-      <h2 class="text-[15px] font-semibold mb-2">Around your league</h2>
+      <h2 class="dash-section-title">Around your league</h2>
       <div class="flex gap-2 flex-wrap">
         <a data-vault-page="app.html" class="vault-btn vault-btn-muted inline-flex items-center">League Overview</a>
         <a data-vault-page="activity.html" class="vault-btn vault-btn-muted inline-flex items-center">League Activity</a>
@@ -70,7 +70,7 @@
 
 <script src="vault-core.js?v=759debb7"></script>
 <script src="league-intelligence.js?v=89a1f1ce"></script>
-<script src="vault-nav.js?v=1ec7c774"></script>
+<script src="vault-nav.js?v=b1f8289e"></script>
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script>
@@ -174,13 +174,13 @@ function renderNeeds(me, teams, leagueId) {
     const rank=(key)=>own&&own[key]!==null&&evidence.every(r=>Number.isFinite(r[key]))?1+evidence.filter(r=>r[key]>own[key]).length:null;
     const lineupRank=rank('lineup');
     const needs=(profile.needs||[]).map(p=>String(p).toUpperCase());
-    const overviewTile=(label,value)=>'<div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0"><div class="text-[12px] text-zinc-400">'+label+'</div><div class="text-[17px] font-semibold mt-1 break-words">'+esc(value)+'</div></div>';
+    const overviewTile=(label,value)=>'<div class="dash-stat"><div class="text-[12px] text-zinc-400">'+label+'</div><div class="dash-value mt-1">'+esc(value)+'</div></div>';
     $('teamOutlook').innerHTML='<div class="text-[12px] text-zinc-400">Suggested direction</div><h2 class="text-[20px] font-semibold text-amber-200 mt-1">'+esc(modeLabel)+'</h2><p class="text-[14px] text-zinc-300 mt-1">'+esc(modeDetail)+'</p><div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">'+
       overviewTile('Projected lineup',lineupRank===null?'Not enough data':ord(lineupRank)+' of '+teams.length)+
       overviewTile('Record',played?me.record.wins+'-'+me.record.losses+(me.record.ties?'-'+me.record.ties:''):'Season not started')+
       overviewTile('Roster needs',needs.length?needs.join(' / '):'No clear need')+'</div><p class="mt-2 text-[12px] text-zinc-400">Based on current roster and projections. You can change your team plan in the Team Analyzer.</p>';
     const actions=VaultLeagueIntelligence.rosterActions(me,teams,profile,Vault.tradePartnerSuggestions(me,teams,3),mode).slice(0,3);
-    $('actionBox').innerHTML='<h2 class="text-[15px] font-semibold mb-2">Your next steps</h2>'+list(actions.length?actions.map(a=>row('<div class="text-[14px] font-medium text-zinc-100">'+esc(a.title)+'</div><div class="text-[13px] text-zinc-400 mt-1">'+esc(a.detail)+'</div>')):[row('Review your roster before making a move.')]);
+    $('actionBox').innerHTML='<h2 class="dash-section-title">Your next steps</h2>'+list(actions.length?actions.map(a=>row('<div class="text-[14px] font-medium text-zinc-100">'+esc(a.title)+'</div><div class="text-[13px] text-zinc-400 mt-1">'+esc(a.detail)+'</div>')):[row('Review your roster before making a move.')]);
     $('discoverLink').href=Vault.linkTo('trade.html',leagueId)+'&coach=discover';
     $('gameBox').innerHTML = renderGame(me, teams, remainingWeeks || []);
     $('hurtBox').innerHTML = renderHurt(me);

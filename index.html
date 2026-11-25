@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-title" content="The Vault">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="vault.css?v=213e43fc">
+  <link rel="stylesheet" href="vault.css?v=af54b007">
   <link rel="stylesheet" href="tailwind.css?v=e1a31561">
 </head>
 <body class="min-h-screen text-zinc-100 antialiased">
@@ -45,15 +45,17 @@
         <a id="resumeBtn" href="#" class="btn-gold-solid h-11 px-5 inline-flex items-center shrink-0">Open league <span aria-hidden="true" class="ml-1.5">→</span></a>
       </div>
 
-      <div class="card rounded-vault-sm p-7 sm:p-9">
+      <div class="card rounded-vault p-5 sm:p-8">
         <!-- Username -->
         <div id="step-username">
+          <h2 class="text-[20px] font-semibold mb-2">Connect your league</h2>
+          <p class="text-[14px] text-zinc-400 mb-5">Start with your Sleeper username. No account or password needed.</p>
           <label for="username" class="block text-sm font-medium text-zinc-300 mb-2">Sleeper Username</label>
           <div class="flex gap-2">
             <input id="username" type="text" placeholder="Username" class="flex-1 min-w-0 h-12 px-4 rounded-xl bg-black/40 border border-white/10 focus:border-amber-400/60 outline-none transition-colors" />
-            <button id="loadBtn" class="btn-gold-solid h-12 px-5">Load Leagues</button>
+            <button id="loadBtn" class="btn-gold-solid h-12 px-5">Find leagues</button>
           </div>
-          <p class="mt-2 text-[12px] text-zinc-500">The name you use on Sleeper. No password: The Vault only reads your leagues' public info from Sleeper.</p>
+          <p class="mt-2 text-[13px] text-zinc-400">Vault only reads publicly available league information.</p>
           <p id="errorMsg" role="alert" class="hidden mt-3 text-sm text-red-400"></p>
         </div>
 
@@ -248,7 +250,7 @@
           if (leagues.length === 1) activate(leagues[0].league_id, { user: u.user_id });
           else leagueSelect.focus();
         } catch (e) { if (request === activation) fail(e.message); }
-        finally { loadBtn.disabled = false; loadBtn.textContent = 'Load Leagues'; }
+        finally { loadBtn.disabled = false; loadBtn.textContent = 'Find leagues'; }
       }
       leagueSelect.onchange = () => { if (leagueSelect.value) activate(leagueSelect.value, { user: Vault.getSleeperUserId() }); };
 
