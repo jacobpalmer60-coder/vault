@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const code=fs.readFileSync(path.join(__dirname,'..','negotiation.js'),'utf8');
+const asOf=Date.parse('2026-11-24T00:00:00Z'),team={rosterId:1},other={rosterId:2};
+const sandbox={NEG:{ACCEPT_EDGE:-12},Negotiation:{styles:new Map([[1,{style:'youth & picks buyer',trades:50,behind:[30]}]])},Vault:{teamMode:()=> 'contend',positionalProfile:()=>({needs:[],surpluses:[]})},teams:[team,other]};
+const habits=code.slice(code.indexOf('const HABIT_MIN'),code.indexOf('// Which habits a trade follows'));
+const context=code.slice(code.indexOf('function negContextFor('),code.indexOf('// How much a manager with this context'));
+vm.runInNewContext(habits+context+';this.api={negReliableRecentGrades,negHabitsOf,negContextFor}',sandbox);
+const {negReliableRecentGrades,negHabitsOf,negContextFor}=sandbox.api;
+const g={tx:{transaction_id:'x'},created:asOf-864e5,valuedAt:'trade',teamA:team,teamB:other,toA:[{value:100}],toB:[{value:100}]};
+const variants=[{...g,tx:{transaction_id:'future'},created:asOf+1},{...g,tx:{transaction_id:'old'},created:asOf-181*864e5},{...g,tx:{transaction_id:'unknown'},valuedAt:'today'},{...g,tx:{transaction_id:'owner',_ownerAttributionUncertain:true}},{...g,tx:{transaction_id:'missing'},anyMissingValue:true},{...g,tx:{transaction_id:'zero'},toA:[{value:0}]}];
+assert.equal(negReliableRecentGrades([g,g,...variants],asOf).length,1);
+assert.equal(negHabitsOf({trades:10,pricedTrades:10,picksInCount:3,picksOutCount:1,ageTrades:0,youngerCount:6}).length,0);
+assert.equal(negHabitsOf({trades:10,pricedTrades:10,picksInCount:6})[0].key,'picksIn');
+assert.equal(negContextFor(team).lean,'contend');assert.equal(negContextFor(team).basis,'market');assert.equal(negContextFor(team).ask,-12);
+console.log('PASS recent evidence, deduplication, trade-day pricing, ownership, sample denominators, current roster strategy and market tolerance');
