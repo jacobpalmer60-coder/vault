@@ -51,6 +51,7 @@ jobs:
       - run: node scripts/check-coach-discover.cjs
       - run: node scripts/check-intelligence-integration.cjs
       - run: node scripts/check-relative-growth.js
+      - run: node scripts/check-prospective-prices.js
       - run: node scripts/check-audit-regressions.js
       - run: node scripts/check-calculator-deep.js
       - run: node scripts/check-leaguewide-parity.js
