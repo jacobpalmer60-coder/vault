@@ -224,9 +224,29 @@ function main() {
     };
     const weeks = new Map(), years = new Map();
     let priced = 0;
+    const coverage = { byReason: {}, byYear: {} };
+    const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
     trades.forEach(({ date, a, b, f }) => {
-      const s1 = a.filter(id => !negligible(id)).map(id => asset(id, date)), s2 = b.filter(id => !negligible(id)).map(id => asset(id, date));
-      if (!s1.length || !s2.length || s1.some(x => !x) || s2.some(x => !x)) return;
+      const ids1 = a.filter(id => !negligible(id)), ids2 = b.filter(id => !negligible(id));
+      const s1 = ids1.map(id => asset(id, date)), s2 = ids2.map(id => asset(id, date));
+      const y = date.slice(0, 4), yr = coverage.byYear[y] || (coverage.byYear[y] = { crawled: 0, priced: 0, byReason: {} });
+      yr.crawled++;
+      if (!s1.length || !s2.length || s1.some(x => !x) || s2.some(x => !x)) {
+        // Exact mutually exclusive combinations: a trade may have several missing inputs.
+        // Do not infer a price, change exclusions, or expose asset/league identifiers.
+        const reasons = new Set();
+        if (!s1.length || !s2.length) reasons.add('empty_non_negligible_side');
+        for (const [ids, assets] of [[ids1, s1], [ids2, s2]]) {
+          ids.forEach((id, i) => {
+            if (assets[i]) return;
+            reasons.add(id[0] === 'p' ? 'missing_pick_price' : !sleeper[id] ? 'missing_player_metadata' : 'missing_player_price');
+          });
+        }
+        const key = [...reasons].sort().join('+');
+        bump(coverage.byReason, key); bump(yr.byReason, key);
+        return;
+      }
+      yr.priced++;
       priced++;
       const t = { s1, s2, date, f };
       (weeks.get(monday(date)) || weeks.set(monday(date), []).get(monday(date))).push(t);
@@ -248,7 +268,7 @@ function main() {
     const weekOut = {}, yearOut = {};
     [...years.keys()].sort().forEach(y => { Vault._globalMaxValue = prices.maxAt(`${y}-07-01`) || undefined; yearOut[y] = summarize(Vault, years.get(y), { players: false }); });
     [...weeks.keys()].sort().forEach(w => { Vault._globalMaxValue = prices.maxAt(w) || undefined; weekOut[w] = summarize(Vault, weeks.get(w), { players: false }); });
-    fs.writeFileSync(path.join(OUT, `${format}.json`), JSON.stringify({ format, updated: new Date().toISOString(), leagues: leagues.get(format).size, trades: { crawled: trades.length, priced }, weeks: weekOut, years: yearOut }));
+    fs.writeFileSync(path.join(OUT, `${format}.json`), JSON.stringify({ format, updated: new Date().toISOString(), leagues: leagues.get(format).size, trades: { crawled: trades.length, priced }, coverage, weeks: weekOut, years: yearOut }));
     console.log(`${format}: ${trades.length} trades from ${leagues.get(format).size} leagues, ${priced} priced, ${weeks.size} weeks`);
   }
 

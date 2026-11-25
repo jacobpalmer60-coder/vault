@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - vault-core.js
+      - league-intelligence.js
       - market-data.js
       - coach.js
       - negotiation.js
@@ -98,5 +99,7 @@ jobs:
         run: node scripts/check-summarizer-sharding.js
       - name: Current Trade Lab aggregation safety
         run: node scripts/check-trade-lab-current.js
+      - name: Shared league intelligence regression
+        run: node scripts/check-league-intelligence.js
       - name: Every script parses
         run: for f in vault-core.js vault-nav.js trade-evidence.js market-data.js draft-center.js draft-rules.js activity.js activity-model.js scripts/*.js scripts/*.cjs scripts/market-history/*.js; do node --check "$f" || exit 1; done
