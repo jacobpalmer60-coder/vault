@@ -8,6 +8,7 @@ on:
       - scripts/benchmark-relative-growth.js
       - scripts/market-history/relative-growth.js
       - scripts/market-history/premium-validation.js
+      - scripts/market-history/premium-calibration.js
   schedule:
     - cron: '35 7 * * 1'
 permissions:
@@ -46,7 +47,7 @@ jobs:
       - name: Held-out relative growth vs unchanged price (research only)
         run: |
           node --max-old-space-size=5632 scripts/benchmark-relative-growth.js > reports/relative-growth.json
-          node -e "const r=require('./reports/relative-growth.json'); console.log('Relative growth:',r.interpretation, JSON.stringify(r.counts),JSON.stringify(r.results)); console.log('Player premium:',JSON.stringify(r.marketPremiumDiagnostic)); console.log('Pick premium:',JSON.stringify(r.pickPremiumDiagnostic))" >> "$GITHUB_STEP_SUMMARY"
+          node -e "const r=require('./reports/relative-growth.json'); console.log('Relative growth:',r.interpretation, JSON.stringify(r.counts),JSON.stringify(r.results)); console.log('Player premium:',JSON.stringify(r.marketPremiumDiagnostic)); console.log('Pick premium:',JSON.stringify(r.pickPremiumDiagnostic)); console.log('Independent calibration:',JSON.stringify(r.independentPremiumCalibration))" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: retrospective-price-${{ matrix.format }}
