@@ -129,6 +129,7 @@
     const up = vals[vals.length - 1] >= vals[0];
 
     const chartId = `pc${chartRegistrySeq++}`;
+    if(chartRegistry.size>=32)chartRegistry.delete(chartRegistry.keys().next().value);
     chartRegistry.set(chartId, { series, field, decimals, ML, MT, plotW, plotH, W, H, label: field === 'ppg' ? 'PPG' : market ? 'KTC' : 'Value', market });
     // Market points: one per day with completed trades (bigger with more trades), joined faintly.
     let marketLines = '';
@@ -146,7 +147,7 @@
     // in the chart, not just exactly on a 2.5px-radius circle.
     const hoverRect = `<rect x="${ML}" y="${MT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>`;
     const legend = market ? `<div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-400 mt-1"><span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-zinc-300"></span>KTC value</span><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full bg-sky-300"></span>What managers paid for him that day</span>${trend && trend.size ? '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-sky-300"></span>Market price (what trade value used)</span>' : ''}</div>` : '';
-    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" data-chart-id="${chartId}">${gridLines}<polyline points="${pts}" fill="none" stroke="${market ? '#d4d4d8' : up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${marketLines}${hoverRect}${dateTicks}</svg>${legend}`;
+    return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" data-chart-id="${chartId}" tabindex="0" role="img" aria-label="${field==='ppg'?'Projected points':'Player value'} history. Use arrow keys or tap to inspect dates.">${gridLines}<polyline points="${pts}" fill="none" stroke="${market ? '#d4d4d8' : up ? '#34d399' : '#f87171'}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${marketLines}${hoverRect}${dateTicks}</svg>${legend}`;
   }
 
   // One delegated listener serves every chart, including ones re-rendered
@@ -156,7 +157,7 @@
   // the exact date something happened (a trade, a draft, a news hit).
   function wireChartHover() {
     const tooltip = document.createElement('div');
-    tooltip.id = 'chartTooltip';
+    tooltip.id = 'playerChartTooltip';
     tooltip.className = 'hidden fixed z-[70] pointer-events-none bg-black/90 border border-white/10 rounded-lg px-2.5 py-1.5 text-[12px] text-zinc-200 shadow-lg whitespace-nowrap';
     document.body.appendChild(tooltip);
     let guideEl = null;
@@ -166,7 +167,8 @@
       if (guideEl) { guideEl.remove(); guideEl = null; }
     }
 
-    document.addEventListener('mousemove', e => {
+    let activeIndex=0;
+    function inspect(e) {
       const svg = e.target.closest('svg[data-chart-id]');
       if (!svg) { clear(); return; }
       const info = chartRegistry.get(svg.dataset.chartId);
@@ -176,6 +178,7 @@
       const { series, ML, plotW } = info;
       const frac = series.length > 1 ? Math.max(0, Math.min(1, (svgX - ML) / plotW)) : 0;
       const idx = Math.round(frac * (series.length - 1));
+      activeIndex=idx;
       const p = series[idx];
       if (!p) { clear(); return; }
 
@@ -197,7 +200,19 @@
       const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
       tooltip.style.left = `${e.clientX + 14 + tw <= innerWidth - 8 ? e.clientX + 14 : Math.max(8, e.clientX - 14 - tw)}px`;
       tooltip.style.top = `${e.clientY + 14 + th <= innerHeight - 8 ? e.clientY + 14 : Math.max(8, e.clientY - 14 - th)}px`;
+    }
+    document.addEventListener('mousemove',inspect);
+    document.addEventListener('pointerup',e=>{if(e.pointerType!=='mouse'&&e.target.closest?.('svg[data-chart-id]'))inspect(e);});
+    document.addEventListener('keydown',e=>{
+      const svg=e.target.closest?.('svg[data-chart-id]');
+      if(!svg||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+      const info=chartRegistry.get(svg.dataset.chartId);if(!info)return;
+      e.preventDefault();e.stopPropagation();
+      const idx=e.key==='Home'?0:e.key==='End'?info.series.length-1:Math.max(0,Math.min(info.series.length-1,activeIndex+(e.key==='ArrowLeft'?-1:1)));
+      const rect=svg.getBoundingClientRect();
+      inspect({target:svg,clientX:rect.left+(info.ML+(info.series.length>1?idx/(info.series.length-1)*info.plotW:0))*rect.width/info.W,clientY:rect.top+rect.height/2});
     });
+    document.addEventListener('focusout',e=>{if(e.target.matches?.('svg[data-chart-id]'))clear();});
     document.addEventListener('mouseleave', clear);
   }
   wireChartHover();
@@ -249,7 +264,7 @@
             ${tm ? `<img src="${tm.logo}" alt="${Vault.escapeHtml(tm.code)}" class="absolute -bottom-1 -right-1 size-6 rounded-full bg-black object-contain ring-2 ring-black" onerror="this.remove()"/>` : ''}
           </div>
           <div class="min-w-0">
-            <div class="text-[20px] font-bold text-zinc-100 truncate">${Vault.escapeHtml(r.player)}</div>
+            <div class="text-[22px] font-bold text-zinc-100 break-words">${Vault.escapeHtml(r.player)}</div>
             <div class="text-[12px] text-zinc-400 mt-1">${Vault.escapeHtml(r.team) || '—'} • Age ${r.age != null ? fmtFloat(r.age, 1) : '—'}${r.yearsExp != null ? ' • ' + (r.yearsExp === 0 ? 'Rookie' : `${r.yearsExp} yr${r.yearsExp === 1 ? '' : 's'} in NFL`) : ''}</div>
           </div>
         </div>
@@ -257,23 +272,30 @@
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${cardActions(r)}</div>
       <div id="pcHolder" class="text-[12px] text-zinc-400 mb-3 empty:hidden"></div>
-      <div class="grid grid-cols-4 gap-2 text-center py-3 border-y border-white/10 mb-4">
+      <div class="grid grid-cols-3 gap-2 text-center py-3 border-y border-white/10 mb-4">
         <div><div class="mono text-[15px] text-zinc-100">${fmtInt(r.value)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="value">Value</span></div></div>
         <div><div class="mono text-[15px] text-zinc-100">${r.posRank ? '#' + r.posRank + ' of ' + r.posCount : '—'}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5">${r.pos || 'Pos'} Rank</div></div>
         <div><div class="mono text-[15px] ${r.out ? 'text-rose-300' : r.bench ? 'text-zinc-500' : 'text-zinc-100'}"${r.out || r.bench ? ` title="${outTip(r)}"` : ''}>${r.out ? 'Out' : r.bench ? 'Bench' : fmtFloat(r.ppg, 2)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="projPpg">PPG</span></div></div>
-        <div><div class="mono text-[15px] ${r.vorp != null && r.vorp >= 0 ? 'text-emerald-400' : r.vorp != null ? 'text-rose-400' : 'text-zinc-100'}">${fmtSigned(r.vorp)}</div><div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-0.5"><span data-term="vorp">VORP</span></div></div>
+
       </div>
       ${injuryHtml(r)}
-      ${playoffHtml(r)}
-      <div id="pcWeekly" class="mb-4"></div>
       <div id="pcMarket" class="mb-4"></div>
-      <div id="pcTrades" class="mb-4 empty:hidden"></div>
-      <div id="pcMoves" class="mb-4">${r.pid ? `<button type="button" data-moves="${r.pid}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">His trades in this league</button>` : ''}</div>
-      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-2">Value Over Time${Vault.info('valueOverTime')}</div>
+      <div class="text-[15px] font-semibold text-zinc-100 mb-2">Value over time${Vault.info('valueOverTime')}</div>
+      <div class="text-[12px] text-zinc-400 mb-2">${r.trendDelta==null?'Not enough price history':(r.trendDelta>0?'+':'')+fmtInt(r.trendDelta)+' value change in selected history window'}</div>
       <div id="pcValueChart">${valueChart}</div>
-      <div class="text-[11px] text-zinc-400 uppercase tracking-wider mt-4 mb-2">PPG Over Time${Vault.info('ppgOverTime')}</div>
-      ${ppgChart}
-      ${historySection}
+      <details class="mt-4 border border-white/10 rounded-xl p-3" id="pcPerformance">
+        <summary class="cursor-pointer text-[14px] font-semibold py-2">Performance and projections</summary>
+        <div class="mt-3 text-[13px] text-zinc-300">${Vault.term('vorp','Points above replacement (VORP)')}: ${fmtSigned(r.vorp)}</div>
+        ${playoffHtml(r)}
+        <div id="pcWeekly" class="mb-4"></div>
+        <div class="text-[12px] text-zinc-400 mt-4 mb-2">Projected PPG over time${Vault.info('ppgOverTime')}</div>
+        <div id="pcPpgChart">${ppgChart}</div>
+        ${historySection}
+      </details>
+      <details class="mt-3 border border-white/10 rounded-xl p-3" id="pcTradeHistory"><summary class="cursor-pointer text-[14px] font-semibold py-2">Completed trades and league history</summary>
+        <div id="pcTrades" class="mb-4 empty:hidden"></div>
+        <div id="pcMoves" class="mb-2">${r.pid ? `<button type="button" data-moves="${r.pid}" class="vault-btn vault-btn-muted">Trades in this league</button>` : ''}</div>
+      </details>
     `;
   }
 
@@ -284,7 +306,7 @@
     return [r.pid ? link(`${Vault.linkTo('trade.html')}&coach=player&player=p_${r.pid}`, 'Build a trade') : '',
       link(`${Vault.linkTo('market.html')}&p=${name}`, 'Market page'),
       link(`${Vault.linkTo('compare.html')}&p=${name}`, 'Compare'),
-      `<button type="button" data-card-watch="${Vault.escapeHtml(r.norm)}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">${Vault.isWatched(r.norm) ? '★ Watching' : '☆ Watch'}</button>`].join('');
+      `<button type="button" aria-pressed="${Vault.isWatched(r.norm)}" data-card-watch="${Vault.escapeHtml(r.norm)}" class="text-[12px] px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:border-white/25">${Vault.isWatched(r.norm) ? '★ Watching' : '☆ Watch'}</button>`].join('');
   }
   // His projection in each playoff week: byes and injuries show, which the season average hides.
   function playoffHtml(r) {
@@ -494,7 +516,8 @@
         r.trendSeries.sort((a, b) => a.date.localeCompare(b.date));
       });
       applyTrendWindow();
-      if (cardOpen) drawCard(cardOpen);
+      const chart=document.getElementById('pcPpgChart');
+      if(chart&&cardOpen&&!cardOpen.isPick)chart.innerHTML=playerChart(cardOpen.windowedSeries,'ppg',1);
     }));
   }
 
@@ -643,7 +666,7 @@
   function shell() {
     box = document.createElement('div');
     box.className = 'hidden fixed inset-0 z-[65] bg-black/70 backdrop-blur-sm flex items-center justify-center sm:p-4';
-    box.innerHTML = `<div class="glass max-w-lg w-full p-6 relative h-[100dvh] sm:h-auto sm:max-h-[85vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label="Player card">
+    box.innerHTML = `<div class="glass max-w-xl w-full p-6 relative h-[100dvh] sm:h-auto sm:max-h-[85vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label="Player card">
         <button id="playerCardClose" aria-label="Close player card" class="absolute top-3 right-3 size-8 z-10 grid place-items-center rounded-lg text-zinc-400 hover:text-white text-[20px] leading-none">×</button>
         <div id="playerCardBody"></div>
       </div>`;
@@ -656,7 +679,7 @@
       if (e.key === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); return close(); }
       if (e.key !== 'Tab') return;
       e.stopImmediatePropagation();
-      const f = [...box.querySelectorAll('button, a[href], select, input, [tabindex="0"]')].filter(x => x.offsetParent);
+      const f = [...box.querySelectorAll('button, a[href], select, input, summary, [tabindex="0"]')].filter(x => x.offsetParent);
       if (!f.length) return;
       const first = f[0], last = f[f.length - 1];
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
@@ -690,7 +713,7 @@
   function drawCard(r) {
     body().innerHTML = r.isPick ? renderPickCard(r) : renderPlayerCard(r);
     box.firstElementChild.scrollTop = 0;
-    if (!r.isPick) { renderPlayerMarket(r); renderWeekly(r); renderHolder(r); }
+    if (!r.isPick) { renderPlayerMarket(r); renderHolder(r); const perf=document.getElementById('pcPerformance');let requested=false;perf.addEventListener('toggle',()=>{if(perf.open&&!requested){requested=true;renderWeekly(r);loadCardStats();}}); }
   }
   async function open(norm, name = '') {
     show();
@@ -711,7 +734,7 @@
     }
     cardOpen = r;
     drawCard(r);
-    if (!r.isPick) loadCardStats();
+
   }
   // The team card: the standing, the shape of the roster, and where to go next (user, 2026-11-05).
   let teamsLoad = null;
@@ -746,7 +769,7 @@
   }
   document.addEventListener('click', e => {
     const b = e.target.closest?.('[data-card-watch]');
-    if (b) b.textContent = Vault.toggleWatch(b.dataset.cardWatch) ? '★ Watching' : '☆ Watch';
+    if (b) {const watched=Vault.toggleWatch(b.dataset.cardWatch);b.textContent=watched?'★ Watching':'☆ Watch';b.setAttribute('aria-pressed',String(watched));document.dispatchEvent(new Event('vault:watchlist'));}
   });
   // Capture, because a name often sits in a row that does something else when clicked.
   document.addEventListener('click', e => {
