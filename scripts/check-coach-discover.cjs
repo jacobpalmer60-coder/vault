@@ -2,12 +2,13 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const code=fs.readFileSync(path.join(__dirname,'..','coach.js'),'utf8');
 const context={module:{exports:{}}};vm.runInNewContext(code.slice(code.lastIndexOf('function coachRealityCheck(')),context);
-const {coachDiscoveryTargets,coachDiscoveryAssessment,coachDiscoveryShortlist}=context.module.exports;
+const {coachDiscoveryTargets,coachDiscoveryAssessment,coachDiscoveryShortlist,coachDiscoveryPairs}=context.module.exports;
 const player=(key,pos,ppg,value=4000)=>({key,pos,ppg,value,type:'player',age:24});
 const me={rosterId:1,lineup:[{id:'a',pos:'RB',ppg:10}],assets:[]};
 const others=[{rosterId:2,assets:[player('a','RB',20),player('b','RB',15)]},{rosterId:3,assets:[player('c','RB',17)]}];
 const targets=coachDiscoveryTargets(me,others,['rb'],'contend',a=>a.key!=='b');
 assert.equal(targets.length,2);assert.equal(targets[0].a.key,'a');assert.equal(targets[1].t.rosterId,3);
+const pairs=coachDiscoveryPairs([{a:player('a','RB',20),t:others[0]},{a:player('b','WR',15),t:others[0]},{a:player('c','TE',17),t:others[1]}]);assert.equal(pairs.length,1);assert.equal(pairs[0].get.length,2);assert.equal(pairs[0].t.rosterId,2);
 const imp={score:8,level:'good',mode:'contend',ptsPerWeek:2};
 const res={dOpt:2,dDepth:0,dPicks:0,dAge:0};
 const input={analysis:{resA:res,resB:res},a:imp,b:imp,give:[player('g','WR',12)],get:[player('r','RB',14)],marketFair:true,accepts:true,cutsA:0,cutsB:0};

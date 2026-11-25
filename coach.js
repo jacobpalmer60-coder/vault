@@ -1098,7 +1098,9 @@ async function coachAimRun(k) {
   let keep = true;
   if (k === 'discover') {
     const profile = Vault.positionalProfile(me, teams);
-    const targets = coachDiscoveryTargets(me, others, profile.needs, Vault.teamMode(me), a => !coachTheirOff(a));
+    const targets = coachDiscoveryTargets(me, others, profile.needs, Vault.teamMode(me), a => !coachTheirOff(a), 5);
+    // Add at most one two-target package per partner; no cross-team bundles.
+    const paired=coachDiscoveryPairs(targets);
     run.partners = others.length;
     const assess = (t, o) => {
       const r = coachWorkRead(me, { partner: t, give: o.give, get: o.get, option: 'build' });
@@ -1112,8 +1114,8 @@ async function coachAimRun(k) {
           (Vault.teamMode(me)==='contend' && coachLeavesShort(me,o.get,o.give))) return;
       out.push({t, give:o.give, get:o.get, r, lead:o.get[0].key, evidence, mutual:Math.min(a.score,b.score)});
     };
-    keep = await each(targets, ({a,t}) => {
-      if (!coachAsksCornerstone(t,[a])) offers(a,t).forEach(o=>assess(t,o));
+    keep = await each([...targets.map(({a,t})=>({get:[a],t})),...paired], ({get,t}) => {
+      if (!coachAsksCornerstone(t,get)) coachOffers(me,t,get,{limit:4,perLead:2,option:'build'}).forEach(o=>assess(t,o));
     });
   } else if (k === 'points') keep = await each(upgrades(), addPoints);
   else if (k === 'title' || k === 'playoffs') {
@@ -1222,7 +1224,7 @@ function coachAimHtml(me) {
   const names = l => l.map(a => coachEsc(a.name)).join(' + ');
   if(f.aim==='discover') return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} offers · ${run.partners} partners screened · ${run.of} target candidates. Manager response is simulated, not confirmed.</div><div class="grid gap-2">${run.list.map((x,i)=>coachChoice(
     'coachAimBuild('+i+')', 'Get '+names(x.get)+' <span class="text-zinc-400">for '+names(x.give)+'</span>',
-    coachEsc(x.t.teamName)+' · '+coachEsc(Vault.verdictTier(x.r.score).label)+' / '+coachEsc(Vault.verdictTier(x.r.them.score).label)+'<br>You: '+coachEsc(x.evidence.a[0].replace(/^Their /,'Your ').replace(/^They /,'You '))+'<br>Partner: '+coachEsc(x.evidence.b[0])+'<br>Market price gap: '+Math.abs(coachTvPct(x.give,x.get)).toFixed(1)+'%')).join('')}</div>`;
+    coachEsc(x.t.teamName)+' · '+coachEsc(Vault.verdictTier(x.r.score).label)+' / '+coachEsc(Vault.verdictTier(x.r.them.score).label)+'<br>You: '+coachEsc(x.evidence.a[0].replace(/^Their /,'Your ').replace(/^They /,'You '))+'<br>Partner: '+coachEsc(x.evidence.b[0])+'<br>Market price gap: '+Math.abs(coachTvPct(x.give,x.get)).toFixed(1)+'%'+(typeof VaultLeagueIntelligence!=='undefined'?'<br>'+coachEsc(VaultLeagueIntelligence.evidenceLines(Negotiation.observedEvidence?.get(String(x.t.rosterId)))[0]):''))).join('')}</div>`;
   return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} with a practical reason for the other team to consider.</div><div class="grid gap-2">${run.list.map((x, i) => {
     const tier = Vault.verdictTier(x.r.score), note = x.note || (x.gain ? `+${x.gain.toFixed(1)} pts a week` : '');
     return coachChoice(`coachAimBuild(${i})`, `Get ${names(x.get)} <span class="text-zinc-400">for ${names(x.give)}</span>`,
@@ -1510,7 +1512,7 @@ function coachRealityCheck({ analysis, improvement, incoming, outgoing, drops = 
 }
 // Discovery uses existing Coach offer generation and grades; this is a bounded,
  // partner-diverse target heuristic, not a new valuation or acceptance model.
-function coachDiscoveryTargets(me, others, needs, mode, allowed=()=>true) {
+function coachDiscoveryTargets(me, others, needs, mode, allowed=()=>true, cap=3) {
   const wanted=new Set((needs||[]).map(p=>String(p).toUpperCase()));
   const floor={};
   for(const p of me.lineup||[])if(p.id && Number.isFinite(p.ppg))floor[p.pos]=Math.min(floor[p.pos]??Infinity,p.ppg);
@@ -1526,11 +1528,15 @@ function coachDiscoveryTargets(me, others, needs, mode, allowed=()=>true) {
     };
     const candidates=assets.filter(a=>rank(a)>0).sort((a,b)=>rank(b)-rank(a)||b.value-a.value||String(a.key).localeCompare(String(b.key)));
     const chosen=[],positions=new Set();
-    for(const a of candidates){const pos=a.type==='pick'?'PICK':a.pos;if(positions.has(pos))continue;positions.add(pos);chosen.push(a);if(chosen.length===3)break;}
-    if(chosen.length<3)for(const a of candidates){if(!chosen.includes(a))chosen.push(a);if(chosen.length===3)break;}
+    for(const a of candidates){const pos=a.type==='pick'?'PICK':a.pos;if(positions.has(pos))continue;positions.add(pos);chosen.push(a);if(chosen.length===cap)break;}
+    if(chosen.length<cap)for(const a of candidates){if(!chosen.includes(a))chosen.push(a);if(chosen.length===cap)break;}
     for(const a of chosen)out.push({a,t});
   }
   return out;
+}
+function coachDiscoveryPairs(targets){
+  const by=new Map();for(const x of targets){const key=String(x.t.rosterId);if(!by.has(key))by.set(key,[]);by.get(key).push(x);}
+  const out=[];for(const list of by.values()){const a=list[0],b=list.slice(1).find(x=>x.a.key!==a.a.key&&(x.a.type!==a.a.type||x.a.pos!==a.a.pos)&&x.a.value>=a.a.value*.2);if(b)out.push({t:a.t,get:[a.a,b.a]});}return out;
 }
 function coachDiscoveryAssessment({analysis,a,b,give,get,marketFair,accepts,cutsA,cutsB}){
   const no={ok:false,a:[],b:[]};
@@ -1552,4 +1558,4 @@ function coachDiscoveryShortlist(rows,limit){
   }
   return selected;
 }
-if (typeof module !== 'undefined') module.exports = { coachRealityCheck, coachDiscoveryTargets, coachDiscoveryAssessment, coachDiscoveryShortlist };
+if (typeof module !== 'undefined') module.exports = { coachRealityCheck, coachDiscoveryTargets, coachDiscoveryAssessment, coachDiscoveryShortlist, coachDiscoveryPairs };

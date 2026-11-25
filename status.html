@@ -54,6 +54,7 @@
 
   <section class="mb-6">
     <h2 class="text-[13px] uppercase tracking-wider text-zinc-400 mb-2">Historical research snapshots</h2>
+    <div id="leaguePullCoverage" class="text-[12px] text-zinc-400 mb-3">Loading sealed collection coverage…</div>
     <p class="text-[12px] text-zinc-400 mb-3">These archives are not all updated by the daily feed. Their dates describe the actual data, not today's website deployment.</p>
     <div id="research" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
   </section>
@@ -126,7 +127,7 @@ async function jobs() {
         <div class="flex gap-1 mt-2" aria-label="Last runs, oldest first">${strip}</div>
       </div>`;
   };
-  box.innerHTML = (await Promise.all([job('update-data.yml', 'Update data', 'daily', 30), job('crawl-sleeper.yml', 'Unified Sleeper ingestion', 'trade + sealed league', 4), job('reprice-market.yml', 'Sleeper market pricing', 'every 6 hours', 10), job('refresh-projections.yml', 'Refresh projections', 'about hourly', 7)])).join('');
+  box.innerHTML = (await Promise.all([job('update-data.yml', 'Update data', 'daily', 30), job('crawl-sleeper.yml', 'Unified Sleeper ingestion', 'trade + sealed league', 4), job('reprice-market.yml', 'Sleeper market pricing', 'every 6 hours', 10), job('refresh-projections.yml', 'Refresh projections', 'about hourly', 7), job('research-validation.yml', 'Retrospective price research', 'weekly', 190)])).join('');
 }
 
 async function values() {
@@ -255,7 +256,7 @@ async function formats() {
 
 (async () => {
   const status = document.getElementById('status');
-  await Promise.allSettled([jobs(), values(), trades(), research(), crawl(), formats()]);
+  await Promise.allSettled([jobs(), values(), trades(), research(), crawl(), formats(), (async()=>{const el=document.getElementById('leaguePullCoverage');try{const d=await getJson('data/market-history/league-pull-coverage.json');if(!d||d.schemaVersion!==1)throw Error('unavailable');el.textContent='Sealed league collection '+d.cycle+': '+d.knownAfter.toLocaleString()+' of '+d.queue.toLocaleString()+' selected queue leagues known; '+d.pulled+' pulled this run ('+d.full+' full), '+d.remaining+' left. '+d.generated+'. Not verified historical snapshot coverage.';}catch{el.textContent='Sealed league collection coverage not yet published.';}})()]);
   status.textContent = `Checked ${new Date().toLocaleString()}`;
 })();
 </script>

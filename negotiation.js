@@ -48,7 +48,8 @@ const Negotiation = { offering: null, rounds: [], styles: null, stylesLoading: n
 // Trading style per roster (Trade Grades history), loaded once in the background.
 function negPreloadStyles() {
   if (Negotiation.styles || Negotiation.stylesLoading) return Negotiation.stylesLoading;
-  Negotiation.stylesLoading = Vault.fetchAndGradeAllTrades(Vault.getLeagueId()).then(({ teams: gt, allGraded }) => {
+  Negotiation.stylesLoading = Vault.fetchAndGradeAllTrades(Vault.getLeagueId()).then(({ teams: gt, allGraded, tradeActivity, weekErrors }) => {
+    Negotiation.observedEvidence = typeof VaultLeagueIntelligence !== 'undefined' ? new Map(VaultLeagueIntelligence.managerEvidence(gt,allGraded,tradeActivity,Date.now(),weekErrors||[]).map(e=>[String(e.rosterId),e])) : null;
     Negotiation.graded = allGraded; // Trade Coach's Sell high reads who pays up for which positions
     const stats = Vault.buildManagerStats(allGraded, gt);
     const avg = stats.length ? stats.reduce((t, s) => t + s.trades, 0) / stats.length : 0;
