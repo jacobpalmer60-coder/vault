@@ -54,6 +54,7 @@
 </main>
 
 <script src="vault-core.js?v=759debb7"></script>
+<script src="league-intelligence.js?v=89a1f1ce"></script>
 <script src="vault-nav.js?v=1ec7c774"></script>
 <script src="season-report.js?v=18c77b80"></script>
 <script src="market-data.js?v=bdfadff2"></script>
@@ -188,6 +189,8 @@ function renderSingle(t) {
   const partners = getTradePartners(t, all);
   const isMine = Vault.myTeam(all) === t; // your team keeps the direct Trade Coach link; other teams can still explore their deals
 
+  const ev=VaultLeagueIntelligence.liveEvidence(all).find(r=>String(r.rosterId)===String(t.rosterId));
+  const rankText=k=>ev?.ranks[k]==null?'—':Math.round(ev.ranks[k]*100)+'th pct';
   const statTiles = [
     statTile(Vault.term('overall', 'Overall'), t.overall, Math.round(t.overall).toLocaleString(), all, 'overall', t.rosterId, true),
     statTile(Vault.term('players', 'Players'), t.total, Math.round(t.total).toLocaleString(), all, 'total', t.rosterId, true),
@@ -213,7 +216,7 @@ function renderSingle(t) {
   // Overview: the glance, flaws and trade partners.
   const partnerSub = p => [p.record ? `${p.record.wins}-${p.record.losses}${p.record.ties ? '-' + p.record.ties : ''}` : '', Number.isFinite(p.playoffPct) ? `${pctText(p.playoffPct)} playoff odds` : '', p.arch].filter(Boolean).join(' · ');
   $('#overviewCard').innerHTML = `
-    <div class="card rounded-vault p-5 mb-4"><div id="glance"></div></div>
+    <div class="card rounded-vault p-5 mb-4"><div id="glance"></div><div class="mt-3 pt-3 border-t border-white/10 text-[12px] text-zinc-400">Roster evidence · ${ev?.pricedPlayers??0}/${ev?.players??0} non-K/DEF players have positive prices · ${ev?.pricedPicks??'—'}/${ev?.picks??'—'} modeled picks priced<br>Projected lineup: ${rankText('lineup')} · priced player value: ${rankText('playerValue')} · modeled pick value: ${rankText('pickValue')}<br>League-relative evidence; priced subsets and model projections, not independently validated predictions.</div></div>
     <div class="grid lg:grid-cols-2 gap-4 items-start">
       <div class="card rounded-vault p-5">
         <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Weak spots</div>

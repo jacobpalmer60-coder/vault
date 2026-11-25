@@ -64,7 +64,9 @@ try {
   const idsFile = path.join(tmp,'league-ids.json');
   fs.writeFileSync(idsFile, JSON.stringify([id]));
   const encrypted = path.join(tmp,'sealed-pull.bin');
-  run('pull-league-deltas.js', { LEAGUE_LIST:idsFile, OUT_FILE:encrypted });
+  const coverage=path.join(tmp,'coverage.json');
+  run('pull-league-deltas.js', { LEAGUE_LIST:idsFile, OUT_FILE:encrypted, COVERAGE_FILE:coverage });
+  const receipt=JSON.parse(fs.readFileSync(coverage,'utf8'));assert.equal(receipt.queue,1);assert.equal(receipt.knownAfter,1);assert.equal(receipt.pulled,1);assert.equal(receipt.full,1);assert.equal(receipt.remaining,0);assert.ok(!JSON.stringify(receipt).includes(id));
   const payload = fs.readFileSync(encrypted);
   const wrapped = payload.readUInt32BE(0);
   assert(wrapped > 250 && payload.length > wrapped + 32);

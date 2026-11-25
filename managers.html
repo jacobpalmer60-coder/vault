@@ -51,6 +51,7 @@
 </div>
 
 <script src="vault-core.js?v=759debb7"></script>
+<script src="league-intelligence.js?v=89a1f1ce"></script>
 <script src="vault-nav.js?v=1ec7c774"></script>
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
@@ -74,6 +75,7 @@ function bestWorstLine(rec, label, tone) {
 function tradesLink(rosterId) { const u = Vault.linkTo('trade_grades.html'); return u + (u.includes('?') ? '&' : '?') + 'team=' + rosterId; }
 function activityLink(rosterId) { const u = Vault.linkTo('activity.html'); return u + (u.includes('?') ? '&' : '?') + 'team=' + rosterId; }
 
+let observedManagerEvidence=new Map();
 function renderCard(s) {
   const notes = Vault.managerTendencyNotes(s, window._avgTrades || 0).slice(0, 4);
   const p = Vault.managerProfile(s, window._avgTrades || 0);
@@ -95,6 +97,7 @@ function renderCard(s) {
         ${notes.map(n => `<div class="flex gap-2 text-[13px]"><span class="mt-1 size-1.5 rounded-full shrink-0 ${TONE_DOT[n.tone]}"></span><span class="${TONE[n.tone]}">${n.text}</span></div>`).join('')}
       </div>
 
+      <div class="pt-3 border-t border-white/5 mb-3"><div class="text-[12px] font-semibold text-zinc-200">Observed trade tendencies</div>${['recent','prior'].map((period,i)=>`<div class="mt-2 text-[12px] text-zinc-400"><strong>${i?'Previous 180 days':'Last 180 days'}</strong>${VaultLeagueIntelligence.evidenceLines(observedManagerEvidence.get(String(s.rosterId)),period).map(l=>`<div>${Vault.escapeHtml(l)}</div>`).join('')}</div>`).join('')}<p class="text-[11px] text-zinc-500 mt-2">Completed trades only; not proof of intent or an acceptance probability. Position counts are package appearances, not a preference estimate.</p></div>
       ${(s.best || s.worst) ? `<div class="pt-3 border-t border-white/5">
         ${bestWorstLine(s.best, 'Best move', 'good')}
         ${bestWorstLine(s.worst, 'Worst move', 'bad')}
@@ -337,6 +340,7 @@ async function init() {
     const leagueId = Vault.getLeagueId();
     status.textContent = 'Loading player database and trade history…';
     const { league, isSF, teams, allGraded, tradeActivity, pendingTrades, weekErrors } = await Vault.fetchAndGradeAllTrades(leagueId, { onProgress: ({done, total, failures}) => { status.textContent = `Loading trade history… ${done} of ${total} weeks checked${failures ? ` · ${failures} missing after retry` : ''}`; } });
+    observedManagerEvidence=new Map(VaultLeagueIntelligence.managerEvidence(teams,allGraded,tradeActivity,Date.now(),weekErrors||[]).map(e=>[String(e.rosterId),e]));
     const stats = Vault.buildManagerStats(allGraded, teams, tradeActivity);
     const evidence = VaultTradeEvidence.summarize({tradeActivity,allGraded,weekErrors});
     const box = document.getElementById('tradeEvidence');

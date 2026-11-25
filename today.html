@@ -42,6 +42,7 @@
 <div id="sinceVisit" class="mt-4 empty:hidden"></div>
   <div id="body" class="hidden">
     <div id="tiles" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4"></div>
+    <section id="actionBox" class="mt-6 empty:hidden"></section>
     <section id="gameBox" class="mt-6 empty:hidden"></section>
     <section id="hurtBox" class="mt-6 empty:hidden"></section>
     <section id="moveBox" class="mt-6 empty:hidden"></section>
@@ -50,6 +51,7 @@
 </main>
 
 <script src="vault-core.js?v=759debb7"></script>
+<script src="league-intelligence.js?v=89a1f1ce"></script>
 <script src="vault-nav.js?v=1ec7c774"></script>
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
@@ -147,6 +149,9 @@ function renderNeeds(me, teams, leagueId) {
       tile('Title odds', pct(me.projected?.championshipPct)),
       tile('Team value', ord(by('overall')), `of ${teams.length}`)
     ].join('');
+    const actions=VaultLeagueIntelligence.rosterActions(me,teams,Vault.positionalProfile(me,teams),Vault.tradePartnerSuggestions(me,teams,3),Vault.teamMode(me));
+    $('actionBox').innerHTML=head('Your next moves')+list(actions.map(a=>row('<div class="text-zinc-100">'+esc(a.title)+'</div><div class="text-[12px] text-zinc-400">'+esc(a.detail)+'</div>')))+
+      '<a href="'+Vault.linkTo('trade.html',leagueId)+'&coach=discover" class="block mt-2 px-3 py-2 rounded-lg border border-amber-400/30 text-amber-200 text-[13px]">Discover actual trade packages in Trade Coach →</a><p class="text-[11px] text-zinc-500 mt-1">Current roster-based ideas, not predictions or confirmed offers.</p>';
     $('gameBox').innerHTML = renderGame(me, teams, remainingWeeks || []);
     $('hurtBox').innerHTML = renderHurt(me);
     $('needBox').innerHTML = renderNeeds(me, teams, leagueId);

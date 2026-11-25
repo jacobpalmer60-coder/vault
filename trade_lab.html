@@ -655,6 +655,7 @@ async function loadCurrentCollection() {
       '<p class="text-[13px] text-zinc-200 mt-2"><strong>'+f(d.priced)+'</strong> fully priced of <strong>'+f(d.crawled)+'</strong> collected trades, across every supported format</p>'+
       '<p class="text-[12px] text-zinc-400 mt-1">Oldest included market summary: '+Vault.escapeHtml(d.sourceUpdated)+'; figures are cumulative counts, not manager acceptance predictions.</p>'+
       '<p class="text-[11px] text-zinc-500 mt-2">'+Vault.escapeHtml(fmt)+'</p>'+
+      (d.pricingCoverage?.status==='complete'?'<details class="mt-3 text-[12px] text-zinc-400"><summary class="cursor-pointer">Why '+f(d.crawled-d.priced)+' trades are unpriced</summary>'+Object.entries(d.pricingCoverage.byReason||{}).sort((a,b)=>b[1]-a[1]).map(([k,n])=>'<div class="mt-1">'+Vault.escapeHtml(k.replace(/_/g,' ').replace(/\+/g,' + '))+': '+f(n)+'</div>').join('')+'<p class="mt-2">Mutually exclusive reason combinations; no invented prices.</p></details>':'<p class="text-[12px] text-zinc-400 mt-2">Pricing exclusions: diagnostic refresh not yet published.</p>')+
       '<p class="text-[11px] text-zinc-400 mt-2">These are automatically rebuilt collection facts. The separate historical performance and outcomes research below remains dated to its own archival snapshot.</p>';
   } catch(e){
     box.innerHTML='<h2 class="text-[15px] font-semibold text-zinc-100">Current trade collection</h2>'+

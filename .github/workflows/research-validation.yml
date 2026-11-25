@@ -1,0 +1,44 @@
+name: Retrospective price research — Vault
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '35 7 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: vault-price-research
+  cancel-in-progress: false
+jobs:
+  benchmark:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        format: [sf, sf_tep, sf_tepp, oneQB, oneQB_tep, oneQB_tepp]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BENCHMARK_FORMAT: ${{ matrix.format }}
+      SAMPLE_MOD: '100'
+      NEAR_PEER_ONLY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retrieve retrospective archives
+        run: |
+          mkdir -p data/sleeper-trades reports
+          gh release download sleeper-trades --pattern '2024.json.gz' --dir data/sleeper-trades
+          gh release download sleeper-trades --pattern '2025.json.gz' --dir data/sleeper-trades
+      - name: Compare additive and consolidation baselines without live weight changes
+        run: |
+          node --max-old-space-size=5632 scripts/benchmark-separated-trade-pricing.js > reports/price-research.json
+          node scripts/check-research-report.js reports/price-research.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrospective-price-${{ matrix.format }}
+          path: reports/price-research.json
+          retention-days: 14
+          if-no-files-found: error

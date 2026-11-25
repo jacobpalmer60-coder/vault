@@ -141,7 +141,9 @@ function seal(plain, pubPem) {
       ...all.filter(id => !traded.has(hash(id)) && !known.has(hash(id)))
     ];
   }
+  ids=[...new Set(ids)];
   const todo = ids.filter(id => !done.has(hash(id)));
+  const knownBefore=ids.filter(id=>known.has(hash(id))).length;
   const pulled = [];
   let fulls = 0;
   for (const id of todo) {
@@ -160,6 +162,8 @@ function seal(plain, pubPem) {
     const pub = fs.readFileSync(path.join(ROOT, 'scripts', 'keys', 'league-pull.pub.pem'), 'utf8');
     fs.writeFileSync(OUT, seal(zlib.gzipSync(JSON.stringify({ cycle, season, week, leagues: pulled }), { level: 9 }), pub));
   }
+  const receipt={schemaVersion:1,cycle,season,week,generated:new Date().toISOString(),queue:ids.length,knownBefore,knownAfter:ids.filter(id=>known.has(hash(id))).length,remaining:left,pulled:pulled.length,full:fulls,calls,stopped:!!stopped,scope:'Selected current collector queue only; not all Sleeper leagues or verified historical roster coverage'};
+  if(process.env.COVERAGE_FILE){fs.mkdirSync(path.dirname(process.env.COVERAGE_FILE),{recursive:true});fs.writeFileSync(process.env.COVERAGE_FILE,JSON.stringify(receipt));}
   if (!test) {
     fs.mkdirSync(path.dirname(STATE), { recursive: true });
     fs.writeFileSync(STATE, JSON.stringify({ ...state, done: [...done], known: [...known] }));

@@ -148,7 +148,9 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
       await page.waitForFunction(()=>document.getElementById('coachBody')?.innerText.includes('Discover trade opportunities'),{timeout:10000});
       if(width>=600){
         await page.evaluate(()=>coachDiscoverStart());
-        await page.waitForFunction(()=>Array.isArray(coachFlow().aimRun?.list),{timeout:180000});
+        try { await page.waitForFunction(()=>Array.isArray(coachFlow().aimRun?.list)||coachFlow().aimRun?.error,{timeout:180000}); }
+        catch(error){ const state=await page.evaluate(()=>({step:coachFlow().step,aim:coachFlow().aim,done:coachFlow().aimRun?.done,of:coachFlow().aimRun?.of,hasError:!!coachFlow().aimRun?.error})); throw Error('Discover timed out: '+JSON.stringify(state)+'; '+error.message); }
+        if(await page.evaluate(()=>!!coachFlow().aimRun?.error))throw Error('Discover search reported a runtime failure');
         const discovery=await page.evaluate(()=>({partners:coachFlow().aimRun.partners,expected:teams.length-1,
           pass:coachFlow().aimRun.list.every(x=>x.evidence.ok&&x.r.yes),text:document.getElementById('coachBody').innerText,
           unchanged:JSON.stringify({A:[...selectedA],B:[...selectedB]})}));

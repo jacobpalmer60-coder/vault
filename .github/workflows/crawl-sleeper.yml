@@ -123,6 +123,7 @@ jobs:
         env:
           RUN_MINUTES: '16'
           CALLS_PER_MIN: '400'
+          COVERAGE_FILE: ${{ runner.temp }}/league-pull-coverage.json
         run: node scripts/pull-league-deltas.js
 
       - name: Publish encrypted league context
@@ -150,6 +151,10 @@ jobs:
           git checkout -- data/market-history/
           git pull --rebase --quiet
           cp "$RUNNER_TEMP/crawl-stats.json" data/market-history/crawl-stats.json
+          if [ -f "$RUNNER_TEMP/league-pull-coverage.json" ]; then
+            cp "$RUNNER_TEMP/league-pull-coverage.json" data/market-history/league-pull-coverage.json
+            git add data/market-history/league-pull-coverage.json
+          fi
           git add data/market-history/crawl-stats.json
           git diff --cached --quiet && exit 0
           git commit -m "Crawl stats"

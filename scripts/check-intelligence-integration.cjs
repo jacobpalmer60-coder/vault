@@ -1,0 +1,17 @@
+'use strict';
+const assert=require('node:assert/strict'),{liveEvidence,managerEvidence,evidenceLines,rosterActions}=require('../league-intelligence');
+const now=Date.UTC(2026,10,24),day=864e5,team=(rosterId)=>({rosterId,teamName:'Team '+rosterId,plist:[{pos:'RB',value:1000*rosterId,age:24}],picks:[],lineup:[{id:'x',ppg:10}],opt:10*rosterId});
+const teams=[1,2,3,4].map(team);
+const ev=liveEvidence(teams);assert.equal(ev[3].ranks.lineup,1);assert.equal(ev[0].pickValue,0);assert.equal(ev[0].ranks.pickValue,.5);
+const partial=liveEvidence(teams.map((t,i)=>i? t:{...t,plist:[{pos:'RB',value:0,age:0}]}));assert.equal(partial[0].playerValue,null);assert.ok(partial.every(x=>x.ranks.playerValue===null));
+const a={type:'player',pos:'RB',value:1000},b={type:'pick',value:2000};
+const tx=(id,created)=>({transaction_id:id,roster_ids:[1,2],created});
+const grade=(t)=>({tx:t,created:t.created,teamA:teams[0],teamB:teams[1],toA:[b],toB:[a],valuedAt:'trade'});
+const t=tx('one',now-day),old=tx('old',now-200*day),future=tx('future',now+day),uncertain={...tx('uncertain',now-day),_ownerAttributionUncertain:true},today=tx('today',now-day);
+const r=managerEvidence(teams,[grade(t),grade(t),grade(old),grade(future),grade(uncertain),{...grade(today),valuedAt:'today'}],[t,t,old,future,uncertain,today],now,[{weeks:[1]}]);
+assert.equal(r[0].recent.completed,2);assert.equal(r[1].recent.completed,2);assert.equal(r[0].recent.priced,1);assert.equal(r[0].recent.buysPicks,1);assert.equal(r[1].recent.sellsPicks,1);assert.equal(r[0].prior.completed,1);assert.equal(r[2].recent.completed,0);assert.match(evidenceLines(r[0]).join(' '),/partial/);
+assert.ok(rosterActions(teams[0],teams,{needs:['rb'],surpluses:['wr']},[{...teams[1],fit:2}],'contend').some(x=>x.title.includes('Team 2')));
+const {validate}=require('./check-research-report');const weights=Object.fromEntries(['0','0.1','0.25','0.5','0.75','1'].map(k=>[k,{right:1,wrong:0,tie:0,accuracyPct:100}]));
+const report={kind:'research-price-separation',horizonDays:365,sampleMod:100,filters:{format:'sf',playerOnlyOneForTwo:true},counts:{sampled:2,priced:2,mature:2,complete:1,missing:1},all:{eligible:1,decisive:1,zeroSignal:0,weights}};
+assert.match(validate(report),/not sealed holdout/);assert.throws(()=>validate({...report,counts:{...report.counts,missing:0}}));
+console.log('PASS live evidence, missing values, as-of windows, owner attribution, duplicate and future records, price evidence and research report checks');
