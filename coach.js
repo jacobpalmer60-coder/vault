@@ -660,7 +660,7 @@ const coachChoice = (onclick, title, sub = '', right = '', arrow = true) => `<bu
     <span class="min-w-0 flex-1"><span class="block text-[14px] text-zinc-100">${title}</span>${sub ? `<span class="block text-[12px] text-zinc-400 mt-0.5">${sub}</span>` : ''}</span>
     ${right}${arrow ? '<span class="shrink-0 text-zinc-500" aria-hidden="true">›</span>' : ''}
   </button>`;
-const coachAsk = (text, sub = '') => `<div class="mb-4"><h3 class="display text-[26px] leading-tight text-zinc-100">${text}</h3>${sub ? `<p class="text-[13px] text-zinc-400 mt-1">${sub}</p>` : ''}</div>`;
+const coachAsk = (text, sub = '') => `<div class="mb-4"><h3 class="text-[22px] font-semibold leading-tight text-zinc-100">${text}</h3>${sub ? `<p class="text-[13px] text-zinc-400 mt-1">${sub}</p>` : ''}</div>`;
 
 /* ---------- Steps ----------
    (User, 2026-11-04: "visually change the coach? maybe make it a pop up window? and every
@@ -1247,16 +1247,33 @@ function coachAimHtml(me) {
   const names = l => l.map(a => coachEsc(a.name)).join(' + ');
   if(f.aim==='discover'){
     const priceText=p=>p===null?'unavailable':Math.abs(p)<0.05?'even':Math.abs(p).toFixed(1)+'% favors '+(p>0?'you':'partner');
+    const youText=t=>t.replace(/^Their /,'Your ').replace(/^They /,'You ');
     const sideText=lines=>lines.map(coachEsc).join(' ');
-    return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} offers · ${run.partners} partners screened · ${run.of} target candidates. Manager response is simulated, not confirmed. Nonnegative grades for both teams appear first; other offers need review.</div><div class="grid gap-2">${run.list.map((x,i)=>{
+    return head + `<div class="text-[13px] text-zinc-400 mb-3">${run.list.length} potential offers · ${run.partners} teams screened. Manager response is simulated, not confirmed.</div><div class="grid gap-3">${run.list.map((x,i)=>{
       const p=x.prices,review=x.mutual<0;
-      const concern=[...(x.evidence.concernsA||[]).map(t=>'You: '+t.replace(/^Their /,'Your ').replace(/^They /,'You ')),...(x.evidence.concernsB||[]).map(t=>'Partner: '+t)];
-      return coachChoice('coachAimBuild('+i+')','Get '+names(x.get)+' <span class="text-zinc-400">for '+names(x.give)+'</span>',
-        coachEsc(x.t.teamName)+' · '+(review?'Review tradeoffs':'Both grades nonnegative')+' · '+coachEsc(Vault.verdictTier(x.scoreA).label)+' / '+coachEsc(Vault.verdictTier(x.scoreB).label)
-        +'<br>You: '+sideText(x.evidence.a.map(t=>t.replace(/^Their /,'Your ').replace(/^They /,'You ')))+'<br>Partner: '+sideText(x.evidence.b)
-        +'<br>Vault market: '+priceText(p.active)+' · KTC raw: '+priceText(p.raw)+' · KTC adjusted: '+priceText(p.adjusted)
-        +(p.disagreement?'<br><span class="text-amber-300">Price sources disagree materially; compare before offering.</span>':'')
-        +(concern.length?'<br>'+sideText(concern):'')+(typeof VaultLeagueIntelligence!=='undefined'?'<br>'+coachEsc(VaultLeagueIntelligence.evidenceLines(Negotiation.observedEvidence?.get(String(x.t.rosterId)))[0]):''));
+      const concern=[...(x.evidence.concernsA||[]).map(t=>'You: '+youText(t)),...(x.evidence.concernsB||[]).map(t=>'Partner: '+t)];
+      const lines=typeof VaultLeagueIntelligence!=='undefined'?VaultLeagueIntelligence.evidenceLines(Negotiation.observedEvidence?.get(String(x.t.rosterId))):[];
+      return `<article class="coach-discover-card card rounded-vault-sm p-4 min-w-0">
+        <div class="flex flex-wrap items-center justify-between gap-2"><span class="text-[13px] font-medium text-zinc-300">${coachEsc(x.t.teamName)}</span><span class="text-[12px] ${review?'text-amber-200':'text-emerald-300'}">${review?'Review tradeoffs':'Worth exploring for both teams'}</span></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+          <div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0"><div class="text-[12px] text-zinc-400">You receive</div><div class="text-[15px] font-semibold mt-1 break-words">${names(x.get)}</div></div>
+          <div class="rounded-xl bg-black/25 border border-white/5 p-3 min-w-0"><div class="text-[12px] text-zinc-400">You send</div><div class="text-[15px] font-semibold mt-1 break-words">${names(x.give)}</div></div>
+        </div>
+        <div class="mt-3 space-y-1.5 text-[13px] text-zinc-300"><div><strong class="text-zinc-100">For you:</strong> ${coachEsc(youText(x.evidence.a[0]))}</div><div><strong class="text-zinc-100">For them:</strong> ${coachEsc(x.evidence.b[0])}</div></div>
+        ${p.disagreement?'<p class="mt-2 text-[13px] text-amber-200">Price sources disagree. Compare the values before offering.</p>':''}
+        ${review?'<p class="mt-2 text-[13px] text-amber-200">At least one team has a negative overall grade. Review the tradeoffs.</p>':''}
+        <details class="coach-offer-details mt-3 pt-2 border-t border-white/10"><summary class="cursor-pointer text-[13px] font-medium text-zinc-300 py-2">Why this trade? · grades, prices and concerns</summary>
+          <div class="space-y-2 text-[13px] text-zinc-400 pb-2">
+            <div>Team grades: ${coachEsc(Vault.verdictTier(x.scoreA).label)} for you · ${coachEsc(Vault.verdictTier(x.scoreB).label)} for them.</div>
+            <div>Vault market: ${priceText(p.active)} · KTC raw: ${priceText(p.raw)} · KTC adjusted: ${priceText(p.adjusted)}</div>
+            <div>You: ${sideText(x.evidence.a.map(youText))}</div><div>Partner: ${sideText(x.evidence.b)}</div>
+            ${concern.length?'<div>'+sideText(concern)+'</div>':''}
+            ${lines.length?'<div>'+sideText(lines)+'</div>':''}
+            <div>${run.of} target candidates checked across the league. These are model-based ideas, not known offers.</div>
+          </div>
+        </details>
+        <button type="button" onclick="coachAimBuild(${i})" class="btn-gold-solid w-full h-11 mt-2 text-[14px]">Review trade</button>
+      </article>`;
     }).join('')}</div>`;
   }
   return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} with a practical reason for the other team to consider.</div><div class="grid gap-2">${run.list.map((x, i) => {

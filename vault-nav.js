@@ -11,7 +11,7 @@
   // removed; Season Report and the contend-or-rebuild plan live in the team view.
   const GROUPS = [
     { label: 'League', tabs: [
-      { key: 'today', short: 'Today', label: 'Your Team Today', href: 'today.html' },
+      { key: 'today', short: 'My team', label: 'Your Team Today', href: 'today.html' },
       { key: 'overview', short: 'Overview', label: 'League Overview', href: 'app.html' },
       { key: 'analyzer', short: 'Teams', label: 'Team Analyzer', href: 'team-analyzer.html' },
       { key: 'playoffs', short: 'Playoff Race', label: 'Playoff Race', href: 'playoffs.html' },
@@ -47,7 +47,7 @@
     'League Trades': '<path d="M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/>',
     'Trade Lab': '<path d="M10 3h4M11 3v6l-5.5 9.5A1.7 1.7 0 0 0 7 21h10a1.7 1.7 0 0 0 1.5-2.5L13 9V3M8 15h8"/>'
   };
-  const TAB_NAME = { 'Trade Calculator': 'Calculator', 'League Trades': 'Trades', 'Trade Lab': 'Lab' };
+  const TAB_NAME = { League:'Home', 'Trade Calculator': 'Trade', Market:'Players', 'League Trades': 'Activity', 'Trade Lab': 'Research' };
   const INFO = [
     { key: 'method', label: 'How We Grade', href: 'how_we_grade.html' },
     { key: 'proof', label: 'Does It Work?', href: 'proof.html' },
@@ -98,7 +98,7 @@
     const subHtml = activeGroup && activeGroup.tabs.length > 1 ? `<div class="max-w-[1400px] mx-auto px-4 sm:px-6 pb-2 flex items-center gap-1 overflow-x-auto scrollbar-none" role="group" aria-label="${activeGroup.label}">${activeGroup.tabs.map(t => `<a href="${Vault.linkTo(t.href, leagueId)}" ${active === t.key ? 'aria-current="page"' : ''} class="px-3 py-1.5 rounded-full text-[13px] sm:text-[12px] whitespace-nowrap transition-colors ${active === t.key ? 'bg-amber-400/15 text-amber-100' : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'}">${t.short}</a>`).join('')}</div>` : '';
     const barHtml = `<nav class="vn-bar" aria-label="Pages">${GROUPS.map(g => {
       const on = g === activeGroup;
-      return `<a href="${Vault.linkTo(g.tabs[0].href, leagueId)}" ${on ? 'aria-current="page"' : ''} class="${on ? 'text-amber-300' : 'text-zinc-400'}"><svg class="size-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[g.label]}</svg><span>${TAB_NAME[g.label] || g.label}</span></a>`;
+      return `<a href="${Vault.linkTo(g.tabs[0].href, leagueId)}" aria-label="${g.label}" ${on ? 'aria-current="page"' : ''} class="${on ? 'text-amber-300' : 'text-zinc-400'}"><svg class="size-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[g.label]}</svg><span>${TAB_NAME[g.label] || g.label}</span></a>`;
     }).join('')}</nav>`;
     // How We Grade, Patch Notes, Data status and Switch League sit behind one button.
     const switchLink = `<a href="${leagueId ? 'index.html' : Vault.escapeHtml(Vault.pickLeagueLink())}" class="block px-3 py-2.5 sm:py-2 rounded-lg text-[14px] sm:text-[13px] text-zinc-200 hover:bg-white/[0.05]">${leagueId ? 'Switch League' : 'Pick your league'}</a>`;
@@ -146,7 +146,7 @@ body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}#verdictDock{bottom
       ${main ? `<a href="#${main.id}" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-amber-400 focus:text-black focus:font-semibold">Skip to content</a>` : ''}
       <header class="z-40 border-b border-white/[0.07] bg-[#0c0d10]/95">
         <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-2 flex items-center gap-2 sm:gap-3">
-          <a href="index.html" class="flex items-center gap-2 shrink-0 md:mr-2" aria-label="The Vault home">
+          <a href="${leagueId && Vault.getMyTeamId(leagueId) ? Vault.linkTo('today.html',leagueId) : 'index.html'}" class="flex items-center gap-2 shrink-0 md:mr-2" aria-label="The Vault home">
             <img src="brand/vault-dial-128.png" alt="" width="32" height="32" class="size-7 shrink-0">
             <span class="hidden sm:block text-[15px] font-semibold tracking-[-0.01em] text-zinc-100 whitespace-nowrap">The Vault</span>
           </a>

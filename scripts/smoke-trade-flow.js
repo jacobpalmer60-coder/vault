@@ -141,6 +141,29 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
         if(state.wide>1)errors.push('horizontal overflow in mobile tab '+tab);
        }
       }
+      // The simplified verdict must retain all deeper price evidence.
+      await page.evaluate(()=>{if(innerWidth<768)tradeTab('verdict')});
+      await page.waitForSelector('#advancedVerdict > summary',{visible:true,timeout:10000});
+      const initialAdvanced=await page.evaluate(()=>({
+        open:document.getElementById('advancedVerdict').open,
+        visible:!!document.getElementById('tradeDecisionLens')?.getClientRects().length,
+        answer:document.getElementById('forYou').innerText.includes('Why it matters:')
+      }));
+      if(initialAdvanced.open||initialAdvanced.visible||!initialAdvanced.answer)errors.push('simple-first verdict is not the default: '+JSON.stringify(initialAdvanced));
+      const packageBefore=await page.evaluate(()=>JSON.stringify({A:[...selectedA],B:[...selectedB]}));
+      await page.click('#advancedVerdict > summary');
+      const expanded=await page.evaluate(()=>({
+        open:document.getElementById('advancedVerdict').open,
+        visible:!!document.getElementById('tradeDecisionLens')?.getClientRects().length,
+        unchanged:JSON.stringify({A:[...selectedA],B:[...selectedB]}),
+        wide:document.documentElement.scrollWidth-innerWidth
+      }));
+      if(!expanded.open||!expanded.visible||expanded.unchanged!==packageBefore||expanded.wide>1)errors.push('advanced pricing disclosure failed or mutated trade');
+      await page.click('#advancedVerdict > summary');
+      await page.evaluate(()=>{if(innerWidth<768)tradeTab('details');else document.getElementById('tradeDetails').open=true;});
+      const compareVisible=await page.evaluate(()=>!!document.getElementById('siteStatus')?.getClientRects().length);
+      if(!compareVisible)errors.push('other calculator results not accessible in details');
+      await page.evaluate(()=>{if(innerWidth<768)tradeTab('verdict');else document.getElementById('tradeDetails').open=false;});
       // On every viewport check the new entry and disclosure. On desktop also
       // run the real bounded league-wide search, without editing the builder.
       const beforeDiscover=await page.evaluate(()=>JSON.stringify({A:[...selectedA],B:[...selectedB]}));
@@ -156,6 +179,14 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
           unchanged:JSON.stringify({A:[...selectedA],B:[...selectedB]})}));
         if(discovery.partners!==discovery.expected||!discovery.pass||!discovery.text.includes('not confirmed')||discovery.unchanged!==beforeDiscover)
           errors.push('Coach Discover coverage, two-team checks, disclosure or builder isolation failed');
+        const offer=await page.$('#coachBody .coach-discover-card');
+        if(offer){
+          const initial=await page.evaluate(()=>({open:document.querySelector('.coach-offer-details').open,text:document.querySelector('.coach-discover-card').innerText}));
+          if(initial.open||!initial.text.includes('You receive')||!initial.text.includes('You send')||!initial.text.includes('Review trade'))errors.push('Discover card default hierarchy failed');
+          await page.click('#coachBody .coach-offer-details > summary');
+          const detail=await page.evaluate(()=>({open:document.querySelector('.coach-offer-details').open,text:document.querySelector('.coach-offer-details').innerText,unchanged:JSON.stringify({A:[...selectedA],B:[...selectedB]})}));
+          if(!detail.open||!detail.text.includes('KTC adjusted')||detail.unchanged!==beforeDiscover)errors.push('Discover evidence disclosure mutated or hid the offer');
+        }
       }
       await page.evaluate(()=>setView('builder'));
       if(process.env.SHOTS){

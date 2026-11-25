@@ -11,3 +11,17 @@ assert.ok(home.includes('<details id="leagueIdDetails"')&&home.includes('role="a
 assert.ok(home.includes('request !== activation')&&home.includes('finally { loadBtn.disabled = false'));
 assert.ok(home.includes("return Vault.linkTo('today.html', id)"));
 console.log('PASS simple-first dashboard structure, quick actions, optional analysis, team-isolated visit history and onboarding request guards');
+
+const css=read('vault.css'),trade=read('trade.html'),nav=read('vault-nav.js');
+for(const page of fs.readdirSync(path.join(__dirname,'..')).filter(x=>x.endsWith('.html'))){
+ const html=read(page);
+ if(html.includes('vault.css?'))assert.ok(html.includes('vault.css?v=af54b007'),page+' shared visual version');
+ if(html.includes('vault-nav.js?'))assert.ok(html.includes('vault-nav.js?v=b1f8289e'),page+' shared navigation version');
+}
+assert.ok(today.includes('dash-action-primary')&&today.includes('vault-dashboard'));
+assert.ok(trade.indexOf('id="siteStatus"')>trade.indexOf('id="tradeDetails"'));
+assert.ok(trade.includes('id="advancedVerdict"')&&trade.includes('Pricing breakdown and team plans')&&trade.includes('Why it matters:'));
+assert.ok(trade.includes("basis:'market'"),'no unsupported individual willingness claim in the verdict');
+assert.ok(nav.includes("League:'Home'")&&nav.includes("Vault.linkTo('today.html',leagueId)"));
+assert.ok(css.includes('prefers-reduced-motion')&&css.includes('min-height:44px'));
+console.log('PASS modern shared visual assets, task-led navigation and progressive trade evidence');
