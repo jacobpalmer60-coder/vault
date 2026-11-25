@@ -31,3 +31,16 @@ console.log('PASS bounded partner-diverse discovery, symmetrical practical benef
  await run('discover');assert.equal(flow.aimRun,null);assert.equal(renders,1,'cache invalidation restarts active search');
  console.log('PASS async Discover cache epoch changes cannot strand the loading screen');
 })().catch(e=>{console.error(e);process.exitCode=1;});
+
+const {coachDiscoveryBaseline,coachDiscoveryPriceRead}=context.module.exports;
+assert.equal(coachDiscoveryAssessment({...input,a:{...imp,score:-1},b:{...imp,score:-1}}).ok,false);
+assert.equal(coachDiscoveryAssessment({...input,a:{...imp,score:-1}}).ok,true);
+const p=coachDiscoveryPriceRead({valueA:100,valueB:100},{rawA:120,rawB:80,valueA:120,valueB:80});
+assert.equal(p.active,0);assert.equal(p.raw,-40);assert.equal(p.disagreement,true);
+const diverse=[row(others[0],'a',10),row(others[0],'b',9),row(others[1],'a',-1),row(others[1],'c',-2)];
+assert.equal(coachDiscoveryShortlist(diverse,2).every(x=>x.mutual>=0),true);
+const d2=[row(others[0],'a',10),row(others[1],'a',9),row(others[1],'b',8)];
+assert.equal(coachDiscoveryBaseline(d2,2)[1].give[0].key,'a');
+assert.equal(coachDiscoveryShortlist(d2,2)[1].give[0].key,'b');
+assert.equal(coachDiscoveryTargets(me,others,['RB'],'contend',(a,t)=>t.rosterId===3).length,1);
+console.log('PASS mutual-grade priority, repeat penalty, team-aware target filtering and signed price disagreement');

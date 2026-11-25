@@ -69,12 +69,14 @@ const server=http.createServer((req,res)=>{
       const a=improvementOf(x.r.j.an,'A'),b=improvementOf(x.r.j.an,'B');
       if(!x.evidence.ok||!x.r.yes||!x.evidence.a.length||!x.evidence.b.length)issues.push('missing bilateral benefit or simulated willingness');
       if(!Number.isFinite(a.score)||!Number.isFinite(b.score))issues.push('missing grade');
+      if(a.score<0&&b.score<0)issues.push('both grades negative');
       if(rosterCap&&(projectedRosterCount(me,x.give,x.get)>rosterCap||projectedRosterCount(x.t,x.get,x.give)>rosterCap))issues.push('roster overflow');
       scores.push(Math.min(a.score,b.score));
       offers.push({partnerRosterId:String(x.t.rosterId),give:x.give.map(p=>({name:p.name,listed:p.value,market:Vault.gradeValue(p),ktc:p.ktcPrice??p.value})),get:x.get.map(p=>({name:p.name,listed:p.value,market:Vault.gradeValue(p),ktc:p.ktcPrice??p.value})),listedSignedGap:listed,activeMarketSignedGap:active,ktcRawSignedGap:ktcRaw,ktcAdjustedSignedGap:ktcAdjusted,scoreA:a.score,scoreB:b.score,benefitA:x.evidence.a,benefitB:x.evidence.b,simulatedWillingness:!!x.r.yes});
       const shape=give.length+'-for-'+get.length;shapes[shape]=(shapes[shape]||0)+1;
      }
-     return {rosterId:rid,mode:Vault.teamMode(me),partnersScreened:run.partners,candidates:run.of,offers:run.list?.length||0,distinctPartners:partners.size,
+     const metrics=list=>{const counts=new Map();for(const x of list)for(const p of [...x.give,...x.get])counts.set(p.key,(counts.get(p.key)||0)+1);return {offers:list.length,nonnegativeBoth:list.filter(x=>x.mutual>=0).length,partners:new Set(list.map(x=>x.t.rosterId)).size,distinctAssets:counts.size,maxAssetRepeats:Math.max(0,...counts.values()),meanMinimumGrade:list.length?list.reduce((s,x)=>s+x.mutual,0)/list.length:null};};
+     return {rosterId:rid,mode:Vault.teamMode(me),partnersScreened:run.partners,candidates:run.of,eligible:run.eligible,rankingComparison:{baseline:metrics(run.baseline||[]),new:metrics(run.list||[])},offers:run.list?.length||0,distinctPartners:partners.size,
       maxAdditiveGap:gaps.length?Math.max(...gaps):null,meanAdditiveGap:gaps.length?gaps.reduce((s,v)=>s+v,0)/gaps.length:null,minBilateralScore:scores.length?Math.min(...scores):null,shapes,issues,offerDetails:offers};
     },{rid,before});
     row.seconds=(Date.now()-start)/1000;report.rows.push(row);

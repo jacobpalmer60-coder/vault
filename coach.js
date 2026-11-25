@@ -1110,7 +1110,7 @@ async function coachAimRun(k) {
   let keep = true;
   if (k === 'discover') {
     const profile = Vault.positionalProfile(me, teams);
-    const targets = coachDiscoveryTargets(me, others, profile.needs, Vault.teamMode(me), a => !coachTheirOff(a), 5);
+    const targets = coachDiscoveryTargets(me, others, profile.needs, Vault.teamMode(me), (a,t) => !coachTheirOff(a) && !coachAsksCornerstone(t,[a]), 5);
     // Add at most one two-target package per partner; no cross-team bundles.
     const paired=coachDiscoveryPairs(targets);
     run.partners = others.length;
@@ -1124,7 +1124,8 @@ async function coachAimRun(k) {
       if (!evidence.ok || !coachPiecesOK(o.give,o.get) ||
           (Vault.teamMode(t)==='contend' && coachLeavesShort(t,o.give,o.get)) ||
           (Vault.teamMode(me)==='contend' && coachLeavesShort(me,o.get,o.give))) return;
-      out.push({t, give:o.give, get:o.get, r, lead:o.get[0].key, evidence, mutual:Math.min(a.score,b.score)});
+      const prices=coachDiscoveryPriceRead(Vault.marketSideValues(o.give,o.get),Vault.ktcSideValues(o.give,o.get));
+      out.push({t, give:o.give, get:o.get, r, lead:o.get[0].key, evidence, prices, mutual:Math.min(a.score,b.score), scoreA:a.score, scoreB:b.score});
     };
     keep = await each([...targets.map(({a,t})=>({get:[a],t})),...paired], ({get,t}) => {
       if (!coachAsksCornerstone(t,get)) coachOffers(me,t,get,{limit:4,perLead:2,option:'build'}).forEach(o=>assess(t,o));
@@ -1203,7 +1204,7 @@ async function coachAimRun(k) {
   const rank = (x, y) => coachLevelRank(x.r) - coachLevelRank(y.r)
     || (k === 'title' || k === 'playoffs' ? y.lift - x.lift : k === 'points' ? y.gain - x.gain : k === 'strength' ? (y.r.score + (y.both ? 3 : 0)) - (x.r.score + (x.both ? 3 : 0))
       : k === 'younger' ? y.drop * y.get[0].value - x.drop * x.get[0].value : k === 'consolidate' ? y.get[0].value - x.get[0].value : y.r.score - x.r.score);
-  if (k === 'discover') { run.list = coachDiscoveryShortlist(out, COACH_AIM_SHOW); show(); return; }
+  if (k === 'discover') { run.eligible=out.length; run.baseline=coachDiscoveryBaseline(out,COACH_AIM_SHOW); run.list = coachDiscoveryShortlist(out, COACH_AIM_SHOW); show(); return; }
   // Two teams' 2029 2nds read the same, so a sale shows once.
   const twice = new Set(['future', 'younger', 'sellhigh']), seen = new Map(), same = new Set(), list = [];
   for (const x of out.sort(rank)) {
@@ -1244,9 +1245,20 @@ function coachAimHtml(me) {
     return `${head}<div class="text-[13px] text-zinc-400 py-2">${none} Try another goal, or start from a player or position.</div>`;
   }
   const names = l => l.map(a => coachEsc(a.name)).join(' + ');
-  if(f.aim==='discover') return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} offers · ${run.partners} partners screened · ${run.of} target candidates. Manager response is simulated, not confirmed.</div><div class="grid gap-2">${run.list.map((x,i)=>coachChoice(
-    'coachAimBuild('+i+')', 'Get '+names(x.get)+' <span class="text-zinc-400">for '+names(x.give)+'</span>',
-    coachEsc(x.t.teamName)+' · '+coachEsc(Vault.verdictTier(x.r.score).label)+' / '+coachEsc(Vault.verdictTier(x.r.them.score).label)+'<br>You: '+coachEsc(x.evidence.a[0].replace(/^Their /,'Your ').replace(/^They /,'You '))+'<br>Partner: '+coachEsc(x.evidence.b[0])+'<br>Market price gap: '+Math.abs(coachTvPct(x.give,x.get)).toFixed(1)+'%'+(typeof VaultLeagueIntelligence!=='undefined'?'<br>'+coachEsc(VaultLeagueIntelligence.evidenceLines(Negotiation.observedEvidence?.get(String(x.t.rosterId)))[0]):''))).join('')}</div>`;
+  if(f.aim==='discover'){
+    const priceText=p=>p===null?'unavailable':Math.abs(p)<0.05?'even':Math.abs(p).toFixed(1)+'% favors '+(p>0?'you':'partner');
+    const sideText=lines=>lines.map(coachEsc).join(' ');
+    return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} offers · ${run.partners} partners screened · ${run.of} target candidates. Manager response is simulated, not confirmed. Nonnegative grades for both teams appear first; other offers need review.</div><div class="grid gap-2">${run.list.map((x,i)=>{
+      const p=x.prices,review=x.mutual<0;
+      const concern=[...(x.evidence.concernsA||[]).map(t=>'You: '+t.replace(/^Their /,'Your ').replace(/^They /,'You ')),...(x.evidence.concernsB||[]).map(t=>'Partner: '+t)];
+      return coachChoice('coachAimBuild('+i+')','Get '+names(x.get)+' <span class="text-zinc-400">for '+names(x.give)+'</span>',
+        coachEsc(x.t.teamName)+' · '+(review?'Review tradeoffs':'Both grades nonnegative')+' · '+coachEsc(Vault.verdictTier(x.scoreA).label)+' / '+coachEsc(Vault.verdictTier(x.scoreB).label)
+        +'<br>You: '+sideText(x.evidence.a.map(t=>t.replace(/^Their /,'Your ').replace(/^They /,'You ')))+'<br>Partner: '+sideText(x.evidence.b)
+        +'<br>Vault market: '+priceText(p.active)+' · KTC raw: '+priceText(p.raw)+' · KTC adjusted: '+priceText(p.adjusted)
+        +(p.disagreement?'<br><span class="text-amber-300">Price sources disagree materially; compare before offering.</span>':'')
+        +(concern.length?'<br>'+sideText(concern):'')+(typeof VaultLeagueIntelligence!=='undefined'?'<br>'+coachEsc(VaultLeagueIntelligence.evidenceLines(Negotiation.observedEvidence?.get(String(x.t.rosterId)))[0]):''));
+    }).join('')}</div>`;
+  }
   return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} with a practical reason for the other team to consider.</div><div class="grid gap-2">${run.list.map((x, i) => {
     const tier = Vault.verdictTier(x.r.score), note = x.note || (x.gain ? `+${x.gain.toFixed(1)} pts a week` : '');
     return coachChoice(`coachAimBuild(${i})`, `Get ${names(x.get)} <span class="text-zinc-400">for ${names(x.give)}</span>`,
@@ -1541,7 +1553,7 @@ function coachDiscoveryTargets(me, others, needs, mode, allowed=()=>true, cap=3)
   const out=[];
   for(const t of others){
     if(String(t.rosterId)===String(me.rosterId))continue;
-    const assets=t.assets.filter(a=>Number.isFinite(a.value)&&a.value>=300&&allowed(a));
+    const assets=t.assets.filter(a=>Number.isFinite(a.value)&&a.value>=300&&allowed(a,t));
     const rank=a=>{
       if(a.type==='pick')return mode==='rebuild'?2:-1;
       if(a.type!=='player')return -1;
@@ -1563,13 +1575,13 @@ function coachDiscoveryPairs(targets){
 function coachDiscoveryAssessment({analysis,a,b,give,get,marketFair,accepts,cutsA,cutsB}){
   const no={ok:false,a:[],b:[]};
   if(!analysis||!a||!b||!give?.length||!get?.length||!marketFair||!accepts||
-    cutsA!==0||cutsB!==0||![a,b].every(x=>Number.isFinite(x.score)&&x.score>=-6&&x.level!=='bad')||
+    cutsA!==0||cutsB!==0||(a.score<0&&b.score<0)||![a,b].every(x=>Number.isFinite(x.score)&&x.score>=-6&&x.level!=='bad')||
     ![...give,...get].every(x=>Number.isFinite(x.value)&&x.value>0))return no;
   const sideA=coachRealityCheck({analysis:{resB:analysis.resA},improvement:a,incoming:get,outgoing:give,drops:cutsA});
   const sideB=coachRealityCheck({analysis,improvement:b,incoming:give,outgoing:get,drops:cutsB});
-  return {ok:sideA.suggest&&sideB.suggest,a:sideA.reasons,b:sideB.reasons};
+  return {ok:sideA.suggest&&sideB.suggest,a:sideA.reasons,b:sideB.reasons,concernsA:sideA.concerns,concernsB:sideB.concerns};
 }
-function coachDiscoveryShortlist(rows,limit){
+function coachDiscoveryBaseline(rows,limit){
   const key=x=>String(x.t.rosterId)+':'+x.give.map(a=>a.key).sort().join(',')+'>'+x.get.map(a=>a.key).sort().join(',');
   const order=[...rows].sort((a,b)=>b.mutual-a.mutual||b.r.score-a.r.score||key(a).localeCompare(key(b)));
   const selected=[],partners=new Set(),seen=new Set();
@@ -1580,4 +1592,27 @@ function coachDiscoveryShortlist(rows,limit){
   }
   return selected;
 }
-if (typeof module !== 'undefined') module.exports = { coachRealityCheck, coachDiscoveryTargets, coachDiscoveryAssessment, coachDiscoveryShortlist, coachDiscoveryPairs };
+function coachDiscoveryPriceRead(market,ktc){
+  const pct=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&a+b>0?200*(b-a)/(a+b):null;
+  const active=pct(market.valueA,market.valueB),raw=pct(ktc.rawA,ktc.rawB),adjusted=pct(ktc.valueA,ktc.valueB);
+  const differs=(a,b)=>a!==null&&b!==null&&Math.abs(a-b)>=14;
+  return {active,raw,adjusted,disagreement:differs(active,raw)||differs(active,adjusted)};
+}
+function coachDiscoveryShortlist(rows,limit){
+  const key=x=>String(x.t.rosterId)+':'+x.give.map(a=>a.key).sort().join(',')+'>'+x.get.map(a=>a.key).sort().join(',');
+  const ordered=[...rows].sort((a,b)=>b.mutual-a.mutual||b.r.score-a.r.score||key(a).localeCompare(key(b)));
+  const remaining=[...new Map(ordered.map(x=>[key(x),x])).values()];
+  const picked=[],partners=new Set(),assetCount=new Map();
+  const assets=x=>[...new Set([...x.give,...x.get].map(a=>String(a.key)))];
+  const quality=x=>x.mutual-2*assets(x).reduce((n,k)=>n+(assetCount.get(k)||0),0)-(x.prices?.disagreement?1:0);
+  for(const strong of [true,false]){
+    const pool=remaining.filter(x=>(x.mutual>=0)===strong);
+    while(pool.length&&picked.length<limit){
+      pool.sort((a,b)=>Number(partners.has(String(a.t.rosterId)))-Number(partners.has(String(b.t.rosterId)))||quality(b)-quality(a)||b.mutual-a.mutual||b.r.score-a.r.score||key(a).localeCompare(key(b)));
+      const x=pool.shift();picked.push(x);partners.add(String(x.t.rosterId));
+      for(const k of assets(x))assetCount.set(k,(assetCount.get(k)||0)+1);
+    }
+  }
+  return picked;
+}
+if (typeof module !== 'undefined') module.exports = { coachRealityCheck, coachDiscoveryTargets, coachDiscoveryAssessment, coachDiscoveryShortlist, coachDiscoveryPairs, coachDiscoveryBaseline, coachDiscoveryPriceRead };
