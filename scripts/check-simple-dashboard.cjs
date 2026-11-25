@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),today=read('today.html'),home=read('index.html');
+const order=['id="teamOutlook"','id="actionBox"','id="discoverLink"','id="teamDetails"','id="tiles"'];
+assert.ok(order.every((k,i)=>today.includes(k)&&(i===0||today.indexOf(k)>today.indexOf(order[i-1]))));
+for(const k of ['Find a trade','Check a trade','Review my roster','Not enough data','No clear need','Suggested direction'])assert.ok(today.includes(k),k);
+assert.ok(today.includes('vault_lastvisit_${Vault.getLeagueId()}_${me.rosterId}'));
+assert.ok(today.includes("Vault.linkTo('trade.html',leagueId)+'&coach=discover'"));
+assert.ok(today.includes('<details')&&today.includes('<summary'));
+assert.ok(home.includes('<details id="leagueIdDetails"')&&home.includes('role="alert"'));
+assert.ok(home.includes('request !== activation')&&home.includes('finally { loadBtn.disabled = false'));
+assert.ok(home.includes("return Vault.linkTo('today.html', id)"));
+console.log('PASS simple-first dashboard structure, quick actions, optional analysis, team-isolated visit history and onboarding request guards');

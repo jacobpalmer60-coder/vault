@@ -33,7 +33,7 @@
     <div class="w-full max-w-xl fade-in">
       <div class="text-center mb-8">
         <h1><img src="brand/vault-logo.webp" alt="The Vault" width="900" height="480" class="mx-auto w-[280px] sm:w-[340px] h-auto"></h1>
-        <p class="mt-2 text-[15px] text-zinc-400 max-w-md mx-auto text-balance">Dynasty trade grades, rankings, and league insight for your Sleeper league, priced with KeepTradeCut values and what players actually trade for.</p>
+        <p class="mt-2 text-[15px] text-zinc-400 max-w-md mx-auto text-balance">Know your team's strengths, find trades, and build for your next championship. Connect your Sleeper league to get started.</p>
       </div>
 
       <!-- Welcome back: the league saved in this browser, one click away. -->
@@ -54,19 +54,20 @@
             <button id="loadBtn" class="btn-gold-solid h-12 px-5">Load Leagues</button>
           </div>
           <p class="mt-2 text-[12px] text-zinc-500">The name you use on Sleeper. No password: The Vault only reads your leagues' public info from Sleeper.</p>
-          <p id="errorMsg" class="hidden mt-3 text-sm text-red-400"></p>
+          <p id="errorMsg" role="alert" class="hidden mt-3 text-sm text-red-400"></p>
         </div>
 
         <!-- Or jump straight to a league ID -->
-        <div class="mt-6 pt-6 border-t border-white/5">
-          <label for="directLeagueId" class="block text-sm font-medium text-zinc-300 mb-2">Or enter a Sleeper League ID directly</label>
+        <details id="leagueIdDetails" class="mt-6 pt-4 border-t border-white/5">
+          <summary class="cursor-pointer text-[14px] text-zinc-300">Use a league ID instead</summary>
+          <label for="directLeagueId" class="block text-sm font-medium text-zinc-300 mb-2 mt-3">Sleeper league ID</label>
           <div class="flex gap-2">
             <input id="directLeagueId" type="text" placeholder="Enter league id here" class="flex-1 min-w-0 h-12 px-4 rounded-xl bg-black/40 border border-white/10 focus:border-amber-400/60 outline-none mono text-sm" />
             <button id="directBtn" class="btn-gold h-12 px-5 text-sm text-zinc-300">Go</button>
           </div>
           <p class="mt-2 text-[12px] text-zinc-500">The long number in your league's web address on sleeper.com.</p>
-          <a href="grade.html" class="inline-block mt-4 text-[13px] text-zinc-300 underline underline-offset-2 hover:text-white">No league? Grade a trade without one</a>
-        </div>
+        </details>
+        <a href="grade.html" class="inline-block mt-4 text-[14px] text-zinc-300 underline underline-offset-2 hover:text-white">Just want to check a trade? No league needed.</a>
 
         <!-- League Select -->
         <div id="step-league" class="hidden mt-8 pt-8 border-t border-white/5">
@@ -85,7 +86,7 @@
         <!-- Open the league (League Overview, or the page you were headed to). -->
         <div id="step-actions" class="hidden mt-6">
           <button id="btnOverview" type="button" disabled class="btn-gold-solid h-12 w-full flex items-center justify-center gap-2 text-[15px] disabled:opacity-40 disabled:cursor-not-allowed"><span id="btnOverviewText">Open league</span> <span aria-hidden="true">→</span></button>
-          <p id="actionsHint" class="mt-3 text-xs text-zinc-400 text-center">Opens League Overview. The Trade Calculator, Player Rankings, and every other tool are in the tabs at the top of each page. Your league and team are saved in this browser.</p>
+          <p id="actionsHint" class="mt-3 text-xs text-zinc-400 text-center">Opens your personal team dashboard with suggested next steps. Your league and team are saved in this browser.</p>
         </div>
       </div>
 
@@ -101,7 +102,7 @@
         </div>
         <div class="grid grid-cols-[76px_1fr] gap-4 py-3.5">
           <dt class="text-zinc-500">Trades</dt>
-          <dd class="text-zinc-300 leading-relaxed">A trade calculator with a coach that finds deals the other manager would likely take, plus grades for every trade in your league.</dd>
+          <dd class="text-zinc-300 leading-relaxed">Check a trade, find potential offers that help both sides, and review every completed trade in your league.</dd>
         </div>
       </dl>
       <p class="mt-8 text-center text-[11px] text-zinc-500 leading-relaxed">Player values from KeepTradeCut. League data from Sleeper. Injury details from ESPN. The Vault is a free, independent fan project, not affiliated with any of them.</p>
@@ -144,15 +145,17 @@
         $('actionsHint').textContent = 'Takes you on to the page you were opening. Your league and team are saved in this browser.';
       }
 
-      let current = null; // { id, teams }
+      let current = null, activation = 0; // latest requested league only
       function syncButton() {
         btnOverview.disabled = !(current && teamSelect.value);
       }
       // A league picked: show its teams, yours selected when we know it.
       async function activate(id, { user = null } = {}) {
+        const request = ++activation;
         errorMsg.classList.add('hidden');
         stepTeam.classList.add('hidden'); stepActions.classList.add('hidden'); current = null;
         const [league, users, rosters] = await Promise.all([getJson(`https://api.sleeper.app/v1/league/${id}`), getJson(`https://api.sleeper.app/v1/league/${id}/users`), getJson(`https://api.sleeper.app/v1/league/${id}/rosters`)]);
+        if (request !== activation) return;
         if (!league || league.error || !league.name) return fail('League not found. Double-check the league ID.');
         if (!usable(league)) return fail(`"${league.name}" is a redraft or keeper league. The Vault only supports dynasty leagues.`);
         const byUser = new Map((users || []).map(u => [u.user_id, u]));
@@ -211,10 +214,14 @@
       // Username: their dynasty leagues, each once (its newest season).
       async function loadLeagues() {
         const user = username.value.trim();
-        if (!user) return;
+        if (!user || loadBtn.disabled) return;
+        const request = ++activation;
+        loadBtn.disabled = true; loadBtn.textContent = 'Loading…';
         errorMsg.classList.add('hidden');
+        stepLeague.classList.add('hidden'); stepTeam.classList.add('hidden'); stepActions.classList.add('hidden'); current = null;
         try {
           const u = await getJson(`https://api.sleeper.app/v1/user/${encodeURIComponent(user)}`);
+          if (request !== activation) return;
           if (!u || !u.user_id) throw new Error('User not found. Check the spelling of your Sleeper username.');
           // Remembered so pages can find your team in other leagues of yours too.
           Vault.setSleeperUserId(u.user_id);
@@ -223,6 +230,7 @@
             // From next year back (new-season leagues appear before the calendar turns).
             [...Array(13)].map((_, i) => getJson(`https://api.sleeper.app/v1/user/${u.user_id}/leagues/nfl/${new Date().getFullYear() + 1 - i}`).then(a => a || []))
           ).then(a => a.flat());
+          if (request !== activation) return;
           if (!allLeagues.length) throw new Error('No leagues found for that username.');
           // Dynasty only (Vault.isDynastyLeague), and each league once: Sleeper starts a
           // new league every season, pointing back at last season's (previous_league_id).
@@ -239,7 +247,8 @@
           leagueCards(leagues, u.user_id);
           if (leagues.length === 1) activate(leagues[0].league_id, { user: u.user_id });
           else leagueSelect.focus();
-        } catch (e) { fail(e.message); }
+        } catch (e) { if (request === activation) fail(e.message); }
+        finally { loadBtn.disabled = false; loadBtn.textContent = 'Load Leagues'; }
       }
       leagueSelect.onchange = () => { if (leagueSelect.value) activate(leagueSelect.value, { user: Vault.getSleeperUserId() }); };
 
@@ -269,7 +278,7 @@
         });
       }
       // Sent here from a link to a league whose team isn't picked yet: straight to its teams.
-      if (nextLeague) { $('directLeagueId').value = nextLeague; activate(nextLeague); }
+      if (nextLeague) { $('leagueIdDetails').open = true; $('directLeagueId').value = nextLeague; activate(nextLeague); }
     })();
   </script>
 </body>
