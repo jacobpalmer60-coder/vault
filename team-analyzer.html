@@ -221,6 +221,7 @@ function renderSingle(t) {
       </div>
       <div class="card rounded-vault p-5">
         <div class="text-[11px] uppercase tracking-widest text-zinc-400 mb-2">Best trade partners</div>
+        ${isMine ? `<a href="${Vault.linkTo('trade.html')}&coach=discover" class="block mb-4 px-3 py-2 rounded-lg border border-amber-400/30 text-amber-200 text-[13px] hover:bg-white/[0.04]">Discover trade opportunities in Trade Coach →</a>` : ''}
         <div class="space-y-4">${partners.map(p => `
           <div>
             <div class="flex justify-between items-start gap-3">
