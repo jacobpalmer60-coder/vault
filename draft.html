@@ -17,16 +17,17 @@
 <header class="vault-hero">
   <div><div class="vault-kicker">LEAGUE INTELLIGENCE / ROOKIE PICKS</div>
     <h1 class="display text-[30px] sm:text-[36px]">Draft Center</h1>
-    <p class="vault-lead">Who owns each pick, what the league's Max Points For says, and which draft slots can actually be established.</p>
+    <p class="vault-lead">See your future picks, track who owns them and understand where each team may draft.</p>
   </div>
   <button type="button" id="refreshDraft" class="vault-btn vault-btn-muted">Refresh data</button>
 </header>
 <p id="draftStatus" role="status" aria-live="polite" class="vault-meta mt-3">Loading Sleeper roster and bracket data…</p>
 <p id="draftError" class="vault-warning hidden mt-4">Sleeper returned incomplete data. Refresh the page or switch leagues.</p>
 <div id="draftContent" class="hidden">
+<section id="draftSummary" class="vault-panel mt-5" aria-label="Draft picks at a glance"></section>
 <section class="vault-panel vault-panel-accent mt-5" aria-label="Draft order model status">
-  <div class="vault-kicker">HOW TO READ THESE RESULTS</div>
-  <p class="vault-body mt-2"><strong>Max Points For is not the complete draft order.</strong> A league may use MPF for eliminated non-playoff teams, then playoff finishing position for the remaining slots. We read actual Sleeper bracket placements and keep unknown slots as TBD. Commissioner changes below apply only in this browser, not to Sleeper or other managers.</p>
+  <div class="vault-kicker">DRAFT ORDER STATUS</div>
+  <details class="mt-2"><summary class="cursor-pointer text-[14px] font-medium">How is draft order calculated?</summary><p class="vault-body mt-2"><strong>Max Points For is not the complete draft order.</strong> A league may use MPF for eliminated non-playoff teams, then playoff finishing position for the remaining slots. We read actual Sleeper bracket placements and keep unknown slots as TBD. Commissioner changes below apply only in this browser, not to Sleeper or other managers.</p></details>
   <p id="dataState" class="vault-meta mt-3"></p>
   <p id="draftReady" class="vault-meta mt-1"></p>
   <div id="warnings" class="mt-2 space-y-1" role="status" aria-live="polite"></div>
@@ -34,11 +35,14 @@
 <section class="vault-toolbar mt-5" aria-label="Draft controls">
  <label>Draft class <select id="season" class="vault-input" aria-label="Draft class"></select></label>
  <label>Manager <select id="teamFilter" class="vault-input" aria-label="Filter by manager"></select></label>
+</section>
+<details id="draftFormatDetails" class="vault-panel mt-3"><summary class="cursor-pointer text-[14px] font-medium py-2">Draft format and playoff settings</summary><section class="vault-toolbar mt-2" aria-label="Draft model settings">
  <label>Draft format <select id="roundStyle" class="vault-input" aria-label="Draft format">
   <option value="linear">Linear</option><option value="snake">Snake</option><option value="3rr">Third-round reversal (3RR)</option>
  </select></label>
  <label>Playoff teams <select id="playoffCount" class="vault-input" aria-label="Playoff team count"></select></label>
 </section>
+</details>
 <div class="vault-grid-2 mt-5">
  <section class="vault-panel">
    <div class="vault-panel-heading"><div><div class="vault-kicker">PICK ORDER</div><h2>Modeled first round</h2></div></div>
@@ -61,7 +65,7 @@
   <thead><tr><th>Manager</th><th class="value">1sts</th><th class="value">Picks</th><th class="value">Market value</th></tr></thead><tbody id="capitalRows"></tbody></table></div>
  </section>
  <section class="vault-panel">
-  <div class="vault-panel-heading"><div><div class="vault-kicker">OWNERSHIP</div><h2>Traded picks</h2></div></div>
+  <div class="vault-panel-heading"><div><div class="vault-kicker">OWNERSHIP</div><h2>Pick ownership <span class="text-[12px] text-zinc-400 font-normal">· Traded picks included</span></h2></div></div>
   <p class="vault-meta mt-2">The draft slot belongs to the original team, while its current manager owns the pick. Filter above to see picks arriving or leaving.</p>
   <div class="vault-table-wrap vault-mobile-table mt-3"><table class="vault-table" aria-label="Current and original draft pick owners">
    <thead><tr><th>Draft pick</th><th>Original team</th><th>Current holder</th><th class="value">Value</th><th>Source</th></tr></thead><tbody id="pickRows"></tbody></table></div>
@@ -81,5 +85,5 @@
 <script src="vault-core.js?v=759debb7"></script>
 <script src="vault-nav.js?v=b1f8289e"></script>
 <script src="draft-rules.js?v=119a576e"></script>
-<script src="draft-center.js?v=f9083512"></script>
+<script src="draft-center.js?v=fa19de6c"></script>
 </body></html>

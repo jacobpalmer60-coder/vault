@@ -104,6 +104,11 @@ async function main(){
         await page.locator('#morePicks').click();
         assert.equal(await page.locator('#pickRows tr').count(),12,'Draft pick pagination at '+width);
       }
+      assert.ok((await page.locator('#draftSummary').innerText()).includes('Team 1'));
+      await page.locator('#teamFilter').selectOption('2');
+      assert.ok((await page.locator('#draftSummary').innerText()).includes('Team 2'));
+      await page.locator('#teamFilter').selectOption('all');
+      await page.locator('#draftFormatDetails > summary').click();
       await page.locator('#roundStyle').selectOption('3rr');
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Draft overflow '+width);
       await page.screenshot({path:path.join(OUT,'draft-'+width+'.png'),fullPage:true});
@@ -111,6 +116,12 @@ async function main(){
       await page.locator('#activityBody:not(.hidden)').waitFor();
       assert.equal(await page.locator('.vault-event-card').count(),3);
       assert.ok((await page.locator('#coverage').innerText()).includes('Missing weeks: 8'));
+      await page.locator('[data-activity-quick="trade"]').click();
+      assert.equal(await page.locator('#activityType').inputValue(),'trade');
+      assert.equal(await page.locator('.vault-event-card').count(),1);
+      assert.equal(await page.locator('[data-activity-quick="trade"]').getAttribute('aria-pressed'),'true');
+      await page.locator('[data-activity-quick="all"]').click();
+      assert.equal(await page.locator('.vault-event-card').count(),3);
       await page.locator('#activityTeam').selectOption('2');
       assert.equal(await page.locator('.vault-event-card').count(),1);
       await page.locator('#activityTeam').selectOption('4');
@@ -123,6 +134,7 @@ async function main(){
       await page.locator('#activityBody:not(.hidden)').waitFor();
       await page.locator('#activitySeason').selectOption('122');
       await page.locator('#activityBody:not(.hidden)').waitFor();
+      assert.ok((await page.locator('#coverage').innerText()).includes('Draft selection coverage incomplete'));
       const teamHref=await page.locator('.vault-event-team a').first().getAttribute('href');
       const gradeHref=await page.locator('.vault-event-detail').first().getAttribute('href');
       assert.ok(teamHref.includes('league_id=122'),'Historical team points at wrong season: '+teamHref);

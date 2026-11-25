@@ -3,7 +3,7 @@
 'use strict';
 const $=id=>document.getElementById(id),esc=v=>Vault.escapeHtml(String(v??''));
 const fmt=v=>Number.isFinite(+v)?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):'—';
-const ordinal=v=>v+({1:'st',2:'nd',3:'rd'}[v]||'th');
+const ordinal=v=>v+((v%100>=11&&v%100<=13)?'th':({1:'st',2:'nd',3:'rd'}[v%10]||'th'));
 const srcLabel={mpf:'MPF order', 'projected-mpf':'Projected playoff field', 'sleeper-placement':'Sleeper bracket',
  'manual-slot':'Manual override','playoff-pending':'Playoff finish TBD',pending:'Awaiting data',conflict:'Conflicting slot','elimination-band':'Elimination-round range'};
 let league=null,teams=[],rosters=[],bracket=[],year=0,years=[],leagueId='',selected='all',settings={},model=null,bracketError='',shownPicks=0;
@@ -38,6 +38,12 @@ function render(){
  const picks=VaultDraftOrder.applyPicks(teams,year,model,settings.roundStyle);
  const byOriginal=new Map(picks.map(p=>[p.round+'|'+p.original,p]));
  const chosen=selected==='all'?null:selected;
+ const summaryId=chosen||String(Vault.getMyTeamId(leagueId)||'');
+ const subject=teams.find(t=>String(t.rosterId)===summaryId);
+ const held=subject?picks.filter(p=>p.holder===summaryId):picks;
+ const exact=held.filter(p=>p.roundSlot!=null).length;
+ const tile=(label,value)=>'<div class="rounded-xl border border-white/10 bg-black/20 p-3 min-w-0"><div class="text-[12px] text-zinc-400">'+esc(label)+'</div><div class="text-[24px] font-semibold mt-1">'+esc(value)+'</div></div>';
+ $('draftSummary').innerHTML='<h2 class="text-[18px] font-semibold">'+esc(subject?subject.teamName+' · '+year+' picks':'League · '+year+' picks')+'</h2><p class="text-[13px] text-zinc-400 mt-1">'+(chosen?'Selected manager holdings.':subject?'Your current holdings; the tables below include every manager.':'All available league picks.')+'</p><div class="grid grid-cols-3 gap-2 mt-3">'+tile('Picks held',held.length)+tile('First-round picks',held.filter(p=>p.round===1).length)+tile('Slots modeled',exact+' / '+held.length)+'</div><p class="text-[12px] text-zinc-400 mt-3">Modeled slots may be provisional or manually assigned; they are not an official draft order.</p>';
  $('season').value=String(year);$('teamFilter').value=selected;
  $('roundStyle').value=settings.roundStyle;$('playoffCount').value=String(settings.playoffCount);
  $('draftStatus').textContent=league.name+' · '+teams.length+' managers · '+year+' picks';
