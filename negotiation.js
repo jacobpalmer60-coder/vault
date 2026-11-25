@@ -50,17 +50,17 @@ function negPreloadStyles() {
   if (Negotiation.styles || Negotiation.stylesLoading) return Negotiation.stylesLoading;
   Negotiation.stylesLoading = Vault.fetchAndGradeAllTrades(Vault.getLeagueId()).then(({ teams: gt, allGraded, tradeActivity, weekErrors }) => {
     Negotiation.observedEvidence = typeof VaultLeagueIntelligence !== 'undefined' ? new Map(VaultLeagueIntelligence.managerEvidence(gt,allGraded,tradeActivity,Date.now(),weekErrors||[]).map(e=>[String(e.rosterId),e])) : null;
-    Negotiation.graded = allGraded; // Trade Coach's Sell high reads who pays up for which positions
-    const stats = Vault.buildManagerStats(allGraded, gt);
+    const recent=negReliableRecentGrades(allGraded,Date.now());
+    Negotiation.graded = recent;
+    const stats = Vault.buildManagerStats(recent, gt);
     const avg = stats.length ? stats.reduce((t, s) => t + s.trades, 0) / stats.length : 0;
-    // How far behind each manager has actually accepted, on KTC value at the time
-    // (signedPctDiff > 0: team A gave more, so A was behind).
-    const behind = new Map();
-    allGraded.forEach(g => {
-      const s = g.signedPctDiff, loser = s > 0 ? g.teamA.rosterId : g.teamB.rosterId;
-      if (Math.abs(s) >= 1) (behind.get(loser) || behind.set(loser, []).get(loser)).push(Math.abs(s));
-    });
-    Negotiation.styles = new Map(stats.map(s => [s.rosterId, { ...Vault.managerProfile(s, avg), trades: s.trades, behind: behind.get(s.rosterId) || [], habits: negHabitsOf(s) }]));
+    Negotiation.styles = new Map(stats.map(s => {
+      const evidence=Negotiation.observedEvidence?.get(String(s.rosterId));
+      const complete=evidence?.coverage==='loaded';
+      const habits=complete?negHabitsOf(s):[];
+      const label=complete&&s.pricedTrades>=4&&habits.length?Vault.managerProfile(s,avg).style:null;
+      return [s.rosterId,{style:label,trades:s.trades,completed:evidence?.recent.completed??null,coverage:evidence?.coverage||'unknown',habits}];
+    }));
     return Negotiation.styles;
   }).catch(() => { Negotiation.styles = new Map(); return Negotiation.styles; });
   return Negotiation.stylesLoading;
@@ -72,14 +72,23 @@ function negPreloadStyles() {
    (1.06x for RBs), whether they overpay (correlation 0.08) and how far behind they've gone (past
    their worst exactly as often as chance) did not, so none of those are said here. */
 const HABIT_MIN = 4, HABIT_SHARE = 0.6;
+function negReliableRecentGrades(grades,asOf){
+  const seen=new Set(),start=asOf-180*864e5;
+  return (grades||[]).filter(g=>{
+    const id=g.tx?.transaction_id;
+    if(!id||seen.has(String(id))||g.tx._ownerAttributionUncertain||g.valuedAt!=='trade'||g.anyMissingValue||
+       !Number.isFinite(g.created)||g.created<start||g.created>asOf||!g.teamA||!g.teamB||
+       !g.toA?.length||!g.toB?.length||![...g.toA,...g.toB].every(a=>Number.isFinite(a.value)&&a.value>0))return false;
+    seen.add(String(id));return true;
+  });
+}
 function negHabitsOf(s) {
   const out = [], priced = s.pricedTrades ?? s.trades;
   const add = (key, n, of, say) => { if (of >= HABIT_MIN && n >= 3 && n / of >= HABIT_SHARE) out.push({ key, n, of, say }); };
-  const pickDeals = s.picksInCount + s.picksOutCount;
-  add('picksIn', s.picksInCount, pickDeals, 'nets picks');
-  add('picksOut', s.picksOutCount, pickDeals, 'spends picks');
-  add('younger', s.youngerCount, priced, 'gets younger');
-  add('older', s.olderCount, priced, 'gets older');
+  add('picksIn', s.picksInCount, priced, 'nets picks');
+  add('picksOut', s.picksOutCount, priced, 'spends picks');
+  add('younger', s.youngerCount, s.ageTrades||0, 'gets younger');
+  add('older', s.olderCount, s.ageTrades||0, 'gets older');
   add('consolidate', s.consolidateCount, priced, 'sends more pieces than they get');
   add('split', s.splitCount, priced, 'gets more pieces than they send');
   return out.sort((a, b) => b.n / b.of - a.n / a.of).slice(0, 2);
@@ -127,22 +136,12 @@ function negOfferingSide() {
 function negContext(R) { return negContextFor(teamOf(R)); }
 function negContextFor(team) {
   const style = Negotiation.styles?.get(team.rosterId) || null;
-  let lean = Vault.teamMode(team);
-  const chosen = Vault.planOverride[team.rosterId]; // a timeline you set for them wins
-  if (!chosen && style && /youth & picks/.test(style.style)) lean = 'rebuild';
-  if (!chosen && style && /win-now/.test(style.style)) lean = 'contend';
+  const lean = Vault.teamMode(team); // current roster or explicit plan, never inferred from old trades
   const { needs, surpluses } = Vault.positionalProfile(team, teams);
-  // How far behind they'll go: their own history when they have it (the median of
-  // the times they came out behind, or TOLERANCE_MIN if they never have), else the
-  // market's typical ~12%.
-  let tolerance = -NEG.ACCEPT_EDGE, basis = 'market';
-  if (style && style.trades >= 2) {
-    const b = [...(style.behind || [])].sort((x, y) => x - y);
-    tolerance = b.length ? b[Math.floor((b.length - 1) / 2)] : NEG.TOLERANCE_MIN;
-    tolerance = Math.max(NEG.TOLERANCE_MIN, Math.min(NEG.TOLERANCE_MAX, tolerance));
-    basis = 'history';
-  }
-  return { team, style, lean, needs, surpluses, ask: -tolerance, basis };
+  // Completed deals reveal what happened, not what was rejected. The old
+  // history tolerance was based on as few as two deals; prior repeat research
+  // found little persistence in overpayment. Keep shape-based market default.
+  return { team, style, lean, needs, surpluses, ask:NEG.ACCEPT_EDGE, basis:'market' };
 }
 
 // How much a manager with this context wants a piece, relative to its KTC value.
@@ -282,7 +281,7 @@ function negReasons(j, ctx) {
   else if (j.siteSaysNo) summary = 'The receiving team\'s Vault verdict is negative, which weighs against the projected response.';
   else if (ctx.basis === 'history' && ctx.ask > -6 && j.will < ctx.ask && j.will > ctx.ask - 6) summary = 'Their recorded trades suggest they often seek close-to-even prices; this is not proof of their next decision.';
   else summary = 'What gives them pause outweighs what they gain.';
-  const style = ctx.style && ctx.style.trades ? `Their trade history: ${Vault.escapeHtml(ctx.style.style.toLowerCase())}.` : '';
+  const style = ctx.style?.style ? `Recent observed trading style: ${Vault.escapeHtml(ctx.style.style.toLowerCase())} (${ctx.style.trades} reliably priced trades).` : '';
   return { yes: [...new Set(yes)].slice(0, 4), no: [...new Set(no)].slice(0, 4), summary, style };
 }
 
@@ -674,7 +673,7 @@ function negRender() {
   const who = Vault.escapeHtml(rTeam.teamName);
   box.innerHTML = `
     <div class="flex items-center justify-between gap-3 flex-wrap mb-1">
-      <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Negotiating with ${who} <span class="normal-case tracking-normal text-zinc-500">· ${Vault.MODE_LABEL[Vault.teamMode(rTeam)]}${ctx.style && ctx.style.trades ? ` · ${Vault.escapeHtml(ctx.style.style)}` : ''}</span></div>
+      <div class="text-[11px] text-zinc-400 uppercase tracking-wider">Negotiating with ${who} <span class="normal-case tracking-normal text-zinc-500">· ${Vault.MODE_LABEL[Vault.teamMode(rTeam)]}${ctx.style?.style ? ` · ${Vault.escapeHtml(ctx.style.style)}` : ''}</span></div>
       <button onclick="negReset()" class="text-[12px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-400 hover:text-white">Start over</button>
     </div>
     <p class="text-[12px] text-zinc-500 mb-3">Simulated manager response, not an actual message or a measured acceptance probability. Only a real Sleeper offer confirms what a manager will do.</p>
