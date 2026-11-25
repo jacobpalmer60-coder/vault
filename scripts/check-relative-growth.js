@@ -29,3 +29,12 @@ assert.equal(pr.gaps.at(-1),0);assert.ok(pr.gaps.every((v,i)=>Math.abs(v+rev.gap
 assert.equal(premium.priceRow(aa,bb,{'n:a':-100}),null);
 const ps=premium.summarize([pr,rev]);assert.equal(ps.weights['1'].fairUnder14,2);assert.equal(ps.weights['0'].fairUnder14,0);assert.equal(ps.weights['1'].closerToEven,2);
 console.log('PASS lagged premium snapshot, zero/partial/full adjustment and paired completed-trade price agreement');
+
+const snaps=[{date:'2025-08-01',picks:{'2027-1-mid':{sf:4000},'2027-2-mid':{sf:2000}}},{date:'2025-08-05',picks:{'2027-1-mid':{sf:9000}}}];
+const pick=premium.pickAt(snaps,'p2027-1','2025-08-02','sf');assert.equal(pick.now,4000);assert.equal(pick.premiumKey,'k:2027-1');
+assert.equal(premium.pickAt(snaps,'p2028-1','2025-08-02','sf'),null);assert.equal(premium.pickAt(snaps,'p2027-1','2025-08-02','sf_tep'),null);assert.equal(premium.pickAt(snaps,'p2027-1','2025-08-14','sf'),null);
+assert.equal(premium.pickAt(snaps,'p2027-5','2025-08-02','sf'),null);assert.equal(premium.pickAt(snaps,'p2027-1','2025-07-31','sf'),null);
+const mixed=premium.priceRow([pick],[{name:'b',now:2000,type:'player'}],{'k:2027-1':-50});assert.equal(mixed.gaps.at(-1),0);
+assert.deepEqual(premium.pickGroups([pick],[{name:'b',now:2000,type:'player'}]),['mixed-player-pick','first-round-included','two-plus-draft-years-out']);
+assert.equal(premium.priceRow([pick,pick],[{name:'b',now:4000}],{'k:2027-1':-50}).gaps.at(-1),0);
+console.log('PASS exact-year round pick prices, no future/fallback prices, duplicate pick quantities and mixed cohort premiums');
