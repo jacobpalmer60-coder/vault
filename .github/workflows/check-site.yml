@@ -48,6 +48,7 @@ jobs:
       - run: node scripts/check-core-loads.js
       - run: node scripts/check-math.js
       - run: node scripts/check-coach-reality.cjs
+      - run: node scripts/check-coach-discover.cjs
       - run: node scripts/check-audit-regressions.js
       - run: node scripts/check-calculator-deep.js
       - run: node scripts/check-leaguewide-parity.js

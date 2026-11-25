@@ -141,6 +141,21 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
         if(state.wide>1)errors.push('horizontal overflow in mobile tab '+tab);
        }
       }
+      // On every viewport check the new entry and disclosure. On desktop also
+      // run the real bounded league-wide search, without editing the builder.
+      const beforeDiscover=await page.evaluate(()=>JSON.stringify({A:[...selectedA],B:[...selectedB]}));
+      await page.evaluate(()=>{coachFresh();openCoach('coach')});
+      await page.waitForFunction(()=>document.getElementById('coachBody')?.innerText.includes('Discover trade opportunities'),{timeout:10000});
+      if(width>=600){
+        await page.evaluate(()=>coachDiscoverStart());
+        await page.waitForFunction(()=>Array.isArray(coachFlow().aimRun?.list),{timeout:180000});
+        const discovery=await page.evaluate(()=>({partners:coachFlow().aimRun.partners,expected:teams.length-1,
+          pass:coachFlow().aimRun.list.every(x=>x.evidence.ok&&x.r.yes),text:document.getElementById('coachBody').innerText,
+          unchanged:JSON.stringify({A:[...selectedA],B:[...selectedB]})}));
+        if(discovery.partners!==discovery.expected||!discovery.pass||!discovery.text.includes('not confirmed')||discovery.unchanged!==beforeDiscover)
+          errors.push('Coach Discover coverage, two-team checks, disclosure or builder isolation failed');
+      }
+      await page.evaluate(()=>setView('builder'));
       if(process.env.SHOTS){
        fs.mkdirSync(process.env.SHOTS,{recursive:true});
        await page.screenshot({path:path.join(process.env.SHOTS,'trade-'+name+'.png'),fullPage:true});

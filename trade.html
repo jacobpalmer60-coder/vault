@@ -59,7 +59,7 @@
        to find trades, is the big button above it and opens as a pop-up (#coach, end of page). -->
   <button id="coachLauncher" onclick="openCoach('best')" class="w-full mb-3 card card-hover rounded-xl px-3 py-2.5 sm:px-4 text-left flex gap-3 items-center hover:bg-white/[0.02] transition-colors border border-amber-400/20">
     <span class="size-9 shrink-0 rounded-lg bg-amber-400/10 border border-amber-400/25 text-amber-300 flex items-center justify-center"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></svg></span>
-    <span class="min-w-0 flex-1 lg:flex lg:items-baseline lg:gap-3"><span class="block shrink-0 text-[16px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400">Pick a player, position, team or goal, and it walks you to a trade their manager would likely take.</span></span>
+    <span class="min-w-0 flex-1 lg:flex lg:items-baseline lg:gap-3"><span class="block shrink-0 text-[16px] font-semibold text-zinc-100">Trade Coach</span><span class="block text-[13px] text-zinc-400">Discover league-wide trade opportunities, evaluate offers, and refine them with Trade Coach.</span></span>
     <span class="shrink-0 text-[13px] px-4 py-1.5 rounded-lg btn-gold-solid hidden sm:inline-block">Open</span>
   </button>
 
@@ -521,7 +521,7 @@ async function init() {
           if ((teamOf('A')?.assets || []).some(a => a.key === playerParam)) return coachShopFor(playerParam);
           if (teams.some(t => t.assets.some(a => a.key === playerParam))) return coachGetFor(playerParam);
         }
-        openCoach('coach');
+        openCoach(coachParam === 'discover' ? 'discover' : 'coach');
       };
       const btn = document.getElementById('loadRostersBtn');
       if (Vault.myTeam(teams)) { btn.onclick(); coachFromLink(); }
@@ -2941,6 +2941,6 @@ init();
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script src="market.js?v=22c28c17"></script>
-<script src="coach.js?v=6d2d992f"></script>
+<script src="coach.js?v=f5adbfc9"></script>
 </body>
 </html>

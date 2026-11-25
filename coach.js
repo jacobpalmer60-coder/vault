@@ -317,6 +317,7 @@ const COACH_NEAR_SHOW = 3, COACH_NEAR_LOOK = 12;
 function openCoach(option) {
   Coach.option = option === 'negotiate' ? 'negotiate' : 'coach';
   setView('coach');
+  if (option === 'discover') return coachDiscoverStart();
   renderCoach();
 }
 // Called when the workspace opens on your team: fresh results, back to step 1.
@@ -975,7 +976,8 @@ function coachWhatHtml(me) {
     </select>
     <div class="text-[12px] text-zinc-500 mt-5 mb-2">Or start from a position</div>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${['QB', 'RB', 'WR', 'TE'].map(p => coachChoice(`coachStartFrom('pos:${p}')`, p, coachPosNeed(me, p) ? '<span class="text-rose-300">You\'re thin here</span>' : '')).join('')}</div>
-    <div class="mt-5">${coachChoice("coachGo('aims')", 'Not sure? Start from a goal', 'More points, your title odds, rebuilding, selling high and more.')}</div>
+    <div class="mt-5">${coachChoice('coachDiscoverStart()', 'Discover trade opportunities', 'Search every other team for offers with a practical benefit for both sides. No player or goal required.')}</div>
+    <div class="mt-2">${coachChoice("coachGo('aims')", 'Not sure? Start from a goal', 'More points, your title odds, rebuilding, selling high and more.')}</div>
     <div class="mt-6 pt-4 border-t border-white/[0.06]">${coachTeamLineHtml(me)}</div>`;
 }
 function coachStartFrom(v) {
@@ -994,6 +996,7 @@ function coachStartFrom(v) {
    for you. Good for you first, then what the goal is after. One row per player, so it's a
    spread of ideas, and a row opens that trade on the Trade step to change as you like. */
 const COACH_AIMS = {
+  discover: { label: 'Discover opportunities', ask: 'Trade opportunities', blurb: 'A bounded search across the league for offers with practical benefits for both teams. These are ideas to review, not confirmed offers.', none: 'No offer passed both-team checks in this search. That does not mean no worthwhile trade exists.' },
   points: { label: 'Score more points', sub: 'Trades that add the most to your lineup.', ask: 'Trades that add the most points', blurb: 'Their players who would start for you, with what it could take.', none: 'No trade their manager would likely take adds a point a week or more to your lineup.' },
   title: { label: 'Win the title', sub: 'Trades that raise your title odds the most.', ask: 'Trades that raise your title odds', blurb: 'The trades that add the most points, run through the rest of the season.', none: 'No trade their manager would likely take raises your title odds.' },
   playoffs: { label: 'Make the playoffs', sub: 'Trades that raise your playoff odds the most.', ask: 'Trades that raise your playoff odds', blurb: 'The trades that add the most points, run through the rest of the season.', none: 'No trade their manager would likely take raises your playoff odds.' },
@@ -1033,6 +1036,10 @@ function coachTimingLoad() {
   });
 }
 const coachTimingText = () => (coachTimingRead?.pos || []).map(p => `${p.pos}s`).join(' and ');
+function coachDiscoverStart() {
+  coachFresh();
+  coachGo('pick', f => Object.assign(f, { what: 'aim', aim: 'discover', startName: 'Discover opportunities', aimRun: null }));
+}
 function coachStartAim(k) {
   if (k === 'depth') {
     const pos = coachDefaultPos();
@@ -1055,7 +1062,8 @@ function coachAimsHtml(me) {
 async function coachAimRun(k) {
   const me = coachMe(), others = teams.filter(t => t !== me), run = { key: k, list: null, done: 0, of: 0 };
   coachFlow().aimRun = run;
-  const stale = () => coachFlow().aimRun !== run;
+  if (k === 'discover') run.epoch = coachCacheFor(me).judged;
+  const stale = () => coachFlow().aimRun !== run || (k === 'discover' && run.epoch !== coachCacheFor(coachMe()).judged);
   const show = () => { if (coachOpen() && coachFlow().step === 'pick') renderCoach(); };
   await coachTick();
   if (stale()) return;
@@ -1088,7 +1096,26 @@ async function coachAimRun(k) {
   const upgrades = () => players(a => a.ppg > 0 && floor[a.pos] != null && a.ppg >= floor[a.pos] + 1).sort((x, y) => (y.a.ppg - floor[y.a.pos]) - (x.a.ppg - floor[x.a.pos])).slice(0, COACH_AIM_TARGETS);
   const addPoints = ({ a, t }) => offers(a, t).forEach(o => { const gain = gainOf(t, o.give, o.get); if (gain >= 1) read(t, o.give, o.get, { lead: a.key, gain }); });
   let keep = true;
-  if (k === 'points') keep = await each(upgrades(), addPoints);
+  if (k === 'discover') {
+    const profile = Vault.positionalProfile(me, teams);
+    const targets = coachDiscoveryTargets(me, others, profile.needs, Vault.teamMode(me), a => !coachTheirOff(a));
+    run.partners = others.length;
+    const assess = (t, o) => {
+      const r = coachWorkRead(me, { partner: t, give: o.give, get: o.get, option: 'build' });
+      const a = improvementOf(r.j.an, 'A'), b = improvementOf(r.j.an, 'B');
+      const cuts = rosterCap ? Math.max(0, projectedRosterCount(me, o.give, o.get) - rosterCap) : 0;
+      const evidence = coachDiscoveryAssessment({ analysis: r.j.an, a, b, give: o.give, get: o.get,
+        marketFair: coachPriceFair(o.give, o.get, 'build'), accepts: r.yes,
+        cutsA: cuts, cutsB: r.j.drops });
+      if (!evidence.ok || !coachPiecesOK(o.give,o.get) ||
+          (Vault.teamMode(t)==='contend' && coachLeavesShort(t,o.give,o.get)) ||
+          (Vault.teamMode(me)==='contend' && coachLeavesShort(me,o.get,o.give))) return;
+      out.push({t, give:o.give, get:o.get, r, lead:o.get[0].key, evidence, mutual:Math.min(a.score,b.score)});
+    };
+    keep = await each(targets, ({a,t}) => {
+      if (!coachAsksCornerstone(t,[a])) offers(a,t).forEach(o=>assess(t,o));
+    });
+  } else if (k === 'points') keep = await each(upgrades(), addPoints);
   else if (k === 'title' || k === 'playoffs') {
     keep = await each(upgrades(), addPoints);
     if (keep) {
@@ -1162,6 +1189,7 @@ async function coachAimRun(k) {
   const rank = (x, y) => coachLevelRank(x.r) - coachLevelRank(y.r)
     || (k === 'title' || k === 'playoffs' ? y.lift - x.lift : k === 'points' ? y.gain - x.gain : k === 'strength' ? (y.r.score + (y.both ? 3 : 0)) - (x.r.score + (x.both ? 3 : 0))
       : k === 'younger' ? y.drop * y.get[0].value - x.drop * x.get[0].value : k === 'consolidate' ? y.get[0].value - x.get[0].value : y.r.score - x.r.score);
+  if (k === 'discover') { run.list = coachDiscoveryShortlist(out, COACH_AIM_SHOW); show(); return; }
   // Two teams' 2029 2nds read the same, so a sale shows once.
   const twice = new Set(['future', 'younger', 'sellhigh']), seen = new Map(), same = new Set(), list = [];
   for (const x of out.sort(rank)) {
@@ -1176,6 +1204,7 @@ async function coachAimRun(k) {
 }
 function coachAimBuild(i) {
   const f = coachFlow(), x = f.aimRun?.list?.[i];
+  if (f.aim === 'discover' && f.aimRun?.epoch !== coachCacheFor(coachMe()).judged) { f.aimRun=null; renderCoach(); return; }
   if (x) coachBuildFrom(x.t, x.give, x.get, f.aim === 'future' || f.aim === 'sellhigh' ? 'sell' : null);
 }
 function coachAimHtml(me) {
@@ -1183,7 +1212,7 @@ function coachAimHtml(me) {
   const blurb = f.aim === 'timing' ? `${coachTimingText()} usually gain on other positions over the next three months, so these are worth buying now.`
     : f.aim === 'strength' && run?.deep ? `Your ${run.deep.join(' and ')} for their ${run.want.join(' and ')}.` : aim.blurb;
   const head = coachAsk(aim.ask, blurb);
-  if (!run || run.key !== f.aim) { coachAimRun(f.aim); return head + '<div class="text-[12px] text-zinc-400 py-2">Finding trades…</div>'; }
+  if (!run || run.key !== f.aim || (f.aim === 'discover' && run.epoch !== coachCacheFor(me).judged)) { coachAimRun(f.aim); return head + '<div class="text-[12px] text-zinc-400 py-2">Finding trades…</div>'; }
   if (!run.list) return `${head}<div class="text-[12px] text-zinc-400 py-2">${run.phase || 'Finding trades'}${run.of ? `: ${run.done} of ${run.of}` : '…'}</div>`;
   if (!run.list.length) {
     const none = f.aim === 'future' && !me.assets.some(a => a.type === 'player' && a.value >= 1000 && a.age >= COACH_AIM_AGE[a.pos]) ? 'Your roster has no older players worth selling.'
@@ -1191,6 +1220,9 @@ function coachAimHtml(me) {
     return `${head}<div class="text-[13px] text-zinc-400 py-2">${none} Try another goal, or start from a player or position.</div>`;
   }
   const names = l => l.map(a => coachEsc(a.name)).join(' + ');
+  if(f.aim==='discover') return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} offers · ${run.partners} partners screened · ${run.of} target candidates. Manager response is simulated, not confirmed.</div><div class="grid gap-2">${run.list.map((x,i)=>coachChoice(
+    'coachAimBuild('+i+')', 'Get '+names(x.get)+' <span class="text-zinc-400">for '+names(x.give)+'</span>',
+    coachEsc(x.t.teamName)+' · '+coachEsc(Vault.verdictTier(x.r.score).label)+' / '+coachEsc(Vault.verdictTier(x.r.them.score).label)+'<br>You: '+coachEsc(x.evidence.a[0].replace(/^Their /,'Your ').replace(/^They /,'You '))+'<br>Partner: '+coachEsc(x.evidence.b[0])+'<br>Market price gap: '+Math.abs(coachTvPct(x.give,x.get)).toFixed(1)+'%')).join('')}</div>`;
   return head + `<div class="text-[12px] text-zinc-400 mb-2">${run.list.length} with a practical reason for the other team to consider.</div><div class="grid gap-2">${run.list.map((x, i) => {
     const tier = Vault.verdictTier(x.r.score), note = x.note || (x.gain ? `+${x.gain.toFixed(1)} pts a week` : '');
     return coachChoice(`coachAimBuild(${i})`, `Get ${names(x.get)} <span class="text-zinc-400">for ${names(x.give)}</span>`,
@@ -1476,4 +1508,48 @@ function coachRealityCheck({ analysis, improvement, incoming, outgoing, drops = 
   const level = harmsWinNow ? 'conflict' : reasons.length ? 'explained' : 'unclear';
   return { level, reasons, concerns, suggest: level === 'explained' && drops === 0 };
 }
-if (typeof module !== 'undefined') module.exports = { coachRealityCheck };
+// Discovery uses existing Coach offer generation and grades; this is a bounded,
+ // partner-diverse target heuristic, not a new valuation or acceptance model.
+function coachDiscoveryTargets(me, others, needs, mode, allowed=()=>true) {
+  const wanted=new Set((needs||[]).map(p=>String(p).toUpperCase()));
+  const floor={};
+  for(const p of me.lineup||[])if(p.id && Number.isFinite(p.ppg))floor[p.pos]=Math.min(floor[p.pos]??Infinity,p.ppg);
+  const out=[];
+  for(const t of others){
+    if(String(t.rosterId)===String(me.rosterId))continue;
+    const assets=t.assets.filter(a=>Number.isFinite(a.value)&&a.value>=300&&allowed(a));
+    const rank=a=>{
+      if(a.type==='pick')return mode==='rebuild'?2:-1;
+      if(a.type!=='player')return -1;
+      if(mode==='rebuild')return a.age>0&&a.age<=24?3+(wanted.has(a.pos)?1:0):0;
+      return (wanted.has(a.pos)?3:0)+(Number.isFinite(a.ppg)&&a.ppg>(floor[a.pos]??Infinity)?2:0);
+    };
+    const candidates=assets.filter(a=>rank(a)>0).sort((a,b)=>rank(b)-rank(a)||b.value-a.value||String(a.key).localeCompare(String(b.key)));
+    const chosen=[],positions=new Set();
+    for(const a of candidates){const pos=a.type==='pick'?'PICK':a.pos;if(positions.has(pos))continue;positions.add(pos);chosen.push(a);if(chosen.length===3)break;}
+    if(chosen.length<3)for(const a of candidates){if(!chosen.includes(a))chosen.push(a);if(chosen.length===3)break;}
+    for(const a of chosen)out.push({a,t});
+  }
+  return out;
+}
+function coachDiscoveryAssessment({analysis,a,b,give,get,marketFair,accepts,cutsA,cutsB}){
+  const no={ok:false,a:[],b:[]};
+  if(!analysis||!a||!b||!give?.length||!get?.length||!marketFair||!accepts||
+    cutsA!==0||cutsB!==0||![a,b].every(x=>Number.isFinite(x.score)&&x.score>=-6&&x.level!=='bad')||
+    ![...give,...get].every(x=>Number.isFinite(x.value)&&x.value>0))return no;
+  const sideA=coachRealityCheck({analysis:{resB:analysis.resA},improvement:a,incoming:get,outgoing:give,drops:cutsA});
+  const sideB=coachRealityCheck({analysis,improvement:b,incoming:give,outgoing:get,drops:cutsB});
+  return {ok:sideA.suggest&&sideB.suggest,a:sideA.reasons,b:sideB.reasons};
+}
+function coachDiscoveryShortlist(rows,limit){
+  const key=x=>String(x.t.rosterId)+':'+x.give.map(a=>a.key).sort().join(',')+'>'+x.get.map(a=>a.key).sort().join(',');
+  const order=[...rows].sort((a,b)=>b.mutual-a.mutual||b.r.score-a.r.score||key(a).localeCompare(key(b)));
+  const selected=[],partners=new Set(),seen=new Set();
+  for(const firstPass of [true,false])for(const x of order){
+    if(selected.length>=limit)return selected;
+    if(seen.has(key(x))||(firstPass&&partners.has(x.t.rosterId)))continue;
+    selected.push(x);seen.add(key(x));partners.add(x.t.rosterId);
+  }
+  return selected;
+}
+if (typeof module !== 'undefined') module.exports = { coachRealityCheck, coachDiscoveryTargets, coachDiscoveryAssessment, coachDiscoveryShortlist };
