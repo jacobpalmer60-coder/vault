@@ -173,6 +173,12 @@ async function main(){
       assert.ok((await page.locator('#status').innerText()).includes('31 reliably graded of 32'));
       const gradeSize=width<640?12:30;
       assert.equal(await page.locator('#list > button').count(),gradeSize,'Trade Grades first page count '+width);
+       await page.locator('#list > button').first().click();
+       await page.getByRole('region',{name:'Historical price comparison'}).waitFor();
+       assert.ok((await page.getByRole('region',{name:'Historical price comparison'}).innerText()).includes('Roster fit: not evaluated'));
+       await page.getByText('Compare package adjustment',{exact:true}).click();
+       assert.ok(await page.getByText('KTC-style adjustment using these same recorded base prices.',{exact:false}).isVisible());
+       await page.keyboard.press('Escape');
       await page.locator('#moreGrades').click();
       assert.equal(await page.locator('#list > button').count(),Math.min(31,gradeSize*2),'Show more must expose next page '+width);
       await page.locator('#teamFilterBar select').selectOption('4');

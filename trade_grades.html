@@ -507,7 +507,6 @@ async function init() {
     allGraded = evidence.reliableGrades;
     recordedTradeCount = evidence.total;
     document.getElementById('tradeEvidence').innerHTML = VaultTradeEvidence.render(evidence, {activityHref:Vault.linkTo('activity.html')});
-    document.getElementById('tradeEvidence').classList.remove('hidden');
     ctx = { league, teams, slots, remainingWeeks };
     const format=(isSF?'sf':'oneQB')+Vault.ktcTepSuffix(league.scoring_settings?.bonus_rec_te);
     recordedMarket=await fetch('data/grade-values-history/recorded-'+format+'.json').then(r=>r.ok?r.json():[]).then(x=>Array.isArray(x)?x:[]).catch(()=>[]);
@@ -523,6 +522,7 @@ async function init() {
     const target = linked && allGraded.find(g => String(g.tx.transaction_id) === linked[1]);
     if (target) { teamFilter = ''; history.replaceState(null, '', location.pathname + location.search); }
     renderList();
+    document.getElementById('tradeEvidence').classList.remove('hidden');
     if (target) showGrade(shown.indexOf(target));
     else if (linked) status.textContent += ' · Requested trade has no reliable grade; open League Activity to see the transaction.';
     // Out of the playoff race when they traded (this season's trades): needs Sleeper's
