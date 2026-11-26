@@ -10,7 +10,10 @@ const T=require('./market-history/valuation-tournament');
 const format=process.env.BENCHMARK_FORMAT||'sf',sample=Number(process.env.SAMPLE_MOD||10),evidenceMod=Number(process.env.EVIDENCE_MOD||5);
 const formats=['sf','sf_tep','sf_tepp','oneQB','oneQB_tep','oneQB_tepp'];
 if(!formats.includes(format)||![sample,evidenceMod].every(x=>Number.isInteger(x)&&x>=1))throw Error('Bad format/sample');
+const packages=process.argv.includes('--packages'),P=packages?require('./market-history/package-tournament'):null;
+const vbaVault=packages?require('./lib-market').loadVault():null;
 const shadow=process.argv.includes('--shadow'),today=new Date().toISOString().slice(0,10);
+if(shadow&&packages)throw Error('Package research cannot change the frozen shadow model');
 if(shadow&&(!['sf','oneQB'].includes(format)||evidenceMod!==5))throw Error('Shadow supports only the frozen confidence-25 model with evidence sampling 1/5');
 const qb=format.startsWith('sf')?'sf':'oneQB',siblings=formats.filter(f=>f.startsWith(qb));
 const read=p=>JSON.parse(fs.readFileSync(path.join(DATA,p),'utf8'));
@@ -22,14 +25,14 @@ for(const [id,p] of Object.entries(players))if(['QB','RB','WR','TE'].includes(p.
  if(name){names.set(id,name);counts.set(name,(counts.get(name)||0)+1);}
 }
 for(const [id,name] of names)if(counts.get(name)!==1)names.delete(id);
-const files=shadow?seasonFiles(+today.slice(0,4)-1).filter(f=>+f.slice(0,4)<=+today.slice(0,4)):seasonFiles(2024).filter(f=>+f.slice(0,4)<=2025);
-if(shadow?!files.some(f=>f.startsWith(today.slice(0,4))):files.length!==2||!files[0].startsWith('2024')||!files[1].startsWith('2025'))throw Error('Required season archives missing');
+const files=shadow?seasonFiles(+today.slice(0,4)-1).filter(f=>+f.slice(0,4)<=+today.slice(0,4)):seasonFiles(2024).filter(f=>+f.slice(0,4)<=(packages?2026:2025));
+if(shadow?!files.some(f=>f.startsWith(today.slice(0,4))):files.length!==(packages?3:2)||!files[0].startsWith('2024')||!files[1].startsWith('2025')||(packages&&!files[2].startsWith('2026')))throw Error('Required season archives missing');
 const records=new Map(), seen=new Set(), train=[],test=[];
 const coverage={evidenceTrades:0,evidenceMissing:0,trainEligible:0,testEligible:0,trainMissing:0,testMissing:0,trainComplete:0,testComplete:0};
 let lastDay='',daily=new Map(),table=null,day=0;
 const dayNum=d=>Math.floor(Date.parse(d)/86400000);
 const holdout=league=>hash(league)%5===0;
-const cohort=(date,league)=>date>='2024-03-01'&&date<'2025-01-01'&&!holdout(league)?'train':date>='2025-08-01'&&date<'2026-01-01'&&holdout(league)?'test':null;
+const cohort=(date,league)=>date>='2024-03-01'&&date<'2025-01-01'&&!holdout(league)?'train':(packages?date>='2026-01-01'&&date<'2026-11-01':date>='2025-08-01'&&date<'2026-01-01')&&holdout(league)?'test':null;
 function price(id,date,fmt){
  if(id.startsWith('p')){
   if(+id.slice(1,5)<+date.slice(0,4))return null;
@@ -67,6 +70,7 @@ for(const file of files){
   const [date,league,a,b]=doc.trades[id],f=doc.leagues[league];
   if(!f||!date||!a?.length||!b?.length)continue;
   if(shadow&&(date>=today||date<datePlus(today,-45)))continue;
+  if(packages&&date>='2026-11-01')continue;
   const fmt=formatOf(f);if(!siblings.includes(fmt))continue;
   const split=!shadow&&fmt===format&&hash('eval:'+id)%sample===0?cohort(date,league):null;
   const useEvidence=!holdout(league)&&hash('evidence:'+id)%evidenceMod===0;
@@ -82,6 +86,13 @@ for(const file of files){
   day=dayNum(date);lastDay=date;daily=new Map();table=old.snapshot(history,date);
   // Drop expired rows before pricing; same-day evidence enters only after all evaluation.
   for(const [k,xs] of records){let i=0;while(i<xs.length&&day-xs[i].day>45)i++;if(i===xs.length)records.delete(k);else if(i)records.set(k,xs.slice(i));}
+  // Prior-day reference ceiling for the local VBA reconstruction. Compute
+  // once per evaluated day from the historical book, not the trade's best asset.
+  if(packages&&trades.some(tr=>tr.split)){
+   const prior=datePlus(date,-1);let max=0;
+   for(const name of names.values()){const v=books[format].at(name,prior);if(v>max)max=v;}
+   vbaVault._globalMaxValue=max||0;
+  }
   const additions=[];
   for(const tr of trades){
    const keys=[...tr.a,...tr.b].map(String),pkeys=keys.filter(k=>!k.startsWith('p'));
@@ -90,7 +101,8 @@ for(const file of files){
    if(tr.split){const s=tr.split;coverage[s+'Eligible']++;
     if(!valid||!table){coverage[s+'Missing']++;}else{
      const a=assets.slice(0,tr.a.length).map(enrich),b=assets.slice(tr.a.length).map(enrich);
-     const row=T.row(a,b,{league:String(tr.league),month:date.slice(0,7)});
+     const meta={league:String(tr.league),month:date.slice(0,7)};
+     const row=packages?P.row(a,b,meta,(x,y)=>vbaVault.ktcVerdict(x.map(value=>({value})),y.map(value=>({value}))).signed):T.row(a,b,meta);
      if(row){(s==='train'?train:test).push(row);coverage[s+'Complete']++;}else coverage[s+'Missing']++;
     }
    }
@@ -121,7 +133,7 @@ if(shadow){
  console.log(JSON.stringify({schemaVersion:1,kind:'confidence-shadow-format',format,model:model.id,evidenceMod,sourceCommit,capturedAt:base.capturedAt,ktcUpdated:base.ktcUpdated,marketUpdated:base.marketUpdated,prices:f.prices,archivedPremiums:f.premiums,candidatePremiums:premiums,sampleCounts,coverage,lastEvidenceDay:lastDay,adjusted}));
  process.exit(0);
 }
-const report={schemaVersion:1,kind:'rolling-valuation-tournament',format,sample,evidenceMod,generatedAt:new Date().toISOString(),coverage,
- split:{train:'March–December 2024, non-held-out league keys',test:'August–December 2025, held-out league keys',lookbackDays:45,priceLagDays:1},
- ...T.report(train,test)};
+const report={schemaVersion:1,kind:packages?'package-valuation-tournament':'rolling-valuation-tournament',format,sample,evidenceMod,generatedAt:new Date().toISOString(),coverage,
+ split:{train:'March–December 2024, non-held-out league keys',test:packages?'January–October 2026, held-out league keys':'August–December 2025, held-out league keys',lookbackDays:45,priceLagDays:1},
+ ...(packages?P.report(train,test):T.report(train,test))};
 console.log(JSON.stringify(report,null,2));
