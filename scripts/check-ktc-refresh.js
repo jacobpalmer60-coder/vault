@@ -11,7 +11,7 @@ fs.copyFileSync(path.join(root,'scripts/fetch-ktc.js'),path.join(tmp,'scripts/fe
 const mock = String.raw`
 const value = n => ({blendValue:n,tep:{blendValue:n+3},tepp:{blendValue:n+6}});
 const players = Array.from({length:320}, (_,i) => ({
-  playerID:i+1,playerName:'Mock Player '+i,position:'WR',team:'MOCK',
+  playerID:i+1,slug:'mock-player-'+i,playerName:'Mock Player '+i,position:'WR',team:'MOCK',
   oneQBValues:value(100+i),superflexValues:value(150+i)
 }));
 for (const year of [2027,2028,2029,2030])
@@ -47,6 +47,7 @@ try {
     assert.equal(d.players.length,320);
     assert.equal(d.picks.length,24);
     assert.equal(d.players[0].sf,150);
+    assert.equal(d.players[0].slug,'mock-player-0');
     assert.equal(d.valueSource,'blend');
     if(scenario==='mismatch')assert.equal(d.sourceVersion,'new-pool');
   }
