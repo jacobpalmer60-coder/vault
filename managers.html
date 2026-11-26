@@ -86,6 +86,11 @@ let observedManagerEvidence=new Map();
 function renderCard(s) {
   const notes = Vault.managerTendencyNotes(s, window._avgTrades || 0).slice(0, 4);
   const p = Vault.managerProfile(s, window._avgTrades || 0);
+  const evidence=observedManagerEvidence.get(String(s.rosterId));
+  const n=evidence?.recent?.completed;
+  const coverage=evidence?.coverage;
+  const sample=n==null?'Recent history unavailable':n<4?'Very limited recent history':n<12?'Some recent trade history':'Larger recent trade sample';
+  const guidance=coverage!=='loaded'||n==null||n<4?'Ask about their goals before assuming a trading preference.': 'Use the observed tendencies below to start a conversation, not to predict a response.';
   return `
     <div class="rounded-xl bg-black/25 border border-white/5 p-4 my-1">
       <div class="flex items-start justify-between gap-3 mb-3 flex-wrap">
@@ -93,6 +98,7 @@ function renderCard(s) {
         ${s.trades ? `<div class="flex gap-3 flex-wrap"><a href="${tradesLink(s.rosterId)}" class="vault-link text-[12px]">Graded trades</a><a href="${activityLink(s.rosterId)}" class="vault-link text-[12px]">All activity</a></div>` : `<a href="${activityLink(s.rosterId)}" class="vault-link text-[12px]">See all activity</a>`}
       </div>
 
+      <div class="border border-white/10 rounded-lg p-3 mb-3 text-[13px]"><div class="font-medium text-zinc-100">How to approach this manager</div><p class="text-zinc-300 mt-1">${Vault.escapeHtml(guidance)}</p><p class="text-[12px] text-zinc-400 mt-2">${Vault.escapeHtml(sample)}${n==null?'':' · '+n+' completed trades in the last 180 days'} · coverage: ${Vault.escapeHtml(coverage||'unknown')}</p><p class="text-[12px] text-zinc-400 mt-1">Past trades show behavior, not availability, intent, or the probability of accepting an offer.</p></div>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-1 text-center py-3 border-y border-white/5 mb-4">
         <div><div class="text-[14px] mono">${s.trades}</div><div class="text-[12px] text-zinc-400">Trades · ${s.pricedTrades} priced</div></div>
         <div title="Trades they came out ahead in: at today's prices, and (below) at each trade's own"><div class="text-[14px] mono">${s.pricedTrades ? `${s.wonNow} of ${s.pricedTrades}` : '—'} <span class="text-[12px] text-zinc-500">won now</span></div><div class="text-[12px] text-zinc-400">${s.pricedTrades ? `${s.won} of ${s.pricedTrades}` : 'No reliable prices'} then</div></div>
