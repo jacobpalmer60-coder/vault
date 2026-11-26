@@ -596,6 +596,7 @@ function coachWorkHtml(me) {
       <div class="min-w-0 col-span-2 sm:col-span-1"><div class="text-[11px] text-zinc-500 truncate">${esc(me.teamName)} pays</div><div class="text-[18px] font-semibold text-zinc-100">${Math.abs(r.you) < 1 ? 'even' : `${pc(r.you)} ${r.you > 0 ? 'under' : 'over'}`} <span class="text-[12px] font-normal text-zinc-500">trade value</span></div></div>
     </div>
     ${assessment?VaultTradeImpact.assessmentHtml(assessment,{compact:true}):''}
+    ${typeof VaultPackagePricing!=='undefined'?VaultPackagePricing.html(VaultPackagePricing.read(Vault,w.get,w.give,{market:Vault._gradeMarket??null}),me.teamName,w.partner.teamName,esc):''}
     ${coachSeasonHtml(w.season)}
     ${tweaks}`;
 }

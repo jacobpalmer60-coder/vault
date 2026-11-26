@@ -54,6 +54,7 @@
 </div>
 
 <script src="vault-core.js?v=72b76884"></script>
+<script src="package-pricing.js?v=b4ffce96"></script>
 <script src="vault-nav.js?v=b1f8289e"></script>
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
@@ -359,6 +360,7 @@ function historicalPricePanel(g) {
     <div class="mt-3">${Vault.fairnessBarHtml(g.signedPctDiff,g.bandPct)}</div>
     <div class="flex justify-between gap-3 text-[12px] mt-2"><span>← ${esc(g.teamA.teamName)} · ${fmt(av)}</span><span class="text-right">${esc(g.teamB.teamName)} · ${fmt(bv)} →</span></div>
     <p class="text-[12px] text-zinc-400 mt-3">Roster fit: not evaluated · Team timeline: not evaluated</p>
+    ${typeof VaultPackagePricing!=='undefined'?VaultPackagePricing.html(VaultPackagePricing.read(Vault,a,b,{market:market?new Map([...a,...b].map(x=>{const key=Vault.gradeKey(x);const records=recordedMarket.filter(r=>r.updated===market.updated&&r.recordedAt===market.recordedAt);return [key,records[0]?.premiums?.[key]??0]})):null}),g.teamA.teamName,g.teamB.teamName,esc,{period:g.valuedAt==='trade'?'Recorded trade-date prices':'Current prices; historical prices unavailable'}):''}
     <p class="text-[12px] text-zinc-400 mt-3">Raw totals do not include VBA. The historical list and statistics still use this raw-price basis; none of these comparisons establishes roster benefit or future returns.</p></section>`;
 }
 function renderGrade(g) {

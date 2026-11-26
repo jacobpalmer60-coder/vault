@@ -75,6 +75,7 @@
 </div>
 
 <script src="vault-core.js?v=72b76884"></script>
+<script src="package-pricing.js?v=b4ffce96"></script>
 <script src="vault-nav.js?v=b1f8289e"></script>
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
@@ -177,6 +178,7 @@ function renderCard(t, playerMap, pickMap) {
         ${m ? `<div class="flex items-center gap-2" title="Trade value at today's KTC prices (pieces combined the way real trades combine them), the same math as the Trade Calculator"><span class="text-[12px] text-zinc-400">${Math.floor(Math.min(100, m.pct))}% off${Math.abs(m.signed) >= 1 ? ` · favors Team ${m.signed > 0 ? 2 : 1}` : ''}</span><span class="text-[12px] px-2 py-0.5 rounded-md border ${BUCKET_PILL[m.bucket]}">${m.bucket}</span></div>` : ''}
       </div>
       ${m ? `<div class="max-w-xs mb-3">${Vault.fairnessBarHtml(m.signed, 0)}</div>` : ''}
+      ${typeof VaultPackagePricing!=='undefined'?VaultPackagePricing.html(VaultPackagePricing.read(Vault,t.t1.map(id=>assetLabel(id,playerMap,pickMap)),t.t2.map(id=>assetLabel(id,playerMap,pickMap)),{market:Vault._gradeMarket??null}),'Team 1','Team 2',Vault.escapeHtml,{period:'Current prices, not trade-date prices'}):''}
       <div class="grid md:grid-cols-2 gap-4">
         <div>
           <div class="text-[11px] text-zinc-400 uppercase tracking-wider mb-1.5">Team 1 received</div>
