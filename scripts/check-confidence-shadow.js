@@ -1,0 +1,17 @@
+'use strict';
+const assert=require('node:assert/strict'),S=require('./market-history/confidence-shadow');
+const snap={kind:'confidence-shadow-format',model:'confidence-25',evidenceMod:5,format:'sf',capturedAt:'2026-11-26T12:00:00Z',prices:{'n:alpha':100,'k:2027-1':150},archivedPremiums:{'n:alpha':10},candidatePremiums:{'n:alpha':40,'k:2027-1':0}};
+const asset={name:'confidence-sf-2026-11-26.json.gz',created_at:'2026-11-26T12:01:00Z',updated_at:'2026-11-26T12:01:00Z'};
+assert.equal(S.eligibleShadow(snap,asset,'2026-11-26'),false);
+assert.equal(S.eligibleShadow(snap,asset,'2026-11-27'),true);
+assert.equal(S.eligibleShadow(snap,{...asset,updated_at:'2026-11-27T00:01:00Z'},'2026-11-27'),false);
+assert.equal(S.eligibleShadow(snap,asset,'2026-11-30'),false);
+assert.equal(S.eligibleShadow({...snap,format:'sf_tep'},asset,'2026-11-27'),false);
+const names=new Map([['1','alpha']]);
+const a=S.row(snap,['1'],['p2027-1'],names,'l','2026-11-27');
+assert.deepEqual(a,S.row(snap,['p2027-1'],['1'],names,'l','2026-11-27'));
+assert.ok(a.gaps[2]<a.gaps[1]&&a.gaps[1]<a.gaps[0]);
+assert.equal(S.row(snap,['1'],['p2028-1'],names,'l','2026-11-27'),null);
+assert.equal(S.row(snap,['1'],['1'],names,'l','2026-11-27'),null);
+assert.equal(S.report([a]).decision,'continue shadow testing');
+console.log('PASS confidence shadow publication chronology, candidate identity, exact picks, side symmetry and promotion gate');
