@@ -5,6 +5,7 @@
 const fs=require('node:fs'), path=require('node:path'), assert=require('node:assert/strict');
 const {loadVault,ROOT}=require('./lib-market');
 const Vault=loadVault();
+const Policy=require('../trade-policy');
 const finite=x=>typeof x==='number'&&Number.isFinite(x)&&x>0;
 const read=p=>JSON.parse(fs.readFile(path.join(ROOT,'data',p),'utf8'));
 const median=x=>{const a=[...x].sort((a,b)=>a-b);return a.length?(a[(a.length-1)>>1]+a[a.length>>1])/2:null};
@@ -64,6 +65,27 @@ for(const sf of [true,false]){
  report.formats[key]={...analyze(rows),unmatched:unmatched.length,unmatchedExamples:unmatched.slice(0,20),picks:{...analyze(pickRows),unmatched:missingPicks}};
 
 }
+// Reconstructed from the reported TurboNutz–Skolir trade, not a verified
+// transaction ID. Today's prices cannot reproduce the original historical verdict.
+Vault.setGradeMarket(grade,true,0);
+const player=name=>{
+ const p=ktc.players.find(p=>Vault.normalizeName(p.name)===Vault.normalizeName(name));
+ if(!p)throw Error('Regression player missing: '+name);
+ const id=Vault.findSleeperId(players,p.name,p.pos,Vault.ktcTeam(p.team));
+ if(!id)throw Error('Regression player ID missing: '+name);
+ return {id,name:p.name,type:'player',pos:p.pos,value:p.sf,ktcPrice:p.sf};
+};
+const pk=ktc.picks.find(p=>p.season===2028&&p.round===1&&p.slot==='mid');
+if(!pk)throw Error('Regression pick missing');
+const A=[player('Geno Smith'),{type:'pick',name:'2028 Mid 1st',season:2028,round:1,tier:'mid',value:pk.sf,ktcPrice:pk.sf}];
+const B=[player('Lamar Jackson')];
+const audit=Policy.priceAudit(Vault,A,B), reverse=Policy.priceAudit(Vault,B,A);
+for(const key of ['listed','market','package','ktc']){
+ assert.ok(Math.abs(audit[key].signedPct+reverse[key].signedPct)<1e-7,'A/B symmetry '+key);
+}
+const raData={players:ra.formats.sf_ppr,picks:ra.picks.picks};
+const reads={vault:audit.market,ktc:audit.ktc,ra:Vault.rosterAuditRead(A,B,true,raData),dd:Vault.dynastyDaddyRead(A,B,true,dd)};
+report.reportedTrade={teams:{A:'Skolir',B:'TurboNutz'},sentA:A,sentB:B,format:'SF PPR, no TEP assumed',note:'Reconstructed from reported assets; current snapshot only; historical league format and transaction ID unverified. Values are for assets SENT; larger side favors opposite receiver.',reads};
 const out=process.argv.find(x=>x.startsWith('--out='))?.slice(6);
 if(out)fs.writeFileSync(out,JSON.stringify(report,null,2));
 console.log(JSON.stringify(report,null,2));
