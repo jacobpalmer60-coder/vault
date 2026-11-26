@@ -15,3 +15,13 @@ assert.equal(S.row(snap,['1'],['p2028-1'],names,'l','2026-11-27'),null);
 assert.equal(S.row(snap,['1'],['1'],names,'l','2026-11-27'),null);
 assert.equal(S.report([a]).decision,'continue shadow testing');
 console.log('PASS confidence shadow publication chronology, candidate identity, exact picks, side symmetry and promotion gate');
+
+const vbaVault=require('./lib-market').loadVault();
+const pkg=S.row(snap,['1'],['p2027-1'],names,'l','2026-11-27',vbaVault);
+assert.equal(pkg.packageGaps.length,6);
+assert.equal(pkg.packageGaps[5],pkg.gaps[2]); // 1-for-1, curve changes nothing.
+assert.equal(S.row(snap,['1'],['p2027-1'],names,'l','2026-11-26',vbaVault).packageGaps,null);
+assert.equal(S.packageReport([pkg]).n,1);
+assert.equal(S.packageReport([pkg]).decision,'continue package shadow testing');
+assert.equal(S.packageReport([]).models[5].mae,null);
+console.log('PASS prospective package evaluation preserves frozen snapshot and cannot promote on tiny samples');
