@@ -1,0 +1,88 @@
+name: Confidence price model shadow — Vault
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/confidence-shadow.yml
+      - scripts/benchmark-confidence-shadow.js
+      - scripts/check-confidence-shadow.js
+      - scripts/market-history/confidence-shadow.js
+  schedule:
+    - cron: '45 13 * * *'
+concurrency:
+  group: vault-confidence-shadow
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EVIDENCE_MOD: '5'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/check-confidence-shadow.js
+      - name: Freeze current candidate and production prices before future trades
+        run: |
+          set -euo pipefail
+          tag=vault-confidence-shadow
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Confidence-25 shadow research" --notes "Append-only aggregate price forecasts; no user, roster, or league IDs. Never used by live pricing." --latest=false
+          mkdir -p data/sleeper-trades "$RUNNER_TEMP/shadow"
+          year=$(date -u +%Y)
+          for y in "$((year-1))" "$year"; do
+            gh release download sleeper-trades --pattern "$y.json.gz" --dir data/sleeper-trades
+          done
+          export SOURCE_SHA=$(git rev-parse HEAD)
+          day=$(date -u +%F)
+          for format in sf oneQB; do
+            file="confidence-$format-$day.json.gz"
+            if gh release view "$tag" --json assets | jq -e --arg f "$file" 'any(.assets[]; .name==$f)' >/dev/null; then
+              echo "Preserved $file"; continue
+            fi
+            BENCHMARK_FORMAT="$format" node --max-old-space-size=5632 scripts/benchmark-valuation-tournament.js --shadow > "$RUNNER_TEMP/shadow/model.json"
+            node -e 'const r=require(process.argv[1]); if(r.capturedAt.slice(0,10)!==process.argv[2])throw Error("day changed"); console.log(r.format,r.adjusted,"adjusted assets",JSON.stringify(r.coverage));' "$RUNNER_TEMP/shadow/model.json" "$day"
+            gzip -c "$RUNNER_TEMP/shadow/model.json" > "$RUNNER_TEMP/shadow/$file"
+            gh release upload "$tag" "$RUNNER_TEMP/shadow/$file"
+          done
+  evaluate:
+    needs: capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Evaluate later trades against sealed snapshots
+        run: |
+          set -euo pipefail
+          mkdir -p data/sleeper-trades "$RUNNER_TEMP/shadow" reports
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/vault-confidence-shadow" --jq .id)
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" | jq 'add' > "$RUNNER_TEMP/shadow/assets.json"
+          cutoff=$(date -u -d '49 days ago' +%F)
+          jq -r --arg cutoff "$cutoff" '.[] | select(.created_at >= $cutoff and (.name | startswith("confidence-"))) | .name' "$RUNNER_TEMP/shadow/assets.json" | while read -r file; do
+            gh release download vault-confidence-shadow --pattern "$file" --dir "$RUNNER_TEMP/shadow"
+          done
+          year=$(date -u +%Y)
+          for y in "$((year-1))" "$year"; do
+            gh release download sleeper-trades --pattern "$y.json.gz" --dir data/sleeper-trades
+          done
+          node --max-old-space-size=5632 scripts/benchmark-confidence-shadow.js "$RUNNER_TEMP/shadow" > reports/confidence-shadow.json
+          cat reports/confidence-shadow.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: confidence-shadow
+          path: reports/confidence-shadow.json
+          retention-days: 90
