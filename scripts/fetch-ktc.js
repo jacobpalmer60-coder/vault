@@ -60,15 +60,17 @@ async function main() {
   // KTC sometimes returns an incomplete/interstitial HTML page. Retrying a
   // missing data island avoids losing the entire daily refresh to a transient
   // response, while validation below prevents publishing an empty price book.
-  let all;
+  let all, sourceVersion=null;
   let lastError;
   let lastPageInfo;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(PAGE_URL, {
+      all=null; sourceVersion=null;
+      const pageUrl=new URL(PAGE_URL);pageUrl.searchParams.set('_vault_refresh',String(Date.now()));
+      const res = await fetch(pageUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-          Accept: 'text/html'
+          Accept: 'text/html', 'Cache-Control': 'no-cache'
         },
         signal: AbortSignal.timeout(30000)
       });
@@ -88,7 +90,7 @@ async function main() {
         hasChallengeText: /cloudflare|captcha|just a moment|access denied/i.test(html),
         scriptIds: [...html.matchAll(/<script[^>]*\bid=["']([^"']+)["']/gi)].slice(0, 10).map(m => m[1])
       };
-      all = extractRankings(html);
+      try { all = extractRankings(html); } catch { all=null; }
       if (!Array.isArray(all) || all.length < 320) {
         // The ranking page now initializes playersArray=[] and asynchronously
         // loads its complete values from its first-party versioned endpoint.
@@ -99,7 +101,7 @@ async function main() {
         poolUrl.searchParams.set('sr', '2');
         const poolResponse = await fetch(poolUrl, {
           headers: {
-            Accept: 'application/json',
+            Accept: 'application/json', 'Cache-Control': 'no-cache',
             Referer: PAGE_URL,
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
           },
@@ -107,13 +109,26 @@ async function main() {
         });
         if (!poolResponse.ok) throw new Error('KTC player pool fetch failed: ' + poolResponse.status);
         const stampedVersion = poolResponse.headers.get('x-ktc-players-version');
-        if (stampedVersion && stampedVersion !== version) throw new Error('KTC player pool changed during fetch; retrying');
+        // The endpoint returns one complete pool, not a delta. A cached HTML
+        // bootstrap can advertise an older version while the endpoint serves a
+        // newer coherent pool. Never mix page values with endpoint values.
+        if(stampedVersion&&!/^[a-zA-Z0-9-]{1,128}$/.test(stampedVersion))throw Error('Invalid KTC pool version header');
+        sourceVersion=stampedVersion||version;
+        if(stampedVersion&&stampedVersion!==version)console.warn('KTC bootstrap/pool version differs; validating complete returned pool', {advertised:version,returned:stampedVersion});
         all = await poolResponse.json();
         console.log('KTC versioned player pool fetched', { count: all?.length, version });
       }
       if (!Array.isArray(all) || all.length < 320) throw new Error('Insufficient KTC player-pool rows: ' + (all?.length ?? 0));
+      const ids=new Set();
+      for(const p of all){
+        if(!p||!Number.isFinite(+p.playerID)||ids.has(String(p.playerID))||typeof p.playerName!=='string'||!p.playerName.trim()||typeof p.position!=='string')throw Error('Malformed or duplicate KTC pool identity');
+        ids.add(String(p.playerID));
+        const v=[p.oneQBValues,p.oneQBValues?.tep,p.oneQBValues?.tepp,p.superflexValues,p.superflexValues?.tep,p.superflexValues?.tepp];
+        if(v.some(x=>!Number.isFinite(x?.blendValue)||x.blendValue<0||x.blendValue>20000))throw Error('Malformed KTC blend prices');
+      }
       break;
     } catch (error) {
+      all=null;
       lastError = error;
       console.warn(`KTC rankings attempt ${attempt}/3 failed: ${error.message}`);
       if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * (+process.env.KTC_RETRY_DELAY_MS || 5000)));
@@ -172,6 +187,8 @@ async function main() {
 
   const payload = {
     source: 'keeptradecut.com/dynasty-rankings',
+    valueSource: 'blend',
+    sourceVersion,
     updated: new Date().toISOString(),
     count: players.length,
     players,

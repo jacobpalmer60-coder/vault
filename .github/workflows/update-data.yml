@@ -141,3 +141,8 @@ jobs:
           # The hourly Sleeper crawl also pushes (data/market-history/ only), so catch up first.
           git pull --rebase
           git push
+      - name: Fail visibly if KTC prices were not refreshed
+        if: always() && steps.ktc.outcome != 'success'
+        run: |
+          echo '::error::KTC refresh failed; last known good prices retained. Other feeds were allowed to publish.'
+          exit 1
