@@ -557,6 +557,7 @@ function coachWorkHtml(me) {
   if (!w.give.length || !w.get.length) { w.read = null; return coachBuildStartHtml(me, w); }
   const r = coachWorkRead(me, w);
   w.read = r;
+  const assessment = typeof VaultTradeImpact!=='undefined' ? VaultTradeImpact.assessment(r.j.an,w.give,w.get,{fitThreshold:VAULT_CONFIG.GOOD_FIT_THRESHOLD,marketAvailable:!!Vault._gradeMarket}) : null;
   const tier = Vault.verdictTier(r.score), pc = v => `${Math.round(Math.abs(v))}%`;
   const why = r.yes
     ? (r.room >= 2 && !(w.tweaks && !w.tweaks.more.length && !w.tweaks.less.length) ? `You likely have room to ask for about ${pc(r.room)} more value.` : 'That\'s about as far as they\'d go.')
@@ -584,8 +585,9 @@ function coachWorkHtml(me) {
     : (r.yes ? tweakRows('more', 'Ask for more (they\'d still say yes)') + tweakRows('less', 'Send less (they\'d still say yes)') : noRows)
       || `<div class="text-[12px] text-zinc-500 mt-5">${r.yes ? 'No one-step change helps you and keeps them at yes: this one is as good as it gets.' : 'No single piece of yours moves them much. Try a bigger piece, or ask for less.'}</div>`;
   return `<div class="p-4 rounded-xl mb-4 ${r.yes ? 'bg-emerald-500/[0.07] border border-emerald-500/25' : 'bg-orange-500/[0.07] border border-orange-500/25'}${pulse}">
-      <div class="display text-[24px] leading-tight ${r.yes ? 'text-emerald-300' : 'text-orange-300'}">${esc(w.partner.teamName)} would likely say ${r.yes ? 'yes' : 'no'}</div>
+      <div class="display text-[24px] leading-tight ${r.yes ? 'text-emerald-300' : 'text-orange-300'}">${esc(w.partner.teamName)} · ${r.yes ? 'model suggests a possible yes' : 'model suggests a possible no'}</div>
       <div class="text-[13px] text-zinc-300 mt-1">${why}</div>
+      <p class="text-[12px] text-zinc-400 mt-2">Estimated negotiation fit, not a confirmed response or measured acceptance probability.</p>
     </div>
     ${coachSlipHtml(me, w)}
     <div class="grid gap-3 grid-cols-2 sm:grid-cols-3 mt-4">
@@ -593,6 +595,7 @@ function coachWorkHtml(me) {
       <div class="min-w-0"><div class="text-[11px] text-zinc-500 truncate">For ${esc(w.partner.teamName)}</div><div class="text-[18px] font-semibold ${Vault.VERDICT_TIER_TEXT[r.them.tier]}">${r.them.label}</div></div>
       <div class="min-w-0 col-span-2 sm:col-span-1"><div class="text-[11px] text-zinc-500 truncate">${esc(me.teamName)} pays</div><div class="text-[18px] font-semibold text-zinc-100">${Math.abs(r.you) < 1 ? 'even' : `${pc(r.you)} ${r.you > 0 ? 'under' : 'over'}`} <span class="text-[12px] font-normal text-zinc-500">trade value</span></div></div>
     </div>
+    ${assessment?VaultTradeImpact.assessmentHtml(assessment,{compact:true}):''}
     ${coachSeasonHtml(w.season)}
     ${tweaks}`;
 }
