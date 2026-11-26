@@ -165,8 +165,18 @@ jobs:
           git rm --cached --ignore-unmatch --quiet data/ktc-trades.json data/player-value-history.json
           git diff --cached --quiet || git commit -m "Update KTC values, projections, trade database, and value history"
           # The hourly Sleeper crawl also pushes (data/market-history/ only), so catch up first.
-          git pull --rebase
-          git push
+          # Concurrent crawler/development commits may land between pull and push.
+          for attempt in 1 2 3 4 5; do
+            if ! git pull --rebase; then
+              git rebase --abort || true
+              echo '::error::Daily data rebase conflicted; refusing to overwrite remote changes.'
+              exit 1
+            fi
+            if git push; then exit 0; fi
+            sleep "$((attempt * 3))"
+          done
+          echo '::error::Daily data push failed after five attempts.'
+          exit 1
       - name: Fail visibly if KTC prices were not refreshed
         if: always() && steps.ktc.outcome != 'success'
         run: |
