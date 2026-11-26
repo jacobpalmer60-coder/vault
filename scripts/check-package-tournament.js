@@ -29,3 +29,23 @@ assert.match(report.decision,/no sufficient/);
 console.log('Lamar / Geno + first fixture: '+JSON.stringify(Object.fromEntries(P.models.map((m,i)=>[m.id,Number(r.gaps[i].toFixed(2))]))));
 console.log('Estimated VBA fixture: '+JSON.stringify(vault.ktcVerdict([{value:6086}],[{value:2556},{value:4492}])));
 console.log('PASS package model: VBA comparator, monotonicity, side symmetry, sparse and train-only selection');
+
+const shared=require('../package-pricing');
+const pa=shared.compare([6086],[2556,4492]),pb=shared.compare([2556,4492],[6086]);
+assert.ok(pa.signedPct>0&&pa.additivePct<0);
+assert.equal(pa.valueA,pb.valueB);assert.equal(pa.valueB,pb.valueA);
+assert.ok(Math.abs(pa.signedPct+pb.signedPct)<1e-9);
+assert.equal(shared.compare([0],[1]),null);
+assert.equal(shared.compare([100],[100]).bonusA,0);
+assert.ok(Math.abs(r.gaps[idx('raw-power-2')]-Math.abs(pa.signedPct))<1e-9);
+const ui=shared.html({raw:pa,adjusted:null},'Salt Factory','TURBONUTZ',String);
+assert.match(ui,/Favors Salt Factory/);assert.match(ui,/not the live grade/);
+assert.match(ui,/reverses the additive price direction/);
+const fs=require('node:fs'),path=require('node:path');
+for(const f of ['trade.html','grade.html','trade_grades.html','trade_database.html']){
+ const doc=fs.readFileSync(path.join(__dirname,'..',f),'utf8');
+ assert.match(doc,/package-pricing\.js\?v=/);
+ assert.match(doc,/VaultPackagePricing\.read/);
+}
+assert.match(fs.readFileSync(path.join(__dirname,'..','coach.js'),'utf8'),/VaultPackagePricing\.read/);
+console.log('PASS shared research preview, direction and cross-tool wiring');
