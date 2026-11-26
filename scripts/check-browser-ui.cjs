@@ -58,7 +58,8 @@ Object.assign(Vault,{
  managerTendencyNotes:()=>[],
  gradedImprovement:()=>({tier:'slight',level:'tossup',label:'Toss-up'}),
  VERDICT_TIER_TEXT:{slight:'text-emerald-300'},BUCKET_STYLE:{Fair:{text:'text-amber-200'}},
- priceWord:b=>b==='fair'?'Fair':b,fairnessBucket:()=> 'Fair',
+ priceWord:b=>b==='fair'?'Fair':b,fairnessBucket:()=> 'Fair',ktcTepSuffix:()=>'',loadError:e=>e.message,
+ fairnessBarHtml:()=>'<div>Price gap</div>',ktcSideValues:(a,b)=>{const sum=xs=>xs.reduce((n,x)=>n+x.value,0);return {valueA:sum(a),valueB:sum(b),bonusA:0,bonusB:0};},
  popupOpen:()=>false,seasonReport:async()=>null,markOutOfRace:()=>false,
  fetchAndGradeAllTrades:async()=>({league:{name:'Fixture League'},isSF:true,teams:four,allGraded:graded,
    tradeActivity:tradeRecords,pendingTrades:[],weekErrors:[{season:'2025',weeks:[8]}],slots:[],remainingWeeks:[]}),
@@ -173,12 +174,19 @@ async function main(){
       assert.ok((await page.locator('#status').innerText()).includes('31 reliably graded of 32'));
       const gradeSize=width<640?12:30;
       assert.equal(await page.locator('#list > button').count(),gradeSize,'Trade Grades first page count '+width);
-       await page.locator('#list > button').first().click();
-       await page.getByRole('region',{name:'Historical price comparison'}).waitFor();
-       assert.ok((await page.getByRole('region',{name:'Historical price comparison'}).innerText()).includes('Roster fit: not evaluated'));
-       await page.getByText('Compare package adjustment',{exact:true}).click();
-       assert.ok(await page.getByText('KTC-style adjustment using these same recorded base prices.',{exact:false}).isVisible());
-       await page.keyboard.press('Escape');
+      // The fixture supplies the price panel's actual inputs; the live
+      // acceptance suite separately opens the real completed-trade dialog.
+      await page.evaluate(()=>{
+        const panel=document.createElement('div');panel.id='price-panel-test';
+        panel.innerHTML=historicalPricePanel({teamA:{teamName:'Team 1'},teamB:{teamName:'Team 2'},toA:[{value:6085}],toB:[{value:2526},{value:4442}],bucket:'Fair',valuedAt:'trade',signedPctDiff:13.53,bandPct:9});
+        document.querySelector('main').append(panel);
+      });
+      const pricePanel=page.getByRole('region',{name:'Historical price comparison'});
+      await pricePanel.waitFor();
+      assert.ok((await pricePanel.innerText()).includes('Roster fit: not evaluated'));
+      await pricePanel.getByText('Compare package adjustment',{exact:true}).click();
+      assert.ok(await pricePanel.getByText('KTC-style adjustment using these same recorded base prices.',{exact:false}).isVisible());
+      await page.locator('#price-panel-test').evaluate(el=>el.remove());
       await page.locator('#moreGrades').click();
       assert.equal(await page.locator('#list > button').count(),Math.min(31,gradeSize*2),'Show more must expose next page '+width);
       await page.locator('#teamFilterBar select').selectOption('4');

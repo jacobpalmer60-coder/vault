@@ -49,6 +49,15 @@ const mime={'.html':'text/html','.js':'text/javascript','.json':'application/jso
   // fabricated grade just to make the UI look complete.
   await load('trade_grades.html','#tradeEvidence:not(.hidden)');
   assert.ok((await page.locator('#status').innerText()).includes('reliably graded of'));
+  if(await page.locator('#list > button').count()){
+   await page.locator('#list > button').first().click();
+   const panel=page.getByRole('region',{name:'Historical price comparison'});
+   await panel.waitFor({timeout:15000});
+   assert.ok((await panel.innerText()).includes('Roster fit: not evaluated'));
+   await panel.getByText('Compare package adjustment',{exact:true}).click();
+   assert.ok(await panel.getByText('KTC-style adjustment using these same recorded base prices.',{exact:false}).isVisible());
+   console.log('PASS real completed trade detail and package comparison');
+  }
   assert.deepEqual(errors,[],'Unhandled browser errors during real manager/grade pages');
   await context.close();
   console.log('PASS real league: manager trade ID, grades evidence, small-screen layout and no JS errors');
