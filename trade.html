@@ -2922,6 +2922,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
   const { before, after, resA, resB, trade, heads, wins, dValueAdjA, dValueAdjB, pctDiff, pctDiffNeed, bandPct, fairness, overallPct, verdict, bucket } = analysis;
 
   const impactBySide = VaultTradeImpact.pair(before, after, aAssets, bAssets);
+  const assessment = VaultTradeImpact.assessment(analysis,aAssets,bAssets,{fitThreshold:VAULT_CONFIG.GOOD_FIT_THRESHOLD,marketAvailable:!!Vault._gradeMarket});
   [['A', before.A, after.A, resA, dValueAdjA], ['B', before.B, after.B, resB, dValueAdjB]].forEach(([side, bef, aft, res, dValueAdj]) => {
     const head = heads[side];
     const win = wins[side];
@@ -2936,6 +2937,7 @@ function renderAnalysis(teamA, teamB, aAssets, bAssets, aValAdj, bValAdj, analys
           <span class="size-2 rounded-full shrink-0 mt-1.5 ${TONE_DOT[head.tone]}"></span>
           <p class="text-[13px] ${TONE[head.tone]} leading-relaxed"><span class="font-medium">${head.text}.</span> <span class="font-normal">${Vault.buildSynopsis('', res.notes)}</span></p>
         </div>
+        ${VaultTradeImpact.assessmentHtml(assessment,{only:side})}
         ${side === 'B' ? '<p id="habitLine" class="text-[12px] text-zinc-400 mb-3 empty:hidden"></p>' : ''}
         ${res.notes.length ? `<details class="group mb-3">
           <summary class="flex items-center gap-1.5 py-1 cursor-pointer select-none list-none text-[12px] text-zinc-400 hover:text-zinc-300 transition-colors [&::-webkit-details-marker]:hidden">
