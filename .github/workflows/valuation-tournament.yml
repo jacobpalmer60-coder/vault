@@ -1,0 +1,61 @@
+name: Valuation model tournament — Vault
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/valuation-tournament.yml
+      - scripts/benchmark-valuation-tournament.js
+      - scripts/check-valuation-tournament.js
+      - scripts/market-history/valuation-tournament.js
+permissions:
+  contents: read
+concurrency:
+  group: vault-valuation-tournament
+  cancel-in-progress: false
+jobs:
+  replay:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        format: [sf, sf_tep, sf_tepp, oneQB, oneQB_tep, oneQB_tepp]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BENCHMARK_FORMAT: ${{ matrix.format }}
+      SAMPLE_MOD: '10'
+      EVIDENCE_MOD: '5'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify model invariants
+        run: node scripts/check-valuation-tournament.js
+      - name: Retrieve historical trade evidence
+        run: |
+          mkdir -p data/sleeper-trades reports
+          gh release download sleeper-trades --pattern 2024.json.gz --dir data/sleeper-trades
+          gh release download sleeper-trades --pattern 2025.json.gz --dir data/sleeper-trades
+      - name: Compare prespecified models on disjoint league keys
+        run: |
+          node --max-old-space-size=5632 scripts/benchmark-valuation-tournament.js > reports/tournament.json
+          node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          const r=require('./reports/tournament.json');
+          console.log('### '+r.format+' — '+r.decision);
+          console.log('Training: '+r.training.n+' / held-out test: '+r.test.n);
+          console.log('Candidate: '+JSON.stringify(r.candidate));
+          console.log('| Model | Test mean absolute imbalance |');
+          console.log('|---|---:|');
+          for(const m of r.test.models)console.log('| '+m.id+' | '+(m.mae?.toFixed(3)??'n/a')+' |');
+          console.log('Paired comparison: '+JSON.stringify(r.comparison));
+          console.log('Coverage: '+JSON.stringify(r.coverage));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: valuation-tournament-${{ matrix.format }}
+          path: reports/tournament.json
+          retention-days: 90
+          if-no-files-found: error
