@@ -57,3 +57,23 @@ assert.ok(html.includes('teamImpactLedgerHtml(impactBySide[side])'),'both team c
 assert.ok(html.includes('VaultTradeImpact.explain(impactBySide[side], res.mode)'),'both team cards must use side-neutral explanation');
 assert.ok(html.includes('Future picks and the rookies they might become are not included'),'future rank must disclose omission of draft outcomes');
 console.log('PASS trade impact ledger swap symmetry, draft capital, player value, lineup, conserved assets, and no-op');
+
+const {assessment,assessmentHtml}=require('../team-impact');
+const an={before,after,resA:{mode:'rebuild',fit:3,dDepth:0},resB:{mode:'contend',fit:3,dDepth:0},dValueAdjA:-150,dValueAdjB:150,pctDiff:8.2};
+const report=assessment(an,giveA,giveB);
+assert.equal(report.teams.A.headline,'Strong fit, at a market cost');
+assert.equal(report.teams.A.pct,-8.2);
+assert.equal(report.teams.B.pct,8.2);
+const rev=assessment({before:{A:B,B:A},after:{A:afterB,B:afterA},resA:an.resB,resB:an.resA,dValueAdjA:150,dValueAdjB:-150,pctDiff:8.2},giveB,giveA);
+assert.deepEqual(report.teams.A,rev.teams.B);
+assert.deepEqual(report.teams.B,rev.teams.A);
+assert.equal(assessment(an,[{...q,value:0}],giveB).teams.A.pct,null);
+assert.equal(assessment(an,giveA,giveB,{marketAvailable:false}).basis,'KTC fallback price');
+assert.equal(assessment(an,[],giveB),null);
+assert.equal(assessment({...an,pctDiff:45},giveA,giveB).teams.A.headline,'Strong fit, substantial market overpay');
+assert.ok(assessmentHtml(report).includes('A strong fit does not erase an overpay'));
+assert.ok(assessmentHtml(report).includes('Projected lineup PPG'));
+assert.ok(!assessmentHtml({...report,teams:{...report.teams,A:{...report.teams.A,name:'<script>bad</script>'}}}).includes('<script>'));
+assert.ok(html.includes('VaultTradeImpact.assessment(analysis,aAssets,bAssets'));
+assert.ok(html.includes('VaultTradeImpact.assessmentHtml(assessment,{only:side})'));
+console.log('PASS shared strategic assessment: side symmetry, price vs fit, unknown prices, fallback, escaping');
