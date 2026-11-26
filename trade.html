@@ -483,7 +483,7 @@ async function init() {
 
     document.getElementById('loadRostersBtn').onclick = () => {
       if (typeof negReset === 'function') { negReset(); negPreloadStyles(); }
-      if (typeof marketLoad === 'function') marketLoad(league).catch(() => {}); // completed-trade prices too, so Trade Coach's first search doesn't wait on them
+      if (typeof marketLoad === 'function') marketLoad(league).then(()=>{if(teamOf('A')&&teamOf('B')&&selectedA.size&&selectedB.size)updateTrade();}).catch(() => {}); // refresh package evidence when the market feed arrives
       if (typeof coachReset === 'function') coachReset(); // trade history loads in the background for negotiations
       // Picked on the "Which team is yours?" screen: remember it, like the nav's
       // Your team menu, so no other page has to ask. (Not when a shared trade
@@ -1511,6 +1511,24 @@ function renderVerdictDock(html) {
 }
 let dockFrame = 0;
 ['scroll', 'resize'].forEach(ev => addEventListener(ev, () => { if (!dockFrame) dockFrame = requestAnimationFrame(() => { dockFrame = 0; renderVerdictDock(); }); }, { passive: true }));
+function tradePackageRead(a,b){
+  if(typeof VaultPackageMarket==='undefined'||typeof Market==='undefined'||!league)return null;
+  const sig=Vault.tradeFormatSig(league);
+  return VaultPackageMarket.live(Market.data,a,b,{teams:sig.teams,tep:sig.tep});
+}
+function tradePackageHtml(r,teamA,teamB,prices){
+  if(!r)return '';
+  const esc=Vault.escapeHtml,n=v=>Math.round(v).toLocaleString();
+  if(!r.available)return '<p class="text-[12px] text-zinc-400 mt-3">Package-specific market evidence: insufficient comparable trades ('+r.samePlayer+' same-player two-piece records; '+r.peers+' similar package records).</p>';
+  const acquirer=r.side==='A'?teamB:teamA,seller=r.side==='A'?teamA:teamB;
+  const favored=r.gap>0?acquirer:seller;
+  return `<section id="packageMarketRead" class="rounded-xl border border-white/10 bg-black/20 p-3 mt-3" aria-label="Observed acquisition cost">
+    <div class="flex justify-between flex-wrap gap-2"><strong>Observed acquisition cost</strong><span class="${r.material?'text-amber-200':'text-zinc-300'}">${Math.abs(r.gap)<1?'Near median':'Favors '+esc(favored.teamName)+' · '+n(Math.abs(r.expected-r.paid))+' points'}</span></div>
+    <div class="grid grid-cols-2 gap-2 mt-2"><div><span class="text-[12px] text-zinc-400">Typical two-piece price for ${esc(r.leadName)}</span><div class="text-[22px] font-semibold">${n(r.expected)}</div></div><div><span class="text-[12px] text-zinc-400">Actual package offered</span><div class="text-[22px] font-semibold">${n(r.paid)}</div></div></div>
+    <p class="text-[13px] text-zinc-300 mt-2">Middle half of comparable payments: ${n(r.low)}–${n(r.high)}. ${r.n} distinct completed-trade records · ${esc(r.kind)}.</p>
+    <details class="mt-2"><summary class="text-[12px] cursor-pointer text-zinc-400">Sample and limitations</summary><p class="text-[12px] text-zinc-400 mt-1">${esc(r.scope)} · ${esc(r.oldest)} to ${esc(r.latest)}. Mixed dated and current KTC blended input prices; no rejected offers or verified independent league IDs. The estimate measures acquisition cost, not future value or roster benefit. Additive asset price remains a separate baseline.</p></details>
+  </section>`;
+}
 function renderForYou(teamA, aAssets, bAssets, analysis) {
   const el = document.getElementById('forYou');
   lastImprovement = null;
@@ -1548,7 +1566,10 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const evidence = VaultTradePolicy.evidence({style:managerStyle, basis:'market'});
   const gapWord = v => Math.abs(v || 0).toFixed(0) + '%';
   const marketBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(prices.market.signedPct), 0, 0));
-  const modelConflict = prices.materialDisagreement;
+  const packageRead=tradePackageRead(aAssets,bAssets);
+  const ktcConflict=prices.ktc&&Number.isFinite(prices.ktc.signedPct)&&Math.abs(prices.ktc.signedPct-prices.market.signedPct)>=14;
+  const modelConflict = prices.materialDisagreement||ktcConflict||packageRead?.material;
+  const packageHtml=tradePackageHtml(packageRead,teamA,teamB,prices);
   const bothGradeText = 'Both sides grade Toss-up or better · acceptance unconfirmed';
   const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[740px]" aria-label="Independent additive market price, package model and manager response">
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Primary market-price grade</div><div class="text-[13px] font-medium text-zinc-100">${marketBucket} · ${gapWord(prices.market.signedPct)} gap</div><div class="text-[11px] text-zinc-400">${prices.marketFeedAvailable ? 'Recent trade premiums applied' : 'KTC prices only; premiums unavailable'} · no consolidation</div></div>
@@ -1561,7 +1582,8 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
     </div>
     <div class="text-[15px] text-zinc-200 mt-3 max-w-[740px] leading-relaxed"><span class="font-semibold">Why it matters: </span>${improvementReason(imp, null)}${imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : ''}${them && them.outOfRace ? ` <span class="text-zinc-400">${Vault.escapeHtml(teamB.teamName)} is out of the playoff race, so this season's points don't count in their verdict.</span>` : ''}</div>${overpayNoteHtml(imp)}
-    ${modelConflict ? '<div class="vault-warning mt-3">Price methods disagree materially. Open the pricing breakdown before deciding.</div>' : ''}
+    ${packageHtml}
+    ${modelConflict ? '<div class="vault-warning mt-3">Price methods disagree materially. Treat the overall trade verdict as uncertain; compare the acquisition cost and team impact before deciding.</div>' : ''}
     <details id="advancedVerdict" class="trade-advanced" ${document.getElementById('tradeBar').dataset.advanced === 'open' ? 'open' : ''} ontoggle="if(this.isConnected) document.getElementById('tradeBar').dataset.advanced=this.open?'open':'closed'">
       <summary>Pricing breakdown and team plans</summary>
       <div class="trade-advanced-content">
@@ -2955,9 +2977,10 @@ init();
 </script>
 <script src="share-image.js?v=a4003002"></script>
 <script src="negotiation.js?v=d3b64cdb"></script>
+<script src="package-market.js?v=9adbe8e8"></script>
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
 <script src="market.js?v=22c28c17"></script>
-<script src="coach.js?v=1df12b49"></script>
+<script src="coach.js?v=fd8ed6e4"></script>
 </body>
 </html>

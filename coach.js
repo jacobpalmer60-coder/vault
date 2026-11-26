@@ -88,6 +88,8 @@ const coachKtcPct = (give, get) => { const k = Vault.ktcSideValues(give, get); r
 const coachTvPct = (give, get) => { const v = Vault.marketSideValues(give, get); return (v.valueB - v.valueA) / (((v.valueA + v.valueB) / 2) || 1) * 100; };
 const coachPriceFair = (give, get, option) => {
   const within = (p, lim) => p < lim && (option === 'contend' || p > -lim);
+  const observed=typeof tradePackageRead==='function'?tradePackageRead(give,get):null;
+  if(observed?.material)return false; // Don't present a materially atypical payment as a balanced suggestion.
   return within(coachTvPct(give, get), VAULT_CONFIG.FAIR_PCT) && within(coachKtcPct(give, get), VAULT_CONFIG.LOPSIDED_PCT);
 };
 // Not asking for the other team's cornerstone (Vault.cornerstone: its best
@@ -1078,6 +1080,7 @@ async function coachAimRun(k) {
     return false;
   };
   await coachTick();
+  if(typeof marketLoad==='function')await marketLoad(league).catch(()=>{});
   if (stale()) return;
   // Cornerstones stay in and the row tags them, as in Best fits (user, 2026-11-04).
   const players = filt => others.flatMap(t => t.assets.filter(a => a.type === 'player' && !coachTheirOff(a) && filt(a)).map(a => ({ a, t })));
@@ -1125,7 +1128,7 @@ async function coachAimRun(k) {
           (Vault.teamMode(t)==='contend' && coachLeavesShort(t,o.give,o.get)) ||
           (Vault.teamMode(me)==='contend' && coachLeavesShort(me,o.get,o.give))) return;
       const prices=coachDiscoveryPriceRead(Vault.marketSideValues(o.give,o.get),Vault.ktcSideValues(o.give,o.get));
-      out.push({t, give:o.give, get:o.get, r, lead:o.get[0].key, evidence, prices, mutual:Math.min(a.score,b.score), scoreA:a.score, scoreB:b.score});
+      out.push({t, give:o.give, get:o.get, r, lead:o.get[0].key, evidence, prices, observed:typeof tradePackageRead==='function'?tradePackageRead(o.give,o.get):null, mutual:Math.min(a.score,b.score), scoreA:a.score, scoreB:b.score});
     };
     keep = await each([...targets.map(({a,t})=>({get:[a],t})),...paired], ({get,t}) => {
       if (!coachAsksCornerstone(t,get)) coachOffers(me,t,get,{limit:4,perLead:2,option:'build'}).forEach(o=>assess(t,o));
@@ -1266,6 +1269,7 @@ function coachAimHtml(me) {
           <div class="space-y-2 text-[13px] text-zinc-400 pb-2">
             <div>Team grades: ${coachEsc(Vault.verdictTier(x.scoreA).label)} for you · ${coachEsc(Vault.verdictTier(x.scoreB).label)} for them.</div>
             <div>Vault market: ${priceText(p.active)} · KTC raw: ${priceText(p.raw)} · KTC adjusted: ${priceText(p.adjusted)}</div>
+            ${x.observed?.available?`<div>Observed two-piece acquisition price: ${Math.round(x.observed.expected).toLocaleString()} vs ${Math.round(x.observed.paid).toLocaleString()} offered · ${x.observed.n} distinct records (${coachEsc(x.observed.kind)}).</div>`:''}
             <div>You: ${sideText(x.evidence.a.map(youText))}</div><div>Partner: ${sideText(x.evidence.b)}</div>
             ${concern.length?'<div>'+sideText(concern)+'</div>':''}
             ${lines.length?'<div>'+sideText(lines)+'</div>':''}

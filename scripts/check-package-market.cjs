@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict'),P=require('../package-market');
+const p=(name,value,pos='QB')=>({type:'player',name,value,pos}),pick=(value,season=2028)=>({type:'pick',round:1,season,value,pos:'PICK'});
+const L=p('Lamar Jackson',6086),G=p('Geno Smith',2556),F=pick(4492);
+const rows=Array.from({length:18},(_,i)=>({date:'2026-11-'+String(10+i%10).padStart(2,'0'),s1:[L],s2:[p('QB '+i,3000+i*40),pick(5300)],fmt:{teams:10,tep:1},src:'fixture'}));
+const ix=P.build({byPlayer:new Map([['x',rows],['y',[...rows,rows[0]]]])},'2026-11-26');
+const a=P.read(ix,[L],[G,F],{teams:10,tep:1}),b=P.read(ix,[G,F],[L],{teams:10,tep:1});
+assert.equal(a.n,18);assert.equal(a.side,'A');assert.equal(b.side,'B');assert.equal(a.expected,b.expected);assert.equal(a.gap,b.gap);assert.ok(a.material&&a.below);
+assert.equal(P.read(ix,[L],[G]),null);assert.equal(P.read(ix,[G],[L,F]),null);
+assert.equal(P.read(P.build({byPlayer:new Map([['x',rows.slice(0,2)]])},'2026-11-26'),[L],[G,F]).available,false);
+assert.equal(P.build({byPlayer:new Map([['x',[{...rows[0],date:'2026-11-26'}]]])},'2026-11-26').byName.size,0);
+assert.equal(P.read(ix,[L],[G,{...F,value:0}]),null);
+console.log('PASS contextual package price, mirrored recipients, sparse evidence, duplicate/future exclusion and invalid input');

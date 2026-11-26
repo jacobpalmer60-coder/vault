@@ -58,6 +58,7 @@ jobs:
       - run: node scripts/check-calculator-deep.js
       - run: node scripts/check-leaguewide-parity.js
       - run: node scripts/check-history-roster-evidence.js
+      - run: node scripts/check-package-market.cjs
       - run: node scripts/check-league-history.js
       - run: node scripts/check-manager-record-parity.js
       - run: node scripts/check-trade-evidence.js
