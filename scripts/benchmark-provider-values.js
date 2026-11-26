@@ -7,7 +7,7 @@ const {loadVault,ROOT}=require('./lib-market');
 const Vault=loadVault();
 const Policy=require('../trade-policy');
 const finite=x=>typeof x==='number'&&Number.isFinite(x)&&x>0;
-const read=p=>JSON.parse(fs.readFile(path.join(ROOT,'data',p),'utf8'));
+const read=p=>JSON.parse(fs.readFileSync(path.join(ROOT,'data',p),'utf8'));
 const median=x=>{const a=[...x].sort((a,b)=>a-b);return a.length?(a[(a.length-1)>>1]+a[a.length>>1])/2:null};
 function rank(rows,key){
  const sorted=[...rows].sort((a,b)=>b[key]-a[key]), out=new Map();
