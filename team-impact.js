@@ -67,7 +67,7 @@
   // fit are distinct signals; this never changes the underlying grade.
   const finite=x=>typeof x==='number'&&Number.isFinite(x);
   const delta=(before,after,key)=>finite(before?.[key])&&finite(after?.[key])?after[key]-before[key]:null;
-  const modes={contend:'Contending',rebuild:'Rebuilding',retool:'Retooling',neutral:'Flexible',balance:'Flexible'};
+  const modes={contend:'Contending',rebuild:'Rebuilding',retool:'Retooling',neutral:'Flexible',balance:'Flexible',flexible:'Flexible timeline'};
   function assessment(analysis,giveA,giveB,{fitThreshold=2,marketAvailable=true,overpayThreshold=40}={}) {
     if(!analysis?.before||!analysis?.after||!giveA?.length||!giveB?.length)return null;
     const priced=[...giveA,...giveB].every(a=>finite(a.value)&&a.value>0);
@@ -98,5 +98,34 @@
     }
     return result;
   }
-  return Object.freeze({side, pair, pieces, explain, assessment});
+  function assessmentHtml(result,{only=null,compact=false}={}){
+    if(!result)return '';
+    const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const num=(n,d=0)=>n===null?'Unavailable':(n>0?'+':n<0?'−':'')+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+    const metric=(label,value)=>`<div class="min-w-0"><div class="text-[12px] text-zinc-400">${label}</div><div class="text-[15px] font-medium tabular-nums text-zinc-100">${esc(value)}</div></div>`;
+    const card=t=>`<section class="rounded-lg border border-white/10 p-3 min-w-0" aria-label="Strategic assessment for ${esc(t.name)}">
+      ${only?'':`<div class="text-[13px] font-medium text-zinc-100 break-words">${esc(t.name)}</div>`}
+      <div class="text-[12px] text-zinc-400">${esc(t.mode)}</div>
+      <div class="text-[16px] font-semibold mt-1 ${t.fit==='strong'?'text-emerald-300':t.fit==='poor'?'text-amber-300':'text-zinc-200'}">${esc(t.headline)}</div>
+      <div class="grid grid-cols-2 gap-3 mt-3">
+       ${metric(result.basis,t.pct===null?'Unavailable':num(t.pct,1)+'%')}
+       ${metric('Projected lineup PPG',num(t.lineup,1))}
+       ${metric('Draft capital today',num(t.picks))}
+       ${metric('Roster age change',t.age===null?'Unavailable':num(t.age,1)+' yr')}
+      </div>
+      <details class="mt-3 border-t border-white/10 pt-2"><summary class="cursor-pointer text-[13px] text-zinc-300">Why this fit? · changes and tradeoffs</summary>
+       <div class="mt-2 space-y-2 text-[12px] leading-relaxed text-zinc-300">
+        <p><strong class="text-zinc-100">Roster changes:</strong> ${esc(t.notes.join('; ')||'No material favorable-direction changes measured.')}</p>
+        <p><strong class="text-zinc-100">Costs and tradeoffs:</strong> ${esc(t.risks.join('; ')||'No material adverse-direction changes measured; risk still remains.')}</p>
+        <p class="text-zinc-400">${esc(t.assumptions.join(' '))}</p>
+       </div>
+      </details>
+    </section>`;
+    const body=only?card(result.teams[only]):`<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${card(result.teams.A)}${card(result.teams.B)}</div>`;
+    return `<div class="${compact?'mt-3':'mb-3'}">
+      ${!only?'<div class="text-[13px] font-medium text-zinc-100 mb-2">Why this trade makes sense — or does not</div>':''}
+      ${!result.priced?'<p class="text-[12px] text-amber-300 mb-2">At least one asset has no usable listed price. Market edge is unavailable.</p>':!result.marketAvailable?'<p class="text-[12px] text-amber-300 mb-2">Vault market feed unavailable; showing KTC fallback.</p>':''}
+      ${body}<p class="text-[11px] text-zinc-400 mt-2">Market price and strategic fit are separate. A strong fit does not erase an overpay.</p></div>`;
+  }
+  return Object.freeze({side, pair, pieces, explain, assessment, assessmentHtml});
 });
