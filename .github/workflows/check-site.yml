@@ -52,6 +52,7 @@ jobs:
       - run: node scripts/check-intelligence-integration.cjs
       - run: node scripts/check-relative-growth.js
       - run: node scripts/check-prospective-prices.js
+      - run: node scripts/check-valuation-tournament.js
       - run: node scripts/check-manager-negotiation-evidence.cjs
       - run: node scripts/check-simple-dashboard.cjs
       - run: node scripts/check-audit-regressions.js
