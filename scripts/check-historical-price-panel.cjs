@@ -2,13 +2,13 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'..','trade_grades.html'),'utf8');
 const code=html.slice(html.indexOf('function datedMarketRead('),html.indexOf('function renderGrade('));
-const vault={escapeHtml:x=>String(x),priceWord:x=>x,fairnessBarHtml:()=>'<div>bar</div>',ktcSideValues:(a,b)=>{assert.equal(a[0].ktcPrice,6085);assert.equal(b[0].ktcPrice,2526);return {valueA:9625,valueB:6968,bonusA:3540,bonusB:0};}};
+const vault={escapeHtml:x=>String(x),priceWord:x=>x,fairnessBarHtml:()=>'<div>bar</div>',ktcVerdict:(a,b)=>{assert.equal(a[0].ktcPrice,6085);assert.equal(b[0].ktcPrice,2526);return {fair:false,bigger:'A',signed:200*(9625-6968)/(9625+6968),gap:2657,adjustA:3540,adjustB:0};}};
 vault.gradeKey=a=>a.key;vault.marketSideValues=(a,b,{market})=>({valueA:a.reduce((n,x)=>n+x.value*(1+(market.get(x.key)||0)/100),0),valueB:b.reduce((n,x)=>n+x.value*(1+(market.get(x.key)||0)/100),0)});vault.fairnessBucket=()=> 'Fair';
 const ctx={Vault:vault,recordedMarket:[],VAULT_CONFIG:{FAIR_PCT:14,LOPSIDED_PCT:41}};vm.createContext(ctx);vm.runInContext(code,ctx);
 const g={teamA:{teamName:'Salt Factory'},teamB:{teamName:'TURBONUTZ'},toA:[{value:6085}],toB:[{value:2526},{value:4442}],bucket:'Fair',valuedAt:'trade',signedPctDiff:13.52946,bandPct:9};
 const panel=ctx.historicalPricePanel(g);
-assert.match(panel,/13\.5% off/);assert.match(panel,/Higher additive value: TURBONUTZ/);assert.match(panel,/Higher adjusted value: Salt Factory/);
-assert.match(panel,/Roster fit: not evaluated/);assert.match(panel,/Team timeline: not evaluated/);assert.match(panel,/not a live KTC quote/);
+assert.match(panel,/13\.5% off/);assert.match(panel,/Higher additive value: TURBONUTZ/);assert.match(panel,/Favors Salt Factory/);assert.match(panel,/KTC-style value adjustment \(VBA\)/);assert.match(panel,/Raw additive base-price comparison/);
+assert.match(panel,/Roster fit: not evaluated/);assert.match(panel,/Team timeline: not evaluated/);assert.match(panel,/not an official historical KTC calculator result/);
 assert.match(ctx.historicalPricePanel({...g,anyMissingValue:true}),/unavailable/);
 assert.match(ctx.historicalPricePanel({...g,valuedAt:'today'}),/historical price unavailable/);
 assert.match(html,/g\.historyFitUnavailable \? historicalPricePanel\(g\)/);
