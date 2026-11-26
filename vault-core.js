@@ -3040,12 +3040,18 @@ const Vault = {
   // browser (no key, cached an hour by its server), so none of its data is stored
   // here. Credit and link wherever it shows: their API terms ask for it.
   fetchRosterAudit(league) {
-    if (!Vault._raValues) {
+    const format = `${Vault.isSuperflex(league) ? 'sf' : '1qb'}_ppr${Vault.rosterAuditTep(league) ? '_tep' : ''}`;
+    const cache = Vault._raByFormat ||= new Map();
+    if (!cache.has(format)) {
       const get = path => fetch(`https://rosteraudit.com/wp-json/ra/v1/${path}`).then(r => (r.ok ? r.json() : null)).catch(() => null);
-      const format = `${Vault.isSuperflex(league) ? 'sf' : '1qb'}_ppr${Vault.rosterAuditTep(league) ? '_tep' : ''}`;
-      Vault._raValues = Promise.all([get(`rankings/values?format_key=${format}`), get('picks')]).then(([players, picks]) => (players && picks ? { players, picks: picks.picks } : null));
+      const pending = Promise.all([get(`rankings/values?format_key=${format}`), get('picks')]).then(([players, picks]) => {
+        if (players && Array.isArray(picks?.picks)) return {players, picks:picks.picks, format, source:'live'};
+        cache.delete(format);
+        return null;
+      });
+      cache.set(format,pending);
     }
-    return Vault._raValues;
+    return cache.get(format);
   },
   // Roster Audit has one TE premium setting, on or off; KTC's TE+ and up count as on.
   rosterAuditTep(league) { return !!Vault.ktcTepSuffix(league?.scoring_settings?.bonus_rec_te); },
