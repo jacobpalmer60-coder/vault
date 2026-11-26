@@ -24,23 +24,50 @@ if ($ResearchRoot) {
     }
   }
 }
-if (!$ResearchRoot) {
-  $ResearchRoot = Join-Path $desktop "vaultvalues"
-  if (Test-Path -LiteralPath $ResearchRoot) { throw "A folder already exists at the research checkout location; it was not modified. Supply -ResearchRoot for the actual VaultValues repository." }
-  & $git clone $expected $ResearchRoot
-  if ($LASTEXITCODE -ne 0) { throw "Could not clone the private repository with existing Git credentials." }
+# Locate the data independently of the code. Never pull, stash, reset, or
+# switch the user's research checkout, even when it is clean.
+if ($DataDirectory) {
+  $DataDirectory = (Resolve-Path -LiteralPath $DataDirectory -ErrorAction Stop).Path
+  if (!(Test-Path -LiteralPath (Join-Path $DataDirectory "trades.json") -PathType Leaf)) {
+    throw "The specified DataDirectory does not contain trades.json."
+  }
+} else {
+  $candidates = @()
+  if ($env:INSEASON_DIR) { $candidates += $env:INSEASON_DIR }
+  if ($ResearchRoot) { $candidates += (Join-Path $ResearchRoot "data\inseason") }
+  $candidates += (Join-Path $desktop "vaultvalues\data\inseason")
+  $candidates += (Join-Path $desktop "Claude\vaultvalues\data\inseason")
+  $files = @($candidates | Where-Object { $_ -and (Test-Path -LiteralPath (Join-Path $_ "trades.json") -PathType Leaf) } |
+    Select-Object -Unique | ForEach-Object { Get-Item -LiteralPath (Join-Path $_ "trades.json") })
+  if (!$files.Count) {
+    $parent = Join-Path $desktop "Claude"
+    if (Test-Path -LiteralPath $parent -PathType Container) {
+      $files = @(Get-ChildItem -LiteralPath $parent -Filter "trades.json" -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.Directory.Name -eq "inseason" })
+    }
+  }
+  if (!$files.Count) { Write-Host "No existing in-season research data found. No checkout or data files were modified."; exit 2 }
+  $chosen = $files | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  $DataDirectory = $chosen.Directory.FullName
 }
-$branch = & $git -C $ResearchRoot branch --show-current
-if ($LASTEXITCODE -ne 0 -or $branch -ne "main") { throw "VaultValues checkout must be on main; no branches were changed." }
-$changes = & $git -C $ResearchRoot status --porcelain --untracked-files=no
-if ($LASTEXITCODE -ne 0 -or $changes) { throw "VaultValues has tracked local modifications; not overwriting them." }
-& $git -C $ResearchRoot pull --ff-only
-if ($LASTEXITCODE -ne 0) { throw "Could not update VaultValues safely; no forced reset attempted." }
-$runner = Join-Path $ResearchRoot "scripts\run-strategy-validation.ps1"
-if (!(Test-Path -LiteralPath $runner -PathType Leaf)) { throw "The audit launcher was not found after update." }
+Write-Host "Using existing research data at $DataDirectory (read-only)."
+# Fetch reviewed main-branch code into a unique disposable checkout. Git only
+# downloads repository code; the private research cache stays where it is.
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("vault-strategy-" + [guid]::NewGuid().ToString("N"))
 $report = Join-Path $desktop "vault-strategy-validation.json"
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner -DataDirectory $DataDirectory -ReportPath $report
-$code = $LASTEXITCODE
-if ($code -eq 2) { Write-Host "Research cache was not found; existing files remain untouched." }
-elseif ($code -ne 0) { throw "Local research audit failed (exit $code)." }
+$code = 1
+try {
+  & $git clone --depth 1 --branch main --single-branch $expected $tempRoot
+  if ($LASTEXITCODE -ne 0) { throw "Could not download the private research code using existing Git credentials." }
+  $runner = Join-Path $tempRoot "scripts\run-strategy-validation.ps1"
+  if (!(Test-Path -LiteralPath $runner -PathType Leaf)) { throw "The audit launcher is missing from the fresh checkout." }
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner -DataDirectory $DataDirectory -ReportPath $report
+  $code = $LASTEXITCODE
+  if ($code -ne 0) { throw "Local research audit failed (exit $code)." }
+  Write-Host "Finished. Your original VaultValues checkout and data were left untouched."
+} finally {
+  if (Test-Path -LiteralPath $tempRoot -PathType Container) {
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
 exit $code
