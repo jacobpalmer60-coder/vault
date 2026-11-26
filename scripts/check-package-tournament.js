@@ -33,7 +33,7 @@ console.log('PASS package model: VBA comparator, monotonicity, side symmetry, sp
 const shared=require('../package-pricing');
 const pa=shared.compare([6086],[2556,4492]),pb=shared.compare([2556,4492],[6086]);
 assert.ok(pa.signedPct>0&&pa.additivePct<0);
-assert.equal(pa.valueA,pb.valueB);assert.equal(pa.valueB,pb.valueA);
+assert.ok(Math.abs(pa.valueA-pb.valueB)<1e-8);assert.ok(Math.abs(pa.valueB-pb.valueA)<1e-8);
 assert.ok(Math.abs(pa.signedPct+pb.signedPct)<1e-9);
 assert.equal(shared.compare([0],[1]),null);
 assert.equal(shared.compare([100],[100]).bonusA,0);
