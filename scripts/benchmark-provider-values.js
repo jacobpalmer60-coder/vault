@@ -53,7 +53,16 @@ for(const sf of [true,false]){
  rows.push({id,name:p.name,pos:p.pos,...vals});
  }
  if(rows.length<100)throw Error('Insufficient overlap '+key+': '+rows.length);
- report.formats[key]={...analyze(rows),unmatched:unmatched.length,unmatchedExamples:unmatched.slice(0,20)};
+ const pickRows=[], missingPicks=[];
+ for(const p of ktc.picks||[]){
+ const id=p.season+'-'+p.round+'-'+p.slot;
+ const a={type:'pick',season:p.season,round:p.round,tier:p.slot,value:p[key]};
+ const vals={vault:Vault.gradeValue(a),ktc:p[key],ra:Vault.rosterAuditValue(a,sf,{picks:ra.picks?.picks}),dd:Vault.dynastyDaddyValue(a,sf,dd)};
+ if(!Object.values(vals).every(finite)){missingPicks.push(id);continue;}
+ pickRows.push({id,name:id,pos:'Pick',...vals});
+ }
+ report.formats[key]={...analyze(rows),unmatched:unmatched.length,unmatchedExamples:unmatched.slice(0,20),picks:{...analyze(pickRows),unmatched:missingPicks}};
+
 }
 const out=process.argv.find(x=>x.startsWith('--out='))?.slice(6);
 if(out)fs.writeFileSync(out,JSON.stringify(report,null,2));
