@@ -25,6 +25,12 @@
 <p id="draftError" class="vault-warning hidden mt-4">Sleeper returned incomplete data. Refresh the page or switch leagues.</p>
 <div id="draftContent" class="hidden">
 <section id="draftSummary" class="vault-panel mt-5" aria-label="Draft picks at a glance"></section>
+<details class="vault-panel mt-3"><summary class="cursor-pointer text-[14px] font-medium py-2">How to use your draft capital</summary><div class="vault-body mt-2 space-y-2">
+  <p><strong>Rebuilding:</strong> compare future picks with young players and the time needed to become competitive. Pick counts alone do not determine roster quality.</p>
+  <p><strong>Contending:</strong> compare the projected lineup improvement of any acquisition with the draft capital and flexibility it costs. A first-round pick is not automatically worth spending.</p>
+  <p><strong>Evidence:</strong> ownership comes from league records; slot estimates depend on draft rules and playoff results; current pick prices do not predict the player selected or their future production.</p>
+  <p>Use <a href="team-analyzer.html" class="vault-link" id="draftPlanLink">Team Analyzer</a> to review roster direction and positional needs before moving picks.</p>
+</div></details>
 <section class="vault-panel vault-panel-accent mt-5" aria-label="Draft order model status">
   <div class="vault-kicker">DRAFT ORDER STATUS</div>
   <details class="mt-2"><summary class="cursor-pointer text-[14px] font-medium">How is draft order calculated?</summary><p class="vault-body mt-2"><strong>Max Points For is not the complete draft order.</strong> A league may use MPF for eliminated non-playoff teams, then playoff finishing position for the remaining slots. We read actual Sleeper bracket placements and keep unknown slots as TBD. Commissioner changes below apply only in this browser, not to Sleeper or other managers.</p></details>
@@ -86,4 +92,5 @@
 <script src="vault-nav.js?v=b1f8289e"></script>
 <script src="draft-rules.js?v=119a576e"></script>
 <script src="draft-center.js?v=fa19de6c"></script>
+<script>document.getElementById("draftPlanLink").href=Vault.linkTo("team-analyzer.html");</script>
 </body></html>
