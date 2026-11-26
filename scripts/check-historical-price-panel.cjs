@@ -1,9 +1,10 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'..','trade_grades.html'),'utf8');
-const code=html.slice(html.indexOf('function historicalPricePanel('),html.indexOf('function renderGrade('));
+const code=html.slice(html.indexOf('function datedMarketRead('),html.indexOf('function renderGrade('));
 const vault={escapeHtml:x=>String(x),priceWord:x=>x,fairnessBarHtml:()=>'<div>bar</div>',ktcSideValues:(a,b)=>{assert.equal(a[0].ktcPrice,6085);assert.equal(b[0].ktcPrice,2526);return {valueA:9625,valueB:6968,bonusA:3540,bonusB:0};}};
-const ctx={Vault:vault};vm.createContext(ctx);vm.runInContext(code,ctx);
+vault.gradeKey=a=>a.key;vault.marketSideValues=(a,b,{market})=>({valueA:a.reduce((n,x)=>n+x.value*(1+(market.get(x.key)||0)/100),0),valueB:b.reduce((n,x)=>n+x.value*(1+(market.get(x.key)||0)/100),0)});vault.fairnessBucket=()=> 'Fair';
+const ctx={Vault:vault,recordedMarket:[]};vm.createContext(ctx);vm.runInContext(code,ctx);
 const g={teamA:{teamName:'Salt Factory'},teamB:{teamName:'TURBONUTZ'},toA:[{value:6085}],toB:[{value:2526},{value:4442}],bucket:'Fair',valuedAt:'trade',signedPctDiff:13.52946,bandPct:9};
 const panel=ctx.historicalPricePanel(g);
 assert.match(panel,/13\.5% off/);assert.match(panel,/Higher additive value: TURBONUTZ/);assert.match(panel,/Higher adjusted value: Salt Factory/);
@@ -12,3 +13,12 @@ assert.match(ctx.historicalPricePanel({...g,anyMissingValue:true}),/unavailable/
 assert.match(ctx.historicalPricePanel({...g,valuedAt:'today'}),/historical price unavailable/);
 assert.match(html,/g\.historyFitUnavailable \? historicalPricePanel\(g\)/);
 console.log('PASS price-only historical grade, same-input package diagnostic, missing-data handling and Lamar trade fixture');
+
+const recent={...g,created:Date.parse('2026-11-25T23:00:00Z'),toA:[{value:6085,key:'n:lamar jackson'}],toB:[{value:2526,key:'n:geno smith'},{value:4442,key:'k:2028-1'}]};
+const record={updated:'2026-11-24T18:40:42.372Z',recordedAt:'2026-11-24T18:40:52Z',premiums:{'n:lamar jackson':3.1,'n:geno smith':3.8,'k:2028-1':-21}};
+const m=ctx.datedMarketRead(recent,[record]);assert.ok(m.valueA>m.valueB);
+assert.equal(ctx.datedMarketRead(recent,[{...record,recordedAt:'2026-11-26T00:00:00Z'}]),null);
+assert.equal(ctx.datedMarketRead({...recent,created:Date.parse('2026-11-28T00:00:00Z')},[record]),null);
+assert.equal(ctx.datedMarketRead({...recent,valuedAt:'today'},[record]),null);
+ctx.recordedMarket=[record];assert.match(ctx.historicalPricePanel(recent),/Higher market value: Salt Factory/);
+console.log('PASS dated market estimate, no future or stale premiums, historical base statistics unchanged');
