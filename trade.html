@@ -1548,7 +1548,14 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const evidence = VaultTradePolicy.evidence({style:managerStyle, basis:'market'});
   const gapWord = v => Math.abs(v || 0).toFixed(0) + '%';
   const marketBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(prices.market.signedPct), 0, 0));
-  const modelConflict = prices.materialDisagreement;
+  // Compare against the actual KTC-adjusted quote separately from the retired
+  // Vault package curve. A direction reversal matters even if both gaps are small.
+  const mg=prices.market.signedPct,kg=prices.ktc?.signedPct;
+  const ktcConflict=Number.isFinite(mg)&&Number.isFinite(kg)&&
+    (Math.abs(mg-kg)>=15||(Math.abs(mg)>=1&&Math.abs(kg)>=1&&Math.sign(mg)!==Math.sign(kg)));
+  const modelConflict = prices.materialDisagreement||ktcConflict;
+  const receivedBy=g=>Math.abs(g)<1?'approximately even':'favors '+Vault.escapeHtml((g>0?teamB:teamA).teamName);
+  const priceConflictText=ktcConflict?`Vault market: ${receivedBy(mg)} (${Math.abs(mg).toFixed(1)}% gap). KTC adjusted: ${receivedBy(kg)} (${Math.abs(kg).toFixed(1)}% gap). The KTC package adjustment changes the comparison; review both prices and roster impact.`:'Price methods disagree materially. Open the pricing breakdown before deciding.';
   const bothGradeText = 'Both sides grade Toss-up or better · acceptance unconfirmed';
   const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[740px]" aria-label="Independent additive market price, package model and manager response">
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Primary market-price grade</div><div class="text-[13px] font-medium text-zinc-100">${marketBucket} · ${gapWord(prices.market.signedPct)} gap</div><div class="text-[11px] text-zinc-400">${prices.marketFeedAvailable ? 'Recent trade premiums applied' : 'KTC prices only; premiums unavailable'} · no consolidation</div></div>
@@ -1561,7 +1568,7 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
       ${them ? tile(`For ${Vault.escapeHtml(teamB.teamName)}`, them.label, Vault.VERDICT_TIER_TEXT[them.tier], theirSub, closeCallHtml(them)) : ''}
     </div>
     <div class="text-[15px] text-zinc-200 mt-3 max-w-[740px] leading-relaxed"><span class="font-semibold">Why it matters: </span>${improvementReason(imp, null)}${imp.outOfRace ? ` This season's points don't count: you're out of the playoff race (under ${VAULT_CONFIG.OUT_OF_RACE_PCT}% odds).` : ''}${them && them.outOfRace ? ` <span class="text-zinc-400">${Vault.escapeHtml(teamB.teamName)} is out of the playoff race, so this season's points don't count in their verdict.</span>` : ''}</div>${overpayNoteHtml(imp)}
-    ${modelConflict ? '<div class="vault-warning mt-3">Price methods disagree materially. Open the pricing breakdown before deciding.</div>' : ''}
+    ${modelConflict ? '<div class="vault-warning mt-3">'+priceConflictText+'</div>' : ''}
     <details id="advancedVerdict" class="trade-advanced" ${document.getElementById('tradeBar').dataset.advanced === 'open' ? 'open' : ''} ontoggle="if(this.isConnected) document.getElementById('tradeBar').dataset.advanced=this.open?'open':'closed'">
       <summary>Pricing breakdown and team plans</summary>
       <div class="trade-advanced-content">
