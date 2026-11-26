@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const html=fs.readFileSync(path.join(__dirname,'..','trade_grades.html'),'utf8');
+const code=html.slice(html.indexOf('function historicalPricePanel('),html.indexOf('function renderGrade('));
+const vault={escapeHtml:x=>String(x),priceWord:x=>x,fairnessBarHtml:()=>'<div>bar</div>',ktcSideValues:(a,b)=>{assert.equal(a[0].ktcPrice,6085);assert.equal(b[0].ktcPrice,2526);return {valueA:9625,valueB:6968,bonusA:3540,bonusB:0};}};
+const ctx={Vault:vault};vm.createContext(ctx);vm.runInContext(code,ctx);
+const g={teamA:{teamName:'Salt Factory'},teamB:{teamName:'TURBONUTZ'},toA:[{value:6085}],toB:[{value:2526},{value:4442}],bucket:'Fair',valuedAt:'trade',signedPctDiff:13.52946,bandPct:9};
+const panel=ctx.historicalPricePanel(g);
+assert.match(panel,/13\.5% off/);assert.match(panel,/Higher additive value: TURBONUTZ/);assert.match(panel,/Higher adjusted value: Salt Factory/);
+assert.match(panel,/Roster fit: not evaluated/);assert.match(panel,/Team timeline: not evaluated/);assert.match(panel,/not a live KTC quote/);
+assert.match(ctx.historicalPricePanel({...g,anyMissingValue:true}),/unavailable/);
+assert.match(ctx.historicalPricePanel({...g,valuedAt:'today'}),/historical price unavailable/);
+assert.match(html,/g\.historyFitUnavailable \? historicalPricePanel\(g\)/);
+console.log('PASS price-only historical grade, same-input package diagnostic, missing-data handling and Lamar trade fixture');
