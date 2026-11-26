@@ -1,0 +1,37 @@
+name: Provider valuation benchmark
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/benchmark-provider-values.js
+      - .github/workflows/provider-benchmark.yml
+  schedule:
+    - cron: '30 10 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: vault-provider-benchmark
+  cancel-in-progress: false
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify benchmark arithmetic
+        run: node scripts/benchmark-provider-values.js --self-test
+      - name: Obtain missing initial snapshot
+        run: |
+          if [ ! -s data/roster-audit-values.json ]; then
+            node scripts/fetch-roster-audit.mjs
+          fi
+      - name: Compare all four valuation models
+        run: node scripts/benchmark-provider-values.js --out=provider-benchmark.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: provider-benchmark
+          path: provider-benchmark.json
+          retention-days: 90
