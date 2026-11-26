@@ -2,6 +2,7 @@
 // Package research: same assets, same prior-only prices, distinct pricing models.
 // No roster strategy, acceptance probability or production pricing changes.
 const T=require('./valuation-tournament');
+const {power}=require('../../package-pricing');
 const sum=xs=>xs.reduce((n,v)=>n+v,0);
 const signed=(a,b)=>200*(a-b)/(a+b);
 const models=Object.freeze([
@@ -13,11 +14,6 @@ const models=Object.freeze([
  ...[0.1,0.25,0.5].map(weight=>({id:'confidence-concentration-'+weight,basis:'confidence',weight}))
 ]);
 const confidence=T.candidates.find(m=>m.id==='confidence-25');
-function power(xs,p){
- // Scale first to avoid overflow and guarantee a single piece keeps its value.
- const m=Math.max(...xs);
- return m*Math.pow(sum(xs.map(v=>Math.pow(v/m,p))),1/p);
-}
 function concentration(xs,w){
  // Only discount secondary pieces, never the largest piece or a 1-for-1.
  const best=Math.max(...xs);return best+(sum(xs)-best)*(1-w);
