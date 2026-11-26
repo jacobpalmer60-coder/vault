@@ -32,6 +32,15 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Archive previously published market evidence
+        if: ${{ hashFiles('scripts/archive-recorded-market.js') != '' }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/commits?path=data/grade-values.json&sha=$(git rev-parse HEAD)&per_page=1" > "$RUNNER_TEMP/market-commit.json"
+          commit=$(jq -r '.[0].sha' "$RUNNER_TEMP/market-commit.json")
+          stamp=$(jq -r '.[0].commit.committer.date' "$RUNNER_TEMP/market-commit.json")
+          node scripts/archive-recorded-market.js "$commit" "$stamp"
+
       # A third-party feed failure must not block projections, injuries and weekly stats.
       # Do not replace existing values when extraction fails.
       - name: Refresh KTC values
@@ -141,3 +150,8 @@ jobs:
           # The hourly Sleeper crawl also pushes (data/market-history/ only), so catch up first.
           git pull --rebase
           git push
+      - name: Fail visibly if KTC prices were not refreshed
+        if: always() && steps.ktc.outcome != 'success'
+        run: |
+          echo '::error::KTC refresh failed; last known good prices retained. Other feeds were allowed to publish.'
+          exit 1

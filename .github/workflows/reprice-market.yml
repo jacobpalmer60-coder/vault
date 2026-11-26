@@ -35,8 +35,13 @@ jobs:
       - name: Retrieve complete safeguarded Sleeper trade archive
         run: |
           mkdir -p data/sleeper-trades
-          gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber
-          node scripts/crawl-guard.js check
+          # Collector uploads can briefly remove an asset during replacement.
+          # Retry the guarded download; never bypass missing-season checks.
+          for attempt in 1 2 3 4; do
+            if gh release download sleeper-trades --pattern '*.json.gz' --dir data/sleeper-trades --clobber && node scripts/crawl-guard.js check; then exit 0; fi
+            if [ "$attempt" -lt 4 ]; then sleep 60; fi
+          done
+          exit 1
       - name: Price trades in isolated season/format shards
         run: node --expose-gc --max-old-space-size=6144 scripts/summarize-sleeper-trades.js
       - name: Build current Trade Lab summary (not historical predictions)
