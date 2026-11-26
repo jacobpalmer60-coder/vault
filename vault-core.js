@@ -1469,7 +1469,6 @@ const Vault = {
      grade. No file or no league loaded: KTC values. */
   setGradeMarket(gradeData, isSF, bonusRecTe) {
     const key = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(bonusRecTe);
-    Vault._gradeFormat = key;
     const table = gradeData?.formats?.[key];
     Vault._gradeMarket = table ? new Map(Object.entries(table)) : null;
     Vault._gradeMarketUpdated = table ? gradeData.updated : null;
@@ -3175,31 +3174,13 @@ const Vault = {
   // A piece retains its full independently priced market value in any package.
   // The separate old tradeSideValues() is retained as a historical accepted-
   // trade shape diagnostic, never as a secret discount in the live price.
-  // Explicit rollback switch. Never infer a supported format from missing metadata.
-  PACKAGE_PRICING_ENABLED: true,
-  packagePricingActive(format = Vault._gradeFormat) {
-    return Vault.PACKAGE_PRICING_ENABLED && (format === 'sf' || format === 'oneQB');
-  },
-  pricingBasisLabel(format = Vault._gradeFormat) {
-    return Vault.packagePricingActive(format) ? 'Vault package price (power-2)' : 'Vault additive market price';
-  },
-  marketSideValues(assetsA, assetsB, { market = true, production = market === true, format = Vault._gradeFormat } = {}) {
+  marketSideValues(assetsA, assetsB, { market = true } = {}) {
     const table = market === true ? Vault._gradeMarket : market || null;
     const price = asset => table ? Vault.gradeValue(asset, table) : asset.value;
     const rawA = assetsA.reduce((n, asset) => n + (Number(price(asset)) || 0), 0);
     const rawB = assetsB.reduce((n, asset) => n + (Number(price(asset)) || 0), 0);
-    const additive = { rawA, rawB, valueA: rawA, valueB: rawB, bonusA: 0, bonusB: 0,
+    return { rawA, rawB, valueA: rawA, valueB: rawB, bonusA: 0, bonusB: 0,
       display: false, basis: 'additive-market' };
-    if (!production || !Vault.packagePricingActive(format)) return additive;
-    const a = assetsA.map(x=>x.value), b = assetsB.map(x=>x.value);
-    if (!a.length || !b.length || ![...a,...b].every(v=>typeof v==='number'&&Number.isFinite(v)&&v>0))
-      return {...additive,basis:'incomplete-additive',packageUnavailable:true};
-    const norm=xs=>{const m=Math.max(...xs);return m*Math.sqrt(xs.reduce((s,v)=>s+(v/m)**2,0));};
-    const baseA=a.reduce((s,v)=>s+v,0),baseB=b.reduce((s,v)=>s+v,0),ratio=norm(a)/norm(b);
-    const valueA=ratio>=baseA/baseB?baseB*ratio:baseA,valueB=ratio>=baseA/baseB?baseB:baseA/ratio;
-    const bonusA=Math.max(0,valueA-baseA),bonusB=Math.max(0,valueB-baseB);
-    return {rawA:baseA,rawB:baseB,valueA,valueB,bonusA,bonusB,display:Math.max(bonusA,bonusB)>=1,
-      basis:'raw-power-2',additiveA:rawA,additiveB:rawB};
   },
   // { market: false }: KTC values (the market data measuring prices; marketEdge,
   // which applies its own). { market: Map }: that week's prices (past trades).
@@ -4537,8 +4518,8 @@ const Vault = {
     // Applying today's roster fit to that old transaction invents an impact that wasn't measured.
     // Until point-in-time rosters AND projections are available, grade price only.
     const gradeMarket = false;
-    const then = Vault.marketSideValues(toB, toA, { market: gradeMarket, production: true });
-    const today = Vault.marketSideValues(toBTodayPrices, toATodayPrices, { market: false, production: true });
+    const then = Vault.marketSideValues(toB, toA, { market: gradeMarket });
+    const today = Vault.marketSideValues(toBTodayPrices, toATodayPrices, { market: false });
     const avgAdj = (then.valueA + then.valueB) / 2 || 1;
     const signedPctDiff = (then.valueA - then.valueB) / avgAdj * 100;
     const pctDiff = Math.abs(signedPctDiff);
@@ -4550,7 +4531,7 @@ const Vault = {
     const fairness = Vault.blendedFairness(signedPctDiff, 0, 0, 0, 0);
     const bucket = Vault.fairnessBucket(pctDiff, 0, 0);
     const favored = signedPctDiff > 0 ? teamB : teamA;
-    const label = bucket === 'Unfair' || bucket === 'Lopsided' ? `${bucket} — Favored ${favored.teamName}` : 'Fair on trade value';
+    const label = bucket === 'Unfair' || bucket === 'Lopsided' ? `${bucket} — Favored ${favored.teamName}` : 'Fair on additive trade value';
     const names = list => list.map(a => Vault.escapeHtml(a.name)).join(', ') || 'no listed assets';
     const text = `${Vault.escapeHtml(teamA.teamName)} received ${names(toA)}; ${Vault.escapeHtml(teamB.teamName)} received ${names(toB)}.`;
     const verdict = { tone: bucket === 'Unfair' ? 'bad' : 'neutral', label, text };
@@ -4559,7 +4540,7 @@ const Vault = {
     const arch = () => ({ archFit: 0, notes: [] });
     const depth = () => ({ fit: 0, perWeek: 0, note: null });
     return {
-      tx, teamA, teamB, toA, toB, gradeMarket, priceBasis:then.basis, priceA:then.valueB, priceB:then.valueA,
+      tx, teamA, teamB, toA, toB, gradeMarket,
       toAToday: toATodayPrices, toBToday: toBTodayPrices,
       depthA: depth(), depthB: depth(),
       pctDiff, pctDiffNeed: null, signedPctDiff, bandPct, fairness,
