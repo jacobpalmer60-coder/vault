@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - scripts/fetch-ktc.js
+      - scripts/fetch-roster-audit.mjs
       - scripts/build-slim-data.js
       - scripts/snapshot-value-history.js
       - .github/workflows/update-data.yml
@@ -56,6 +57,20 @@ jobs:
         id: daddy
         continue-on-error: true
         run: node scripts/fetch-dynasty-daddy.js
+      - name: Refresh Roster Audit benchmark
+        id: roster_audit
+        continue-on-error: true
+        run: node scripts/fetch-roster-audit.mjs
+      - name: Verify Roster Audit authenticated calculator
+        id: roster_audit_auth
+        continue-on-error: true
+        env:
+          ROSTER_AUDIT_API: ${{ secrets.ROSTER_AUDIT_API }}
+        run: node scripts/fetch-roster-audit.mjs --check-auth
+      - name: Report Roster Audit benchmark status
+        if: always()
+        run: |
+          echo "Roster Audit feed: ${{ steps.roster_audit.outcome }}; authenticated calculator: ${{ steps.roster_audit_auth.outcome }}" >> "$GITHUB_STEP_SUMMARY"
       - name: Refresh KTC trade feed
         id: ktc_trades
         continue-on-error: true
@@ -145,6 +160,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/injury-details.json data/player-history.json data/ktc-values.json data/dynasty-daddy-values.json data/market-history/peer-baseline.json data/projections.json data/ktc-trades-sf.json data/ktc-trades-oneQB.json data/market/ data/pick-value-history.json data/history/ data/sleeper-players.json data/weekly/ data/grade-values.json data/grade-values-history/
+          if [ -f data/roster-audit-values.json ]; then git add data/roster-audit-values.json; fi
           # Both are kept on the release now.
           git rm --cached --ignore-unmatch --quiet data/ktc-trades.json data/player-value-history.json
           git diff --cached --quiet || git commit -m "Update KTC values, projections, trade database, and value history"
