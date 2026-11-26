@@ -42,7 +42,7 @@ jobs:
       - name: Compare prespecified models on disjoint league keys
         run: |
           node --max-old-space-size=5632 scripts/benchmark-valuation-tournament.js > reports/tournament.json
-          node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          node - <<'NODE' | tee -a "$GITHUB_STEP_SUMMARY"
           const r=require('./reports/tournament.json');
           console.log('### '+r.format+' — '+r.decision);
           console.log('Training: '+r.training.n+' / held-out test: '+r.test.n);
