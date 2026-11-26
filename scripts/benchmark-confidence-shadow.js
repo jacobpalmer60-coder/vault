@@ -2,6 +2,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),zlib=require('node:zlib');
 const S=require('./market-history/confidence-shadow');
+const vbaVault=require('./lib-market').loadVault();
 const {seasonFiles,readSeason,readSleeperPlayers,formatOf,normalizeName}=require('./market-history/ktc-book');
 const {datePlus,hash}=require('./market-history/relative-growth');
 const dir=process.argv[2],today=new Date().toISOString().slice(0,10);
@@ -30,10 +31,10 @@ for(const file of files){
   const f=formatOf(fmt),k=f+'|'+date,c=coverage[f];if(!c||!dates.has(k))continue;
   seen.add(id);c.sampled++;
   const snap=dates.get(k);if(!snap){c.noSnapshot++;continue;}
-  const r=S.row(snap,a,b,names,league,date);
+  const r=S.row(snap,a,b,names,league,date,vbaVault);
   if(!r){c.missingPrice++;continue;}rows[f].push(r);c.complete++;
  }
 }
 console.log(JSON.stringify({kind:'confidence-shadow-evaluation',generated:new Date().toISOString(),start,end,coverage,
- formats:Object.fromEntries(S.FORMATS.map(f=>[f,S.report(rows[f])])),
+ formats:Object.fromEntries(S.FORMATS.map(f=>[f,{...S.report(rows[f]),package:S.packageReport(rows[f])}])),
  caveats:['Publication must precede trade UTC day; at most three days old.','Identical held-out trade rows, 1/10 deterministic sample.','Pick price is exact year/round mid-tier proxy; no owner or rookie outcome.','Completed price agreement is not a strategic outcome or acceptance prediction.','No automatic price deployment.']},null,2));
