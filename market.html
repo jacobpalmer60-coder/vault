@@ -35,7 +35,7 @@
   <div class="mb-2">
     <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Player Market<span class="term-i" data-term="page_market" tabindex="0" role="note">?</span></h1><a href="how_we_grade.html#market" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How it works</a></div>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading…</p>
-    <p class="mt-2 text-[12px] text-zinc-400 max-w-[850px] leading-relaxed">Historical player-premium charts are descriptive and draw on pre-redesign completed-trade datasets. Live trade-price grading now adds each asset's individually estimated market value without an extra package-consolidation bonus.</p>
+    <p class="mt-2 text-[14px] text-zinc-300">See what players are trading for and follow changes in the market.</p><details class="mt-2 text-[12px] text-zinc-400 max-w-[850px] leading-relaxed"><summary class="cursor-pointer">About these market estimates</summary><p class="mt-2">Historical player-premium charts are descriptive and draw on pre-redesign completed-trade datasets. Live trade-price grading now adds each asset's individually estimated market value without an extra package-consolidation bonus.</p></details>
   </div>
 
   <!-- Your market: your pieces selling above and below KTC in completed trades (shown once your team is set). -->
@@ -56,6 +56,7 @@
     <div data-field-box class="rounded-xl border border-white/10 bg-black/30 px-3 py-2 mb-3">
       <select id="lookup" data-search="Type a player…" aria-label="Look up a player" class="w-full bg-transparent text-[14px] text-zinc-100 outline-none"></select>
     </div>
+    <section id="marketWatchlist" class="mb-4" aria-label="Watched players"></section>
     <div id="lookupBody" class="text-[12px] text-zinc-500">Pick a player to see his market.</div>
     <div id="lookupComps"></div>
   </section>
@@ -110,7 +111,7 @@
 <script src="vault-core.js?v=759debb7"></script>
 <script src="vault-nav.js?v=b1f8289e"></script>
 <script src="market-data.js?v=bdfadff2"></script>
-<script src="player-card.js?v=0bbd5e7c"></script>
+<script src="player-card.js?v=f6f4f86c"></script>
 <script>
 /* ============================================================
    PLAYER MARKET
@@ -376,6 +377,12 @@ function collecting(extra = '') {
 /* ---------- Look up a player ---------- */
 const RANGES = [['90', '90 days'], ['365', '1 year'], ['all', 'All']];
 let lookupNorm = null, lookupRange = '365';
+function drawMarketWatchlist(){
+  const box=document.getElementById('marketWatchlist'),watched=[...byNorm.entries()].filter(([key,p])=>p.pos!=='Pick'&&Vault.isWatched(key)).sort((a,b)=>b[1].value-a[1].value);
+  box.innerHTML='<div class="flex items-center justify-between gap-2 flex-wrap"><h3 class="text-[14px] font-semibold">Your watchlist</h3><span class="text-[12px] text-zinc-400">Saved in this browser</span></div>'+(watched.length?'<div class="flex flex-wrap gap-2 mt-2">'+watched.slice(0,8).map(([key,p])=>'<button type="button" data-watch-lookup="'+esc(key)+'" class="vault-btn vault-btn-muted" aria-pressed="'+(lookupNorm===key)+'">'+esc(p.name)+'</button>').join('')+'</div>':'<p class="text-[12px] text-zinc-400 mt-2">Watch a player from their profile to find them here.</p>')+(watched.length>8?'<details class="mt-2"><summary class="cursor-pointer text-[13px]">More watched players ('+(watched.length-8)+')</summary><div class="flex flex-wrap gap-2 mt-2">'+watched.slice(8).map(([key,p])=>'<button type="button" data-watch-lookup="'+esc(key)+'" class="vault-btn vault-btn-muted" aria-pressed="'+(lookupNorm===key)+'">'+esc(p.name)+'</button>').join('')+'</div></details>':'');
+  box.onclick=e=>{const btn=e.target.closest('[data-watch-lookup]');if(btn)lookUp(btn.dataset.watchLookup);};
+}
+document.addEventListener('vault:watchlist',()=>{if(byNorm.size)drawMarketWatchlist();});
 function drawRangeChips() {
   document.getElementById('lookupRange').innerHTML = RANGES.map(([k, l]) => `<button onclick="setRange('${k}')" aria-pressed="${lookupRange === k}" class="text-[12px] px-3 py-1 rounded-lg border transition-colors ${lookupRange === k ? 'bg-white/[0.08] border-white/25 text-white' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/20'}">${l}</button>`).join('');
 }
@@ -383,6 +390,7 @@ function setRange(k) { lookupRange = k; drawRangeChips(); if (lookupNorm) lookUp
 async function lookUp(norm) {
   if (lookupNorm !== norm) compsAll = false;
   lookupNorm = norm;
+  drawMarketWatchlist();
   const sel = document.getElementById('lookup');
   if (sel.value !== norm) sel.value = norm;
   const box = document.getElementById('lookupBody'), who = byNorm.get(norm);
@@ -799,7 +807,7 @@ async function init() {
       .map(([norm, p]) => `<option value="${esc(norm)}">${esc(p.name)} · ${esc(p.pos || '')}</option>`).join('');
     sel.value = '';
     sel.onchange = () => { if (sel.value) lookUp(sel.value); };
-    drawRangeChips();
+    drawRangeChips();drawMarketWatchlist();
     // ?p=<normalized name or k:season-round> (a shared link, or a Your market chip) charts it.
     const want = new URLSearchParams(location.search).get('p');
     if (want && byNorm.has(want)) lookUp(want);
