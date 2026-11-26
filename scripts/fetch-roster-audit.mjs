@@ -23,17 +23,17 @@ function normalize(raw){
 }
 async function main(){
  const formats={};
- for(const format of ['sf_ppr','1qb_ppr','sf_ppr_tep']){
+ for(const format of ['sf_ppr','1qb_ppr','sf_ppr_tep','1qb_ppr_tep']){
   formats[format]=normalize(await request('/rankings/values?format_key='+format));
  }
  const picks=await request('/picks');
- if(!picks||typeof picks!=='object'||Object.keys(picks).length===0) throw new Error('Missing pick response');
+ if(!Array.isArray(picks?.picks)||picks.picks.length<30||picks.picks.some(p=>!Number.isInteger(+p.pick_season)||!Number.isInteger(+p.pick_round)||!['early','mid','late'].includes(p.pick_slot)||!valid(p.val_sf)||!valid(p.val_1qb))) throw new Error('Missing pick response');
  const snapshot={source:'Roster Audit',attribution:'https://rosteraudit.com/',fetchedAt:new Date().toISOString(),formats,picks};
  const tmp=out+'.tmp';
  await fs.mkdir(path.dirname(out),{recursive:true});
  await fs.writeFile(tmp,JSON.stringify(snapshot));
  await fs.rename(tmp,out);
- console.log('Roster Audit: '+Object.keys(formats.sf_ppr).length+' player values; 3 format queries; pick response saved.');
+ console.log('Roster Audit: '+Object.keys(formats.sf_ppr).length+' player values; 4 format queries; pick response saved.');
 }
 if(process.argv.includes('--check-auth')){
  const key=process.env.ROSTER_AUDIT_API;
