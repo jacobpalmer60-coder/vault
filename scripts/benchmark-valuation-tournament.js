@@ -10,6 +10,8 @@ const T=require('./market-history/valuation-tournament');
 const format=process.env.BENCHMARK_FORMAT||'sf',sample=Number(process.env.SAMPLE_MOD||10),evidenceMod=Number(process.env.EVIDENCE_MOD||5);
 const formats=['sf','sf_tep','sf_tepp','oneQB','oneQB_tep','oneQB_tepp'];
 if(!formats.includes(format)||![sample,evidenceMod].every(x=>Number.isInteger(x)&&x>=1))throw Error('Bad format/sample');
+const shadow=process.argv.includes('--shadow'),today=new Date().toISOString().slice(0,10);
+if(shadow&&(!['sf','oneQB'].includes(format)||evidenceMod!==5))throw Error('Shadow supports only the frozen confidence-25 model with evidence sampling 1/5');
 const qb=format.startsWith('sf')?'sf':'oneQB',siblings=formats.filter(f=>f.startsWith(qb));
 const read=p=>JSON.parse(fs.readFileSync(path.join(DATA,p),'utf8'));
 const books=Object.fromEntries(siblings.map(f=>[f,makeSeries(read('history/players-'+f+'.json'))]));
@@ -20,8 +22,8 @@ for(const [id,p] of Object.entries(players))if(['QB','RB','WR','TE'].includes(p.
  if(name){names.set(id,name);counts.set(name,(counts.get(name)||0)+1);}
 }
 for(const [id,name] of names)if(counts.get(name)!==1)names.delete(id);
-const files=seasonFiles(2024).filter(f=>+f.slice(0,4)<=2025);
-if(files.length!==2||!files[0].startsWith('2024')||!files[1].startsWith('2025'))throw Error('Need both season archives');
+const files=shadow?seasonFiles(+today.slice(0,4)-1).filter(f=>+f.slice(0,4)<=+today.slice(0,4)):seasonFiles(2024).filter(f=>+f.slice(0,4)<=2025);
+if(shadow?!files.some(f=>f.startsWith(today.slice(0,4))):files.length!==2||!files[0].startsWith('2024')||!files[1].startsWith('2025'))throw Error('Required season archives missing');
 const records=new Map(), seen=new Set(), train=[],test=[];
 const coverage={evidenceTrades:0,evidenceMissing:0,trainEligible:0,testEligible:0,trainMissing:0,testMissing:0,trainComplete:0,testComplete:0};
 let lastDay='',daily=new Map(),table=null,day=0;
@@ -64,8 +66,9 @@ for(const file of files){
   if(seen.has(id))continue;
   const [date,league,a,b]=doc.trades[id],f=doc.leagues[league];
   if(!f||!date||!a?.length||!b?.length)continue;
+  if(shadow&&(date>=today||date<datePlus(today,-45)))continue;
   const fmt=formatOf(f);if(!siblings.includes(fmt))continue;
-  const split=fmt===format&&hash('eval:'+id)%sample===0?cohort(date,league):null;
+  const split=!shadow&&fmt===format&&hash('eval:'+id)%sample===0?cohort(date,league):null;
   const useEvidence=!holdout(league)&&hash('evidence:'+id)%evidenceMod===0;
   if(!split&&!useEvidence)continue;
   seen.add(id);
@@ -97,6 +100,27 @@ for(const file of files){
   days.delete(date);
  }
  console.error('[tournament] merged archive '+JSON.stringify(coverage));
+if(shadow){
+ const ktc=read('ktc-values.json'),grade=read('grade-values.json');
+ const {capture}=require('./market-history/prospective-prices');
+ const sourceCommit=process.env.SOURCE_SHA;
+ const base=capture(ktc,grade,sourceCommit);
+ const f=base.formats[format],model=T.candidates.find(m=>m.id==='confidence-25'),nowDay=dayNum(today);
+ if(base.capturedAt.slice(0,10)!==today)throw Error('UTC day changed during capture');
+ if(coverage.evidenceTrades<100||!lastDay||lastDay<datePlus(today,-7))throw Error('Insufficient or stale recent evidence');
+ const premiums={},sampleCounts={};let adjusted=0;
+ for(const [key,price] of Object.entries(f.prices)){
+  const evidence=T.evidence(records.get(key)||[],nowDay,price,format);
+  const exact=evidence.filter(x=>x.exact);
+  const n=exact.length>=10?exact.length:evidence.length;
+  const p=T.premium(model,evidence,0,key.startsWith('k:')?'pick':'player');
+  if(!Number.isFinite(p)||p<=-100)throw Error('Invalid shadow premium '+key);
+  premiums[key]=p;sampleCounts[key]=n;if(p!==0)adjusted++;
+ }
+ if(adjusted<10)throw Error('Too few nonzero adjustments');
+ console.log(JSON.stringify({schemaVersion:1,kind:'confidence-shadow-format',format,model:model.id,evidenceMod,sourceCommit,capturedAt:base.capturedAt,ktcUpdated:base.ktcUpdated,marketUpdated:base.marketUpdated,prices:f.prices,archivedPremiums:f.premiums,candidatePremiums:premiums,sampleCounts,coverage,lastEvidenceDay:lastDay,adjusted}));
+ process.exit(0);
+}
 const report={schemaVersion:1,kind:'rolling-valuation-tournament',format,sample,evidenceMod,generatedAt:new Date().toISOString(),coverage,
  split:{train:'March–December 2024, non-held-out league keys',test:'August–December 2025, held-out league keys',lookbackDays:45,priceLagDays:1},
  ...T.report(train,test)};
