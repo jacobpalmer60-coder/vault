@@ -179,7 +179,7 @@ async function main(){
       await page.evaluate(()=>{
         const panel=document.createElement('div');panel.id='price-panel-test';
         panel.innerHTML=historicalPricePanel({teamA:{teamName:'Team 1'},teamB:{teamName:'Team 2'},toA:[{value:6085}],toB:[{value:2526},{value:4442}],bucket:'Fair',valuedAt:'trade',signedPctDiff:13.53,bandPct:9});
-        document.querySelector('main').append(panel);
+        document.body.append(panel);
       });
       const pricePanel=page.getByRole('region',{name:'Historical price comparison'});
       await pricePanel.waitFor();
