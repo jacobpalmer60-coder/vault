@@ -64,6 +64,7 @@ jobs:
       - run: node scripts/check-trade-evidence.js
       - run: node scripts/check-html-scripts.js
       - run: node scripts/check-sitewide-quality.js
+      - run: node scripts/check-package-market.cjs
       - run: node scripts/check-draft-activity.js
       - run: node scripts/stamp-assets.js --check
       - run: node scripts/check-daily-history-recovery.cjs
