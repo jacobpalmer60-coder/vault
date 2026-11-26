@@ -169,12 +169,13 @@ async function main() {
       sf_tep: p.superflexValues.tep.blendValue,
       sf_tepp: p.superflexValues.tepp.blendValue
     };
+    const slug=typeof p.slug==='string'&&/^[a-zA-Z0-9_-]+$/.test(p.slug)?p.slug:null;
     if (p.position === 'RDP') {
       const m = p.playerName.match(pickNamePattern);
       if (!m) continue; // unrecognized pick name format — skip rather than guess
-      picks.push({ season: +m[1], slot: m[2].toLowerCase(), round: +m[3], ktcId: p.playerID, ...row });
+      picks.push({ season: +m[1], slot: m[2].toLowerCase(), round: +m[3], ktcId: p.playerID, slug, ...row });
     } else {
-      players.push({ name: p.playerName, ktcId: p.playerID, pos: p.position, team: p.team || '', age: p.age || null, rookie: !!p.rookie, ...row });
+      players.push({ name: p.playerName, ktcId: p.playerID, slug, pos: p.position, team: p.team || '', age: p.age || null, rookie: !!p.rookie, ...row });
     }
   }
 

@@ -140,8 +140,10 @@ async function main() {
   if (!ktcData) throw new Error('data/ktc-values.json missing — run fetch-ktc.js first.');
   if (!projData) throw new Error('data/projections.json missing — run fetch-projections.js first.');
 
-  const playerHistory = await readJson(PLAYER_HISTORY_PATH, { snapshots: [] });
-  const pickHistory = await readJson(PICK_HISTORY_PATH, { snapshots: [] });
+  // A corrupt existing archive must never be silently replaced with an empty one.
+  const playerHistory = JSON.parse(await fs.readFile(PLAYER_HISTORY_PATH,'utf8'));
+  const pickHistory = JSON.parse(await fs.readFile(PICK_HISTORY_PATH,'utf8'));
+  if(!Array.isArray(playerHistory.snapshots)||!playerHistory.snapshots.length||!Array.isArray(pickHistory.snapshots)||!pickHistory.snapshots.length)throw Error('Existing value history missing or invalid');
 
   // Same-day re-run (e.g. manual dispatch) replaces today's row, not duplicates.
   [playerHistory, pickHistory].forEach(h => {
@@ -187,32 +189,21 @@ async function main() {
   console.log(`Today (${today}): ${Object.keys(todayPlayers).length} players, ${Object.keys(todayPicks).length} picks tracked. ${newPlayers.length} new player(s), ${newPicks.length} new pick label(s) need historical backfill.`);
 
   if (newPlayers.length || newPicks.length) {
-    console.log('Fetching bulk rankings page for slug lookup...');
-    const rankingsHtml = await fetch(RANKINGS_URL, { headers: HEADERS }).then(r => r.text());
-    const allEntries = extractJsonScriptTag(rankingsHtml, 'ktc-players');
-    if (!allEntries) throw new Error('Could not find ktc-players data on rankings page — page shape may have changed.');
-    const pickNamePattern = /^(\d{4})\s+(Early|Mid|Late)\s+(\d+)(?:st|nd|rd|th)$/i;
-    const slugByPlayerName = new Map();
-    const slugByPickLabel = new Map();
-    allEntries.forEach(p => {
-      if (p.position === 'RDP') {
-        const m = p.playerName.match(pickNamePattern);
-        if (m) slugByPickLabel.set(`${m[1]}-${+m[3]}-${m[2].toLowerCase()}`, p.slug);
-      } else {
-        const key = normalizeName(p.playerName);
-        if (key) slugByPlayerName.set(key, p.slug);
-      }
-    });
-
+    console.log('Using verified daily price pool for profile slug lookup...');
+    const validSlug=s=>typeof s==='string'&&/^[a-zA-Z0-9_-]+$/.test(s);
+    const slugByPlayerName=new Map(ktcData.players.filter(p=>validSlug(p.slug)).map(p=>[normalizeName(p.name),p.slug]));
+    const slugByPickLabel=new Map(ktcData.picks.filter(p=>validSlug(p.slug)).map(p=>[`${p.season}-${p.round}-${p.slot}`,p.slug]));
+    // Missing slugs or historical profile pages must not block today's snapshot.
     let ok = 0, skipped = 0, failed = 0;
     for (const { key, name } of newPlayers) {
       const slug = slugByPlayerName.get(key);
       if (!slug) { skipped++; continue; }
       await sleep(REQUEST_DELAY_MS);
       try {
-        const html = await fetch(`${RANKINGS_URL}/players/${slug}`, { headers: HEADERS }).then(r => r.text());
+        const html = await fetch(`${RANKINGS_URL}/players/${slug}`, { headers: HEADERS, signal:AbortSignal.timeout(15000) }).then(r => {if(!r.ok)throw Error('profile HTTP '+r.status);return r.text();});
         const isTE = (ktcData.players.find(p => normalizeName(p.name) === key) || {}).pos === 'TE';
         const dateMap = buildDateMap(html, isTE);
+        if(!dateMap.size)throw Error('Profile has no readable history');
         mergeAssetHistory(playerHistory, 'players', key, dateMap, today);
         ok++;
       } catch (e) { failed++; console.log(`  ERROR fetching player ${name}: ${e.message}`); }
@@ -225,8 +216,9 @@ async function main() {
       if (!slug) { console.log(`  SKIP pick ${key} — not found on today's rankings page.`); continue; }
       await sleep(REQUEST_DELAY_MS);
       try {
-        const html = await fetch(`${RANKINGS_URL}/players/${slug}`, { headers: HEADERS }).then(r => r.text());
+        const html = await fetch(`${RANKINGS_URL}/players/${slug}`, { headers: HEADERS, signal:AbortSignal.timeout(15000) }).then(r => {if(!r.ok)throw Error('profile HTTP '+r.status);return r.text();});
         const dateMap = buildDateMap(html, true);
+        if(!dateMap.size)throw Error('Profile has no readable history');
         mergeAssetHistory(pickHistory, 'picks', key, dateMap, today);
         pOk++;
       } catch (e) { pFailed++; console.log(`  ERROR fetching pick ${season} ${slot} ${round}: ${e.message}`); }

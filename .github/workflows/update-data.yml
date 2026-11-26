@@ -11,6 +11,7 @@ on:
     paths:
       - scripts/fetch-ktc.js
       - scripts/build-slim-data.js
+      - scripts/snapshot-value-history.js
       - .github/workflows/update-data.yml
 
 concurrency:

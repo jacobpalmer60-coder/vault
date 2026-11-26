@@ -65,6 +65,7 @@ jobs:
       - run: node scripts/check-sitewide-quality.js
       - run: node scripts/check-draft-activity.js
       - run: node scripts/stamp-assets.js --check
+      - run: node scripts/check-daily-history-recovery.cjs
       - name: KTC refresh parser regression (mocked page)
         run: node scripts/check-ktc-refresh.js
       - name: Unified Sleeper ingestion integration test (mocked API)
