@@ -1,0 +1,61 @@
+name: Package valuation tournament — Vault
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/package-tournament.yml
+      - scripts/market-history/package-tournament.js
+      - scripts/check-package-tournament.js
+permissions:
+  contents: read
+concurrency:
+  group: vault-package-tournament
+  cancel-in-progress: false
+jobs:
+  replay:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        format: [sf, oneQB, sf_tep, sf_tepp, oneQB_tep, oneQB_tepp]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BENCHMARK_FORMAT: ${{ matrix.format }}
+      SAMPLE_MOD: '10'
+      EVIDENCE_MOD: '5'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify package pricing and actual trade fixture
+        run: node scripts/check-package-tournament.js
+      - name: Retrieve existing public trade archives
+        run: |
+          mkdir -p data/sleeper-trades reports
+          for year in 2024 2025 2026; do
+            gh release download sleeper-trades --pattern "$year.json.gz" --dir data/sleeper-trades
+          done
+      - name: Run prespecified whole-package pricing comparison
+        run: |
+          node --max-old-space-size=5632 scripts/benchmark-valuation-tournament.js --packages > reports/package-tournament.json
+          node - <<'NODE' | tee -a "$GITHUB_STEP_SUMMARY"
+          const r=require('./reports/package-tournament.json');
+          console.log('### '+r.format+' — '+r.decision);
+          console.log('Training: '+r.training.n+' / held-out test: '+r.test.n);
+          console.log('Candidate: '+JSON.stringify(r.candidate));
+          console.log('| Model | Test mean absolute imbalance |');
+          console.log('|---|---:|');
+          for(const m of r.test.models)console.log('| '+m.id+' | '+(m.mae?.toFixed(3)??'n/a')+' |');
+          console.log('Paired comparisons: '+JSON.stringify(r.comparisons));
+          console.log('Coverage: '+JSON.stringify(r.coverage));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-tournament-${{ matrix.format }}
+          path: reports/package-tournament.json
+          retention-days: 90
+          if-no-files-found: error
