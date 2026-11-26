@@ -122,7 +122,7 @@
       <div class="py-2.5 border-t border-white/[0.06] leading-relaxed"><span class="text-zinc-100 font-medium">Proj. Record / Playoff % / Title %</span><span class="text-zinc-400"> — The rest of your schedule played out thousands of times, with each team scoring around its Lineup PPG each week (give or take 22%). A rough estimate, not a guarantee</span></div>
     </div>
     <h3 class="display text-[20px] mt-6 mb-1">Archetypes</h3>
-    <p class="text-[12px] text-zinc-400 mb-4">Every archetype comes from two independent standings — Contending (current player value + production: how strong you are right now) and Longevity (the 5-year projection: how many years that lasts) — each ranked Top 2 / Top Half / Bottom Half / Bottom 2 of the league. Draft capital (Picks) is tracked separately — shown as its own qualifier next to each pill — since a team's picks and its projected window don't always point the same direction.</p>
+    <p class="text-[12px] text-zinc-400 mb-4">Dynasty value, current production and future longevity answer different questions. A high-value roster is not automatically the strongest contender. Every archetype comes from two independent standings — Contending (current player value + production: how strong you are right now) and Longevity (the 5-year projection: how many years that lasts) — each ranked Top 2 / Top Half / Bottom Half / Bottom 2 of the league. Draft capital (Picks) is tracked separately — shown as its own qualifier next to each pill — since a team's picks and its projected window don't always point the same direction.</p>
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3 text-[13px]" id="archGuide"></div>
     </div>
   </details>
@@ -633,6 +633,7 @@ function showTeam(id) {
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-white/[0.03] border shrink-0 ${t.archCls.replace(/from-\S+|to-\S+/g, '').trim()}">${t.arch}</span>
       </div>
       ${Vault.ARCHETYPE_INFO[t.arch]?.desc ? `<p class="text-[12px] text-zinc-400 mt-2">${Vault.escapeHtml(Vault.ARCHETYPE_INFO[t.arch].desc)}</p>` : ''}
+      <div class="mt-3 rounded-lg border border-white/10 p-3 text-[13px]"><div class="font-medium text-zinc-100">Why this ranking?</div><p class="text-zinc-300 mt-1">Dynasty value rank ${ord(rankMap(x=>x.overall).get(t.rosterId))} measures priced players and picks. It is separate from current scoring strength and the future contention window.</p><details class="mt-2"><summary class="cursor-pointer text-zinc-300">Ranking evidence and assumptions</summary><p class="text-zinc-400 mt-2">Projected best-lineup points: ${Number.isFinite(t.next4)?t.next4.toFixed(1):'unavailable'} per week. Projected longevity: ${Number.isFinite(t.windowYears)?t.windowYears+' years':'unavailable'}. Archetypes describe relative team construction, not a manager's confirmed plan. Future performance is not guaranteed.</p></details></div>
       <div class="mt-4">${posChips(t)}</div>
       <div class="grid grid-cols-4 gap-2 text-center py-3 mt-4 border-y border-white/5">
         ${stat(t.age.toFixed(1), 'Age')}
