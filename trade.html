@@ -1351,11 +1351,24 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
     { name: 'Roster Audit', href: 'https://rosteraudit.com/trade-calculator/', ...raRow },
     { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd)), note: ddNoTe ? "doesn't factor in TE premium" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? `No value for ${esc((dd.missing || []).map(sitePieceName).join(', '))}` : 'Loading…', title: 'It has no value for this piece. Open this trade on its site.' }) }
   ];
+  // Compare only the two KTC-derived price bases, never roster utility or raw cross-provider points.
+  const marketA = aAssets.reduce((s, a) => s + Vault.gradeValue(a), 0);
+  const marketB = bAssets.reduce((s, a) => s + Vault.gradeValue(a), 0);
+  const listedA = aAssets.reduce((s, a) => s + (a.ktcPrice ?? a.value), 0) + ktc.adjustA;
+  const listedB = bAssets.reduce((s, a) => s + (a.ktcPrice ?? a.value), 0) + ktc.adjustB;
+  const signed = (a,b) => a+b > 0 ? 200*(b-a)/(a+b) : 0;
+  const vm = signed(marketA,marketB), km = signed(listedA,listedB);
+  const divergence = Math.abs(vm-km);
+  const opposite = Math.sign(vm)!==Math.sign(km) && Math.min(Math.abs(vm),Math.abs(km)) >= 5;
+  const warning = divergence >= 20 || opposite
+    ? `<p class="mt-2 text-[12px] text-amber-300 leading-snug">Vault and KTC differ materially (${Math.round(divergence)} percentage points in signed price imbalance). Vault uses observed trade premiums; KTC includes a package adjustment. Check the asset values below. This is a pricing comparison, not a roster recommendation.</p>`
+    : '';
   return `<div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Other sites</div>
     <ul class="space-y-1.5">${rows.map(r => `<li class="flex items-baseline gap-2 text-[13px] leading-snug" title="${r.title || ''}">
       <span class="size-2 shrink-0 rounded-full self-center ${DOT[r.dot] || 'bg-zinc-600'}" aria-hidden="true"></span>
       <span class="min-w-0"><a href="${r.href}" target="_blank" rel="noopener" class="font-medium text-zinc-200 underline decoration-white/20 underline-offset-2 hover:text-white">${r.name}</a>: <span class="text-zinc-300">${r.text}</span>${r.note ? ` <span class="text-zinc-500">(${r.note})</span>` : ''}</span>
     </li>`).join('')}</ul>
+    ${warning}
     ${siteValuesHtml({ teamA, teamB, aAssets, bAssets }, ktc)}
     <div class="text-[11px] text-zinc-500 mt-2 leading-snug">Each site's own values and verdict${raGrade || !ra.priced ? '' : ", except Roster Audit's, which is its values added up"}. Roster Audit's and Dynasty Daddy's gaps are also shown on KTC's scale: each piece matched by rank, then counted the way KTC's calculator counts them. KTC's own verdict counts its adjustment even when its page doesn't show it. <a href="https://rosteraudit.com" target="_blank" rel="noopener" class="underline decoration-white/20 underline-offset-2 hover:text-zinc-300">Values by RosterAudit.com</a>.</div>`;
 }
