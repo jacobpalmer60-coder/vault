@@ -57,8 +57,9 @@ function enrich(x){
  const v={...x,records:recs,archive:table?.[x.key]??0};
  daily.set(key,v);return v;
 }
+const days=new Map();
 for(const file of files){
- const doc=readSeason(file),days=new Map();
+ const doc=readSeason(file);
  for(const id in doc.trades){
   if(seen.has(id))continue;
   const [date,league,a,b]=doc.trades[id],f=doc.leagues[league];
@@ -71,6 +72,8 @@ for(const file of files){
   if(!days.has(date))days.set(date,[]);
   days.get(date).push({date,league,a,b,fmt,split,useEvidence});
  }
+ console.error('[tournament] indexed '+file+'; '+seen.size+' sampled unique transactions');
+}
  for(const [date,trades] of [...days].sort((a,b)=>a[0].localeCompare(b[0]))){
   if(date<lastDay)throw Error('Archive chronology regression');
   day=dayNum(date);lastDay=date;daily=new Map();table=old.snapshot(history,date);
@@ -91,9 +94,9 @@ for(const file of files){
    if(tr.useEvidence){if(valid){additions.push([assets.slice(0,tr.a.length),assets.slice(tr.a.length),tr.fmt]);coverage.evidenceTrades++;}else coverage.evidenceMissing++;}
   }
   for(const [a,b,f] of additions){addEvidence(a,b,f);addEvidence(b,a,f);}
+  days.delete(date);
  }
- console.error('[tournament] '+file+' '+JSON.stringify(coverage));
-}
+ console.error('[tournament] merged archive '+JSON.stringify(coverage));
 const report={schemaVersion:1,kind:'rolling-valuation-tournament',format,sample,evidenceMod,generatedAt:new Date().toISOString(),coverage,
  split:{train:'March–December 2024, non-held-out league keys',test:'August–December 2025, held-out league keys',lookbackDays:45,priceLagDays:1},
  ...T.report(train,test)};
