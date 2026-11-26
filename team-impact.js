@@ -63,5 +63,40 @@
       B: side(before.B, after.B, givenA, givenB)
     };
   }
-  return Object.freeze({side, pair, pieces, explain});
+  // One explanation contract for calculator and Coach. Market price and team
+  // fit are distinct signals; this never changes the underlying grade.
+  const finite=x=>typeof x==='number'&&Number.isFinite(x);
+  const delta=(before,after,key)=>finite(before?.[key])&&finite(after?.[key])?after[key]-before[key]:null;
+  const modes={contend:'Contending',rebuild:'Rebuilding',retool:'Retooling',neutral:'Flexible',balance:'Flexible'};
+  function assessment(analysis,giveA,giveB,{fitThreshold=2,marketAvailable=true,overpayThreshold=40}={}) {
+    if(!analysis?.before||!analysis?.after||!giveA?.length||!giveB?.length)return null;
+    const priced=[...giveA,...giveB].every(a=>finite(a.value)&&a.value>0);
+    const result={basis:marketAvailable?'Vault market price':'KTC fallback price',marketAvailable,priced,teams:{}};
+    for(const key of ['A','B']){
+      const bef=analysis.before[key],aft=analysis.after[key],res=analysis['res'+key];
+      if(!bef||!aft||!res)return null;
+      const incoming=key==='A'?giveB:giveA,outgoing=key==='A'?giveA:giveB;
+      const price=priced&&finite(analysis['dValueAdj'+key])?analysis['dValueAdj'+key]:null;
+      const pct=price===null||!finite(analysis.pctDiff)?null:Math.sign(price)*Math.abs(analysis.pctDiff);
+      const lineup=delta(bef,aft,'opt'),picks=delta(bef,aft,'picksValue'),age=delta(bef,aft,'age');
+      const fit=finite(res.fit)?res.fit>=fitThreshold?'strong':res.fit<=-fitThreshold?'poor':'mixed':'unknown';
+      const notes=[],risks=[];
+      const fmt=(n,d=0)=>Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+      if(lineup!==null&&Math.abs(lineup)>=.05)(lineup>0?notes:risks).push((lineup>0?'Adds ':'Loses ')+fmt(lineup,1)+' projected starting-lineup points per week');
+      if(picks!==null&&Math.abs(picks)>=.5)(picks>0?notes:risks).push((picks>0?'Adds ':'Spends ')+fmt(picks)+' in current draft capital');
+      if(age!==null&&Math.abs(age)>=.1)(age<0?notes:risks).push('Roster becomes '+fmt(age,1)+' years '+(age<0?'younger':'older'));
+      if(finite(res.dDepth)&&Math.abs(res.dDepth)>=.05)(res.depthFit<0?risks:notes).push('Estimated depth effect: '+(res.dDepth>0?'+':'−')+fmt(res.dDepth,1)+' PPG (see full breakdown)');
+      if(res.mode==='contend'&&lineup!==null&&lineup<-.05)risks.push('Immediate production falls during a contending plan');
+      if(res.mode==='rebuild'&&picks!==null&&picks<-.5)risks.push('Future draft flexibility falls during a rebuilding plan');
+      let headline=fit==='strong'?'Strong strategic fit':fit==='poor'?'Poor strategic fit':fit==='mixed'?'Mixed strategic fit':'Strategic fit unavailable';
+      if(pct!==null&&pct< -overpayThreshold&&fit==='strong')headline='Strong fit, substantial market overpay';
+      else if(pct!==null&&pct< -1&&fit==='strong')headline='Strong fit, at a market cost';
+      else if(pct!==null&&pct>1&&fit==='poor')headline='Market gain, but poor strategic fit';
+      result.teams[key]={name:bef.teamName,mode:modes[res.mode]||'Flexible / unclassified',fit,headline,price,pct,lineup,picks,age,notes,risks,
+        incomingCount:incoming.length,outgoingCount:outgoing.length,
+        assumptions:['Roster direction is an inferred or user-selected plan, not confirmed manager intent.','Lineup points and depth are projections; pick value is current, not a future rookie forecast.','Strategic fit uses existing heuristic rules, not a validated championship prediction.']};
+    }
+    return result;
+  }
+  return Object.freeze({side, pair, pieces, explain, assessment});
 });
