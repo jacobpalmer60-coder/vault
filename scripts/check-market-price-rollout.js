@@ -71,7 +71,7 @@ assert.doesNotMatch(grade,/Vault\.tradeSideValues\(/);
 const trade=read('trade.html');
 assert.match(trade,/Primary market-price grade/);
 assert.match(trade,/Legacy package curve/);
-assert.match(trade,/Additive market-price gap/);
+assert.match(trade,/Primary price gap/);
 assert.match(trade,/VaultTradePolicy\.evenImprovement\(/);
 assert.doesNotMatch(trade,/originalAdditiveGap|improvement\.packageGain/);
 assert.match(read('trade-price-audit-ui.js'),/does not determine today's price grade/);

@@ -35,7 +35,7 @@
   <div class="mb-2">
     <div class="flex items-center gap-3 flex-wrap"><h1 class="display font-semibold gold-text flex items-center">Trade Lab<span class="term-i" data-term="page_lab" tabindex="0" role="note">?</span></h1><a href="how_we_grade.html#facts" class="text-[12px] text-zinc-400 hover:text-white underline underline-offset-2 decoration-white/20 whitespace-nowrap">How we use it</a></div>
     <p id="status" class="text-[13px] text-zinc-400 mt-1">Loading archived trade research…</p>
-    <p class="mt-2 text-[12px] text-zinc-400 max-w-[850px] leading-relaxed">Historical research note: older completed-trade package-price gaps in this archive were computed with Vault's retired nonlinear consolidation curve. The live Trade Calculator and Trade Grades now use additive market prices instead. Do not compare old chart fairness percentages directly with new grades until the archive is rebuilt.</p>
+    <p class="mt-2 text-[12px] text-zinc-400 max-w-[850px] leading-relaxed">Historical research note: older completed-trade package-price gaps in this archive were computed with Vault's retired nonlinear consolidation curve. The live Trade Calculator and Trade Grades use raw power-2 in standard SF/1QB and additive pricing in TE-premium formats. Do not compare old chart fairness percentages directly with new grades until the archive is rebuilt.</p>
   </div>
   <p class="text-[12px] text-zinc-500 max-w-[720px] mb-4 leading-relaxed"><span id="crawled"></span></p>
   <section id="currentCollection" class="card rounded-vault-sm p-4 mb-5" role="status" aria-live="polite">
@@ -43,7 +43,7 @@
     <p class="text-[12px] text-zinc-400 mt-1">Checking the latest independently refreshed Sleeper market summary. Historical outcome research below has its own snapshot date.</p>
   </section>
 
-  <section class="card rounded-vault-sm p-4 mb-5"><h2 class="text-[15px] font-semibold">Package pricing research</h2><p class="text-[13px] text-zinc-300 mt-1">November 26, 2026 retrospective comparison: confidence-weighted power-2 was selected for standard Superflex and 1QB; TE-premium samples did not meet the training gate. Raw power-2 also performed well. Daily prospective comparisons are being collected; no production grade has changed.</p><p class="text-[12px] text-zinc-400 mt-2">Completed-trade imbalance is not an outcome or acceptance prediction. Archived charts retain their original pricing basis. <a class="underline" href="https://github.com/jacobpalmer60-coder/vault/actions/runs/45879810412">See the six-format research results.</a></p></section>
+  <section class="card rounded-vault-sm p-4 mb-5"><h2 class="text-[15px] font-semibold">Package pricing research</h2><p class="text-[13px] text-zinc-300 mt-1">November 26, 2026 retrospective comparison: confidence-weighted power-2 was selected for standard Superflex and 1QB; TE-premium samples did not meet the training gate. Raw power-2 also performed well. Raw power-2 is provisionally active in standard formats; daily prospective comparisons continue.</p><p class="text-[12px] text-zinc-400 mt-2">Completed-trade imbalance is not an outcome or acceptance prediction. Archived charts retain their original pricing basis. <a class="underline" href="https://github.com/jacobpalmer60-coder/vault/actions/runs/45879810412">See the six-format research results.</a></p></section>
   <div id="tiles" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
 
   <!-- One section at a time, picked here (showTab), instead of one long scroll (user, 2026-11-04). -->
@@ -106,7 +106,7 @@
 
 <div id="tip" role="tooltip" class="hidden fixed z-50 px-2.5 py-1.5 rounded-lg border border-white/10 bg-[#121418] text-[12px] text-zinc-200 pointer-events-none shadow-xl max-w-[260px]"></div>
 
-<script src="vault-core.js?v=72b76884"></script>
+<script src="vault-core.js?v=32d1df66"></script>
 <script src="vault-nav.js?v=b1f8289e"></script>
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>

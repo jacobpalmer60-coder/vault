@@ -63,7 +63,7 @@
   <section id="market" data-tab="market" role="tabpanel" class="hidden card rounded-vault-sm p-4 mb-6">
     <div class="text-[14px] font-medium text-zinc-100">The market at a glance</div>
     <div id="marketSub" class="text-[12px] text-zinc-400 mt-0.5">Crunching completed trades…</div>
-    <p class="mt-1 text-[12px] text-zinc-500">Recent raw completed trades are re-priced with the same additive basis as the calculator; long-run archived trends remain a separately labeled legacy comparison.</p>
+    <p class="mt-1 text-[12px] text-zinc-500">Recent raw completed trades are re-priced with the current league-format pricing curve on raw values; long-run archived trends remain a separately labeled legacy comparison.</p>
     <div id="marketBody" class="space-y-5 mt-4"></div>
   </section>
   <section id="history" data-tab="history" role="tabpanel" class="hidden card rounded-vault-sm p-4 mb-6">
@@ -74,8 +74,8 @@
   <div class="text-[12px] text-zinc-400 mt-6">More: <a id="marketLink" href="market.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">who sells above or below KTC (Player Market)</a> · <a id="labLink" href="trade_lab.html" class="text-zinc-300 hover:text-white underline underline-offset-2 decoration-white/20">what 2.15 million trades show (Trade Lab)</a></div>
 </div>
 
-<script src="vault-core.js?v=72b76884"></script>
-<script src="package-pricing.js?v=b4ffce96"></script>
+<script src="vault-core.js?v=32d1df66"></script>
+<script src="package-pricing.js?v=531b925b"></script>
 <script src="vault-nav.js?v=b1f8289e"></script>
 <script src="market-data.js?v=bdfadff2"></script>
 <script src="player-card.js?v=0bbd5e7c"></script>
@@ -112,7 +112,7 @@ function assetLabel(id, playerMap, pickMap) {
   const p = playerMap.get(+id);
   if (p) return { name: p.name, value: p.value, pos: p.pos };
   const pk = pickMap.get(+id);
-  if (pk) return { name: pk.label, value: pk.value, pos: null };
+  if (pk) return { name: pk.label, value: pk.value, pos: null,type:'pick',season:pk.season,round:pk.round };
   return { name: `Unknown asset #${id}`, value: 0, pos: null };
 }
 
@@ -128,7 +128,7 @@ function assetChips(ids, playerMap, pickMap) {
   }).join('');
 }
 
-// The same additive market-price read the Trade Calculator uses (Vault.marketSideValues:
+// The same production price read the Trade Calculator uses (Vault.marketSideValues:
 // % off, same Fair/Lopsided/Unfair cutoffs) — so a manager can see what
 // real leagues like theirs actually accept, in the same terms as our own verdict.
 // Priced at today's KTC values; null when any piece has no price.
@@ -213,7 +213,7 @@ function findMatches(trades, sig) {
    values for this league) and, for the RECENT_DAYS before that feed starts,
    completed trades from Sleeper dynasty leagues (scripts/summarize-sleeper-trades.js,
    each priced at KTC values from its own day in its own league's format).
-   All current rows with the Trade Calculator's math: % off on additive market price, the same Fair / Lopsided / Unfair
+   All current rows with the Trade Calculator's math: % off on the selected league-format price, the same Fair / Lopsided / Unfair
    cutoffs. "Paid over KTC" (against KTC's own consolidation adjustment) is from the side getting fewer pieces (or the
    best piece): what they sent minus what they got, as a % of the two sides'
    average. Your league's trades (Trade Grades, KTC at the time of each
@@ -241,7 +241,7 @@ function marketRow(s1, s2) {
     // Graded on additive market prices, like all live Vault grades (so it lines up with your
     // league's trades below); what the consolidator "paid" stays against KTC's own
     // adjustment, so the premium still reads as over or under KTC.
-    const g = Vault.marketSideValues(s1, s2), pct = Math.abs(g.valueA - g.valueB) / (((g.valueA + g.valueB) / 2) || 1) * 100;
+    const g = Vault.marketSideValues(s1, s2,{market:false,production:true}), pct = Math.abs(g.valueA - g.valueB) / (((g.valueA + g.valueB) / 2) || 1) * 100;
     const { valueA: v1, valueB: v2 } = Vault.ktcSideValues(s1, s2); // what team 1 / team 2 received, KTC's view
     const avg = (v1 + v2) / 2 || 1;
     const best1 = Math.max(...s1.map(a => a.value)), best2 = Math.max(...s2.map(a => a.value));
@@ -322,7 +322,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
       <div class="text-[12px] text-zinc-400 mt-1 leading-relaxed">${sub}</div>
     </div>`;
   const tiles = `<div class="grid sm:grid-cols-3 gap-3">
-      ${tile('Typical trade', `${mkPct(med)} off`, `Half of the recent, re-priced trades are further off than this on additive market value (average ${mkPct(mean)}).`)}
+      ${tile('Typical trade', `${mkPct(med)} off`, `Half of the recent, re-priced trades are further off than this on the selected league-format price (average ${mkPct(mean)}).`)}
       <div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
         <div class="text-[11px] uppercase tracking-wider text-zinc-400">How they grade</div>
         <div class="mt-3">${mkSplitBar(rows)}</div>
@@ -353,7 +353,7 @@ function renderMarket(rows, fmt, exactShare, league, src) {
         ${lg ? `<div class="relative h-3 mt-1" aria-label="Your league's trades">${lg.map(r => `<span class="absolute top-0 w-px h-3 bg-zinc-100" style="left:${xOf(r.pct).toFixed(2)}%" title="${Vault.escapeHtml(r.label)}: ${mkPct(r.pct)} off"></span>`).join('')}</div>` : ''}
         <div class="relative h-4 mt-1 text-[10px] text-zinc-500">${[0, 20, 40, 60, 80].map(v => `<span class="absolute -translate-x-1/2" style="left:${xOf(v)}%">${v}%${v === MK_TOP ? '+' : ''}</span>`).join('')}</div>
       </div>
-      <div class="text-[12px] text-zinc-400 mt-1">% off on additive market value. Fair is provisionally under ${VAULT_CONFIG.FAIR_PCT}%, Unfair is ${VAULT_CONFIG.LOPSIDED_PCT}% or more: the same lines the Trade Calculator and Trade Grades use.</div>
+      <div class="text-[12px] text-zinc-400 mt-1">% off on the selected league-format price. Fair is provisionally under ${VAULT_CONFIG.FAIR_PCT}%, Unfair is ${VAULT_CONFIG.LOPSIDED_PCT}% or more: the same lines the Trade Calculator and Trade Grades use.</div>
     </div>`;
 
   // By shape: median % off, and what the side getting fewer pieces paid over KTC.
@@ -490,7 +490,7 @@ async function renderHistory(field) {
   dbOff.delete('history');
   showTab(dbWant);
   const fmt = FORMAT_NAME[field] || field;
-  document.getElementById('historySub').textContent = `${fmt} historical Sleeper trades. These archived charts were built on the RETIRED package-consolidation curve and are NOT directly comparable to current additive market grades; we are keeping them as an explicitly labeled research reference until rebuilt.`;
+  document.getElementById('historySub').textContent = `${fmt} historical Sleeper trades. These archived charts were built on the RETIRED package-consolidation curve and are NOT directly comparable to current production price grades; we are keeping them as an explicitly labeled research reference until rebuilt.`;
   // Year by year: each year summarized whole by the pricing step, so its numbers are exact.
   const yearRows = Object.entries(doc.years || {}).filter(([, s]) => s.n >= HIST_MIN).sort(([a], [b]) => b.localeCompare(a));
   const years = !yearRows.length ? '' : `<div class="rounded-xl bg-black/25 border border-white/5 p-4 min-w-0">
@@ -543,9 +543,9 @@ async function init() {
   const status = document.getElementById('status');
   try {
     const leagueId = Vault.getLeagueId();
-    const [league, ktcData] = await Promise.all([
+    const [league, ktcData, gradeData] = await Promise.all([
       fetch(`https://api.sleeper.app/v1/league/${leagueId}`).then(r => r.json()),
-      Vault.fetchKtcValues()
+      Vault.fetchKtcValues(), Vault.fetchGradeValues()
     ]);
     if (!league || league.error) throw new Error('League not found.');
     const isSF = Vault.isSuperflex(league);
@@ -557,6 +557,7 @@ async function init() {
     // otherwise a TEP league would see every historical trade's TE labeled with a
     // non-TEP sticker price. See Vault.ktcTepSuffix.
     const valueField = (isSF ? 'sf' : 'oneQB') + Vault.ktcTepSuffix(league.scoring_settings?.bonus_rec_te);
+    Vault.setGradeMarket(gradeData,isSF,league.scoring_settings?.bonus_rec_te);
     const playerMap = new Map();
     (ktcData.players || []).forEach(p => {
       if (p.ktcId != null) playerMap.set(p.ktcId, { name: p.name, value: p[valueField], pos: p.pos });
@@ -566,7 +567,7 @@ async function init() {
       if (p.ktcId == null) return;
       const tier = p.slot.charAt(0).toUpperCase() + p.slot.slice(1);
       const ord = p.round === 1 ? 'st' : p.round === 2 ? 'nd' : p.round === 3 ? 'rd' : 'th';
-      pickMap.set(p.ktcId, { label: `${p.season} ${tier} ${p.round}${ord}`, value: p[valueField] });
+      pickMap.set(p.ktcId, { season:p.season,round:p.round,label: `${p.season} ${tier} ${p.round}${ord}`, value: p[valueField] });
     });
 
     const { tier, pool } = findMatches(tradesData.trades || [], sig);
@@ -588,7 +589,7 @@ async function init() {
           <div class="text-[12px] text-zinc-400 mt-1">${sig.teams}-team, ${isSF ? 'Superflex' : '1QB'}, ${pprLabel(sig.ppr)}, ${tepLabel(sig.tep)}${tier === 'full' ? '' : ` · ${TIER_LABEL[tier]}`}</div>
         </div>
       </div>
-      ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded on additive market prices: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-orange-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(of the ${priced.length.toLocaleString()} KTC fully prices)</span></div>` : ''}`;
+      ${priced.length ? `<div class="text-[12px] text-zinc-400 mt-3 pt-3 border-t border-white/5">Graded on current league-format prices: <span class="text-emerald-300">${share('Fair')}% Fair</span> · <span class="text-orange-300">${share('Lopsided')}% Lopsided</span> · <span class="text-rose-300">${share('Unfair')}% Unfair</span> <span class="text-zinc-500">(of the ${priced.length.toLocaleString()} KTC fully prices)</span></div>` : ''}`;
 
     // The market at a glance: completed trades from leagues like this one. Steps down
     // Vault.tradeFormatTiers (exact settings -> any team count -> QB + TE premium

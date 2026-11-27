@@ -135,14 +135,18 @@ const VaultTradePolicy = (() => {
     const ktcA = ktc ? listedA + ktc.adjustA : null;
     const ktcB = ktc ? listedB + ktc.adjustB : null;
     const listed = {valueA:listedA,valueB:listedB,signedPct:signed(listedA,listedB)};
-    const market = {valueA:book.marketA,valueB:book.marketB,signedPct:signed(book.marketA,book.marketB)};
+    const additive = {valueA:book.marketA,valueB:book.marketB,signedPct:signed(book.marketA,book.marketB)};
+    const active = typeof Vault.marketSideValues==='function'?Vault.marketSideValues(sendA,sendB):null;
+    const primaryBasis = active?.basis||'additive-market';
+    const market = primaryBasis==='raw-power-2'?{valueA:active.valueA,valueB:active.valueB,signedPct:signed(active.valueA,active.valueB)}:additive;
     const packaged = {valueA:book.packageA,valueB:book.packageB,
       signedPct:signed(book.packageA,book.packageB),
       bonusA:book.packageA-book.marketA,bonusB:book.packageB-book.marketB};
     const ktcAdjusted = ktc ? {valueA:ktcA,valueB:ktcB,
       signedPct:signed(ktcA,ktcB),bonusA:ktc.adjustA,bonusB:ktc.adjustB} : null;
-    const delta = market.signedPct === null || packaged.signedPct === null
-      ? null : packaged.signedPct - market.signedPct;
+    const comparison = primaryBasis==='raw-power-2'?additive:packaged;
+    const delta = market.signedPct === null || comparison.signedPct === null
+      ? null : comparison.signedPct - market.signedPct;
     // Illustrate how the curve treats the SECOND piece in a 2-for-1. Its
     // contribution is expressed on the single-piece side's market-price scale;
     // it is a ratio equivalent, not a sale price or a prediction of a manager.
@@ -165,9 +169,9 @@ const VaultTradePolicy = (() => {
         }
       }
     }
-    return {listed,market,package:packaged,ktc:ktcAdjusted,marginal,
+    return {listed,market,additive,package:packaged,ktc:ktcAdjusted,marginal,
       marketFeedAvailable:!!Vault._gradeMarket,
-      primaryBasis:'additive-market',historicalCurveOnly:true,
+      primaryBasis,historicalCurveOnly:true,
       divergencePct:delta===null?null:Math.abs(delta),
       // Threshold is descriptive UI guidance, not fitted statistical evidence.
       materialDisagreement:delta!==null && Math.abs(delta)>=15};

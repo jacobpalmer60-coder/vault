@@ -251,12 +251,12 @@
   </div>
 </div>
 
-<script src="vault-core.js?v=72b76884"></script>
-<script src="package-pricing.js?v=b4ffce96"></script>
+<script src="vault-core.js?v=32d1df66"></script>
+<script src="package-pricing.js?v=531b925b"></script>
 <script src="league-intelligence.js?v=89a1f1ce"></script>
 <script src="vault-nav.js?v=b1f8289e"></script>
-<script src="trade-policy.js?v=1460fc66"></script>
-<script src="trade-price-audit-ui.js?v=f84091d9"></script>
+<script src="trade-policy.js?v=2f9f1c59"></script>
+<script src="trade-price-audit-ui.js?v=4e09d1e5"></script>
 <script src="team-impact.js?v=af7896c8"></script>
 <script src="trade-stress.js?v=726eea3d"></script>
 <script>
@@ -1353,8 +1353,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
     { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd)), note: ddNoTe ? "doesn't factor in TE premium" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? `No value for ${esc((dd.missing || []).map(sitePieceName).join(', '))}` : 'Loading…', title: 'It has no value for this piece. Open this trade on its site.' }) }
   ];
   // Compare only the two KTC-derived price bases, never roster utility or raw cross-provider points.
-  const marketA = aAssets.reduce((s, a) => s + Vault.gradeValue(a), 0);
-  const marketB = bAssets.reduce((s, a) => s + Vault.gradeValue(a), 0);
+  const {valueA:marketA,valueB:marketB}=Vault.marketSideValues(aAssets,bAssets);
   const listedA = aAssets.reduce((s, a) => s + (a.ktcPrice ?? a.value), 0) + ktc.adjustA;
   const listedB = bAssets.reduce((s, a) => s + (a.ktcPrice ?? a.value), 0) + ktc.adjustB;
   const signed = (a,b) => a+b > 0 ? 200*(b-a)/(a+b) : 0;
@@ -1362,7 +1361,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const divergence = Math.abs(vm-km);
   const opposite = Math.sign(vm)!==Math.sign(km) && Math.min(Math.abs(vm),Math.abs(km)) >= 5;
   const warning = divergence >= 20 || opposite
-    ? `<p class="mt-2 text-[12px] text-amber-300 leading-snug">Vault and KTC differ materially (${Math.round(divergence)} percentage points in signed price imbalance). Vault uses observed trade premiums; KTC includes a package adjustment. Check the asset values below. This is a pricing comparison, not a roster recommendation.</p>`
+    ? `<p class="mt-2 text-[12px] text-amber-300 leading-snug">Vault and KTC differ materially (${Math.round(divergence)} percentage points in signed price imbalance). Vault uses ${Vault.packagePricingActive()?'its provisional power-2 package curve':'additive observed trade premiums'}; KTC uses its own VBA adjustment. Check the asset values below. This is a pricing comparison, not a roster recommendation.</p>`
     : '';
   return `<div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Other sites</div>
     <ul class="space-y-1.5">${rows.map(r => `<li class="flex items-baseline gap-2 text-[13px] leading-snug" title="${r.title || ''}">
@@ -1378,6 +1377,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
 // synthetic package discount. Historical-curve results are reference only.
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (!aAssets.length || !bAssets.length || Math.abs(tradeEdge - ktcEdge) < 1) return '';
+  if (Vault.packagePricingActive()) return '<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: both calculators recognize package concentration, but Vault uses the provisional power-2 curve and KTC uses its own VBA. The pricing model does not predict roster benefit. <a href="how_we_grade.html#fairness" class="underline">How we grade</a></div>';
   const changed = [...aAssets, ...bAssets].map(a => ({a,delta:Vault.gradeMarketPct(a)}))
     .filter(x=>Math.abs(x.delta)>=1).sort((x,y)=>Math.abs(y.delta*y.a.value)-Math.abs(x.delta*x.a.value))[0];
   const mover = changed ? ' For example, ' + Vault.escapeHtml(changed.a.name) +
@@ -1390,7 +1390,7 @@ function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
     '<a href="how_we_grade.html#fairness" class="underline decoration-dotted underline-offset-2 hover:text-zinc-200">How we grade</a></div>';
 }
 const PRICE_TIP = {
-  trade: 'Primary market price: the sum of individually premium-adjusted KTC values, with every player and pick counted in full. Consolidation is a separate roster-utility question, not an automatic price discount.',
+  trade: 'Primary price uses provisional raw power-2 in standard SF/1QB; TE premium retains additive market pricing. Roster utility is separate.',
   ktc: "KeepTradeCut's own calculator: KTC values with KTC's consolidation adjustment. Shown so you can check it on KTC.",
   market: 'What managers usually pay for these players and picks in completed trades'
 };
@@ -1410,7 +1410,7 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
   // Trade value prices each piece at what it actually trades for (Vault.gradeValue),
   // so its totals can differ from KTC's before any premium: name the biggest mover.
   const mover = pieces.filter(a => Math.abs(Vault.gradeMarketPct(a)) >= 1).sort((x, y) => Math.abs(Vault.gradeMarketPct(y) * y.value) - Math.abs(Vault.gradeMarketPct(x) * x.value))[0];
-  const priced = mover ? ` · Trade value prices each piece at what it actually trades for (${Vault.escapeHtml(mover.name)}: ${Math.round(Math.abs(Vault.gradeMarketPct(mover)))}% ${Vault.gradeMarketPct(mover) > 0 ? 'over' : 'under'} KTC), so its totals differ from KTC's` : '';
+  const priced = mover && !Vault.packagePricingActive() ? ` · Trade value prices each piece at what it actually trades for (${Vault.escapeHtml(mover.name)}: ${Math.round(Math.abs(Vault.gradeMarketPct(mover)))}% ${Vault.gradeMarketPct(mover) > 0 ? 'over' : 'under'} KTC), so its totals differ from KTC's` : '';
   const avg = (giveVal + getVal) / 2;
   const adjGive = avg * (1 + fairness.overallSigned / 200), adjGet = avg * (1 - fairness.overallSigned / 200);
   const n = v => Math.round(v).toLocaleString();
@@ -1428,7 +1428,7 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
       <span class="text-[14px] text-zinc-300">${n(listedGive)}</span>
       <span class="text-[14px] text-zinc-300">${n(listedGet)}</span>
       <span class="text-[14px] font-medium">${d(listedGet - listedGive)}</span>`}
-      <span class="term text-[12px] text-zinc-400 text-left" title="${PRICE_TIP.trade}">Additive market price</span>
+      <span class="term text-[12px] text-zinc-400 text-left" title="${PRICE_TIP.trade}">${Vault.pricingBasisLabel()}</span>
       <span class="text-[14px] text-zinc-100">${n(giveVal)}</span>
       <span class="text-[14px] text-zinc-100">${n(getVal)}</span>
       <span class="text-[14px] font-medium">${d(getVal - giveVal)}</span>
@@ -1441,7 +1441,7 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
       <span class="text-[14px] text-zinc-100">${n(adjGet)}</span>
       <span class="text-[14px] font-medium">${d(adjGet - adjGive)}</span>`}
     </div>
-    <details class="mt-1 text-right"><summary class="py-1 text-[12px] text-zinc-400 hover:text-zinc-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">About these numbers ▾</summary><div class="text-[12px] text-zinc-400 mt-1">${listedGive === null || listedGet === null ? '' : 'Listed prices = simple sums before consolidation and completed-trade price adjustments; they are not a recommendation. · '}Primary market value adds every asset at its individually estimated price, without a package bonus. ${ktc && (ktc.bonusA >= 1 || ktc.bonusB >= 1) ? ` · KTC's calculator adds +${n(Math.max(ktc.bonusA, ktc.bonusB))} instead` : ''}${priced}${showAdj ? ' · Adjusted = need, fit, and timeline' : ''}${held ? ` · fit favors ${Vault.escapeHtml(favored)}, but grades never read closer to even than trade value` : ''}</div></details>`;
+    <details class="mt-1 text-right"><summary class="py-1 text-[12px] text-zinc-400 hover:text-zinc-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">About these numbers ▾</summary><div class="text-[12px] text-zinc-400 mt-1">${listedGive === null || listedGet === null ? '' : 'Listed prices = simple sums before consolidation and completed-trade price adjustments; they are not a recommendation. · '}Primary price follows the active league-format model. Additive individual market estimates remain separate. ${ktc && (ktc.bonusA >= 1 || ktc.bonusB >= 1) ? ` · KTC's calculator adds +${n(Math.max(ktc.bonusA, ktc.bonusB))} instead` : ''}${priced}${showAdj ? ' · Adjusted = need, fit, and timeline' : ''}${held ? ` · fit favors ${Vault.escapeHtml(favored)}, but grades never read closer to even than trade value` : ''}</div></details>`;
 }
 
 /* ---------- This season: playoff and title odds, before → after ----------
@@ -1564,8 +1564,8 @@ function renderForYou(teamA, aAssets, bAssets, analysis) {
   const marketBucket = Vault.priceWord(Vault.fairnessBucket(Math.abs(prices.market.signedPct), 0, 0));
   const modelConflict = prices.materialDisagreement;
   const bothGradeText = 'Both sides grade Toss-up or better · acceptance unconfirmed';
-  const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[740px]" aria-label="Independent additive market price, package model and manager response">
-      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Primary market-price grade</div><div class="text-[13px] font-medium text-zinc-100">${marketBucket} · ${gapWord(prices.market.signedPct)} gap</div><div class="text-[11px] text-zinc-400">${prices.marketFeedAvailable ? 'Recent trade premiums applied' : 'KTC prices only; premiums unavailable'} · no consolidation</div></div>
+  const decisionLens = `<div id="tradeDecisionLens" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[740px]" aria-label="Independent primary price, legacy package model and manager response">
+      <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Primary market-price grade</div><div class="text-[13px] font-medium text-zinc-100">${marketBucket} · ${gapWord(prices.market.signedPct)} gap</div><div class="text-[11px] text-zinc-400">${prices.primaryBasis==='raw-power-2'?'Provisional raw power-2 · package adjustment':prices.marketFeedAvailable?'Recent trade premiums applied · additive':'KTC prices only · additive'}</div></div>
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Legacy package curve (reference)</div><div class="text-[13px] font-medium text-zinc-100">${gapWord(prices.package.signedPct)} apart</div><div class="text-[11px] text-zinc-400">Not used for live grades</div></div>
       <div class="rounded-lg border border-white/10 bg-black/20 px-3 py-2"><div class="text-[11px] uppercase tracking-wider text-zinc-400">Manager response</div><div class="text-[13px] font-medium text-zinc-100">Not confirmed · Trade Coach</div><div class="text-[11px] text-zinc-400">${Vault.escapeHtml(evidence.sample)} · not a probability</div></div>
     </div>`;
@@ -1785,7 +1785,7 @@ function paintEvenLine() {
   const o = f.options[0], giver = o.helpB ? f.teamA : f.teamB, names = l => l.map(a => esc(a.name)).join(' and ');
   const change = [o.add.length ? `${esc(giver.teamName)} adds <span class="text-zinc-100">${names(o.add)}</span>` : '', o.drop.length ? `<span class="text-zinc-100">${names(o.drop)}</span> comes out` : ''].filter(Boolean).join(' and ');
   const progress = o.improvement
-    ? `<div class="text-[12px] text-zinc-400 mt-1">Additive market-price gap ${o.beforeGap.toFixed(1)}% → ${o.afterGap.toFixed(1)}%. Grade score change: ${esc(f.teamA.teamName)} ${o.improvement.gainA >= 0 ? '+' : ''}${o.improvement.gainA.toFixed(1)}, ${esc(f.teamB.teamName)} ${o.improvement.gainB >= 0 ? '+' : ''}${o.improvement.gainB.toFixed(1)} (grade points, not fantasy points).</div>`
+    ? `<div class="text-[12px] text-zinc-400 mt-1">Primary price gap ${o.beforeGap.toFixed(1)}% → ${o.afterGap.toFixed(1)}%. Grade score change: ${esc(f.teamA.teamName)} ${o.improvement.gainA >= 0 ? '+' : ''}${o.improvement.gainA.toFixed(1)}, ${esc(f.teamB.teamName)} ${o.improvement.gainB >= 0 ? '+' : ''}${o.improvement.gainB.toFixed(1)} (grade points, not fantasy points).</div>`
     : '';
   // Says what the fix reaches, not that it's even: the team it's for, then the other team's read.
   const [helped, other] = o.helpB ? [[o.after.B, f.teamB], [o.after.A, f.teamA]] : [[o.after.A, f.teamA], [o.after.B, f.teamB]];
@@ -1913,7 +1913,7 @@ function tiltNote(imp) {
 // which can point the other way from the price shown. Said when the two are 5+ points
 // apart, naming the pieces that move it most.
 function blendNote(imp, team, gets, sends) {
-  if (!imp || imp.pricePct == null || Math.abs(imp.valuePct - imp.pricePct) < 5) return '';
+  if (!imp || imp.pricePct == null || Math.abs(imp.valuePct - imp.pricePct) < 5 || Vault.packagePricingActive()) return '';
   const esc = Vault.escapeHtml, fmt = v => Math.round(v).toLocaleString(), name = esc(team.teamName);
   const moved = [...gets, ...sends].map(a => ({ a, base: Vault.gradeValue(a), v: Vault.verdictPieceValue(a) }))
     .filter(x => x.base > 0 && Math.abs(x.v - x.base) >= 200).sort((x, y) => Math.abs(y.v - y.base) - Math.abs(x.v - x.base)).slice(0, 2);
@@ -2400,7 +2400,7 @@ function updateTrade() {
   // Two by two on phones (2026-10-24: four rows took a whole screen), one row from sm up.
   const cardNumbers = aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 grid grid-cols-2 gap-x-4 sm:flex sm:flex-wrap sm:gap-x-10 gap-y-3">
       <div id="titleStat" class="empty:hidden"></div>
-      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · additive market price`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}<div id="marketStat" class="empty:hidden"></div></div><div id="stressLine" class="mt-3 text-[13px] text-zinc-300 empty:hidden"></div><div id="realTrades" class="mt-3 text-[12px] leading-relaxed text-zinc-400 empty:hidden"></div>` : '';
+      ${priceStatHtml(tradeEdge, `${Vault.escapeHtml(teamA.teamName)} pays · ${Vault.pricingBasisLabel()}`, PRICE_TIP.trade, 'text-[24px]')}${priceStatHtml(ktcEdge, "KTC's calculator", PRICE_TIP.ktc, 'text-[24px]')}<div id="marketStat" class="empty:hidden"></div></div><div id="stressLine" class="mt-3 text-[13px] text-zinc-300 empty:hidden"></div><div id="realTrades" class="mt-3 text-[12px] leading-relaxed text-zinc-400 empty:hidden"></div>` : '';
   diffLabelEl.innerHTML = `<div id="forYou"></div>${cardNumbers}${aAssets.length && bAssets.length ? `<div class="mt-4 pt-3 border-t border-white/5 max-w-[640px]">${Vault.fairnessPanelHtml(fairness, diffBandPct, teamA.teamName, teamB.teamName, `${offPct.toFixed(0)}% off`, accept)}</div>` : ''}<div id="workBoth"></div>
     ${aAssets.length && bAssets.length ? `<details class="group mt-3 max-w-[640px]" id="whyBox"><summary class="inline-flex items-center gap-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-[12px] text-zinc-400 hover:text-zinc-200"><span>More reasons and trade comparisons</span><span class="group-open:hidden">▾</span><span class="hidden group-open:inline">▴</span></summary><div class="mt-2 space-y-1.5"><div id="whyVerdict"></div>
       ${ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktcView)}
