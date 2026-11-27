@@ -49,12 +49,14 @@ for(const f of ['trade.html','grade.html','trade_grades.html','trade_database.ht
 }
 assert.match(fs.readFileSync(path.join(__dirname,'..','coach.js'),'utf8'),/VaultPackagePricing\.read/);
 console.log('PASS shared preview, direction and cross-tool wiring');
+const assets=[a,b,c].map(x=>({...x,value:x.now}));
+const [la,lb,lc]=assets;
 vault.setGradeMarket(null,true,0);
-const live=vault.marketSideValues([a],[b,c]);
+const live=vault.marketSideValues([la],[lb,lc]);
 assert.equal(live.basis,'raw-power-2');assert.ok(Math.abs(live.valueA-pa.valueA)<1e-8);assert.ok(Math.abs(live.valueB-pa.valueB)<1e-8);
-assert.ok(vault.verdictValuePct([a],[b,c])>0);
-assert.equal(vault.marketSideValues([a],[b,c],{market:false}).basis,'additive-market');
-vault.setGradeMarket(null,true,.5);assert.equal(vault.marketSideValues([a],[b,c]).basis,'additive-market');
-vault.setGradeMarket(null,false,0);assert.equal(vault.marketSideValues([a],[b,c]).basis,'raw-power-2');
-vault.PACKAGE_PRICING_ENABLED=false;assert.equal(vault.marketSideValues([a],[b,c]).basis,'additive-market');
+assert.ok(vault.verdictValuePct([la],[lb,lc])>0);
+assert.equal(vault.marketSideValues([la],[lb,lc],{market:false}).basis,'additive-market');
+vault.setGradeMarket(null,true,.5);assert.equal(vault.marketSideValues([la],[lb,lc]).basis,'additive-market');
+vault.setGradeMarket(null,false,0);assert.equal(vault.marketSideValues([la],[lb,lc]).basis,'raw-power-2');
+vault.PACKAGE_PRICING_ENABLED=false;assert.equal(vault.marketSideValues([la],[lb,lc]).basis,'additive-market');
 console.log('PASS production pricing: supported formats, historical raw opt-out, shared arithmetic and rollback');
