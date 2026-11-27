@@ -1353,8 +1353,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
     { name: 'Dynasty Daddy', href: dd.url, ...(dd.priced ? { ...verdict(dd.fair, dd.signed > 0 ? teamB : teamA, amount(dd)), note: ddNoTe ? "doesn't factor in TE premium" : '', title: "Dynasty Daddy's values and calculator. Opens this trade on its site." } : { text: ddValues ? `No value for ${esc((dd.missing || []).map(sitePieceName).join(', '))}` : 'Loading…', title: 'It has no value for this piece. Open this trade on its site.' }) }
   ];
   // Compare only the two KTC-derived price bases, never roster utility or raw cross-provider points.
-  const marketA = aAssets.reduce((s, a) => s + Vault.gradeValue(a), 0);
-  const marketB = bAssets.reduce((s, a) => s + Vault.gradeValue(a), 0);
+  const {valueA:marketA,valueB:marketB}=Vault.marketSideValues(aAssets,bAssets);
   const listedA = aAssets.reduce((s, a) => s + (a.ktcPrice ?? a.value), 0) + ktc.adjustA;
   const listedB = bAssets.reduce((s, a) => s + (a.ktcPrice ?? a.value), 0) + ktc.adjustB;
   const signed = (a,b) => a+b > 0 ? 200*(b-a)/(a+b) : 0;
@@ -1362,7 +1361,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
   const divergence = Math.abs(vm-km);
   const opposite = Math.sign(vm)!==Math.sign(km) && Math.min(Math.abs(vm),Math.abs(km)) >= 5;
   const warning = divergence >= 20 || opposite
-    ? `<p class="mt-2 text-[12px] text-amber-300 leading-snug">Vault and KTC differ materially (${Math.round(divergence)} percentage points in signed price imbalance). Vault uses observed trade premiums; KTC includes a package adjustment. Check the asset values below. This is a pricing comparison, not a roster recommendation.</p>`
+    ? `<p class="mt-2 text-[12px] text-amber-300 leading-snug">Vault and KTC differ materially (${Math.round(divergence)} percentage points in signed price imbalance). Vault uses ${Vault.packagePricingActive()?'its provisional power-2 package curve':'additive observed trade premiums'}; KTC uses its own VBA adjustment. Check the asset values below. This is a pricing comparison, not a roster recommendation.</p>`
     : '';
   return `<div class="text-[11px] uppercase tracking-wider text-zinc-400 mb-2">Other sites</div>
     <ul class="space-y-1.5">${rows.map(r => `<li class="flex items-baseline gap-2 text-[13px] leading-snug" title="${r.title || ''}">
@@ -1378,6 +1377,7 @@ function siteStatusHtml({ teamA, teamB, aAssets, bAssets }) {
 // synthetic package discount. Historical-curve results are reference only.
 function ktcGapHtml(tradeEdge, ktcEdge, aAssets, bAssets, ktc) {
   if (!aAssets.length || !bAssets.length || Math.abs(tradeEdge - ktcEdge) < 1) return '';
+  if (Vault.packagePricingActive()) return '<div class="text-[12px] text-zinc-400 mt-2.5 leading-relaxed">Why KTC differs: both calculators recognize package concentration, but Vault uses the provisional power-2 curve and KTC uses its own VBA. The pricing model does not predict roster benefit. <a href="how_we_grade.html#fairness" class="underline">How we grade</a></div>';
   const changed = [...aAssets, ...bAssets].map(a => ({a,delta:Vault.gradeMarketPct(a)}))
     .filter(x=>Math.abs(x.delta)>=1).sort((x,y)=>Math.abs(y.delta*y.a.value)-Math.abs(x.delta*x.a.value))[0];
   const mover = changed ? ' For example, ' + Vault.escapeHtml(changed.a.name) +
@@ -1410,7 +1410,7 @@ function valueTableHtml(giveVal, getVal, fairness, me, partner, bonusGive, bonus
   // Trade value prices each piece at what it actually trades for (Vault.gradeValue),
   // so its totals can differ from KTC's before any premium: name the biggest mover.
   const mover = pieces.filter(a => Math.abs(Vault.gradeMarketPct(a)) >= 1).sort((x, y) => Math.abs(Vault.gradeMarketPct(y) * y.value) - Math.abs(Vault.gradeMarketPct(x) * x.value))[0];
-  const priced = mover ? ` · Trade value prices each piece at what it actually trades for (${Vault.escapeHtml(mover.name)}: ${Math.round(Math.abs(Vault.gradeMarketPct(mover)))}% ${Vault.gradeMarketPct(mover) > 0 ? 'over' : 'under'} KTC), so its totals differ from KTC's` : '';
+  const priced = mover && !Vault.packagePricingActive() ? ` · Trade value prices each piece at what it actually trades for (${Vault.escapeHtml(mover.name)}: ${Math.round(Math.abs(Vault.gradeMarketPct(mover)))}% ${Vault.gradeMarketPct(mover) > 0 ? 'over' : 'under'} KTC), so its totals differ from KTC's` : '';
   const avg = (giveVal + getVal) / 2;
   const adjGive = avg * (1 + fairness.overallSigned / 200), adjGet = avg * (1 - fairness.overallSigned / 200);
   const n = v => Math.round(v).toLocaleString();
@@ -1913,7 +1913,7 @@ function tiltNote(imp) {
 // which can point the other way from the price shown. Said when the two are 5+ points
 // apart, naming the pieces that move it most.
 function blendNote(imp, team, gets, sends) {
-  if (!imp || imp.pricePct == null || Math.abs(imp.valuePct - imp.pricePct) < 5) return '';
+  if (!imp || imp.pricePct == null || Math.abs(imp.valuePct - imp.pricePct) < 5 || Vault.packagePricingActive()) return '';
   const esc = Vault.escapeHtml, fmt = v => Math.round(v).toLocaleString(), name = esc(team.teamName);
   const moved = [...gets, ...sends].map(a => ({ a, base: Vault.gradeValue(a), v: Vault.verdictPieceValue(a) }))
     .filter(x => x.base > 0 && Math.abs(x.v - x.base) >= 200).sort((x, y) => Math.abs(y.v - y.base) - Math.abs(x.v - x.base)).slice(0, 2);
