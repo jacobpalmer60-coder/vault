@@ -39,7 +39,7 @@ assert.equal(shared.compare([0],[1]),null);
 assert.equal(shared.compare([100],[100]).bonusA,0);
 assert.ok(Math.abs(r.gaps[idx('raw-power-2')]-Math.abs(pa.signedPct))<1e-9);
 const ui=shared.html({raw:pa,adjusted:null},'Salt Factory','TURBONUTZ',String);
-assert.match(ui,/Favors Salt Factory/);assert.match(ui,/not the live grade/);
+assert.match(ui,/Favors Salt Factory/);assert.match(ui,/provisional production/);
 assert.match(ui,/reverses the additive price direction/);
 const fs=require('node:fs'),path=require('node:path');
 for(const f of ['trade.html','grade.html','trade_grades.html','trade_database.html']){
@@ -48,4 +48,13 @@ for(const f of ['trade.html','grade.html','trade_grades.html','trade_database.ht
  assert.match(doc,/VaultPackagePricing\.read/);
 }
 assert.match(fs.readFileSync(path.join(__dirname,'..','coach.js'),'utf8'),/VaultPackagePricing\.read/);
-console.log('PASS shared research preview, direction and cross-tool wiring');
+console.log('PASS shared preview, direction and cross-tool wiring');
+vault.setGradeMarket(null,true,0);
+const live=vault.marketSideValues([a],[b,c]);
+assert.equal(live.basis,'raw-power-2');assert.ok(Math.abs(live.valueA-pa.valueA)<1e-8);assert.ok(Math.abs(live.valueB-pa.valueB)<1e-8);
+assert.ok(vault.verdictValuePct([a],[b,c])>0);
+assert.equal(vault.marketSideValues([a],[b,c],{market:false}).basis,'additive-market');
+vault.setGradeMarket(null,true,.5);assert.equal(vault.marketSideValues([a],[b,c]).basis,'additive-market');
+vault.setGradeMarket(null,false,0);assert.equal(vault.marketSideValues([a],[b,c]).basis,'raw-power-2');
+vault.PACKAGE_PRICING_ENABLED=false;assert.equal(vault.marketSideValues([a],[b,c]).basis,'additive-market');
+console.log('PASS production pricing: supported formats, historical raw opt-out, shared arithmetic and rollback');
