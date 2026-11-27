@@ -15,7 +15,7 @@ const smoke=fs.readFileSync(path.join(__dirname,'smoke-trade-flow.js'),'utf8');
 const between=(s,a,b)=>{const start=s.indexOf(a),end=s.indexOf(b,start+a.length);assert.ok(start>=0&&end>start,a+' missing');return s.slice(start,end)};
 const values=between(html,'function valueTableHtml(','/* ---------- This season:');
 const sandbox={
- Vault:{gradeMarketPct:()=>0,escapeHtml:x=>x,teamLink:t=>t.teamName},
+ Vault:{gradeMarketPct:()=>0,escapeHtml:x=>x,teamLink:t=>t.teamName,pricingBasisLabel:()=> 'Vault package price (power-2)',packagePricingActive:()=>true},
  PRICE_TIP:{trade:'Trade value',ktc:'KTC'},
  VAULT_CONFIG:{FAIRNESS_WEIGHTS:{value:75,roster:15,timeline:10}},
  Math,Number
@@ -28,6 +28,7 @@ const get=(give,getBack,giveListed,getListed)=>{
  return valueTable(give,getBack,fairness,one,two,0,0,null,[],giveListed,getListed);
 };
 const text=get(120,140,100,150);
+assert.ok(text.includes('Vault package price (power-2)'),'display active pricing method');
 assert.ok(text.includes('Listed prices (sum)'),'raw listed prices must be visible next to adjusted values');
 assert.ok(text.includes('>100</span>')&&text.includes('>150</span>'),'display original unadjusted values');
 assert.ok(text.includes('>120</span>')&&text.includes('>140</span>'),'display trade-market adjusted values separately');
