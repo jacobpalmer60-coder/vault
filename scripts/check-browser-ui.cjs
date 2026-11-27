@@ -59,7 +59,7 @@ Object.assign(Vault,{
  gradedImprovement:()=>({tier:'slight',level:'tossup',label:'Toss-up'}),
  VERDICT_TIER_TEXT:{slight:'text-emerald-300'},BUCKET_STYLE:{Fair:{text:'text-amber-200'}},
  priceWord:b=>b==='fair'?'Fair':b,fairnessBucket:()=> 'Fair',ktcTepSuffix:()=>'',loadError:e=>e.message,
- fairnessBarHtml:()=>'<div>Price gap</div>',ktcSideValues:(a,b)=>{const sum=xs=>xs.reduce((n,x)=>n+x.value,0);return {valueA:sum(a),valueB:sum(b),bonusA:0,bonusB:0};},
+ fairnessBarHtml:()=>'<div>Price gap</div>',ktcVerdict:(a,b)=>{const sum=xs=>xs.reduce((n,x)=>n+x.value,0);const x=sum(a),y=sum(b);return {fair:false,signed:200*(x-y)/(x+y),gap:Math.abs(x-y),adjustA:0,adjustB:0};},ktcSideValues:(a,b)=>{const sum=xs=>xs.reduce((n,x)=>n+x.value,0);return {valueA:sum(a),valueB:sum(b),bonusA:0,bonusB:0};},
  popupOpen:()=>false,seasonReport:async()=>null,markOutOfRace:()=>false,
  fetchAndGradeAllTrades:async()=>({league:{name:'Fixture League'},isSF:true,teams:four,allGraded:graded,
    tradeActivity:tradeRecords,pendingTrades:[],weekErrors:[{season:'2025',weeks:[8]}],slots:[],remainingWeeks:[]}),
@@ -184,8 +184,8 @@ async function main(){
       const pricePanel=page.getByRole('region',{name:'Historical price comparison'});
       await pricePanel.waitFor();
       assert.ok((await pricePanel.innerText()).includes('Roster fit: not evaluated'));
-      await pricePanel.getByText('Compare package adjustment',{exact:true}).click();
-      assert.ok(await pricePanel.getByText('KTC-style adjustment using these same recorded base prices.',{exact:false}).isVisible());
+      assert.ok(await pricePanel.getByText('KTC-style value adjustment (VBA)',{exact:true}).isVisible());
+      assert.ok(await pricePanel.getByText('not an official historical KTC calculator result',{exact:false}).isVisible());
       await page.locator('#price-panel-test').evaluate(el=>el.remove());
       await page.locator('#moreGrades').click();
       assert.equal(await page.locator('#list > button').count(),Math.min(31,gradeSize*2),'Show more must expose next page '+width);
