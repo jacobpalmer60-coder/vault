@@ -20,7 +20,8 @@ const VaultPriceAuditUI = (() => {
         individually, but its implied incremental contribution to this package is only about
         ${n(item.equivalent)} (${item.retainedPct.toFixed(1)}%). That is how the curve compares
         these specific pieces, <strong>not</strong> the player's actual trade price.` : '';
-    const note = prices.materialDisagreement ? `
+    const livePackage=prices.primaryBasis==='raw-power-2';
+    const note = livePackage ? (prices.materialDisagreement?`<p class="mt-2 text-[12px] text-amber-200">Package and additive prices disagree by ${prices.divergencePct.toFixed(0)} percentage points. The live package price ${favors(prices.market.signedPct)}; additive prices remain a separate comparison.</p>`:'') : prices.materialDisagreement ? `
       <div class="mt-2 pl-3 border-l-2 border-amber-400/60 text-[12px] leading-relaxed text-zinc-300" role="note">
         <strong class="text-amber-200">Large pricing-model disagreement (${prices.divergencePct.toFixed(0)} percentage points).</strong>
         <strong>Today's price grades use the additive market sum</strong>,
@@ -45,14 +46,14 @@ const VaultPriceAuditUI = (() => {
               <th class="text-right font-normal">Gap</th></tr></thead>
             <tbody>
               ${row('KTC listed values', prices.listed)}
-              ${row('Market prices added', prices.market)}
+              ${livePackage?row('Vault package price (live)',prices.market):''}
+              ${row('Market prices added', prices.additive||prices.market)}
               ${row('Legacy package curve (reference)', prices.package)}
               ${prices.ktc ? row('KTC-calculator approximation', prices.ktc) : ''}
             </tbody>
           </table>
         </div>
-        <p class="mt-2 leading-relaxed text-zinc-500">Recent trade premiums adjust individual KTC
-          prices. The market-price sum (no consolidation) is the live grading baseline.
+        <p class="mt-2 leading-relaxed text-zinc-500">${livePackage?'Standard SF/1QB uses the provisional power-2 curve on raw listed prices. Additive market estimates remain a separate comparison.':'Recent trade premiums adjust individual KTC prices. The market-price sum (no consolidation) is the live grading baseline.'}
           Vault's retired nonlinear consolidation curve and KTC's separate adjustment
           are displayed only for comparison. These are overlapping-model estimates,
           not four independent price surveys. Roster impact is measured separately.</p>
