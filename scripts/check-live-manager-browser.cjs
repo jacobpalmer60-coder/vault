@@ -54,8 +54,9 @@ const mime={'.html':'text/html','.js':'text/javascript','.json':'application/jso
    const panel=page.getByRole('region',{name:'Historical price comparison'});
    await panel.waitFor({timeout:15000});
    assert.ok((await panel.innerText()).includes('Roster fit: not evaluated'));
-   await panel.getByText('Compare package adjustment',{exact:true}).click();
-   assert.ok(await panel.getByText('KTC-style adjustment using these same recorded base prices.',{exact:false}).isVisible());
+   assert.ok(await panel.getByText('KTC-style value adjustment (VBA)',{exact:true}).isVisible());
+   assert.ok(await panel.getByText('not an official historical KTC calculator result',{exact:false}).isVisible());
+   assert.ok(await panel.getByText('Raw additive base-price comparison',{exact:true}).isVisible());
    console.log('PASS real completed trade detail and package comparison');
   }
   assert.deepEqual(errors,[],'Unhandled browser errors during real manager/grade pages');
