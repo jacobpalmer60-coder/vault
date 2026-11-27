@@ -131,7 +131,7 @@ function paint() {
   $('getList').innerHTML = sides.get.map(a => rowHtml('get', a)).join('');
   const box = $('result'), { send, get } = sides;
   if (!send.length || !get.length) { box.classList.add('hidden'); return; }
-  Vault._gradeMarket = new Map(Object.entries(gradeData?.formats?.[field()] || {}));
+  Vault.setGradeMarket(gradeData,pick.qb==='sf',pick.tep==='_tepp'?1:pick.tep==='_tep'?0.5:0);
   box.classList.remove('hidden');
   const v = Vault.marketSideValues(send, get), k = Vault.ktcSideValues(send, get), edge = edgeOf(v.valueA, v.valueB), ktcEdge = edgeOf(k.valueA, k.valueB);
   const word = Vault.priceWord(Vault.fairnessBucket(Math.abs(edge), 0, 0));
@@ -139,7 +139,7 @@ function paint() {
   box.innerHTML = `<div class="text-[12px] text-zinc-400">${who}${Vault.info('quickGrade')}</div>
     <div class="num text-[34px] leading-tight ${WORD_TONE[word]}">${word}</div>
     <div class="grid grid-cols-2 gap-3 mt-3">
-      <div><div class="num text-[22px] text-zinc-100">${priceText(edge)}</div><div class="text-[12px] text-zinc-400">you pay · additive market price</div></div>
+      <div><div class="num text-[22px] text-zinc-100">${priceText(edge)}</div><div class="text-[12px] text-zinc-400">you pay · ${Vault.pricingBasisLabel()}</div></div>
       <div><div class="num text-[22px] text-zinc-100">${priceText(ktcEdge)}</div><div class="text-[12px] text-zinc-400">KTC's calculator</div></div>
     </div>
     ${typeof VaultPackagePricing!=='undefined'?VaultPackagePricing.html(VaultPackagePricing.read(Vault,get,send,{market:gradeData?.formats?.[field()]?Vault._gradeMarket:null}),'You','Other team',Vault.escapeHtml):''}
